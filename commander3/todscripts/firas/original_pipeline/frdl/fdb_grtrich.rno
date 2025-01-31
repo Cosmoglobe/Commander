@@ -1,0 +1,18 @@
+.header level GRT_Conversions_Table (FDB_GRTRICH) (REF)
+
+    Conversion tables for each of the FIRAS GRTs are contained
+in this lookup file, as determined preflight.  Several
+editions are required, since these calibrations are done more than
+once.  Each edition is tagged by an effective timerange, the timerange
+to which the conversion tables are applicable.
+    Calibration resistor values for the temperature monitors are
+determined every major telemetry frame, and so must be recorded as a
+history file.  As such, they are used to convert GRT counts to ohms.  A
+GRT conversion table is then applied to this intermediate value, which
+converts ohms into the actual temperature.  Since each thermometer is
+measured twice (on low and high current scales), the conversion will be
+the result of a linear interpolation algorithm used to combine the two
+readings.
+    This data set is created by STOL facility DBDEF and is entered into
+the archive via facility CCL.
+

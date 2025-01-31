@@ -1,0 +1,7 @@
+!
+! Raw science data.
+!
+        array/word/dim=512      IFG
+                                !  IFG in counts
+        array/word/dim=32       GLTCH
+                                !  On board glitch map

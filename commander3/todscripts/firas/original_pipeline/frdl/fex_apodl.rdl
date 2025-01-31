@@ -1,0 +1,47 @@
+!
+!  Apodization Function File Structure
+!
+Record FEX_APODL FEX_APODL
+
+  Array/Double/Dim=512          APODFCN
+                                ! Apodization Function
+                                !
+                                !    Stored in 433 records;
+                                !    first 384 consist of
+                                !    one record for each value of
+                                !    adds-per-group from 1 to 12 for
+                                !    each combination of MTM speed,
+                                !    MTM length, low or high channel,
+                                !    digital filter on or off, and
+                                !    linearized or unlinearized ifgs.
+                                !    Sci-mode 2 or 4 has digital
+                                !    filter on, sci-mode 0,1, or 3
+                                !    has digital filter off.
+                                !    Next 48 records are for special
+                                !    scan modes FS and FL, only for
+                                !    low channel.
+                                !    Last record is for fake-it data.
+                                !
+                                !    Adds-per-group = 1      1 - 32
+                                !     MTM slow               1 - 16
+                                !      MTM short             1 -  8
+                                !       Channel low          1 -  4
+                                !        Digital filter off  1 -  2
+                                !         Unlinearized            1
+                                !         Linearized              2
+                                !        Digital filter on   3 -  4
+                                !       Channel high         5 -  8
+                                !      MTM long              9 - 16
+                                !     MTM fast              17 - 32
+                                !
+                                !    Adds-per-group = 2     33 - 64
+                                !       . . .
+                                !    Adds-per-group = 1    385 -388
+                                !      (MTM fast, short,
+                                !       Channel low)
+                                !       Digital filter off 385 -386
+                                !         Unlinearized          385
+                                !         Linearized            386
+                                !        Digital filter on 387 -388
+                                !    Fake-it data               433
+End_Record

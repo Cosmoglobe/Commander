@@ -1,0 +1,89 @@
+c-----------------------------------------------------------------------------
+c
+c       Glitchmap include file.
+c
+c       Created by:
+c
+c            J. D. Dave'
+c               ARC
+c            August, 1987
+c
+c       This include file contains variables which are common to many
+c       of the routines in glitch_map
+c
+c	SER 5728, Steven Alexander, STX, March 7, 1990.  Add capability
+c		to pass in a PLT command file.
+c
+c-----------------------------------------------------------------------------
+
+	include   '(fut_params)'
+	include   '(upm_stat_msg)'
+
+	integer   *  4      plot
+	character * 32      plot_device
+	integer	  *  4	    plt_com
+	character * 64      plt_com_file
+	integer   *  4      cpy_lun
+
+	
+	dictionary 'nfs_sdf'
+        record /nfs_sdf/ sci_rec	!science records
+                                        !Read from archive 
+
+	integer   *  4      chan_id	!channel id
+                                        !rh = 1, rl = 2, lh = 3, ll = 4
+                                        !Its value is controlled from
+                                        !glitch_map
+
+	integer   *  4      num		!number of science records
+
+	integer   *  2      i           ! a counter
+	integer   *  2      j           ! a counter
+	character *  4      ans
+
+	logical   *  4      eof         !end of file flag
+	logical   *  4      init        !initial whack
+	logical   *  4      initial     !initial gor terr data for channel
+	logical   *  4      begin       !start new time_range
+	logical   *  4      more
+
+	character * 30      time_range
+	character * 14      gmt(50)
+	character *  2      scan
+	integer   *  4      ngroup
+	integer   *  4      nsweep
+	integer   *  4      fakeit
+	integer   *  4      mtm_speed
+	integer   *  4      mtm_length
+	integer   *  4      xcal_pos
+	integer   *  4      gain
+	integer   *  4      upmode
+	integer   *  4      n_over(50)
+	real      *  4      avg_g(50)
+        integer   *  4      degl_thre(50)
+	real      *  4      sci_ifg(512,50)
+	real      *  4      his(512,50)
+
+	real      *  4      g_ifg(512)
+	real      *  4      g_hist(512)
+	
+	logical   *  4      batch
+	logical   *  4      i_write
+	logical   *  4      ifg_flag
+	logical   *  4      grp_max
+	character *  40     in_file
+	character *  40     out_file
+	character *  4      input
+	integer   *  2      nchan(4)
+	integer   *  2      n_chan
+	integer   *  2      n_scan
+	character *  2      nscan(4)
+
+	common /glitch_include/ sci_ifg, his, g_hist, g_ifg,
+     .		chan_id, ngroup, nsweep, fakeit, num, scan, mtm_speed,
+     .		mtm_length, xcal_pos, gain, upmode, time_range, gmt, avg_g,
+     .		n_over, degl_thre
+	common /flags/ init, initial, begin, eof, more, grp_max
+	common /qualifier/ batch, ifg_flag, i_write, input, in_file,
+     .		out_file, nscan, n_scan, n_chan, nchan, plot, plot_device,
+     .          plt_com, plt_com_file

@@ -1,0 +1,9 @@
+!
+!  GRT Conversion Table Record Structure
+!
+record FDB_GRTRICH FDB_GRTRICH
+
+  array/byte/dim=7012 GRT_TABLE
+                      ! GRT conversion table
+
+end_record

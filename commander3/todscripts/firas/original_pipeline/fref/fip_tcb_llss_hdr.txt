@@ -1,0 +1,142 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'TEMP-MAP'           / CMBR Temperature Map
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'LL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'S'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'S'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+COMMENT
+COMMENT   Results of CMBR temperature and dipole fit to temperature map:
+COMMENT
+CBR_TEMP=             2.725963 / CMBR temperature, in K
+CBR_SIG=                 0.004 / CMBR temperature sigma, in mK
+DIP_AMP=                 3.342 / Dipole amplitude, in mK
+DIP_SIG=                 0.010 / Dipole amplitude sigma, in mK
+DIP_LON=                 264.9 / Dipole longitude, in deg (Galactic coordinates)
+DIP_LAT=                  48.0 / Dipole latitude, in deg (Galactic coordinates)
+DIR_SIG=                  0.14 / Dipole direction sigma, in deg
+RMS_TEMP=                0.303 / RMS temperature residual, in mK
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT 
+COMMENT   FIRAS CMBR temperature map
+COMMENT     project dataset record structure
+COMMENT 
+COMMENT 
+COMMENT  FIRAS pixel number (resolution 6)
+TFORM1='1J'
+TTYPE1='PIXEL' / entire fieldname = PIXEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Ecliptic longitude, epoch 2000.0, in deg (0 -> 360)
+TFORM2='1E'
+TTYPE2='ECLON' / entire fieldname = ECLON
+OFFSET2=4
+TUNIT2='deg'
+COMMENT Ecliptic latitude, epoch 2000.0, in deg (-90 -> +90)
+TFORM3='1E'
+TTYPE3='ECLAT' / entire fieldname = ECLAT
+OFFSET3=8
+TUNIT3='deg'
+COMMENT 
+COMMENT   CMBR Temperature in Pixel
+COMMENT 
+COMMENT  CMBR Temperture in Pixel, in K
+TFORM4='1E'
+TTYPE4='TEMP' / entire fieldname = TEMP
+OFFSET4=12
+TUNIT4='K'
+COMMENT  Sigma of CMBR Temperture in Pixel, in K
+TFORM5='1E'
+TTYPE5='TEMP_SIG' / entire fieldname = TEMP_SIG
+OFFSET5=16
+TUNIT5='K'
+COMMENT  CMBR Temperature Residual in Pixel, in K
+TFORM6='1E'
+TTYPE6='RESID_TE' / entire fieldname = RESID_TEMP
+OFFSET6=20
+TUNIT6='K'
+COMMENT 
+COMMENT   Ancillary Information
+COMMENT 
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM7='4A'
+TTYPE7='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET7=24
+TUNIT7=' '
+COMMENT  Number of IFGs in fitted Spectrum
+TFORM8='1E'
+TTYPE8='NUM_IFGS' / entire fieldname = NUM_IFGS
+OFFSET8=28
+TUNIT8=' '
+COMMENT  Galactic longitude, in deg (0 -> 360)
+TFORM9='1E'
+TTYPE9='GALON' / entire fieldname = GALON
+OFFSET9=32
+TUNIT9='deg'
+COMMENT  Galactic latitude, in deg (-90 -> +90)
+TFORM10='1E'
+TTYPE10='GALAT' / entire fieldname = GALAT
+OFFSET10=36
+TUNIT10='deg'
+COMMENT  Right ascension, in deg (0 -> 360)
+TFORM11='1E'
+TTYPE11='RA' / entire fieldname = RA
+OFFSET11=40
+TUNIT11='deg'
+COMMENT  Declination, in deg (-90 -> +90)
+TFORM12='1E'
+TTYPE12='DEC' / entire fieldname = DEC
+OFFSET12=44
+TUNIT12='deg'
+COMMENT  Galactic latitude exclusion for dipole fit, 
+COMMENT  absolute value in deg (0 -> 90)        
+TFORM13='1E'
+TTYPE13='GALATEXC' / entire fieldname = GALATEXC
+OFFSET13=48
+TUNIT13='deg'
+COMMENT 
+END

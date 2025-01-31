@@ -1,0 +1,145 @@
+C/	FDQ_FIRNAMES.TXT
+C/
+C/	Include file containing the (IGSE) database names for
+C/	FIRAS Housekeeping quantities.
+C/	
+C/	AUTHOR: E.FUNG
+C/		GSFC
+C/		OCT. 23, 1985
+C/
+C/      changes:
+C/
+C/             J. Durachta
+C/                ARC
+C/             11/17/87
+C/              Reason:     FAXCS6TL and FAXCS6TH corrected to FBXCS6TL and
+C/                          FBXCS6TH .
+C/
+C/	       Shirley M. Read
+C/	          STX
+C/	       05/17/88
+C/	        Reason:     FLMAC1T and FLMAC2T added to IGSE database.
+C/			    Name changed for drive box temperatures.
+C/			    Added descriptive information.
+C/
+
+	CHARACTER*8	POLY_NAMES(NPOLY)	! NPOLY is defined in FDQ_CONVBUFF.TXT
+
+	CHARACTER*8	GRT_NAMES(NGRT)		! NGRT is defined in FDQ_CONVBUFF.TXT
+
+	DATA		POLY_NAMES /
+	1		'FAIRTCMD',		!  1	Temperature Controllers 
+	1		'FARHTCMD',		!  2    command bit readback
+	1		'FASHTCMD',		!  3    from telemetry. These
+	1		'FAXCTCMD',		!  4    have no conversions.
+	1		'FBIRTCMD',		!  5    Table range: 0 to 4095.
+	1		'FBRHTCMD',		!  6    All values are valid.
+	1		'FBSHTCMD',		!  7 
+	1		'FBXCTCMD',		!  8
+	1		'FAIPDUTP',		!  9	IPDU temperatures
+	1		'FBIPDUTP',		! 10
+	1		'FRHWETP',		! 11	Channel temperatures
+	1		'FLHWETP',		! 12
+	1		'FRLWETP',		! 13
+	1		'FLLWETP',		! 14
+	1		'FDBTP1',		! 15	Drive box temperatures.
+	1		'FDBTP2',		! 16    Name changed May 1988.
+	1		'FSMATP',		! 17	Status monitor temps.
+	1		'FSMBTP',		! 18
+	1		'FPATP',		! 19	Channel pre-amp
+	1		'FOBTP',		! 20	Optical pre-amp
+	1		'FAHSHI',		! 21	Hot spot heater currents
+	1		'FBHSHI',		! 22
+	1		'FAMTRI',		! 23	MTM/Cal motor currents
+	1		'FBMTRI',		! 24
+	1		'FAMTMPOS',		! 25	MTM position. LVDT:
+	1		'FBMTMPOS',		! 26    voltage corres. position
+	1		'FABBVRH',		! 27	Bolometer bias voltages
+	1		'FABBVRL',		! 28
+	1		'FBBBVLH',		! 29
+	1		'FBBBVLL',		! 30
+	1		'FADCN15V',		! 31	IPDU voltages
+	1		'FBDCN15V',		! 32
+	1		'FADCP15V',		! 33
+	1		'FBDCP15V',		! 34
+	1		'FADCP5V',		! 35
+	1		'FBDCP5V',		! 36
+	1		'FAACP15V',		! 37
+	1		'FBACP15V',		! 38
+	1		'FAACN15V',		! 39
+	1		'FBACN15V',		! 40
+	1		'FABIASV',		! 41    Bias Preregulators
+	1		'FBBIASV',		! 42
+	1		'FAICP28V',		! 43
+	1		'FBICP28V',		! 44
+	1		'FAICP15V',		! 45
+	1		'FBICP15V',		! 46
+	1		'FAICN15V',		! 47
+	1		'FBICN15V',		! 48
+	1		'FAICP5V',		! 49
+	1		'FBICP5V',		! 50
+	1		'FABIASI',		! 51   IPDU currents
+	1		'FBBIASI',		! 52
+	1		'FAACI',		! 53
+	1		'FBACI',		! 54
+	1		'FADCI',		! 55
+	1		'FBDCI',		! 56
+	1		'FACCPIRH',		! 57
+	1		'FBCCPILH',		! 58
+	1		'FACCPIRL',		! 59
+	1		'FBCCPILL',		! 60
+	1		'FAICI',		! 61
+	1		'FBICI',          	! 62
+	1		'FLMAC1T',              ! 63 LMAC analog converter tmp.
+					        !    Both SC sides read FIRAS A
+	1		'FLMAC2T'  /		! 64 LMAC digital converter tmp.
+						!    Both SC sides read FIRAS A	
+	DATA		GRT_NAMES /
+	1		'FAXCTLO',		!  1 Cal Group 1: A, low
+	1		'FASHTLO',		!  2
+	1		'FARHTLO',		!  3
+	1		'FAIRTLO',		!  4
+	1		'FADIRTLO',		!  5
+	1		'FABRHTLO',		!  6
+	1		'FABRLTLO',		!  7
+	1		'FABLHTLO',		!  8
+	1		'FABLLTLO',		!  9
+	1		'FAM1RTLO',		! 10
+	1		'FAXCS5TL',		! 11
+	1		'FAC1RTLO',		! 12
+	1		'FAXCTHI',		! 13 Cal Group 2: A, high
+	1		'FASHTHI',		! 14
+	1		'FARHTHI',		! 15
+	1		'FAIRTHI',		! 16
+	1		'FADIRTHI',		! 17
+	1		'FABRHTHI',		! 18
+	1		'FABRLTHI',		! 19
+	1		'FABLHTHI',		! 20
+	1		'FABLLTHI',		! 21
+	1		'FAM1RTHI',		! 22
+	1		'FAXCS5TH',		! 23
+	1		'FAC1RTHI',		! 24
+	1		'FBXCTLO',		! 25 Cal Group 3: B, low
+	1		'FBSHTLO',		! 26
+	1		'FBRHTLO',		! 27
+	1		'FBIRTLO',		! 28
+	1		'FBDILTLO',		! 29
+	1		'FBBRHTLO',		! 30
+	1		'FBBRLTLO',		! 31
+	1		'FBBLHTLO',		! 32
+	1		'FBBLLTLO',		! 33
+	1		'FBM1LTLO',		! 34
+	1		'FBXCS6TL',		! 35
+	1		'FBC1LTLO',		! 36
+	1		'FBXCTHI',		! 37 Cal Group 4: B, high
+	1		'FBSHTHI',		! 38
+	1		'FBRHTHI',		! 39
+	1		'FBIRTHI',		! 40
+	1		'FBDILTHI',		! 41
+	1		'FBBRHTHI',		! 42
+	1		'FBBRLTHI',		! 43
+	1		'FBBLHTHI',		! 44
+	1		'FBBLLTHI',		! 45
+	1		'FBM1LTHI',		! 46
+	1		'FBXCS6TH',		! 47
+	1		'FBC1LTHI'  /		! 48

@@ -1,0 +1,43 @@
+C******************************************************************************
+C  File Name: FEX_MTMSweep.Txt
+C
+C  Purpose: To be used for making reference file, for FPP to use, containing
+C	data for the FULL sweep flyback time.  Times will be used in the
+C	computation of the midpoint and end of collect time for the
+C	interferograms.  Times in tenths of microsecond for quadword use.
+C
+C  Author: Shirley M. Read, STX, January 1989.
+C
+C  Notes:  Mike Roberto, NASA, January 1989.
+C	Information on MTM sweeps and flyback provided for STX.
+C	Assumptions:	1. Total Time = Turn Around + Sweep + Flyback
+C			2. Total Time > Valid Time during Sweep and Flyback
+C			3. The Total Times given in the comments of the data
+C			statements / 2 are the Half Sweep Flyback Times needed
+C			needed for the midpoint of collect computation.
+C			4. The Total Times are the current measured values 
+C			for each MTM scan mode. They are not expected to change.
+C  MAJOR
+C  CHANGE:  Larry P. Rosen, STX, 17 May 1991.  SER # 8416, Analysis has shown
+C  that Vertical and Horizontal MTM ground measurement values, FIRAS User's
+C  Manual, pg. 14-18, do not apply.  This file contains values determined from
+C  Word 31 (ANC) data using my program MTMTIME; Total Time, the Flyback Time,
+C  and the time when the data was determined (in GMT).
+C
+C	Pass 2 Certification:  Rick Shafer 1991 Sept 19:  Mission Time Range
+C*******************************************************************************
+Start Here (Add no new comment lines after this.  Don't change this line either)
+!-------------------------Time when data was determined in gmt-----------------
+91133000000000
+!-------------------------Total Times------------------------------------------
+  34600000	! Total Time: short-slow, 3.46 sec.
+ 112300000	! Total Time: long-slow, 11.23 sec.
+  24600000	! Total Time: short-fast, 2.46 sec.
+  79400000	! Total Time: long-fast, 7.94 sec.
+!-------------------------Now just the flyback times:---------------------------
+   4200000	! FlyBack Time: short-slow, 0.42 sec.
+  13500000	! FlyBack Time: long-slow, 1.35 sec.
+   4200000	! FlyBack Time: short-fast, 0.42 sec.
+  13500000	! FlyBack Time: long-fast, 1.35 sec.
+!-------------------------------------------------------------------------------
+

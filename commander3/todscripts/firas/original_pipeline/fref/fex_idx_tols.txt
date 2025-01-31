@@ -1,0 +1,60 @@
+!------------------------------------------------------------------------
+!  File Name : FEX_IDX_TOLS.TXT
+!
+*  Description : Comment line must begin with a '*', or a '!' in
+*      		 column one. Blank lines are allowed.
+*
+*  Purpose Of File : To be used in creating the limits database for FDQ.
+*
+*  Designer :    Quoc C Chung / STX April 14, 1989
+*
+*	Certification:  1991 April 30 Rick Shafer Pass 2
+!
+!12345678901234567890123456789011BBXXBBXXX
+!------------------------------------------------------------------------
+! ITEM NAME			  !NO ! % !
+!------------------------------------------------------------------------
+Grt_controlled_low_current	   01    1
+!
+Grt_controlled_high_current        02    1
+!
+Grt_dihedrals_low_current          03   10
+!
+Grt_dihedrals_high_current         04   10
+!
+Grt_bolometers_low_current         05   10
+!
+Grt_bolometers_high_current        06   10
+!
+Grt_mirrors_low_current            07   10
+!
+Grt_mirrors_high_current           08   10
+!
+Temperature_controllers            09    1
+!
+Other_temperatures                 10   10
+!
+Bolometer_voltage_readouts         11   10
+!
+Ipdu_digital_convert_voltages      12   10
+!
+Ipdu_analog_convert_voltages       13   10
+!
+Ipdu_bias_pre_regulator_voltages   14   10
+!
+Ipdu_28v_internal_pwr_voltages     15   10
+!
+Ipdu_15v_internal_pwr_voltages     16   10
+!
+Ipdu_5v_internal_pwr_voltages      17   10
+!
+Ipdu_bias_pre_regulator_currents   18   10
+!
+Ipdu_analog_converter_currents     19   10
+!
+Ipdu_digital_converter_currents    20   10
+!
+Ipdu_constant_currents             21   10
+!
+Ipdu_internal_converter_currents   22   10
+! 

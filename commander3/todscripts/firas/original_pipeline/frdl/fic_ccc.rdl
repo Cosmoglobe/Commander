@@ -1,0 +1,8 @@
+!
+!  Timetags of cal or raw ifgs passing and failing consistency check.
+!
+record FIC_CCC FIC_CCC
+
+  include con_check.rdl
+
+end_record

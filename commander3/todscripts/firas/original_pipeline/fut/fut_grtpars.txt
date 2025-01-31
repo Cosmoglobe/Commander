@@ -1,0 +1,37 @@
+!******************************************************************************
+
+!  THIS IS SOURCE FILE   F D Q _ G R T P A R S . T X T
+
+!******************************************************************************
+
+
+!  CREATED BY JOSE E. ALZONA, OAO/8.VIII.85
+!  ----------------------------------------
+!
+!	Modified by E.Fung Oct.24, 1985 to add parameter GRT_SIZE; also
+!	renamed to FDQ_GRTPARS.TXT FROM GRTPARS.INC, from the original 
+!	GRT_PARS4_INC.
+!
+
+!  FUNCTION
+!  --------
+!	Defines parameter values describing the GRTCOEFF.DB file format
+!	as used by the IGSE GRT init program (called by LOADLCP)
+
+!	The format is described in include file INC$:GRT_PARS3.INC
+
+!******************************************************************************
+
+!  The following represent indices into the byte array comprising a 
+!  GRTCOEFF.DB record:
+
+	PARAMETER 	GRT_DB_NAME = 1,	!GRT name
+	1		GRT_DB_TWI  = 9,	!Three word index
+	2		GRT_DB_SET  = 15,	!Calibrator set number
+	3		GRT_DB_KNCT = 19,	!Knot count
+	4		GRT_DB_KNTS = 23	!First knot value
+
+!
+!	The following line added by E. Fung:
+!
+	PARAMETER	GRT_RECSZ = 7012

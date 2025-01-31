@@ -1,0 +1,6 @@
+!
+!  Structure for index tolerances.
+!
+        array/word/dim=256      TOLS
+                                ! Index tolerances for
+                                ! engineering fields 

@@ -1,0 +1,228 @@
+1 FPP 
+
+	PURPOSE
+
+	FPP is the first facility in the pipeline processing of FIRAS data.  Its
+	purpose is to compute the midpoint of collect time of the
+	interferograms, to find the gain, fake-it status, and scan mode during
+	the collection of each interferogram, and to write the science record in
+	the FIRAS raw science archive.  It will also flag any invalid computed
+	midpoint times, unknown gains, unknown fake-it statuses, data gaps, bad
+	telemetry quality, and bad number of MTM (mirror) sweeps.
+
+	METHOD
+
+	FPP will accomplish its requirements by using the information in the
+	raw science data, the ancillary data (word 31), the gain and fake-it
+	reference data files, and an understanding of the timing of the
+	information.
+
+	From the raw science record, FPP reads the transmit time of the
+	interferogram and its MTM synchronization flag.  The sync flag is set if
+	the scan group pulse arrives before the completion of an interferogram.
+	This indicates that the channel is not synchronized with the MTM pulses.
+	Based on either the information in the science header (when in sync) or
+	on an estimate of the end of collect time (out of sync), a reference
+	time is created.  FPP uses this time to find the ancillary data major
+	frame associated with the interferogram in the science record.  This
+	frame gives the scan mode for the interferogram, which in turn is used
+	to calculate the midpoint of collect time.
+
+	The gain and fake-it status for each interferogram are determined by
+	using the calculated collection time to find the appropriate records in
+	the reference files.  These files were created by facility FGFG from the
+	housekeeping data.  Depending on the information in the reference files,
+	the timing of the science record, and the synchronization state, FPP
+	determines the gain and fake-it status, or sets flags for unknown
+	values, gaps, or bad telemetry quality.
+
+
+2 /JSTART
+
+       The start time of the NFS_SDF raw science data to be processed.
+       Both start and stop times must be specified for an FPP run if the data
+       is to be accessed by a time range.  Jstart defaults to the beginning
+       of the specified time; thus  /Jstart=90201 becomes 90201000000000 an
+       /Jstart = 9022117 becomes 90221170000000.
+
+       /JSTART and /JSTOP in conjunction with /FILENAME define all of the
+       input modes available for FPP.  /JSTART=<GMT start>/JSTOP=<GMT stop>,
+       without /FILENAME in the command line, processes NFS_SDF raw science
+       and ancillary housekeeping by timerange only; this mode ignores
+       segment boundaries and data overlap.
+
+       Format for Qualifier:
+
+           Jstart=YYDDDHHMMSSmmm/Jstop=YYDDDHHMMSSmmm
+
+       Format Examples:
+
+	   FPP/Jstart=89300105000000/Jstop=89301
+
+	   FPP/Jstart=90123/Jstop=90123    (This runs FPP for 1 day).
+
+
+2 /JSTOP
+
+       The stop time of the NFS_SDF raw science data to be processed.
+       Both start and stop times must be specified for an FPP run if the data
+       is to be accessed by a time range.  Jstop defaults to the end of the
+       day specified so that /Jstop=89345 causes Jstop to be 89345235959990.
+       /Jstop=9013412 causes Jstop to be 90134125959990.  Thus one day of
+       data can be processed by entering FPP/Jstart=90240/Jstop=90240.
+
+       /JSTART and /JSTOP in conjunction with /FILENAME define all of the
+       input modes available for FPP.  /JSTART=<GMT start>/JSTOP=<GMT stop>,
+       without /FILENAME in the command line, processes NFS_SDF raw science
+       and ancillary housekeeping by timerange only; this mode ignores
+       segment boundaries and data overlap.
+
+       Format for Qualifier:
+
+           Jstart=YYDDDHHMMSSmmm/Jstop=YYDDDHHMMSSmmm
+
+       Format Examples:
+
+	   FPP/Jstart=89300121530000/Jstop=89301182556990
+
+
+2 /CHANNEL
+
+       The Channel qualifier allows the user to select one, or all, of the four
+       science channels for the run. The default is ALL channels.  One channel
+       may be selected by specifying the channel: RH, RL, LH or LL.
+
+       Format Examples:
+
+           FPP/Channel=ALL/Jstart=89301/Jstop=89301
+
+	   Preprocess/Channel=RH/File=NFS_SDF_LL.ED_893051900
+
+           FPP/Jstart=89301/Jstop=89301			! Default is ALL
+
+
+2 /MAX_SEC
+
+       This parameter determines the maximum number of seconds allowed between
+       two major frames of Word 31 ancillary data before a telemetry gap is 
+       established.  The default is 40 seconds.
+
+       Format Examples:
+
+           FPP/Max_Sec=33/Jstart=89341/Jstop=89341
+
+           FPP/Jstart=89341/Jstop=89341		! Default is 40
+
+
+2 /REPORT
+
+       The Report qualifier determines whether a report will be generated for
+       the run.  The default is to write the report file.  This qualifier is
+       negatable.  Default report name:
+                      FPP_yydddhh_yydddhh.REP_yydddhhmm;
+       where the first two date/times are the start and stop times for the data,
+       and the final date/time is the current GMT for that run.
+
+       Format Examples:
+
+           FPP/Report=mytest.rep/Jstart=89301/Jstop=89302  ! Accepts file name
+                                                           ! for report.
+           FPP/Report/Jstart=89301/Jstop=89301        ! Default file name
+                                                      ! used for report.
+           FPP/Jstart=90201/Jstop=90201         ! Default file name used for
+                                                ! report.
+	   FPP/NOReport/File=NFS_SDF_RL.ED_892051900    ! No report file created
+
+2 /SCREEN_SWEEPS
+
+       This defaulted qualifier tells FPP to flag ifg's with the badtime flag
+       if the number of MTM sweeps is not 0, 1, 4, or 16.  It can be negated.
+
+       Format Examples:
+
+           FPP/Jstart=89358/Jstop=89358              ! defaults to screen sweeps
+           FPP/Jstart=89358/Jstop=89358/Screen_Sweeps  ! screen sweeps
+           FPP/Jstart=89358/Jstop=89358/NoScreen_Sweeps ! Do not screen sweeps
+
+2 /SCI_GAP
+
+       This qualifier specifies the number of seconds allowed between science
+       records before a gap is reported in the FPP report.  This has no effect
+       if /NOREPORT is used.  The defaulted value is 300.
+
+       Format Examples:
+
+           FPP/Jstart=89358/Jstop=89358      ! since report and sci_gap=300
+                                             ! are defaults, gaps larger than
+                                             ! 5 minutes are reported.
+
+           FPP/Jstart=89358/Jstop=89358/Sci_gap=60
+                                             ! since report is default, gaps
+                                             ! larger than 1 minute are reported
+
+           FPP/Jstart=89358/Jstop=89358/Sci_gap=60/NoReport
+                                             ! No gaps reported.
+
+2 /ANC_GAP
+
+       This qualifier specifies the number of seconds allowed between word 31,
+       ancillary frames before a gap is reported in the FPP report.  This has
+       no effect if /NOREPORT is used.  The defaulted value is 90.
+
+       Format Examples:
+
+           FPP/Jstart=89358/Jstop=89358      ! since report and anc_gap=90
+                                             ! are defaults, gaps larger than
+                                             ! 90 seconds are reported.
+
+           FPP/Jstart=89358/Jstop=89358/Anc_gap=60
+                                             ! since report is default, gaps
+                                             ! larger than 1 minute are reported
+
+           FPP/Jstart=89358/Jstop=89358/Anc_gap=60/NoReport
+                                             ! No gaps reported.
+
+
+2 /FILENAME
+      
+       Defines a specific NFS_SDF file or segment to be processed.  The file
+       name consists of a FIRAS Science Channel dataset name and the file
+       extension.  If all channels are being run, the program will build the
+       corresponding file extensions from the specfied channel.  The
+       corresponding ancillary file name will also be built.
+
+       /FILENAME in conjunction with /JSTART and /JSTOP define all of the
+       input modes available for FPP.  /FILENAME=<segment name> directly
+       specifies the NFS_SDF raw science datasets and the ancillary
+       housekeeping.  /FILENAME/JSTART=<GMT start>/JSTOP=<GMT stop> selects,
+       by segment, all NFS_SDF raw science and ancillary housekeeping for
+       processing.
+
+       Format Examples:
+
+           FPP/Filename=NFS_SDF_RH.ED_892841904
+
+	   Preprocess/File=NFS_SDF_LH.ED_893571026
+
+           FPP/Filename/JStart=89154/JStop=89154
+
+2  FIRAS_Logicals
+
+  Datasets used by FPP are controlled by the logical names " CSDR$FIRAS_RAW ",
+  "CSDR$FIRAS_OUT", and "CSDR$FIRAS_REF".  These logical names can be used
+  to direct the facility to operate on datasets within a private archive by
+  making definitions such as:
+     DEFINE CSDR$FIRAS_RAW DEVICE:[PRIVATE.ARCHIVE]
+  Input:      CSDR$FIRAS_RAW
+  Reference:  CSDR$FIRAS_REF
+  Output:     CSDR$FIRAS_OUT
+
+2  Production
+
+  During pipeline production FPP is invoked (for an example day 89356):
+
+       FPP/JSTART=89356/JSTOP=89356/SCI_GAP=600/ANC_GAP=600
+
+  This uses the defaults /Channel=All, /Max_Sec=40, /Report, /Screen_Sweeps.
+  This processes one day of data for all 4 channels, and reports gaps greater
+  than 10 minutes.

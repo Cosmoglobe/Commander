@@ -1,0 +1,30 @@
+!
+! FIRAS line-subtracted dust spectrum record structure 
+!
+record FLA_DST FLA_DST
+!
+! FIRAS pixel number (resolution 6)
+scalar/long            PIXEL
+! Ecliptic longitude (pixel average), in deg (0 -> 360)
+scalar/float           ECLON          
+! Ecliptic latitude  (pixel average), in deg (-90 -> +90)
+scalar/float           ECLAT          
+! Real part of spectrum, in eplees
+array/float/dim=167    REAL_SPECTRUM
+! Imaginary part of spectrum, in eplees
+array/float/dim=167    IMAG_SPECTRUM
+!
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4   CHANSCAN
+!
+! Number of IFGs in spectrum
+scalar/float            NUM_IFGS    
+! Galactic longitude (pixel average), in deg (0 -> 360)
+scalar/float           GALON          
+! Galactic latitude  (pixel average), in deg (-90 -> +90)
+scalar/float           GALAT          
+! Right ascension (pixel average), in deg (0 -> 360)
+scalar/float           RA             
+! Declination     (pixel average), in deg (-90 -> +90)
+scalar/float           DEC    
+end_record

@@ -1,0 +1,16 @@
+!
+! calibration resistances for dwellplot
+!
+record fex_calres fex_calres
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  array/long/dim=(4,4)     Kal_counts
+                        ! 
+                        !  calibration resistance 
+                        !   
+  array/byte/dim=128    Spare
+
+end_record

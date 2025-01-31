@@ -1,0 +1,107 @@
+C/
+C/	FDQ_CONVBUFF.TXT
+C/	Include file for the buffer containing all the conversions
+C/	coefficients (both polynomial types and GRT type conversions)
+C/	
+C/	Modified: Shirley M. Read, STX, May 1988 - Increased NPOLY.
+C/
+C/	Modified: Shirley M. Read, STX, August 1988 - Added the calibrator
+C/                resistors information and related parameters.
+C/
+	PARAMETER	MAXPTS = 350	 ! Maximum no. of points on a
+					 ! GRT lookup table
+					 ! This is 5: x, y & 3 coeff.
+	PARAMETER	MAXPOLY = 80	 ! Maximum no. of points with polynomial
+					 ! conversions; used for array sizes
+	PARAMETER	MAXGRT = 50	 ! Maximum no. of GRT's; used for 
+					 ! array sizes
+	PARAMETER	MAXCAL = 16	 ! Maximum no. of calibrator
+					 ! resistors; used for array sizes
+!
+!	TOTAL_SIZE = size of conversions buffer
+!
+	PARAMETER	TOTAL_SIZE = 2*MAXPOLY	! for POLY_VALSIZE (2 bytes each)
+	1			+ 2*MAXPOLY	! for POLY_NC (2 bytes each)
+	1			+ 4*6*MAXPOLY	! for POLY_COEF (4*6=24 bytes each)
+	1			+ 2*MAXGRT	! for GRT_CALGRP (2 bytes each)
+	1			+ 2*MAXGRT	     ! for GRT_NPTS (2 bytes each)
+	1			+ 4*MAXPTS*MAXGRT    ! for GRT_XTAB (4 bytes each)
+	1			+ 4*MAXPTS*MAXGRT    ! for GRT_YTAB (4 bytes each)
+	1			+ 4*3*MAXPTS*MAXGRT  ! for GRT_COEF (4*3=12 bytes each)
+	1			+ 4*MAXCAL      ! for 16 CALLO and 16 CALHI
+					        ! (2 bytes each)
+	1			+ 4*MAXCAL      ! for 16 CALRES (4 bytes each)
+
+
+	BYTE		CONVBUFF(TOTAL_SIZE)
+	COMMON		/CONVBUFF/ CONVBUFF
+
+!
+!     The following are arrays(with the correct data type) within 
+!     CONVBUFF which hold the conversions info and coefficients
+!
+
+	INTEGER*2	POLY_VALSIZE(MAXPOLY)		! Size of quantity in bytes
+							! when coming down in telemetry
+	INTEGER*2	POLY_NC(MAXPOLY)		! Number of polynomial coef.
+							! 0 = no conversions coef.
+	REAL*4		POLY_COEF(6, MAXPOLY)		! Polynomial coefficients:
+							! POLY_COEF(1,X) -- 5th order coef.
+							! POLY_COEF(2,X) -- 4th order coef
+							!  .
+							!  .
+							!  .
+							! POLY_COEF(6,X) -- constant term
+	INTEGER*2	GRT_CALGRP(MAXGRT)		! Calibration group
+							! 0 = No GRT coef.
+							! 1 = A-side, low current
+							! 2 = A-side, high current
+							! 3 = B-side, low current
+							! 4 = B-side, high current
+	INTEGER*2	GRT_NPTS(MAXGRT)		! No. of points in lookup table
+							! for the GRT's
+	REAL*4		GRT_XTAB(MAXPTS, MAXGRT)	! x-values (resistance) of lookup table
+	REAL*4		GRT_YTAB(MAXPTS, MAXGRT)	! y-values (temperatures) of lookup table
+	REAL*4		GRT_COEF(3, MAXPTS, MAXGRT)	! Quadratic coef. for fitting tables
+!
+!     The following arrays contain the calibrator resistor information.
+!
+	INTEGER*2	CALLO(4,4)		        ! Low count corres. GRTs
+	INTEGER*2	CALHI(4,4)		        ! High count corres. GRTs
+	REAL*4		CALRES(4,4)		        ! Calibrator res. values
+!
+!     Parameters for equivalencing with CONVBUFF
+!
+	PARAMETER	POLY_NC_OFF = MAXPOLY * 2
+	PARAMETER	POLY_COEF_OFF = POLY_NC_OFF + MAXPOLY * 2
+	PARAMETER	GRT_CALGRP_OFF = POLY_COEF_OFF + 24 * MAXPOLY
+	PARAMETER	GRT_NPTS_OFF = GRT_CALGRP_OFF + 2 * MAXGRT
+	PARAMETER	GRT_XTAB_OFF = GRT_NPTS_OFF + 2 * MAXGRT
+	PARAMETER	GRT_YTAB_OFF = GRT_XTAB_OFF + 4 * MAXPTS * MAXGRT
+	PARAMETER	GRT_COEF_OFF = GRT_YTAB_OFF + 4 * MAXPTS * MAXGRT
+	PARAMETER	CALLO_OFF = GRT_COEF_OFF + 12 * MAXPTS * MAXGRT
+	PARAMETER	CALHI_OFF = CALLO_OFF + 2 * MAXCAL
+	PARAMETER	CALRES_OFF = CALHI_OFF + 2 * MAXCAL
+
+	EQUIVALENCE	(POLY_VALSIZE,	CONVBUFF(1))
+	EQUIVALENCE	(POLY_NC,	CONVBUFF(POLY_NC_OFF + 1))
+	EQUIVALENCE	(POLY_COEF,	CONVBUFF(POLY_COEF_OFF + 1))
+	EQUIVALENCE	(GRT_CALGRP,	CONVBUFF(GRT_CALGRP_OFF + 1))
+	EQUIVALENCE	(GRT_NPTS,	CONVBUFF(GRT_NPTS_OFF + 1))
+	EQUIVALENCE	(GRT_XTAB,	CONVBUFF(GRT_XTAB_OFF + 1))
+	EQUIVALENCE	(GRT_YTAB,	CONVBUFF(GRT_YTAB_OFF + 1))
+	EQUIVALENCE	(GRT_COEF,	CONVBUFF(GRT_COEF_OFF + 1))
+	EQUIVALENCE	(CALLO,	        CONVBUFF(CALLO_OFF + 1))
+	EQUIVALENCE	(CALHI,	  	CONVBUFF(CALHI_OFF + 1))
+	EQUIVALENCE	(CALRES,	CONVBUFF(CALRES_OFF + 1))
+!
+!     Now we define the no. of housekeeping values to convert
+!     for both poly-type and GRT-type conversions (as of October, 1985)
+!
+	PARAMETER	NPOLY = 64
+	PARAMETER	NGRT = 48
+	PARAMETER	NCAL = 16
+
+	PARAMETER	UNUSED_POLY = MAXPOLY - NPOLY
+	PARAMETER	UNUSED_GRT = MAXGRT - NGRT
+	PARAMETER	UNUSED_CAL = MAXCAL - NCAL

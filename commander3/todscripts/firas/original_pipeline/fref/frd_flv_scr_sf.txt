@@ -1,0 +1,8 @@
+ $FILEXTS
+        infile_ext(1)='ed_8932611_8932723'
+	infile_ext(2)='ed_8932800_8934301'
+	infile_ext(3)='ed_9013915_9019318'
+	infile_ext(4)='ed_9019318_9020711'
+	infile_ext(5)='ed_9020811_9022004'
+	outfile_ext = 'dat'
+ $END

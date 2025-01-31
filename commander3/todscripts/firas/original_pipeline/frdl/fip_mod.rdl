@@ -1,0 +1,173 @@
+!
+! FIRAS calibration model solution (initial release product)
+!       record structure for a given channel/scan mode
+!
+record FIP_MOD FIP_MOD
+!
+! Calibration model solution identification
+!
+! Calibration model solution label
+scalar/text/length=40  MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4   CHANSCAN
+!
+! Frequency range of model solution
+!
+! Optical frequency of initial data point, in GHz
+scalar/float           NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float           DELTA_NU
+! Audio frequency of initial data point, in rad/s
+scalar/float           OMEGA_ZERO
+! Audio frequency interval, in rad/s
+scalar/float           DELTA_OMEGA
+! Number of frequency points with good data
+scalar/long            NUM_FREQ
+!
+! Instrumental gain function normalization
+!   Units of (MJy*V) / (W*sr)
+scalar/float           NORMALIZATION
+!
+! Electronics gain function
+!
+! Real part of electronics gain function (dimensionless)
+array/float/dim=180    RELEX_GAIN
+! Imaginary part of electronics gain function (dimensionless)
+array/float/dim=180    IELEX_GAIN
+!
+! Optical transfer function
+!
+! Real part of optical transfer function (dimensionless)
+array/float/dim=180    RTRANSFER
+! Imaginary part of optical transfer function (dimensionless)
+array/float/dim=180    ITRANSFER
+!
+! Bolometer response function for the mission average
+!     bolometer state
+!
+!     Response function = (1 + jwT)/S0, where
+!         T is the time constant and
+!         S0 is the DC response
+!
+! Bolometer time constant, in s
+scalar/float           TIME_CONSTANT
+! Bolometer DC response, in V/W
+scalar/float           DC_RESPONSE
+!
+! Detector noise determination
+!
+! Sigma of the detector noise per interferogram, in MJy/sr
+array/float/dim=180    DETECTOR_NOISE
+!
+! Apodization function applied to interferograms
+!   in the time domain prior to Fourier transformation
+!
+! Apodization function (dimensionless)
+array/float/dim=512    APODIZATION
+!
+!
+! Bolometer model parameters
+!
+! Characteristic resistance, in ohms
+scalar/float           BOLPARM_R0
+! Characteristic temperature, in K
+scalar/float           BOLPARM_T0
+! Coefficient of thermal conductance, in W/K**(bolparm_beta+1)
+scalar/float           BOLPARM_G1
+! Index of thermal conductance (dimensionless)
+scalar/float           BOLPARM_BETA
+! Resistance due to electric field, in K/V
+scalar/float           BOLPARM_RHO
+! Heat capacity coefficient for linear temperature term, in J/K**2
+scalar/float           BOLPARM_C1
+! Heat capacity coefficient for cubic temperature term, in J/K**4
+scalar/float           BOLPARM_C3
+! Readout JFET offset, in V
+scalar/float           BOLPARM_JO
+! Readout JFET gain (dimensionless)
+scalar/float           BOLPARM_JG
+! Load resistance, in ohms
+scalar/float           BOLPARM_RL
+!
+! Mission average bolometer state
+!
+! Commanded bolometer bias, in V
+scalar/float           BOLOM_BIAS
+! Bolometer readout voltage, in V
+scalar/float           BOLOM_VOLTAGE
+! Bolometer bath temperature, in K
+scalar/float           BOLOM_BATHTEMP
+! Bolometer operating temperature, in K
+scalar/float           BOLOM_TEMPERATURE
+!
+! Optical model
+!
+! Real part of internal calibrator emissivity (dimensionless)
+array/float/dim=180    RICAL
+! Imaginary part of internal calibrator emissivity (dimensionless)
+array/float/dim=180    IICAL
+! Real part of sky horn emissivity (dimensionless)
+array/float/dim=180    RSKYHORN
+! Imaginary part of sky horn emissivity (dimensionless)
+array/float/dim=180    ISKYHORN
+! Real part of reference horn emissivity (dimensionless)
+array/float/dim=180    RREFHORN
+! Imaginary part of reference horn emissivity (dimensionless)
+array/float/dim=180    IREFHORN
+! Real part of dihedral emissivity (dimensionless)
+array/float/dim=180    RDIHEDRAL
+! Imaginary part of dihedral emissivity (dimensionless)
+array/float/dim=180    IDIHEDRAL
+! Real part of structure emissivity (dimensionless)
+array/float/dim=180    RSTRUCTURE
+! Imaginary part of structure emissivity (dimensionless)
+array/float/dim=180    ISTRUCTURE
+! Real part of bolometer emissivity (dimensionless)
+array/float/dim=180    RBOLOMETER
+! Imaginary part of bolometer emissivity (dimensionless)
+array/float/dim=180    IBOLOMETER
+!
+! Optical model harmonic correction coefficients
+!
+! 2nd harmonic correction coefficient (dimensionless)
+scalar/float           OPTPARM_2H
+! 3rd harmonic correction coefficient (dimensionless)
+scalar/float           OPTPARM_3H
+!
+! Optical model vibration correction coefficients
+!
+!     Primary vibration correction is a
+!         quartic polynomial in time
+!
+! Primary vibration correction offset (dimensionless)
+scalar/float           OPTPARM_VP0
+! Primary vibration correction linear coefficient, in yr**(-1)
+scalar/float           OPTPARM_VP1
+! Primary vibration correction quadratic coefficient, in yr**(-2)
+scalar/float           OPTPARM_VP2
+! Primary vibration correction cubic coefficient, in yr**(-3)
+scalar/float           OPTPARM_VP3
+! Primary vibration correction quartic coefficient, in yr**(-4)
+scalar/float           OPTPARM_VP4
+! Secondary vibration correction coefficient (dimensionless)
+scalar/float           OPTPARM_VS
+!
+! Internal calibrator temperature correction parameters
+!
+!    Temperature drift is exponential in time
+!        since COBE aperture cover ejection:
+!              11:18:00 UTC, 21 November 1989
+!
+! Ical drift amplitude, in K
+scalar/float           DRIFT_AMP
+! Ical drift time constant, in yr
+scalar/float           DRIFT_TC
+! Ical drift offset, in K
+scalar/float           DRIFT_OFFSET
+!
+! External calibrator temperature correction
+!
+! Xcal temperature correction, in K
+scalar/float           XCAL_CORRECTION
+!
+end_record

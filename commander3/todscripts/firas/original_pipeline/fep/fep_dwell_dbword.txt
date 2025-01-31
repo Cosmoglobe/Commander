@@ -1,0 +1,18 @@
+
+C-----------------------------------------------------------------------
+C       Include file Fep_Dwell_Dbword
+C       Purpose: Store data base word for dwellplot
+C       Author: H. Wang
+C       STX, Feb.28, 1990      
+C------------------------------------------------------------------------
+	character*8 dbword(32)
+
+	data dbword /'FAXCTLO ', 'FASHTLO ', 'FARHTLO ', 'FAIRTLO ',
+	2            'FADIRTLO', 'FABRHTLO', 'FABRLTLO', 'FABLHTLO',
+	3            'FABLLTLO', 'FAM1RTLO', 'CalResis', 'CalResis',
+	4            'CalResis', 'CalResis', 'FAXCS5TL', 'FAC1RTLO',
+	5            'FBXCTLO ', 'FBSHTLO ', 'FBRHTLO ', 'FBIRTLO ',
+	6            'FBDILTLO', 'FBBRHTLO', 'FBBRLTLO', 'FBBLHTLO',
+	7            'FBBLLTLO', 'FBM1LTLO', 'CalResis', 'CalResis',
+	8            'CalResis', 'CalResis', 'FBXCS6TL', 'Not_Used'/
+

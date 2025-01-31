@@ -1,0 +1,203 @@
+1 FFI
+    FFI_FISH_INPUT produces voltage spectra in FISH-format from coadded
+    FIRAS calibrations interferograms.  FFI reads in the coadded ifgs, along 
+    with the corresponding apodization function and electronics transfer
+    function.  FFI apodizes and rotates a coadded ifg, then FFTs it into a
+    spectrum.  This spectrum in counts is normalized by the ADC voltage scale
+    factor and the electronics transfer function to yield a spectrum in volts
+    at the detector.  Next, FFI apodizes the real-real voltage variances with
+    the FFT of the apodization function and computes the real-real voltage
+    sigmas from the apodized variances.  Finally, FFI computes various
+    engineering quantities required by FISH.  FFI writes the voltage
+    spectrum, the voltage sigmas, and the engineering quantities to a binary
+    RMS file in the format required by the FISH calibration program.
+
+    Optionally, FFI will read coadded ifgs from two input archives and produce
+    a hybrid output file.  The default output spectra will come from the
+    primary input archive, but for ifgs whose peak height exceeds a specified
+    threshold the output spectra will come from the secondary input archive.
+    This option will normally be invoked when deglitched coadds are contained
+    in the primary input archive and non-deglitched coadds are contained in
+    the secondary input archive.
+
+    FFI can be used generate FISH-format spectra for use in computing low
+    frequency, short fast model solutions.  To produce these datasets, the
+    user should process low frequency short fast calibration coadds in the
+    normal manner.  The user should then process low frequency long fast
+    calibration coadds using the /FL scan mode switch.  These datasets can
+    be combined within FISH to generate the low frequency, short fast model
+    solutions.
+2 Logical_Pointers
+    FFI uses four logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN1     Points to the archive directory that contains
+                           the primary set of coadded calibration ifgs FFI
+                           will process.
+
+        CSDR$FIRAS_IN2     Points to the archive directory that contains the
+                           optional secondary set of coadded calibration
+                           ifgs FFI will process.
+
+        CSDR$FIRAS_OUT    Points to the directory where FFI will write the
+                          voltage spectra.
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains the
+                          reference datasets FFI will use.
+2 Datasets
+    The operation of FFI requires the use of three sets of data.  These are:
+
+    1)  the input coadded calibration ifgs;
+
+    2)  the output voltage spectra in FISH format; and
+
+    3)  the reference datasets.
+3 Input_Datasets
+    FFI reads in coadded calibration ifgs from the time-ordered file
+    FIC_CAL_CCSS, where CC refers to channel (RH,RL,LH,LL) and SS refers
+    to scan mode (SS,SF,LS,LF).
+3 Output_Datasets
+    FFI writes out voltage spectra in the FISH-format binary RMS file
+    FFI_CCSS.XXXXX, where CC refers to channel (RH,RL,LH,LL), SS refers
+    to scan mode (SS,SF,LS,LF,FL) and XXXXX is the user-supplied file
+    name extension.
+
+    The file name extension should be chosen to uniquely identify the
+    voltage spectra.
+3 Reference_Datasets
+    FFI processes coadded ifgs using several reference datasets:
+
+        FEX_APOD        Apodization functions.
+
+        FEX_ETF         Electronics transfer functions.
+
+        FEX_GRTCOAWT    Relative weights for combining GRT temperatures.
+
+        FEX_GRTTRANS    GRT transition temperatures and transition zones.
+
+        FEX_NYQUIST     Instrument Nyquist frequencies.
+2 Command_Qualifiers
+    Command line qualifiers control the operation of FFI.  The qualifiers
+    specify file input and output, data selection, and processing report
+    generation.
+3 /JSTART
+    /JSTART=<YYDDDHHMMSSCCC>
+
+    /JSTART=86001000000000    Default
+
+        Input coadded ifgs are specified by timerange.  The start time of
+        the timerange is specified by the /JSTART qualifier, using the GMT
+        time format (YY is the year, DDD is the day, HH is the hour, MM is
+        the minute, SS is the second, and CCC is the millisecond).
+3 /JSTOP
+    /JSTOP=<YYDDDHHMMSSCCC>
+
+    /JSTOP=99365235959999    Default
+
+        Input coadded ifgs are specified by timerange.  The stop time of
+        the timerange is specified by the /JSTOP qualifier, using the GMT
+        time format (YY is the year, DDD is the day, HH is the hour, MM is
+        the minute, SS is the second, and CCC is the millisecond).
+3 /QUALITY
+    /QUALITY=(INSTRUMENT=<instr_qual>,ATTITUDE=<attit_qual>)
+
+    /QUALITY=(INSTRUMENT=3,ATTITUDE=6)    Default
+
+        The data quality thresholds for the input coadded ifgs are
+        specified by the /QUALITY switch.  The thresholds for instrument
+        and attitude quality are be specified separately.
+
+        FFI should normally process calibration data with in instrument
+        quality threshold of 3 and an attitude quality threshold of 6.
+3 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FFI processes data for only ONE channel per invocation.  The
+        options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.  The
+        /CHANNEL qualifier is required for FFI to run.
+3 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+    /SCAN_MODE=FL
+
+        FFI processes data for only ONE scan mode per invocation.  The
+        options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.  The
+        FAST LONG scan mode can be specified for the low frequency long
+        fast scan modes to produce spectra for use in generating low
+        frequency short fast model soltuions.  The /SCAN_MODE qualifier is
+        required for FFI to run.
+3 /HYBRID
+    /NOHYBRID    Default
+
+        FFI will generate a hybrid output dataset from two input archives
+        if the /HYBRID qualifier is set.
+3 /THRESHOLD
+    /THRESHOLD=10.0    Default
+
+        The ifg peak height threshold for processing ifgs from the
+        secondary input archive is specified by the /THRESHOLD qualifier.
+
+        Note:  The /THRESHOLD qualifier cannot be used unless the /HYBRID
+               command line switch is set.
+3 /FILE_EXT
+    /FILE_EXT=<filename extension>
+
+        The filename extension of output RMS spectrum file is specified by
+        the user.  The extension can be up to 20 characters long and
+        should uniquely identify the voltage spectra.
+
+        Note:  Specification of a filename extension IS REQUIRED for FFI
+               to run.
+3 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FFI produces a processing report.  If the report
+        filename is not specified by the /REPORT qualifier, the default
+        filename takes the form of FFI_CCSS_XXXXX.REP_ZZZZZZZZZ, where CC
+        refers to channel (RH,RL,LH,LL), SS refers to scan mode
+        (SS,SF,LS,LF), XXXXX is the user-supplied spectrum filename
+        extension, and ZZZZZZZZZ is the run time in GMT format.
+2 Examples
+    FFI is designed for batch processing of coadded calibration ifgs.  A
+    typical invocation of FFI is:
+
+        $ FFI/JSTART=893531100/JSTOP=902621059/QUALITY=ATTITUDE=32-
+             /CHANNEL=LL/SCAN_MODE=SS/FILE_EXT=92AAB
+
+    In this example, coadded calibration ifgs in the left low, short slow
+    scan mode are read from the time-ordered files
+    CSDR$FIRAS_IN1:FIC_CAL_LLSS over the timerange of 893531100 to
+    902621059.  Coadded ifgs with attitude data quality of 32 or less are
+    transformed into FISH-format voltage spectra.  The voltage spectra are
+    written into the binary RMS file CSDR$FIRAS_OUT:FFI_LLSS.92AAB.  The
+    processing report filename is FFI_LLSS_92AAB.REP_922681010 and the file
+    is written to the current default directory.
+
+
+    FFI will generate a set of hybrid voltage spectra with the following
+    invocation:
+
+        $ FFI/JSTART=893531100/JSTOP=902621059/QUALITY=ATTITUDE=32-
+             /CHANNEL=RH/SCAN_MODE=SS/HYBRID/THRESHOLD=10.0/FILE_EXT=HYBRID
+
+    In this example, coadded calibration ifgs in the right high, short slow
+    can mode are read for the timeragne of 893531100 to 902621059 from the
+    primary input files CSDR$FIRAS_IN1:FIC_CAL_RHSS and from the secondary
+    input files CSDR$FIRAS_IN2:FIC_CAL_RHSS.  The output spectra are
+    produced from the primary input archive.  However, if the peak height
+    of the coadded ifg is greater than 10.0 counts, the output spectrum will
+    be produced from the secondary input archive.  The voltage spectra are
+    written into the binary RMS file CSDR$FIRAS_OUT:FFI_RHSS.HYBRID.

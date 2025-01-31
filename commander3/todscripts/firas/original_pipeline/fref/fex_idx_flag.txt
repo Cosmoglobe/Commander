@@ -1,0 +1,583 @@
+!------------------------------------------------------------------------
+!  File Name : FEX_IDX_FLAG.TXT
+!
+*  Description : Comment line must begin with a '*', or a '!' in
+*      		 column one. Blank lines are allowed.
+*
+*  Purpose Of File : To be used in creating the limits database for FDQ.
+*
+*  Designer :    Quoc C Chung / STX April 24, 1989
+*                Modified by H. Wang, STX, Dec. 18, 1990
+*	Certified: 1991 Sept 27, Rick Shafer: 
+!
+!123456789012345678901234567890BBXXXBBX
+!------------------------------------------------------------------------
+! ITEM NAME			  IX  F
+!------------------------------------------------------------------------
+XCAL_Position_Side_A		 001  T
+!
+XCAL_Position_Side_B	         002  T
+!
+MP_Science_Mode_RH               003  T
+!
+Fake-it_RH                       004  T
+!
+MP_Adds/Group_RH		 005  T
+!
+MP_Sweeps/IFG_RH		 006  T
+!
+MTM-Speed-at-Transmit,RH         007  T
+!
+MTM-Length-at-Transmit,RH        008  T
+!
+Science-Gain,RH                  009  T
+!
+Bolo.Commanded-Bias,RH           010  T
+!
+Bolo.Voltage-Readout,RH          011  T
+!
+MP-Science-Mode,RL               012  T
+!
+Fake-it,RL                       013  T
+!
+MP-Adds/Group,RL                 014  T
+!
+MP-Sweeps/IFG,RL                 015  T
+!
+MTM-Speed-at-Transmit,RL         016  T
+!
+MTM-Length-at-Transmit,RL        017  T
+!
+Science-Gain,RL		         018  T
+!
+Bolo.Commanded-Bias,RL           019  T
+!
+Bolo.Voltage-Readout,RL	         020  T
+!
+MP-Science-Mode,LH	         021  T
+!
+Fake-it,LH			 022  T
+!
+MP-Adds/Group,LH           	 023  T
+!
+MP-Sweeps/IFG,LH                 024  T
+!
+MTM-Speed-at-Transmit,LH	 025  T
+!
+MTM-Length-at-Transmit,LH        026  T
+!
+Science-Gain,LH			 027  T
+!
+Bolo.Commanded-Bias,LH		 028  T
+!
+Bolo.Voltage-Readout,LH		 029  T
+!
+MP-Science-Mode,LL		 030  T
+!
+Fake-it,LL		         031  T
+!
+MP-Adds/Group,LL	         032  T
+!
+MP-Sweeps/IFG,LL	         033  T
+!
+MTM-Speed-at-Transmit,LL	 034  T
+!
+MTM-Length-at-Transmit,LL	 035  T
+!
+Science-Gain,LL			 036  T
+!
+Bolo.Commanded-Bias,LL		 037  T
+!
+Bolo.Voltage-Readout,LL		 038  T
+!
+GRT,Ext.Cal.,A-low		 039  T
+!
+GRT,Sky-Horn,A-low	         040  T
+!
+GRT,Ref.Horn,A-low		 041  T
+!
+GRT,Int.Cal.,A-low		 042  T
+!
+GRT,Dihedral,A-low		 043  T
+!
+GRT,Bolo.Assemb.RH,A-low	 044  T
+!
+GRT,Bolo.Assemb.RL,A-low	 045  T
+!
+GRT,Bolo.Assemb.LH,A-low	 046  T
+!
+GRT,Bolo.Assemb.LL,A-low	 047  T
+!
+GRT,Mirror-M1,A-low		 048  T
+!
+GRT,Cal.Resistor-1,A-low	 049  T
+!
+GRT,Cal.Resistor-2,A-low	 050  T
+!
+GRT,Cal.Resistor-3,A-low	 051  T
+!
+GRT,Cal.Resistor-4,A-low	 052  T
+!
+GRT,Fold.Flat-Mirror,A-low	 053  T
+!
+GRT,Collimator-C1,A-low		 054  T
+!
+GRT,Ext.Cal.,A-high		 055  T
+!
+GRT,Sky-Horn,A-high		 056  T
+!
+GRT,Ref.Horn,A-high		 057  T
+!
+GRT,Int.Cal.,A-high		 058  T
+!
+GRT,Dihedral,A-high		 059  T
+!
+GRT,Bolo.Assemb.RH,A-high	 060  T
+!
+GRT,Bolo.Assemb.RL,A-high	 061  T
+!
+GRT,Bolo.Assemb.LH,A-high	 062  T
+!
+GRT,Bolo.Assemb.LL,A-high	 063  T
+!
+GRT,Mirror-M1,A-high		 064  T
+!
+GRT,Cal-Resistor-1,A-high	 065  T
+!
+GRT,Cal-Resistor-2,A-high	 066  T
+!
+GRT,Cal-Resistor-3,A-high	 067  T
+!
+GRT,Cal-Resistor-4,A-high	 068  T
+!
+GRT,Fold.Flat-Mirror,A-high	 069  T
+!
+GRT,Collimator-C1,A-high	 070  T
+!
+GRT,Ext.Cal.,B-low		 071  T
+!
+GRT,Sky-Horn,B-low		 072  T
+!
+GRT,Ref.Horn,B-low		 073  T
+!
+GRT,Int.Cal.,B-low		 074  T
+!
+GRT,Dihedral,B-low     		 075  T
+!
+GRT,Bolo.Assemb.RH,B-low	 076  T
+!
+GRT,Bolo.Assemb.RL,B-low	 077  T
+!
+GRT,Bolo.Assemb.LH,B-low	 078  T
+!
+GRT,Bolo.Assemb.LL,B-low	 079  T
+!
+GRT,Mirror-M1,B-low		 080  T
+!
+GRT,Cal-Resistor-1,B-low	 081  T
+!
+GRT,Cal-Resistor-2,B-low	 082  T
+!
+GRT,Cal-Resistor-3,B-low	 083  T
+!
+GRT,Cal-Resistor-4,B-low	 084  T
+!
+GRT,Fold.Flat-Mirror,B-low	 085  T
+!
+GRT,Collimator-C1,B-low		 086  T
+!
+GRT,Ext.Cal.,B-high		 087  T
+!
+GRT,Sky-Horn,B-high		 088  T
+!
+GRT,Ref.Horn,B-high		 089  T
+!
+GRT,Int.Cal.,B-high		 090  T
+!
+GRT,Dihedral,B-high		 091  T
+!
+GRT,Bolo.Assemb.RH,B-high	 092  T
+!
+GRT,Bolo.Assemb.RL,B-high	 093  T
+!
+GRT,Bolo.Assemb.LH,B-high	 094  T
+!
+GRT,Bolo.Assemb.LL,B-high	 095  T
+!
+GRT,Mirror-M1,B-high		 096  T
+!
+GRT,Cal.Resistor-1,B-high	 097  T
+!
+GRT,Cal.Resistor-2,B-high	 098  T
+!
+GRT,Cal.Resistor-3,B-high	 099  T
+!
+GRT,Cal.Resistor-4,B-high	 100  T
+!
+GRT,Fold.Flat-Mirror,B-high	 101  T
+!
+GRT,-Collimator-C1,B-high	 102  T
+!
+TC,Int.Cal.,Side-A	         103  T
+!
+TC,Ref.Horn,Side-A	         104  T
+!
+TC,Sky-Horn,Side-A		 105  T
+!
+TC,Ext.Cal.,Side-A		 106  T
+!
+TC,Int.Cal.,Side-B		 107  T
+!
+TC,Ref.Horn,Side-B		 108  T
+!
+TC,Sky-Horn,Side-B		 109  T
+!
+TC,Ext.Cal.,Side-B		 110  T
+!
+MTM-Operating-Mode,Side-A	 111  T
+!
+Int.Cal.TC-integrator,Side-A	 112  T
+!
+Ref.Horn-TC-integrator,Side-A	 113  T
+!
+Sky-Horn-TC-integrator,Side-A	 114  T
+!
+Ext.Cal.TC-integrator,Side-A	 115  T
+!
+Dither,RH			 116  T
+!
+Dither,RL			 117  T
+!
+ROM-power,RH			 118  T
+!
+ROM-power,RL			 119  T
+!
+MTM-latch,Side-A		 120  T
+!
+Ext.Cal.latch,Side-A		 121  T
+!
+Int.Cal.Current-Range,Side-A	 122  T
+!
+Ref.Horn-Current-Range,Side-A	 123  T
+!
+Sky-Horn-Current-Range,Side-A	 124  T
+!
+Ext.Cal.Current-Range,Side-A	 125  T
+!
+Int.Cal.Integ.Gain,Side-A	 126  T
+!
+Ref.Horn-Integ.Gain,Side-A	 127  T
+!
+Sky-Horn-Integ.Gain,Side-A	 128  T
+!
+Ext.Cal.Integ.Gain,Side-A	 129  T
+!
+Int.Cal.Proport.Gain,Side-A	 130  T
+!
+Ref.Horn-Proport.Gain,Side-A	 131  T
+!
+Sky-Horn-Proport.Gain,Side-A	 132  T
+!
+Ext.Cal.Proport.Gain,Side-A	 133  T
+!
+MTM-Stow,Side-A			 134  T
+!
+MTM-Speed-Command,Side-A	 135  T
+!
+MTM-Length-Command,Side-A	 136  T
+!
+Ext.Cal.Stow,Side-A	    	 137  T
+!
+Ext.Cal.Latch-Command,Side-A	 138  T
+!
+MTM-Latch-Command,Side-B	 139  T
+!
+MTM-Operating-Mode,Side-B	 140  T
+!
+Int.Cal.TC-integrator,Side-B	 141  T
+!
+Ref.Horn-TC-integrator,Side-B	 142  T
+!
+Sky-Horn-TC-integrator,Side-B	 143  T
+!
+Ext.Cal.TC-integrator,Side-B     144  T
+!
+Dither,LH			 145  T
+!
+Dither,LL			 146  T
+!
+ROM-power,LH			 147  T
+!
+ROM-power,LL			 148  T
+!
+MTM-latch,Side-B		 149  T
+!
+Ext.Cal.latch,Side-B		 150  T
+!
+Int.Cal.Current-Range,Side-B	 151  T
+!
+Ref.Horn-Current-Range,Side-B	 152  T
+!
+Sky-Horn-Current-Range,Side-B	 153  T
+!
+Ext.Cal.Current-Range,Side-B	 154  T
+!
+Int.Cal.Integ.Gain,Side-B	 155  T
+!
+Ref.Horn-Integ.Gain,Side-B	 156  T
+!
+Sky-Horn-Integ.Gain,Side-B	 157  T
+!
+Ext.Cal.Integ.Gain,Side-B	 158  T
+!
+Int.Cal.Proport.Gain,Side-B	 159  T
+!
+Ref.Horn-Proport.Gain,Side-B	 160  T
+!
+Sky-Horn-Proport.Gain,Side-B	 161  T
+!
+Ext.Cal.Proport.Gain,Side-B	 162  T
+!
+MTM-Stow,Side-B			 163  T
+!
+MTM-Speed-Command,Side-B	 164  T
+!
+MTM-Length-Command,Side-B	 165  T
+!
+Ext.Cal.Stow,Side-B		 166  T
+!
+Ext.Cal.Latch-Command,Side-B	 167  T
+!
+MTM-Latch-Command,Side-B	 168  T
+!
+Status-Monitor-Sync,Side-A	 169  T
+!
+Status-Monitor-Sync,Side-B	 170  T
+!
+MTM-power,Side-A		 171  T
+!
+Main-Electronics-Converter,RH	 172  T
+!
+Main-Electronics-Converter,RL	 173  T
+!
+Hot-Spot-Heater-Enable,Side-A	 174  T
+!
+MTM-Drive-Motor,Side-A		 175  T
+!
+Ext.Cal.TC.Power,Side-A 	 176  T
+!
+Sky-Horn-TC.Power,Side-A	 177  T
+!
+Ref.Horn-TC.Power,Side-A	 178  T
+!
+Int.Cal.TC.Power,Side-A	 	 179  T
+!
+MTM-Latch-Motor,Side-A		 180  T
+!
+Ext.Cal.Latch-Motor,Side-A	 181  T
+!
+Ext.Cal.Drive-Motor,Side-A	 182  T
+!
+Ext.Cal.Motor-Power,Side-A	 183  T
+!
+LMAC-DC.Converter,Side-A	 184  T
+!
+LMAC-AC.Converter,Side-A	 185  T
+!
+MTM-power,Side-B		 186  T
+!
+Main-Electronics-Converter,LH	 187  T
+!
+Main-Electronics-Converter,LL	 188  T
+!
+Spot-Heater-Enable,Side-B	 189  T
+!
+MTM-Drive-Motor,Side-B		 190  T
+!
+Ext.Cal.TC-Power,Side-B          191  T
+!
+Sky-Horn-TC-Power,Side-B	 192  T
+!
+Ref.Horn-TC.Power,Side-B	 193  T
+!
+Int.Cal.TC.Power,Side-B 	 194  T
+!
+MTM-Latch-Motor,Side-B		 195  T
+!
+Ext.Cal.Latch-Motor,Side-B	 196  T
+!
+Ext.Cal.Drive-Motor,Side-B	 197  T
+!
+Ext.Cal.Motor-Power,Side-B	 198  T
+!
+LMAC-DC-Converter,Side-B	 199  T
+!
+LMAC-C-Converter,Side-B 	 200  T
+!
+GRT-Dwell-Mode,Side-A	         201  T
+!
+GRT-Dwell-Address,Side-A	 202  T
+!
+GRT-Dwell-Mode,Side-B		 203  T
+!
+GRT-Dwell-Address,Side-B	 204  T
+!
+MP-Bus-Window,RH		 205  T
+!
+MP-Bus-Window,RL		 206  T
+!
+MP-Bus-Window,LH		 207  T
+!
+MP-Bus-Window,LL		 208  T
+!
+SIS-Int.Conv.,Side-A		 209  T
+!
+SIS-A-D.Conv.,Side-A		 210  T
+!
+SIS-Bias-Pre-reg.Conv.,Side-A	 211  T
+!
+SIS-MTM-and-Ext.Cal.,Side-A	 212  T
+!
+SIS-Int.Conv.,Side-B		 213  T
+!
+SIS-A-D.Conv.,Side-B		 214  T
+!
+SIS-Bias-Pre-reg.Conv.,Side-B	 215  T
+!
+SIS-MTM-and-Ext.Cal.,Side-B	 216  T
+!
+IPDU-temperature,Side-A		 217  T
+!
+IPDU-temperature,Side-B	 	 218  T
+!
+Drive-Box-Temp.,Side-A		 219  T
+!
+Channel-Pre-Amp.		 220  T
+!
+Channel-Temp.,RH		 221  T
+!
+Channel-Temp.,RL		 222  T
+!
+Channel-Temp.,LH		 223  T
+!
+Channel-Temp.,LL		 224  T
+!
+Stat.Mon.Temp.,Side-A		 225  T
+!
+Stat.Mon.Temp.,Side-B   	 226  T
+!
+Hot-Spot-Htr.Current,Side-A	 227  T
+!
+Hot-Spot-Htr.Current,Side-B	 228  T
+!
+Optical-Pre-Amp.		 229  T
+!
+Drive-Box-Temp.,Side-B		 230  T
+!
+IPDU-Voltage-1			 231  T
+!
+IPDU-Voltage-2		 	 232  T
+!
+IPDU-Voltage-3			 233  T
+!
+IPDU-Voltage-4			 234  T
+!
+IPDU-Voltage-5			 235  T
+!
+IPDU-Voltage-6			 236  T
+!
+IPDU-Voltage-7			 237  T
+!
+IPDU-Voltage-8			 238  T
+!
+IPDU-Voltage-9			 239  T
+!
+IPDU-Voltage-10			 240  T
+!
+IPDU-Voltage-11			 241  T
+!
+IPDU-Voltage-12			 242  T
+!
+IPDU-Voltage-13			 243  T
+!
+IPDU-Voltage-14			 244  T
+!
+IPDU-Voltage-15			 245  T
+!
+IPDU-Voltage-16			 246  T
+!
+IPDU-Voltage-17			 247  T
+!
+IPDU-Voltage-18			 248  T
+!
+IPDU-Voltage-19			 249  T
+!
+IPDU-Voltage-20			 250  T
+!
+IPDU-Current-1			 251  T
+!
+IPDU-Current-2			 252  T
+!
+IPDU-Current-3			 253  T
+!
+IPDU-Current-4			 254  T
+!
+IPDU-Current-5			 255  T
+!
+IPDU-Current-6			 256  T
+!
+IPDU-Current-7			 257  T
+!
+IPDU-Current-8			 258  T
+!
+IPDU-Current-9			 259  T
+!
+IPDU-Current-10			 260  T
+!
+IPDU-Current-11			 261  T
+!
+IPDU-Current-12			 262  T
+!
+MTM-Cal-Motor,Side-A		 263  T
+!
+MTM-Cal-Motor,Side-B		 264  T
+!
+Notch-Filter-1,Side-A		 265  T
+!
+Notch-Filter-2,Side-A		 266  T
+!
+Notch-Filter-3,Side-A		 267  T
+!
+Notch-Filter-4,Side-A		 268  T
+!
+Notch-Filter-5,Side-A		 269  T
+!
+Notch-Filter-1,Side-B 		 270  T
+!
+Notch-Filter-2,Side-B 		 271  T
+!
+Notch-Filter-3,Side-B		 272  T
+!
+Notch-Filter-4,Side-B 		 273  T
+!
+Notch-Filter-5,Side-B 		 274  T
+!
+IPDU_Power_Relay_4_Pole_A1       275  T
+!
+IPDU_Power_Relay_4_Pole_B1       276  T
+!
+IPDU_Power_Relay_4_Pole_A2       277  T
+!
+IPDU_Power_Relay_4_Pole_B2       278  T
+!
+IPDU_Power_Relay_2_Pole_A3       279  T
+!
+IPDU_Power_Relay_2_Pole_B3       280  T
+!
+IPDU_Other_Status_A4		 281  T
+!
+IPDU_Other_Status_B4             282  T
+!
+LVDT_STAT,Side-A                 283  T
+!
+LVDT_STAT,Side-B                 284  T

@@ -1,0 +1,35 @@
+!
+!  Limits for Raw science data.
+!
+record FEX_SCILIM FEX_SCILIM
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+!  Structure for red limits and yellow limits.
+
+  structure/dim=2 lim
+
+    structure sci_head
+      include sci_head.rdl
+    endstructure
+
+    structure dq_data
+      include dq_data.rdl
+    endstructure
+
+    structure collect_time
+      include collect_time.rdl
+    endstructure
+
+    structure attitude
+      include attitude.rdl
+    endstructure
+    array/float/dim=4		Glitch_rate 
+                                !Channel: RH,RL,LH,LL 
+  endstructure
+  array/byte/dim=160            LIM_SPARES
+                                !  Spare bytes
+
+end_record

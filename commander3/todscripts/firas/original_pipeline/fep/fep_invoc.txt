@@ -1,0 +1,68 @@
+c------------------------------------------------------------------------
+c   FEP_Invoc.txt
+c
+c	This include file contains the invocation parameters for FEP
+c
+c	Author: R. Kummerer
+c		STX
+c		March 9, 1987
+c
+c	Revisions:
+c	    SPR 3662.  Engplots labels are unreadable when there are more
+c	        fields than will fit in the title of a QMS (e.g., TALARIS)
+c	        plot.  Remedy:  reduce the number of selectable fields by
+c	        reducing the dimension of fcc_fields() and fcc_fields_len()
+c	        from 10 to 4.  Fred Shuman,  STX,  1989 May 12.
+c
+c	    07-Aug-1989.  Added the flag fcc_average_cal_counts to allow the
+c		user to select whether to average the counts from the cali-
+c		bration resistors prior to computing the counts to ohms 
+c		conversion coefficients.  Don Stevens-Rayburn, ARC.
+c
+C           1-Mar-1990.  Added the capability to pass in a command file to
+C                plt. 
+c------------------------------------------------------------------------
+
+	character	*256	fcc_command_line
+	integer		*2	fcc_command_len
+	integer 	*4 	fcc_interactive
+	integer 	*4 	fcc_report
+	character	*64	fcc_report_file
+	integer 	*4 	fcc_report_lun
+	integer 	*4 	fcc_convert
+	integer 	*4 	fcc_monitor
+	character 	*32 	fcc_plot_device
+	integer 	*4 	fcc_plot_dev_select 
+        Character       *64     fcc_plt_com_file
+        Integer         *4      fcc_plt_com
+	character 	*32 	fcc_fields(4)
+	integer		*2	fcc_fields_len(4)
+	integer 	*4 	fcc_fields_count
+	integer		*4	fcc_smooth
+	integer		*4	fcc_window
+	integer 	*4 	fcc_crossgaps
+
+	integer		*4	fcc_jstart_select
+	integer		*4	fcc_jstop_select
+	character 	*14	fcc_jstart_time
+	integer 	*4 	fcc_jstart(2)
+	character 	*14	fcc_jstop_time
+	integer 	*4 	fcc_jstop(2)
+	character 	*30  	fcc_time_range
+
+	integer		*4	fcc_average_cal_counts
+    
+	common /fep_invoc/
+     .			fcc_interactive,
+     .			fcc_command_line,fcc_command_len,
+     .			fcc_report,fcc_report_file,fcc_report_lun,
+     .			fcc_convert,
+     .			fcc_monitor,
+     .			fcc_smooth,fcc_window,
+     .			fcc_fields,fcc_fields_count,fcc_fields_len,
+     .			fcc_jstart_select,fcc_jstop_select,
+     .			fcc_jstart,fcc_jstop,
+     .			fcc_jstart_time,fcc_jstop_time,fcc_time_range,
+     .			fcc_plot_device,fcc_plot_dev_select,fcc_plt_com_file,
+     . 			fcc_plt_com,fcc_crossgaps,
+     .                  fcc_average_cal_counts

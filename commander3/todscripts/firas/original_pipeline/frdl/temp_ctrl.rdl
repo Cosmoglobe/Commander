@@ -1,0 +1,24 @@
+!
+!     temperature controllers
+!
+
+        union
+
+          map
+            scalar/word         TMP_CONTROLLER_ICAL_A
+            scalar/word         TMP_CONTROLLER_REFH_A
+            scalar/word         TMP_CONTROLLER_SKYH_A
+            scalar/word         TMP_CONTROLLER_XCAL_A
+            scalar/word         TMP_CONTROLLER_ICAL_B
+            scalar/word         TMP_CONTROLLER_REFH_B
+            scalar/word         TMP_CONTROLLER_SKYH_B
+            scalar/word         TMP_CONTROLLER_XCAL_B
+          endmap
+
+          map
+            array/word/dim=8    GROUP2
+          endmap
+
+        endunion
+
+        array/byte/dim=4        TEMP_CTRL_SPARES

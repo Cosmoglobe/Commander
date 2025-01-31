@@ -1,0 +1,64 @@
+c-------------------------------------------------------------------------------
+c
+c	FLA_MODEL.TXT
+c
+c	This include file contains the FIRAS calibration model solution that
+c	FLA_GAIN will use to compute the FIRAS gain function.
+c
+c	Author:  Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 1 July 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Hard-coded constants:
+c
+c		RSCALE			1.0D-7 watts/erg/sec	conversion
+c								factor
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Changed LOLIM and UPLIM to accomodate low frequency short fast
+c	calibration model solutions.
+c	Gene Eplee, GSC, 19 November 1993.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define required processing parameters.
+c
+	integer * 4	fcc_fex_size	!  FEX model solution size in long words
+	parameter	(fcc_fex_size = 7424)
+	integer *  4	lolim(12)	!  Lower frequency index for gain
+	data lolim / 5, 5, 5, 5, 5, 9, 5, 5, 5, 5, 5, 9 /
+	integer *  4	uplim(12)	!  Upper frequency index for gain
+	data uplim / 171, 171, 171, 38, 38, 156, 171, 171, 171, 38, 38, 156 /
+
+	real	*  8	rscale		!  Conversion factor from
+	parameter	(rscale = 1.0D-07)  !    ergs/sec to watts
+
+c
+c  Define the model solution variables.
+c
+	real	* 8	bol_volt	!  detector voltage
+	real	* 8	cmd_bias	!  commanded bolometer bias
+	real	* 8	S0		!  detector responsivity
+	real	* 8	tau		!  detector time constant
+	real	* 8	Tbol		!  actual detector temperature
+	real	* 8	Tdet		!  measured detector temperature
+
+c
+c  Define the model solution RDL's.
+c
+	dictionary 'fex_mod'
+	record /fex_mod/ fex_model
+
+c
+c  Define the common block.
+c
+
+	common  /fcc_model/  cmd_bias, bol_volt, Tdet, Tbol, S0, tau,
+     .			     fex_model

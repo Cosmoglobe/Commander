@@ -1,0 +1,145 @@
+c-------------------------------------------------------------------------------
+c
+c	FCF_INVOC.TXT
+c
+c	This include file contains the invocation parameters for FCF.
+c
+c	Author:	  Gene Eplee
+c		  General Sciences Corp.
+c		  513-7768
+c		  11 May 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Modifications to recover low frequency short fast data.
+c	Gene Eplee, GSC, 25 October 1993
+c	SER 11395
+c
+c	Added D-Vector variance estimate for autohpase correction.
+c	Gene Eplee, GSC, 25 October 1993
+c	SER 11397
+c
+c	Put in optional differential spectrum output.
+c	Gene Eplee, GSC, 11 July 1994
+c	SPR 11826
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define needed constants.
+c
+	character *  6	fcc_version		!  FCF version number
+	parameter	(fcc_version='12.1')
+
+	integer * 2	fcc_record_size		!  spectrum record size in long
+	parameter	(fcc_record_size = fac_coad_spec_size / 4)  !  words
+
+	integer * 4	fcc_max_coadd		!  maximum number of coadds
+	parameter	(fcc_max_coadd = fac_max_coad)	!   per pixel to process
+	integer * 4	fcc_max_pix		!  maxumum number of pixel
+	parameter	(fcc_max_pix = 78)	!    in pixel list
+
+	real	* 8	fcc_varflag		!  variance flag values for
+	parameter	(fcc_varflag = -9999.0D0)  !  single ifg spectra
+
+c
+c  Define the needed variables.
+c
+
+	character *  3	fcc_data_type		!  data type ('SKY' or 'CAL')
+	character * 20	fcc_file_ext		!  input filename extension
+	character * 58	fcc_infile		!  input coadd filename
+	character * 14 	fcc_jstart_time		!  GMT start time
+	character * 14	fcc_jstop_time		!  GMT stop time
+	character * 20	fcc_model_ext		!  model solution file extension
+	character * 48	fcc_model_file		!  model solution filename
+	character * 48	fcc_outfile_cs		!  output cspec filename
+	character * 48	fcc_outfile_ds		!  output dspec filename
+	character * 48	fcc_outfile_vs		!  output vspec filename
+	character * 32	fcc_plot_device		!  PLT plot device
+	character * 64	fcc_plt_com_file	!  PLT command filename
+	character * 64	fcc_report_file		!  report filename
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 52	fcc_temp_outfile_cs	!  temporary RMS cspec filename
+	character * 52	fcc_temp_outfile_ds	!  temporary RMS dspec filename
+	character * 52	fcc_temp_outfile_vs	!  temporary RMS vspec filename
+	character * 30	fcc_time_range		!  GMT timerange
+	character * 48	fcc_var_file		!  FEX_VAR filename
+
+	integer * 2	fcc_inlen		!  length of input coadd file
+						!    name
+	integer * 2	fcc_outlencs		!  length of output cspec file
+						!    name
+	integer * 2	fcc_outlends		!  length of output dspec file
+						!    name
+	integer * 2	fcc_outlenvs		!  length of output vspec file
+						!    name
+	integer * 2	fcc_modlen		!  length of model filename
+	integer * 2	fcc_replen		!  length of report filename
+	integer * 2	fcc_toutlencs		!  length of temporary cspec
+						!    filename
+	integer * 2	fcc_toutlends		!  length of temporary dspec
+						!    filename
+	integer * 2	fcc_toutlenvs		!  length of temporary vspec
+						!    filename
+	integer * 2	fcc_varlen		!  length of FEX_VAR filename
+
+	integer * 4	fcc_attit_qual		!  attitude quality threshold
+	integer * 4	fcc_cal			!  calibration data qualifier
+	integer * 4	fcc_calibrate		!  /CALIBRATE switch
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_diff		!  /DIFFERENTIAL switch
+	integer * 4	fcc_dvec		!  /DVECTOR switch
+	integer * 4	fcc_file		!  /FILE_EXT switch
+	integer * 4	fcc_instr_qual		!  instrument quality threshold
+	integer * 4	fcc_jstart(2)		!  binary start time
+	integer * 4	fcc_jstop(2)		!  binary stop time
+	integer * 4	fcc_jump		!  number of spectra not plotted
+	integer * 4	fcc_length		!  mtm scan length
+	integer * 4	fcc_ngroup		!  adds per group
+	integer * 4	fcc_npix		!  number of pixels processed
+	integer * 4	fcc_nspec		!  number of spectra processed
+	integer * 4	fcc_num_pix		!  number of pixels in list
+	integer * 4	fcc_pixel		!  /PIXEL qualifier
+	integer * 4	fcc_plist(fcc_max_pix)	!  pixel list
+	integer * 4	fcc_plot		!  /PLOT qualifier
+	integer * 4	fcc_plt_com		!  /PLTFILE qualifier
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_single		!  /SINGLE_IFG qualifier
+	integer * 4	fcc_sky			!  sky data qualifier
+	integer * 4	fcc_smode		!  scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+	integer * 4	fcc_write_cs		!  /WRITE cspec qualifier
+	integer * 4	fcc_write_ds		!  /WRITE dspec qualifier
+	integer * 4	fcc_write_vs		!  /WRITE vspec qualifier
+	integer * 4	fcc_xhsf		!  XHSF scan mode flag
+	integer * 4	fcc_xllf		!  XLLF scan mode flag
+	integer * 4	fcc_xlsf		!  XLSF scan mode flag
+
+	logical * 1	fcc_more_plots		!  plotting flag
+
+
+c
+c  Define the common block.
+c
+
+	common /fcc_invoc/ fcc_file, fcc_file_ext, fcc_jstart_time, fcc_jstart,
+     .			   fcc_jstop_time, fcc_jstop, fcc_time_range, fcc_sky,
+     .			   fcc_cal, fcc_data_type, fcc_pixel, fcc_plist,
+     .			   fcc_num_pix, fcc_instr_qual, fcc_attit_qual,
+     .			   fcc_chan, fcc_smode, fcc_length, fcc_speed,
+     .			   fcc_scan_mode, fcc_ngroup, fcc_xhsf, fcc_xllf,
+     .			   fcc_xlsf, fcc_single, fcc_calibrate, fcc_model_ext,
+     .			   fcc_model_file, fcc_modlen, fcc_dvec, fcc_var_file,
+     .			   fcc_varlen, fcc_diff, fcc_plot, fcc_plot_device,
+     .			   fcc_jump, fcc_more_plots, fcc_plt_com,
+     .			   fcc_plt_com_file, fcc_write_vs, fcc_write_ds,
+     .			   fcc_write_cs, fcc_report, fcc_report_file,
+     .			   fcc_replen, fcc_infile, fcc_inlen,
+     .			   fcc_temp_outfile_vs, fcc_toutlenvs,
+     .			   fcc_temp_outfile_ds, fcc_toutlends,
+     .			   fcc_temp_outfile_cs, fcc_toutlencs, fcc_outfile_vs,
+     .			   fcc_outlenvs, fcc_outfile_ds, fcc_outlends,
+     .			   fcc_outfile_cs, fcc_outlencs, fcc_nspec, fcc_npix

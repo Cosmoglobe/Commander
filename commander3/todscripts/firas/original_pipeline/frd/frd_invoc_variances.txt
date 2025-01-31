@@ -1,0 +1,57 @@
+c------------------------------------------------------------------------
+c
+c	FRD_INVOC_VARIANCES.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FRD_VARIANCES.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 27 October 1993
+c
+c------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FRD_VARIANCES version number
+	parameter	(fcc_version='12.3')
+
+	integer * 2	fcc_rec_size		!  output record size in
+	parameter	(fcc_rec_size = 544)	!    longwords
+
+	integer * 4	fcc_max_skymaps		!  Maximum number of syymaps
+	parameter	(fcc_max_skymaps = 20)	!    to process
+
+	real	* 4	fcc_glat_default	!  Default galactic latitude
+	parameter	(fcc_glat_default = 0.0)  !  cutoff
+
+c
+c  Define the processing variables.
+c
+	character * 48	fcc_infile(fcc_max_skymaps)  !  input skymap filenames
+	character * 48	fcc_outfile		!  output reference filename
+	character *  4  fcc_scan_mode		!  instrument scan mode
+	character * 56  fcc_sfile		!  script filename
+
+	integer * 2	fcc_inlen(fcc_max_skymaps)  !  input filename lengths
+	integer * 2	fcc_outlen		!  output file length
+	integer * 2	fcc_sflen		!  length of script filename
+
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_galexc		!  /EXC_GAL qualifier
+	integer * 4	fcc_length		!  scan length
+	integer * 4	fcc_mapnum		!  number of input skymaps
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  scan speed
+
+	real	* 4	fcc_glat		!  galactic latitude lower limit
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_sfile, fcc_sflen, fcc_chan, fcc_length,
+     .			     fcc_speed, fcc_smode, fcc_scan_mode, fcc_galexc,
+     .			     fcc_glat, fcc_infile, fcc_inlen, fcc_outfile,
+     .			     fcc_outlen, fcc_mapnum

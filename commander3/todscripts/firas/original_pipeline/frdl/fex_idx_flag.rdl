@@ -1,0 +1,17 @@
+!
+!  Index enable/disable flags for generation of FDQ_Idx.
+!
+record FEX_IDX_FLAG FEX_IDX_FLAG
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  structure idx_flags
+    include idx_flags.rdl
+  endstructure
+
+  array/byte/dim=164            IDX_SPARES
+                                !  Spare bytes
+
+end_record

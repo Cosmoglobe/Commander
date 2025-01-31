@@ -1,0 +1,14 @@
+!
+!   FCS script file for channel LH, scan mode SF
+!
+!   Author: Gene Eplee, GSC, 4/18/94, SER 11689
+!
+!   Modifications:
+!
+ $SMAPS
+	skymap(1)='fad_sky_lhsf.ed_8932800_8934301'
+	skymap(2)='fad_sky_lhsf.ed_9013915_9019318'
+	skymap(3)='fad_sky_lhsf.ed_9019318_9020711'
+	skymap(4)='fad_sky_lhsf.ed_9020811_9022004'
+	filext = 'fad_8932800_9026409'
+ $END

@@ -1,0 +1,274 @@
+1 FEC
+
+  PURPOSE
+
+  FEC Extract Calibration groups FDQ engineering records for
+  coaddition by FIC. FEC creates output files consisting of
+  short science records ( one for each science channel requested ).
+
+
+  METHOD
+
+  FEC reads a set of engineering records from the CSDR$FIRAS_RAW
+  archive. The set is specified by start and stop times on the command
+  line. Records which pass Xcal_Position, Telemetry Quality, and
+  Fakeit Status checks are concatenated into a time-ordered array.
+  Each record in the array is examined to determine if there has
+  been a command change. A command change is defined as change in
+  any of the following: Xcal, Ical, Sky Horn, or Reference Horn
+  temperature controllers, DAC Value, Integral Gain Enable/Disable,
+  Integral Gain Value, Proportional Gain Value, Bolometer Command Bias.
+  The array of engineering records is segmented into a set of
+  time-ordered Command Regions. Each Command Region is then examined
+  for Hot Spot Power status. Records for which either A side or B side
+  Hot Spot heaters are powered ON are excluded from the Command Regions.
+  The Command Regions are then examined for stability. Stability
+  analysis consists of examining the A side and B side GRT temperatures
+  for Xcal, Ical, Sky Horn, and Reference Horn. Proceeding backwards
+  temporally from the last record in the Command Region, each record is
+  tested to see whether any of its GRT temperatures differs from the mean
+  by more then the allowed tolerance. The allowed tolerance for Xcal, Ical,
+  Sky Horn, and Reference Horn GRTs are specified separately on the command
+  line. The test proceeds until either every record in the Command Region
+  has been examined, or until the number of "bad" records in a local window
+  is large enough to strand the rest of the Command Region. "Good" records
+  are subjected to data quality checks. Those which pass constitute a stable
+  plateau of records which are written to the output archive. A transition
+  flag marks the last time-ordered record for each plateau. Transition flags
+  are also applied to the last record within a plateau before a change
+  in scan mode. The transition flags define the coaddable groups for FIC.
+
+
+
+
+2 /CHANNEL
+
+  /CHANNEL=(ALL|HIGH|LOW|RIGHT|LEFT|RH|RL|LH|LL)
+
+  Specifies which channels are to be processed. The default is ALL.
+
+
+
+2  /JSTART
+
+  /JSTART=YYDDDHHMMSSCCC
+
+  This time, supplied in Julian day format, specifies the starting time of the
+  engineering data archive subset to use.  Missing time fields are filled
+  using 85001000000000 as the default time.
+
+
+
+2  /JSTOP
+
+  /JSTOP=YYDDDHHMMSSCCC
+
+  This time, supplied in Julian day format, specifies the ending time of the
+  engineering data archive subset to use.  Missing time fields are filled
+  using 99365235959999 as the default time.
+
+
+
+2  /QUALITY
+
+  /QUALITY=(INSTRUMENT=<threshold>,ATTITUDE=<threshold>)
+  /QUALITY=(INSTRUMENT=3,ATTITUDE=33)     Default
+
+  Selects the acceptable data quality threshold for both the instrument
+  and attitude.  Data with qualities less than or equal to the specified
+  thresholds are accepted for processing.  Thresholds are defined as
+  follows:
+
+        0 = no data quality established
+        1 = no yellow or red limit violations
+        2 = some yellow limit violations
+        3 = many yellow limit violations
+        4 = no yellow and some red limit violations
+        5 = some yellow and some red limit violations
+        6 = many yellow and some red limit violations
+        7 = many red limit violations
+
+  If there is no attitude solution, the attitude summary flag is set to
+  a value of 32. By default, FEC will accept records with no attitude
+  solution.
+
+
+
+2  /QUERY
+
+  /QUERY
+  /NOQUERY   Default
+
+  Specifies the Cobetrieve Query Builder is to be used to build the record
+  selection expression with which to select engineering data from the
+  archive.
+
+
+
+2  /REPORT
+
+  /REPORT          Default
+  /REPORT=filename
+  /NOREPORT
+
+  Specifies the report file to create. This file summarizes
+  whether a plateau was stable or why it was rejected.  The default
+  is FEC_<jstart>_<jstop>.REP_<runtime> but any valid file name is accepted.
+
+
+
+
+2  /REPORTALL
+
+  /REPORTALL
+  /NOREPORTALL   Default
+
+  If enabled, every plateau is reported, including hot spot plateaus.
+  If disabled (default), only plateaus which are analyzed for stability
+  have summaries written to the report file.
+
+
+
+2  /FAKEIT
+
+  /FAKEIT
+  /NOFAKEIT   Default
+
+  Specifies fakeit status data selection.
+
+
+
+2  /RSE
+
+  /RSE
+  /RSE=filename
+  /NORSE        Default
+   
+  This file contains the record selection expressions (RSE) to be applied
+  to the engineering data set. /JSTART and /JSTOP must be specified with /RSE.
+
+  /RSE, without a file specification, causes FEC to look in the reference
+  data archive, FEX_FECRSE, for the RSE. /RSE=filename directly specifies
+  the RSE file specification to be read.
+
+
+
+2  /WRITE
+
+  /WRITE
+  /NOWRITE   Default
+
+  Controls whether or not the output plateau summary records are written
+  to the short science calibration archive.
+
+
+
+2  /XCAL_POSITION
+
+  /XCAL_POSITION=IN   Default
+  /XCAL_POSITION=OUT
+  /XCAL_POSITION=TRANSIT
+  /XCAL_POSITION=ERROR
+
+  Selects the external calibrator position of  the  data  input  to  FEC.
+  Normally the  external  calibrator must be IN when reducing calibration
+  data.
+
+
+
+2  /TOLERANCE
+
+  /TOLERANCE=ABSOLUTE
+  /TOLERANCE=RELATIVE    Default
+
+  Specifies whether tolerances are in absolute units (degrees Kelvin)
+  or in relative units (fractional deviation from the mean)
+
+
+
+2  /TEMP_SIZE
+
+  /TEMP_SIZE=(T1,T2,T3,T4)  Default = 0.005 for all 4
+
+  Specifies the maximum allowed temperature deviations for each of the four
+  commandables ( Xcal, Ical, Sky Horn, Reference Horn ). It consists of four
+  real numbers seperated by commas. Values are in absolute or relative units,
+  depending upon the /TOLERANCE qualifier.
+
+
+
+2  /WINDOW_SIZE
+
+  /WINDOW_SIZE=value   Default = 7
+
+  Specifies the number of data points in the window used to scan 
+  ahead to see if any good data follows a bad point.
+
+
+
+2  /MAX_DIHED
+
+  /MAX_DIHED=value   Default = 3.5
+
+  Specifies the maximum allowable Dihedral temperature, in degrees Kelvin.
+  Records with greater Dihedral temperature are eliminated as bad quality
+  records.
+
+
+
+2  Examples
+
+  To run FEC with input from the archive file between times 90109000000000
+  and 90110125959999, with all other qualifiers taking their default values
+  (all science channels, with no RSE or QUERY selections, a NOFAKEIT selection,
+  a window size of 7, an instrument quality threshold of 3, an attitude quality
+  threshold of 33, relative temperature tolerances of 0.005 for all four
+  commandables, a maximum dihedral temperature of 3.5 degrees K, with no output
+  short science records written, and with a report file named
+  FEC_9010900_9011012.REP_<runtime> written, summarizing only the
+  plateaus which are analyzed for stability), enter :
+
+         FEC/JSTART=90109/JSTOP=9011012
+
+
+  To run FEC with input from the archive file between times 90109000000000
+  and 90110125959999, RSEs in a file called RSE.IN, a window size of 5,
+  an instrument quality threshold of 5, an attitude quality threshold of 3,
+  a maximum dihdral temperature of 9.0 degrees K, and absolute tolerances 
+  of 0.3 degrees K for all four temperatures, with a report file named
+  FEC.RPT written which includes all plateaus, and short science records
+  for RH channel written to the CSDR$FIRAS_OUT archive, enter :
+
+        FEC /CHANNEL=RH/JSTART=90109/JSTOP=9011012/RSE=RSE.IN  -
+            /QUALITY=(INSTRUMENT=5,ATTITUDE=3) -
+            /TOLERANCE=ABSOLUTE/TEMP_SIZE=(0.3,0.3,0.3,0.3) -
+            /WINDOW_SIZE=5/MAX_DIHED=9./REPORT=FEC.RPT/REPORTALL/WRITE
+
+
+
+  To run FEC with input from the archive file between times 90109000000000
+  and 90110125959999, RSEs acquired using the Cobetrieve Query Builder,
+  selecting records with Fakeit Status and Xcal_position OUT, with no
+  report file written, but short science records written to the
+  CSDR$FIRAS_OUT archive, enter :
+
+        FEC /JSTART=90109/JSTOP=9011012/QUERY/FAKEIT -
+            /XCAL_POSITION=OUT/NOREPORT/WRITE
+
+
+
+
+2  FIRAS_Logicals
+
+  Datasets input to and output from FEC can be directed to
+  different archives by appropriate definitions of the
+  Firas logical names.  In the following list of datasets and
+  their corresponding logicals, 'XX' in the dataset name
+  indicates a channel specifier (rh,rl,lh,ll).
+
+  CSDR$FIRAS_OUT: fec_sscal_XX
+  
+  CSDR$FIRAS_RAW: fdq_eng, fdq_idx
+  
+  CSDR$FIRAS_REF: fex_mincoadd, fex_grtrawwt, fex_grttrans
+ 

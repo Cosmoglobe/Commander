@@ -1,0 +1,185 @@
+!*********************************************************************
+!   File FSS.CLD  Defines qualifiers and parameters for command FSS. *
+!   Facility is FIRAS_SORT_SKY.                                      *
+!*********************************************************************
+!
+!   Based on previous FES file (no history)
+!   Redesign of FES , Oct 1990 , D. Bouler, STX
+!
+!******************************************************************
+!   Modifications:
+!
+!  Version 9.0   Delivery of redesign of FES
+!                Nov, 1990  D. Bouler,  STX
+!  Add qualifiers for selection based on Sun, Moon and Earth limb angles.
+!                Feb, 1992 Shirley M. Read, Hughes STX
+!  New qualifier (/pixlist) added.  July, 31 1992, Tilak Hewagama, Hughes STX.
+!  New qualifier (/dbins) added. May 22, 1995, K.Jensen, HSTX
+!******************************************************************
+!
+  DEFINE VERB FSS
+
+  IMAGE "CSDR$SYSTEM:FSS.EXE"
+
+  QUALIFIER JSTART,             !VAX format start time
+            Value(Required)  
+
+  QUALIFIER JSTOP,              !VAX format stop  time
+            Value(Required)  
+
+  QUALIFIER CHANNEL,            !Channels to use as input
+            NonNegatable, 
+            Default, 
+            Value(type=channel_type, default=all)
+
+  QUALIFIER FIRST_RUN           !No input skymap
+
+  QUALIFIER FAKEIT              !Allow FAKEIT data; default is NOFAKEIT
+
+  QUALIFIER RSE                 !Record selection expression file
+            Value(Required, type=$file)
+
+  QUALIFIER GALAXY,             !Exclude galactic plane (degrees)
+            Value(required) 
+
+  QUALIFIER TYPEPIX             !Type of pixelization
+            NonNegatable, 
+            Default,
+            Value(type=pixel_by_type)
+
+  QUALIFIER REPORT,             !Report file name 
+            Default,
+            Negatable,
+	    Value(type=$file)
+
+  QUALIFIER DETAIL,             !Level of detail in report
+            Default,
+	    Value(type=fss_detail)
+
+  QUALIFIER QUALITY             !Quality flag checking
+            NonNegatable, 
+            Default,
+            Value(Type=FSS_Quality,List)
+
+  QUALIFIER MTM                 !MTM mode 
+            Nonnegatable, 
+            Default, 
+            Value(type=mtm_type,list,Default=ALL)
+
+  QUALIFIER TEMPTOL             !Temperature tolerance 
+            Nonnegatable,       !Units = 0.001 degrees Kelvin
+            Default,
+            Value(default=5.0)
+
+  QUALIFIER BINS                !ICAL Temp bins
+            Nonnegatable,       !Default is 3 bins starting at 2.738 Kelvin
+            Default, 
+            Value(List)
+
+  QUALIFIER DBINS               !Dihedral Temp bins
+            Nonnegatable,       !Default is ( 3.5, 4.5, 5.5 )
+            Default, 
+            Value(List)
+
+  QUALIFIER PIXEL               !List of pixels to process
+            NonNegatable, 
+            Value(type=$number,list,required)
+
+  QUALIFIER PIXLIST               !List of pixels to process
+            NonNegatable, 
+            Value(type=$file)
+
+  QUALIFIER MPMODES             !Microprocessor modes to process
+            Nonnegatable,
+            Value(type=$number,list,required)
+
+  QUALIFIER INSKYMAP            !Input skymap name
+            Nonnegatable, 
+            Value(type=$file)
+
+  QUALIFIER ENGFILE             !Input engineering file
+            Nonnegatable, 
+            Value(type=$file)
+
+  QUALIFIER OUTSKYMAP           !Output skymap name
+            Nonnegatable, 
+            Value(type=$file)
+
+  QUALIFIER CLOSEOLD            !Use stragglers from last month
+            Nonnegatable
+ 
+  QUALIFIER WRITE               !Write records to output archive
+            Default,           
+            Negatable
+             
+  QUALIFIER OLDEST              !Earliest ifgs to coadd
+            Nonnegatable, 
+            Default, 
+            Value(default=89320000000000)
+
+  QUALIFIER MINSUN               !Minimum Sun angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=0.0)
+
+  QUALIFIER MAXSUN               !Maximum Sun angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=180.0)
+
+  QUALIFIER MINMOON              !Minimum Moon angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=0.0)
+
+  QUALIFIER MAXMOON              !Maximum Moon angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=180.0)
+
+  QUALIFIER MINEARTH             !Minimum Earth limb angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=0.0)
+
+  QUALIFIER MAXEARTH             !Maximum Earth limb angle (degrees) allowed
+            Nonnegatable,
+            Default,           
+            Value(default=180.0)
+
+
+  DISALLOW  CLOSEOLD AND FIRST_RUN            
+  DISALLOW  CLOSEOLD AND NOT OLDEST
+  DISALLOW  NEG WRITE AND OUTSKYMAP
+
+  DEFINE TYPE FSS_DETAIL
+              KEYWORD SUMMARY, DEFAULT
+              KEYWORD FULL
+
+  DEFINE TYPE PIXEL_BY_TYPE
+              KEYWORD SKY,   DEFAULT, VALUE(DEFAULT=6, TYPE=$NUMBER)
+              KEYWORD EARTH,          VALUE(DEFAULT=6, TYPE=$NUMBER)
+              KEYWORD SCAN_ANGLE,     VALUE(REQUIRED,  TYPE=$NUMBER)
+              KEYWORD ORBIT,          VALUE(REQUIRED)
+
+ DEFINE TYPE CHANNEL_TYPE
+              KEYWORD ALL, DEFAULT
+              KEYWORD HIGH
+              KEYWORD LOW
+              KEYWORD RIGHT
+              KEYWORD LEFT
+              KEYWORD RH
+              KEYWORD RL
+              KEYWORD LH
+              KEYWORD LL
+
+  DEFINE TYPE FSS_QUALITY
+              KEYWORD INSTRUMENT, DEFAULT, VALUE(TYPE=$NUMBER,DEFAULT=3)
+              KEYWORD ATTITUDE,   DEFAULT, VALUE(TYPE=$NUMBER,DEFAULT=3)
+
+  DEFINE TYPE MTM_TYPE
+              KEYWORD ALL,   DEFAULT
+              KEYWORD SS
+              KEYWORD SF
+              KEYWORD LS
+              KEYWORD LF

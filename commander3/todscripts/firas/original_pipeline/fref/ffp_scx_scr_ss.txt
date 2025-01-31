@@ -1,0 +1,24 @@
+!  FFP_SPECTRA_COADD script file for
+!     FIRCOADD:[SKY_NEW]FIL_SKY_ccSS,
+!     FIRCOADD:[SKYSPEC_NEW]FSL_SKY_ccSS,
+!     FIRCOADD:[SKYSPEC_NEW]FSL_DSK_ccSS,
+!        where cc is any of the 4 channels
+!
+!  S. Brodd, HSTX, 3/21/96
+!	Namelist / sfiles / infilext, outfilext
+!	Character*20	infilext (fac_max_num)	! Input files extensions
+!	Character*20	outfilext		! Output file extension
+ $SFILES
+	infilext(1) = 'ED_8932611_8932723;'
+	infilext(2) = 'ED_8932800_8934301;'
+	infilext(3) = 'ED_8934301_9001902;'
+	infilext(4) = 'ED_9001902_9008001;'
+	infilext(5) = 'ED_9008001_9012823;'
+	infilext(6) = 'ED_9012900_9013915;'
+	infilext(7) = 'ED_9013915_9019318;'
+	infilext(8) = 'ED_9019318_9020711;'
+	infilext(9) = 'ED_9020711_9020811;'
+	infilext(10) = 'ED_9020811_9022004;'
+	infilext(11) = 'ED_9022005_9026409;'
+	outfilext = 'ED_8932800_9026409;'
+ $END

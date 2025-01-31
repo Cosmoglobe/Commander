@@ -1,0 +1,18 @@
+!
+! FIRAS Merge Correction Spectra Record Structure
+!
+record FEX_MCS FEX_MCS
+!
+! Description
+!
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4       CHANSCAN
+!
+!  Correction Spectra
+!
+! Offset Correction Spectrum in ergs/s/cm^2/sr/icm
+array/floatc/dim=257       OFFSET_SPEC
+! Gain Correction Spectrum
+array/float/dim=257        GAIN_SPEC
+!
+end_record

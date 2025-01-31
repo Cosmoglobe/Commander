@@ -1,0 +1,26 @@
+!
+! Reference Normalized Template File Structure
+! 
+record FEX_REFTEMPS FEX_REFTEMPS
+
+       array/float/dim=41    PRIM_TEMP
+                             ! Normalized Primary Templates
+       array/float/dim=3     SEC_TEMP
+                             ! Normalized Secondary Templates
+                             !
+                             !    Stored in 32 records:
+                             !     RH channel           1 - 8
+                             !      SS scan mode; sky data  1
+                             !      SF scan mode; sky data  2
+                             !      LS scan mode; sky data  3
+                             !      LF scan mode; sky data  4
+                             !      SS scan mode; cal data  5
+                             !      SF scan mode; cal data  6
+                             !      LS scan mode; cal data  7
+                             !      LF scan mode; cal data  8
+                             !     RL channel          9 - 16
+                             !     LH channel         17 - 24
+                             !     LL channel         25 - 32
+       array/byte/dim=80     SPARES
+                             ! Pad to 256 bytes
+end_record

@@ -1,0 +1,12 @@
+!
+!	FDQ_STATBUFF.TXT -- Include file for statistics buffer
+!			    for FDQ_GEN_STAT
+
+	INTEGER*4	rec_time(2,100,3), weights(100,3), n_rec, nf_rec(128)
+                                 
+	REAL*4		min(128), max(128), element1(128),
+	1		sum(128), sum_sq(128)
+                        
+                        
+	COMMON /stats/ sum, sum_sq, min, max, rec_time, weights,
+    	1	       n_rec, nf_rec, element1

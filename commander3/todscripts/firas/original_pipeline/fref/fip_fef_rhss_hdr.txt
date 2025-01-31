@@ -1,0 +1,168 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'MOD-ERRS'           / Model selection errors
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'RH'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'S'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'S'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =         67.91283416  / Optical frequency of initial data point in GHz
+DELTA_NU=          16.97820854 / Optical frequency interval between data points 
+COMMENT                        / in GHz
+NUM_FREQ=                  166 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT 
+COMMENT   FIRAS Comparison Spectra
+COMMENT         Project Dataset Record Structure
+COMMENT 
+COMMENT 
+COMMENT  Comparison identification
+COMMENT 
+COMMENT     Unless otherwise noted, times are in
+COMMENT     seconds since 00:00.00 UTC, 1 January 1981
+COMMENT 
+COMMENT  Comparison Description
+TFORM1='80A'
+TTYPE1='DESCRIP' / entire fieldname = DESCRIP
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Channel / MTM scan mode (length and speed) 1
+TFORM2='4A'
+TTYPE2='CHANSCAN' / entire fieldname = CHANSCAN1
+OFFSET2=80
+TUNIT2=' '
+COMMENT  Start times of mission periods 1 (s)
+TFORM3='4D'
+TDIM3='(4)'
+TTYPE3='START_TI' / entire fieldname = START_TIMES1
+OFFSET3=84
+TUNIT3='s'
+COMMENT  Stop times of mission periods 1 (s)
+TFORM4='4D'
+TDIM4='(4)'
+TTYPE4='STOP_TIM' / entire fieldname = STOP_TIMES1
+OFFSET4=116
+TUNIT4='s'
+COMMENT  Exponential time constants 1 (days)
+TFORM5='2E'
+TTYPE5='TAU1' / entire fieldname = TAU1
+OFFSET5=148
+TUNIT5='d'
+COMMENT  Channel / MTM scan mode (length and speed) 2
+TFORM6='4A'
+TTYPE6='CHANSCA2' / entire fieldname = CHANSCAN2
+OFFSET6=156
+TUNIT6=' '
+COMMENT  Start times of mission periods 2 (s)
+TFORM7='4D'
+TDIM7='(4)'
+TTYPE7='START_T2' / entire fieldname = START_TIMES2
+OFFSET7=160
+TUNIT7='s'
+COMMENT  Stop times of mission periods 2 (s)
+TFORM8='4D'
+TDIM8='(4)'
+TTYPE8='STOP_TI2' / entire fieldname = STOP_TIMES2
+OFFSET8=192
+TUNIT8='s'
+COMMENT  Exponential time constants 2 (days)
+TFORM9='2E'
+TTYPE9='TAU2' / entire fieldname = TAU2
+OFFSET9=224
+TUNIT9='d'
+COMMENT 
+COMMENT  Frequency range of comparison
+COMMENT 
+COMMENT  Optical frequency of initial data point, in GHz
+TFORM10='1E'
+TTYPE10='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET10=232
+TUNIT10='GHz'
+COMMENT  Optical frequency interval, in GHz
+TFORM11='1E'
+TTYPE11='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET11=236
+TUNIT11='GHz'
+COMMENT  Number of frequency points with good data
+TFORM12='1J'
+TTYPE12='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET12=240
+TUNIT12=' '
+COMMENT 
+COMMENT   Comparison Spectra
+COMMENT 
+COMMENT  Real part of difference spectra (1-2), in MJy/sr
+TFORM13='180E'
+TDIM13='(180)'
+TTYPE13='RDIFF_SP' / entire fieldname = RDIFF_SPEC
+OFFSET13=244
+TUNIT13='MJy/sr'
+COMMENT  Imaginary part of difference spectra (1-2), in MJy/sr
+TFORM14='180E'
+TDIM14='(180)'
+TTYPE14='IDIFF_SP' / entire fieldname = IDIFF_SPEC
+OFFSET14=964
+TUNIT14='MJy/sr'
+COMMENT  Difference Spectra Sigma, in MJy/sr
+TFORM15='180E'
+TDIM15='(180)'
+TTYPE15='DIFF_SPE' / entire fieldname = DIFF_SPEC_SIG
+OFFSET15=1684
+TUNIT15='MJy/sr'
+COMMENT  Ratio Spectra (1/2); dimensionless
+TFORM16='180E'
+TDIM16='(180)'
+TTYPE16='RATIO_SP' / entire fieldname = RATIO_SPEC
+OFFSET16=2404
+TUNIT16=' '
+COMMENT  Ratio Spectra Sigma; dimensionless
+TFORM17='180E'
+TDIM17='(180)'
+TTYPE17='RATIO_S2' / entire fieldname = RATIO_SPEC_SIG
+OFFSET17=3124
+TUNIT17=' '
+COMMENT 
+END

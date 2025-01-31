@@ -1,0 +1,19 @@
+!
+!   FCS script file for channel LL, scan mode SS
+!
+!   Author: A. Trenholme, GSC, 6/10/93, SER 11051
+!
+!   Modifications:
+!
+ $SMAPS
+	skymap(1)='fad_sky_llss.ed_8932800_8934301'
+	skymap(2)='fad_sky_llss.ed_8934301_9001902'
+	skymap(3)='fad_sky_llss.ed_9001902_9008001'
+	skymap(4)='fad_sky_llss.ed_9008001_9012823'
+	skymap(5)='fad_sky_llss.ed_9012900_9013915'
+	skymap(6)='fad_sky_llss.ed_9013915_9019318'
+	skymap(7)='fad_sky_llss.ed_9019318_9020711'
+	skymap(8)='fad_sky_llss.ed_9020811_9022004'
+	skymap(9)='fad_sky_llss.ed_9022005_9026409'
+	filext = 'fad_8932800_9026409'
+ $END

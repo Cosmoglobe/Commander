@@ -1,0 +1,100 @@
+c-----------------------------------------------------------------------------
+c
+c       FSD_Astroplots.txt
+c
+c       Created by:
+c
+c            J. D. Dave'
+c               ARC
+c            August, 1987
+c
+c       This include file contains variables which are common to many
+c       of the routines in Astroplots.
+c
+c-----------------------------------------------------------------------------
+c Changes:
+c
+c	SPR 5752, Use character JSTART and JSTOP in call to FUT_ATTITUDE.
+c		  R. Kummerer / STX, January 30, 1990.
+c	SPR 5697, Remove dependency on MUT_YD_TO_YMD; reorganize time
+c		  convertion.  R. Kummerer / STX, February 1, 1990.
+c	SPR 6431, Increase limit on internal storage of raw science.
+c		  R. Kummerer / STX, March 8, 1990.
+c       SER 4569, Convert FSD_ASTROPLOTS from TEMPLATE to PLT graphics.
+c		  R. Kummerer, STX / 1990 April 26
+c
+c-----------------------------------------------------------------------------
+
+	Structure / Rad_Field_Data /
+	   Real		* 4	saa1_lon(100)
+	   Real		* 4	saa1_lat(100)
+	   Integer	* 4	saa1_num
+
+	   Real		* 4	saa2_lon(100)
+	   Real		* 4	saa2_lat(100)
+	   Integer	* 4	saa2_num
+
+	   Real		* 4	vabn1_lon(100)
+	   Real		* 4	vabn1_lat(100)
+	   Integer	* 4	vabn1_num
+
+	   Real		* 4	vabn2_lon(100)
+	   Real		* 4	vabn2_lat(100)
+	   Integer	* 4	vabn2_num
+
+	   Real		* 4	vabs1_lon(100)
+	   Real		* 4	vabs1_lat(100)
+	   Integer	* 4	vabs1_num
+
+	   Real		* 4	vabs2_lon(100)
+	   Real		* 4	vabs2_lat(100)
+	   Integer	* 4	vabs2_num
+	End Structure
+
+	Record / Rad_Field_Data / RadFld
+
+	include   '(fut_params)'
+	include   '(upm_stat_msg)'
+
+	integer * 4     num		!number of science records
+
+
+	logical   *  4      begin         !start new channel
+	logical   *  4      more          !data processing flag
+
+
+	character * 30      time_range
+	integer   *  4      gmt(2,64000)
+
+
+	real      *  4      pk_ht(64000)
+	real      *  4      glitch_rate(64000)
+	real      *  4      degl_noise(64000)
+	real      *  4      timeaxis(64000)
+	real      *  4      gal_lat(64000)
+	real      *  4      moon_angle(64000)
+	real      *  4      terr_lat(64000)
+	real      *  4      terr_lon(64000)
+	real      *  4      saa(200)
+	real      *  4      vab(200)
+	real      *  4      galactic_cross(200)
+	real      *  4      tmoon(200)
+	integer   *  2      amoon(200)
+
+	integer   *  4      nsaa
+	integer   *  4      nvab
+	integer   *  4      ngalactic
+	integer   *  4      nmoon
+
+	integer   *  4      interactive
+	character *  40     in_file
+	integer   *  4      user_att_soln
+
+	common /astro/ time_range, gmt, timeaxis,
+	1	pk_ht, glitch_rate, degl_noise,
+	2	gal_lat, moon_angle, terr_lat, terr_lon, saa, vab,
+	3	galactic_cross, amoon, tmoon
+	common /astro_data/ RadFld
+	common /astro_num/ num, nsaa, nvab, ngalactic, nmoon
+	common /flags/ begin, more
+	common /qualifier/ interactive, in_file, user_att_soln

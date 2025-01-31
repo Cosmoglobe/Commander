@@ -1,0 +1,6 @@
+!
+! Additional housekeeping information.
+!
+        scalar/text/length=14   GMT_MJF2
+                                !  Major frame 2 time tag
+        scalar/word             SPARES

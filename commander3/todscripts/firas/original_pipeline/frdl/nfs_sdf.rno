@@ -1,0 +1,20 @@
+.header level FIRAS_Science_Data_File (NFS_SDF)  (INTER)
+
+    This file contains all of the FIRAS raw science interferograms 
+obtained during the mission.  It is originally written by the 
+FIRAS Stripper, and includes spare fields to be filled in by
+facilities FPP_PreProcessor and FDQ_Data_Qualify.  After
+these fields are filled in, the raw science archive is complete.
+The raw data (in counts) are not modified during this process.
+The time associated with each IFG is the time of midpoint of
+collection of that IFG.
+    FPP_PreProcessor consistency checks various raw science quantities,
+mainly the IFG collect time, and flags each IFG according to the result
+of the consistency check.
+    FDQ_Data_Qualify adds the collect MTM scan speed and length,
+science gain, 
+data quality flags (pertaining to a number of different factors), 
+and the time corresponding to the associated Engineering Data
+File record.  It also adds attitude information such as
+the pixel number, Moon aspect angles, the Moon phase, and
+distances from the Moon to the Sun and COBE.

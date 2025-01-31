@@ -1,0 +1,74 @@
+!
+! Co-added engineering status bits.
+!
+        union
+
+          map
+!
+! Side A
+!
+            scalar/word        STAT_WORD_1
+            scalar/word        INT_REF_TEMP_A
+                               !  Internal reference source
+            scalar/word        REF_HRN_TEMP_A
+                               !  Reference horn
+            scalar/word        STAT_WORD_4
+            scalar/word        STAT_WORD_5
+            scalar/word        SKY_HRN_TEMP_A
+                               !  Sky horn
+            scalar/word        EXT_CAL_TEMP_A
+                               !  External calibrator
+            scalar/word        STAT_WORD_8
+!
+! Side B
+!
+            scalar/word        STAT_WORD_9
+            scalar/word        INT_REF_TEMP_B
+                               !  Internal reference source
+            scalar/word        REF_HRN_TEMP_B
+                               !  Reference horn
+            scalar/word        STAT_WORD_12
+            scalar/word        STAT_WORD_13
+            scalar/word        SKY_HRN_TEMP_B
+                               !  Sky horn
+            scalar/word        EXT_CAL_TEMP_B
+                               !  External calibrator
+            scalar/word        STAT_WORD_16
+          endmap
+
+          map
+            array/word/dim=16  GROUP1
+          endmap
+
+        endunion
+!
+! Miscellaneous status words.
+!
+        union
+
+          map
+            array/byte/dim=2   GRT_ADDR
+                               !  Dwell address A,B
+            array/byte/dim=4   MICRO_STAT_BUS
+                               !  Micro status bus readout
+            array/byte/dim=4   BOL_CMD_BIAS
+                               !  Bolometer bias
+            array/byte/dim=2   DWELL_STAT
+                               !  Dwell status A,B
+            array/byte/dim=2   LVDT_STAT
+                               !  LVDT status A,B
+          endmap
+
+          map
+            array/byte/dim=14  GROUP2
+          endmap
+
+        endunion
+        array/byte/dim=2       HOT_SPOT_CMD
+                               !  Hot spot command for A, B side
+        array/byte/dim=10      ENGSTAT_SPARES1
+        array/byte/dim=2       POWER_A_STATUS
+                               !  Status for power to FIRAS A
+        array/byte/dim=2       POWER_B_STATUS
+                               !  Status for power to FIRAS B
+        array/byte/dim=6       ENGSTAT_SPARES2

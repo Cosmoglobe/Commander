@@ -1,0 +1,31 @@
+        union
+
+          map
+            scalar/word         EX_CAL
+                                !  External calibrator
+            scalar/word         SKY_HORN
+                                !  Sky horn
+            scalar/word         REF_HORN
+                                !  Reference horn
+            scalar/word         IREF_SOURCE
+                                !  Internal reference source
+            scalar/word         DIHEDRAL
+                                !  Dihedral
+            array/word/dim=4    BOL_ASSEM
+                                !  Bolometer assembly
+            scalar/word         MIRROR
+                                !  Mirror assembly
+            array/word/dim=4    CAL_RESIST
+                                !  Cal resistors
+            scalar/word         EX_CAL_SEGMENT
+                                !  Additional external
+                                !    calibrator temps
+            scalar/word         COLIMATOR
+                                !  Colimator
+          endmap
+
+          map
+            array/word/dim=16   GRT
+          endmap
+
+        endunion

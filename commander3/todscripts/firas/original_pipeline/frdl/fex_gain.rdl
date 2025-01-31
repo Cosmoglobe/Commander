@@ -1,0 +1,34 @@
+!
+!  RDL for "FIRAS Reference Dataset_Gain,  & Gaps
+!
+record FEX_GAIN FEX_GAIN
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+! The earliest start time (adt and GMT) are stored in the CT_HEAD time fields.
+
+  scalar/text/length=14 START_GMT
+                        !  Start Frame's GMT time
+  scalar/adt            START_TIME
+                        !  Start Frame's Quadword time
+  scalar/text/length=14 STOP_GMT
+                        !  Last Frame's GMT time 
+  scalar/adt            STOP_TIME
+                        !  Last Frame's Quadword time 
+  scalar/text/length=14 PREV_GMT
+                        !  Previous reference record gmt time (ct_head.gmt)
+  array/word/dim=2      GAIN
+                        !  Gain values
+  array/byte/dim=2      GAIN_CHANGE
+                        !  Gain changed
+  scalar/byte           TLM_BAD_QUALITY     
+                        !  Telemetry bad quality
+  scalar/byte           GAIN_DATA_GAP
+                        !  Housekeeping gain data gap
+  scalar/byte           END_OF_DATA
+                        !  End of data
+  array/byte/dim=29     SPARES
+                        !  Spares
+  end_record

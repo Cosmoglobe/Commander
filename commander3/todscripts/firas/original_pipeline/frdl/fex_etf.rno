@@ -1,0 +1,12 @@
+.header level Electronic_Transfer_Function    (FEX_ETF) (REF)
+
+      This file contains the values for the complex electronic transfer
+function, maintained as a function of channel, MTM speed, adds per group,
+science mode and fake-it mode.  There is one record for each "instrument
+configuration", essentially one for each combination of the preceeding
+instrument parameters.  Given the instrument configuration, subroutine
+FUT_GET_RECNUM returns the number of the record containing the appropriate
+transfer function.
+    This data set is created by facility FRD_ELEX_TRANSFCN and is
+entered into the archive via facility CCL.
+

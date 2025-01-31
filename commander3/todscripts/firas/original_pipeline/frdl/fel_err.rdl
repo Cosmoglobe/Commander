@@ -1,0 +1,49 @@
+!
+!  FIRAS Calibration Errors Long Spectra
+!     Project Dataset Record Structure
+!
+record FEL_ERR FEL_ERR
+!
+! Calibration model identification
+!
+! Calibration model solution label
+scalar/text/length=40      MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4       CHANSCAN
+! Optical frequency of initial data point, in GHz
+scalar/float               NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float               DELTA_NU
+! Number of frequency points with good data
+scalar/long                NUM_FREQ
+! Galactic Latitude below which data is excluded for
+!    D-Vector and C-Vector calculations
+scalar/float               GALATEXC
+! Galactic Longitude below which data is excluded for
+!    D-Vector and C-Vector calculations
+scalar/float               GALONEXC
+!
+!  Error Terms
+!
+! Detector Noise from Coadd Variance, in MJy/sr
+array/double/dim=210       D_VECTOR
+! Detector Noise from Pixel Variance, in Mjy/sr
+array/double/dim=210       C_VECTOR
+! Emissivity Gain Error (dimensionless)
+array/float/dim=210        PEP_GAIN
+! Emissivity Offset Error, in MJy/sr
+array/float/dim=210        PEP_OFFSET
+! Bolometer Parameter Gain Error (dimensionless)
+array/float/dim=(13,210)   JCJ_GAIN
+! Bolometer Parameter Offset Error, in MJy/sr
+array/float/dim=(13,210)   JCJ_OFFSET
+!  Ical Temperature Error, in K
+scalar/float               PUP_TEMP
+!  Ical Temperature Error Spectrum, in MJy/sr
+array/float/dim=210        PUP_SPEC
+!  Absolute Temperature Error, in K
+scalar/float               PTP_TEMP
+!  Absolute Temperature Error Spectrum, in MJy/sr
+array/float/dim=210        PTP_SPEC
+!
+end_record

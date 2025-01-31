@@ -1,0 +1,104 @@
+!
+! FIRAS high frequency line profiles record structure 
+!
+record FIP_HLP FIP_HLP
+!
+! Calibration model solution identification
+!
+! Calibration model solution label
+scalar/text/length=40  MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4   CHANSCAN
+!
+! Frequency range of line profiles
+!
+! Optical frequency of initial data point, in GHz
+scalar/float           NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float           DELTA_NU
+! Number of frequency points with good data
+scalar/long            NUM_FREQ
+!
+! Line Profiles
+!
+! Real part of 115.27 GHz CO (J=1-0) line profile, in 1/GHz
+array/float/dim=180    RCO_115
+! Imaginary part of 115.27 GHz CO (J=1-0) line profile, in 1/GHz
+array/float/dim=180    ICO_115
+!
+! Real part of 230.54 GHz CO (J=2-1) line profile, in 1/GHz
+array/float/dim=180    RCO_230
+! Imaginary part of 230.54 GHz CO (J=2-1) line profile, in 1/GHz
+array/float/dim=180    ICO_230
+!
+! Real part of 345.80 GHz CO (J=3-2) line profile, in 1/GHz
+array/float/dim=180    RCO_345
+! Imaginary part of 345.80 GHz CO (J=3-2) line profile, in 1/GHz
+array/float/dim=180    ICO_345
+!
+! Real part of 424.75 GHz O2 line profile, in 1/GHz
+array/float/dim=180    RO2_424
+! Imaginary part of 424.75 GHz O2 line profile, in 1/GHz
+array/float/dim=180    IO2_424
+!
+! Real part of 461.04 GHz CO (J=4-3) line profile, in 1/GHz
+array/float/dim=180    RCO_461
+! Imaginary part of 461.04 GHz CO (J=4-3) line profile, in 1/GHz
+array/float/dim=180    ICO_461
+!
+! Real part of 492.23 GHz [C I] line profile, in 1/GHz
+array/float/dim=180    RC_I_492
+! Imaginary part of 492.23 GHz [C I] line profile, in 1/GHz
+array/float/dim=180    IC_I_492
+!
+! Real part of 556.89 GHz H2O line profile, in 1/GHz
+array/float/dim=180    RH2O_556
+! Imaginary part of 556.89 GHz H2O line profile, in 1/GHz
+array/float/dim=180    IH2O_556
+!
+! Real part of 576.27 GHz CO (J=5-4) line profile, in 1/GHz
+array/float/dim=180    RCO_576
+! Imaginary part of 576.27 GHz CO (J=5-4) line profile, in 1/GHz
+array/float/dim=180    ICO_576
+!
+! Real part of 691.47 GHz CO (J=6-5) line profile, in 1/GHz
+array/float/dim=180    RCO_691
+! Imaginary part of 691.47 GHz CO (J=6-5) line profile, in 1/GHz
+array/float/dim=180    ICO_691
+!
+! Real part of 809.44 GHz [C I] line profile, in 1/GHz
+array/float/dim=180    RC_I_809
+! Imaginary part of 809.44 GHz [C I] line profile, in 1/GHz
+array/float/dim=180    IC_I_809
+!
+! Real part of 1113.3 GHz H2O line profile, in 1/GHz
+array/float/dim=180    RH2O_1113
+! Imaginary part of 1113.3 GHz H2O line profile, in 1/GHz
+array/float/dim=180    IH2O_1113
+!
+! Real part of 1461.1 GHz [N II] line profile, in 1/GHz
+array/float/dim=180    RN_II_1461
+! Imaginary part of 1461.1 GHz [N II] line profile, in 1/GHz
+array/float/dim=180    IN_II_1461
+!
+! Real part of 1900.5 GHz [C II] line profile, in 1/GHz
+array/float/dim=180    RC_II_1900
+! Imaginary part of 1900.5 GHz [C II] line profile, in 1/GHz
+array/float/dim=180    IC_II_1900
+!
+! Real part of 2060.1 GHz [O I] line profile, in 1/GHz
+array/float/dim=180    RO_I_2060
+! Imaginary part of 2060.1 GHz [O I] line profile, in 1/GHz
+array/float/dim=180    IO_I_2060
+!
+! Real part of 2311.7 GHz [Si I] line profile, in 1/GHz
+array/float/dim=180    RSI_I_2311
+! Imaginary part of 2311.7 GHz [Si I] line profile, in 1/GHz
+array/float/dim=180    ISI_I_2311
+!
+! Real part of 2459.4 GHz [N II] line profile, in 1/GHz
+array/float/dim=180    RN_II_2459
+! Imaginary part of 2459.4 GHz [N II] line profile, in 1/GHz
+array/float/dim=180    IN_II_2459
+!
+end_record

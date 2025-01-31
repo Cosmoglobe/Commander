@@ -1,0 +1,52 @@
+!
+! Engineering header.
+!
+        scalar/text/length=23   LIMITS
+                                !  Limits file name
+        scalar/text/length=23   CONVERT
+                                !  Conversion file name
+        scalar/long             A_SPARE
+        scalar/word             KEY_ID
+                                !  Type of engineering data:
+                                !        0 = non-statistics
+                                !        1 = average
+                                !        2 = sigma
+                                !        3 = minimum
+                                !        4 = maximum
+        scalar/long             NUMBER_OF_RECORDS
+                                !  Number of engineering
+                                !    records used in
+                                !    forming statistics
+        array/byte/dim=8        ENGHEAD_SPARES1
+                                !  Spares
+
+        structure/dim=4         SCI_TIME
+           scalar/adt           BIN_TIME
+                                !  Binary time
+        endstructure
+
+        scalar/adt              FIRST_ENG_TIME
+                                !  Time tag of first
+                                !    engineering record
+                                !    used in forming
+                                !    engineering trends
+        scalar/adt              LAST_ENG_TIME
+                                !  Time tag of last
+                                !    engineering record
+                                !    used in forming
+                                !    engineering trends
+
+        array/byte/dim=4        DQ_SUMMARY_FLAG
+                                !  Data quality summary
+                                !    flags for the four
+                                !    FIRAS channels
+        array/long/dim=4        IFG_NO
+                                !  IFG number within
+                                !    segment
+        array/byte/dim=4        ATT_SUMMARY_FLAG
+                                !  Attitude data quality
+                                !    summary flags for the
+                                !    four FIRAS channels
+
+        array/byte/dim=34       ENGHEAD_SPARES2
+                                !  Spare time bytes

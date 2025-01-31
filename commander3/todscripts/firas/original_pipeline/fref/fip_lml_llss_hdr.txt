@@ -1,0 +1,133 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'LINE-MAP'           / Line Maps
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89'           / date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90'           / date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution   [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'LL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'S'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'S'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+COMMENT                        /
+NU_ZERO =              1800.0  / Characteristic Freq of optical depth in GHz
+COMMENT                        /
+LINFRQ1 =              115.27  / CO line frequency in GHz  
+LINFRQ2 =              230.54  / CO line frequency in GHz  
+LINFRQ3 =              345.80  / CO line frequency in GHz  
+LINFRQ4 =              424.75  / O2 line frequency in GHz  
+LINFRQ5 =              461.04  / CO line frequency in GHz  
+LINFRQ6 =              492.23  / [C I] line frequency in GHz
+LINFRQ7 =              556.89  / H2O line frequency in GHz
+LINFRQ8 =              576.27  / CO line frequency in GHz
+COMMENT                        /
+COMMENT                        /
+COMMENT
+COMMENT See FIRAS Explanatory Supplement for further details concerning
+COMMENT                 analysis methodology.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT
+COMMENT  FIRAS line map (low channel) Project Dataset record structure 
+COMMENT
+COMMENT
+COMMENT  FIRAS pixel number (resolution 6)
+TFORM1='1J'
+TTYPE1='PIXEL' / entire fieldname = PIXEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Ecliptic longitude (pixel average), epoch 2000.0, in deg (0 -> 360)
+TFORM2='1E'
+TTYPE2='ECLON' / entire fieldname = ECLON
+OFFSET2=4
+TUNIT2='deg'
+COMMENT  Ecliptic latitude  (pixel average), epoch 2000.0, in deg (-90 -> +90)
+TFORM3='1E'
+TTYPE3='ECLAT' / entire fieldname = ECLAT
+OFFSET3=8
+TUNIT3='deg'
+COMMENT
+COMMENT
+COMMENT  Line Flux Parameters & Uncertainties
+COMMENT
+COMMENT  Real part of line flux, in watt / s m^2 sr
+TFORM4='8E'
+TDIM4='(8)'
+TTYPE4='LINE_FLU' / entire fieldname = LINE_FLUX
+OFFSET4=12
+TUNIT4='w/m^2/sr'
+COMMENT  Sigmas of real part of line flux, in watt / s m^2 sr
+TFORM5='8E'
+TDIM5='(8)'
+TTYPE5='LINE_FL2' / entire fieldname = LINE_FLUX_SIGMA
+OFFSET5=44
+TUNIT5='w/m^2/sr'
+COMMENT
+COMMENT
+COMMENT  Channel/Scan-Mode Identifier
+TFORM6='4A'
+TTYPE6='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET6=76
+TUNIT6=' '
+COMMENT  Number of IFGs in spectrum
+TFORM7='1E'
+TTYPE7='NUM_IFGS' / entire fieldname = NUM_IFGS
+OFFSET7=80
+TUNIT7=' '
+COMMENT  Galactic longitude (pixel average), in deg (0 -> 360)
+TFORM8='1E'
+TTYPE8='GALON' / entire fieldname = GALON
+OFFSET8=84
+TUNIT8='deg'
+COMMENT  Galactic latitude  (pixel average), in deg (-90 -> +90)
+TFORM9='1E'
+TTYPE9='GALAT' / entire fieldname = GALAT
+OFFSET9=88
+TUNIT9='deg'
+COMMENT  Right ascension (pixel average), in deg (0 -> 360)
+TFORM10='1E'
+TTYPE10='RA' / entire fieldname = RA
+OFFSET10=92
+TUNIT10='deg'
+COMMENT  Declination     (pixel average), in deg (-90 -> +90)
+TFORM11='1E'
+TTYPE11='DEC' / entire fieldname = DEC
+OFFSET11=96
+TUNIT11='deg'
+END

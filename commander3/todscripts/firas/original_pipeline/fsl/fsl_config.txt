@@ -1,0 +1,117 @@
+c-------------------------------------------------------------------------------
+c
+c	FSL_CONFIG.TXT
+c
+c	This include file contains the CCT_GET_CONFIG parameters for FSL.  
+c       This file gives access to the following reference datasets:
+c
+c		Sequential:		Direct:
+c
+c		FEX_GRTCOAWT		FEX_APODL
+c		FEX_GRTTRANS		FEX_ETFL
+c		FEX_NYQUISTL
+c		FEX_VIBCORRL
+c
+c	Author:	 
+c                FCF_Config
+c                Gene Eplee
+c		 General Sciences Corp.
+c		 9 October 1992
+c       
+c                FSL_Config
+c                Shirley M. Read
+c                Hughes STX Corporation
+c                July 1995
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes for FCF:
+c
+c	Modified vibration correction to separate short fast and long fast
+c	scan modes.
+c	Gene Eplee, GSC, 25 October 1993
+c	SER 11395
+c
+c       Changes for FSL:
+c
+c       Shirley M. Read, Hughes STX Corporation, July 12, 1995 
+c       Modified FCF_Config to FSL_Config for the new FIRAS pipeline which
+c       will process long spectra to get improved frequency resolution.
+c         1. Updated reference dataset names and array sizes for long frequency
+c         2. Change array size of electronics transfer function
+c         3. Removed array for FFT of apodization function and peak position
+c            (ictr) from FCF version.
+c
+c-------------------------------------------------------------------------------
+
+
+	Include '(cct_get_config)'
+
+c  The sequential-access reference datasets.
+
+	character * 32	dset_tod(4)
+	data dset_tod(1) /'CSDR$FIRAS_REF:FEX_GRTCOAWT'/
+	data dset_tod(2) /'CSDR$FIRAS_REF:FEX_GRTTRANS'/
+	data dset_tod(3) /'CSDR$FIRAS_REF:FEX_NYQUISTL'/
+	data dset_tod(4) /'CSDR$FIRAS_REF:FEX_VIBCORRL'/
+
+	integer *  4	ndset_tod /4/
+	integer *  4	size_tod(4) /256, 384, 128, 256/
+	integer *  4	tod_index(4)
+	integer *  4	tod_lun(4)
+
+	logical *  1	new_tod_segment(4)
+
+	dictionary 'fex_grtcoawt'
+	dictionary 'fex_grttrans'
+	dictionary 'fex_nyquistl'
+	dictionary 'fex_vibcorrl'
+
+	structure /fsl_config/
+	   record /fex_grtcoawt/ grtcoawt
+	   record /fex_grttrans/ grttrans
+	   record /fex_nyquistl/  nyquist
+	   record /fex_vibcorrl/  vibcorr
+	endstructure
+
+	record /fsl_config/ config
+	record /config_status/  tod_stat(4)
+
+c  The direct-access reference datasets.
+
+	character * 32	dset_dir(2)
+	data dset_dir(1) /'CSDR$FIRAS_REF:FEX_APODL'/
+	data dset_dir(2) /'CSDR$FIRAS_REF:FEX_ETFL'/
+
+	integer	*  4	dir_index(2)
+	integer	*  4	dir_lun(2)
+	integer	*  4	ndset_dir /2/
+	integer	*  4	size_dir(2) /4096, 6144/
+
+	logical	*  1	new_dir_segment(2)
+
+	record /config_status/ dir_stat(2)
+
+c  Common variables and reference data effective time range.
+
+	character *  6	dir_access /'DIRECT'/
+	character * 14	ref_gmt_start /'86001000100000'/
+	character * 14	ref_gmt_stop  /'99365235859999'/
+	character *  1	seq_access /' '/
+	integer *  4	ncache /1/
+	integer *  4	ref_count
+	integer	*  4	ref_start(2)
+	integer	*  4	ref_stop(2)
+c
+c  Define the electronics transfer function, the apodization function, and the
+c	ifg peak position.
+
+	complex * 16	ztrans(361)		!  electronics transfer function
+	real	*  8	apod_fcn(512)		!  apodization function
+c
+c  Define the common block.
+c
+	common /fcc_config_data/ tod_lun, tod_index, tod_stat,
+     .				 dir_lun, dir_index, dir_stat,
+     .				 ref_start, ref_stop, 
+     .				 config, apod_fcn, ztrans

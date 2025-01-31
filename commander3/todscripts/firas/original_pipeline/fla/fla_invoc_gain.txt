@@ -1,0 +1,48 @@
+c------------------------------------------------------------------------
+c
+c	FLA_INVOC_GAIN.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FLA_GAIN.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 30 June 1993
+c
+c------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FLA version number
+	parameter	(fcc_version='11.3')
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_fex_file		!  FEX model solution file name
+	character * 50	fcc_gain_file		!  Gain function file name
+	character * 20	fcc_model_ext		!  model solution file extension
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 64	fcc_report_file		!  report file name
+
+	integer * 2	fcc_fexlen		!  length of FEX model file name
+	integer * 2	fcc_glen		!  length of gain fn file name
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_flight		!  /FLIGHT qualifier
+	integer * 4	fcc_length		!  MTM scan length
+	integer * 4	fcc_ngroup		!  adds per group
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_model_ext, fcc_chan, fcc_length, fcc_speed,
+     .			     fcc_ngroup, fcc_smode,  fcc_scan_mode, fcc_flight,
+     .			     fcc_fex_file, fcc_fexlen, fcc_gain_file, fcc_glen,
+     .			     fcc_report, fcc_report_file, fcc_replen

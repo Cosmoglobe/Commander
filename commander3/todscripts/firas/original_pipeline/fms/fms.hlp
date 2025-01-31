@@ -1,0 +1,257 @@
+1 FMS
+
+	Purpose
+
+	The purpose of FMS is to combine the skymaps produced by the FIRAS
+	pipeline.  The pipeline produces a skymap for 12 channel and scan mode
+	combinations of the instrument with one spectrum per pixel.  FMS
+	combines skymaps across channel and scan mode, correcting the spectra
+	for calibration gain and offset errors in the process.  FMS combines
+	exactly two skymaps per run; it is run once for each combination.
+	Initially the FCS skymaps are the input, and later FMS products are
+	the input.  It can also be run on FAD or FCF skymaps.  Not all
+	combinations are allowed.  The complete list of possible combinations
+	follows later in this file.
+
+2 Method
+
+	The basic method of FMS is to average the quantities of two skymaps
+	together using weights and applying corrections to the spectra to
+	account for gain and offset errors.
+	See the document "Combining FIRAS Skymaps - A General Approach" by
+	Gene Eplee and Dale Fixsen for explanations for algorithms used.
+	The FMS Design Walkthrough (FMS_Walkthru) gives a complete
+	description of the processing methods.
+
+2 Lists of All Allowed Combinations
+
+	A.  Allowed 0th-Order Combinations for Production Processing:
+	   RHSF + RHLF   ==>   RHFA        "Right High Fast"
+	   RLSF + RLFL   ==>   RLFA        "Right Low  Fast"
+	   LHSF + LHLF   ==>   LHFA        "Left  High Fast"
+	   LLSF + LLFL   ==>   LLFA        "Left  Low  Fast"
+
+	B.  Allowed 1st-Order Combinations for Production Processing:
+	   RHSS + LHSS   ==>   HISL        "High  Slow"
+	   RHFA + LHFA   ==>   HIFA        "High  Fast"
+	   RLSS + LLSS   ==>   LOSL        "Low   Slow"
+	   RLFA + LLFA   ==>   LOFA        "Low   Fast"
+	   RLLF + LLLF   ==>   HRES        "High Resolution Skymap"
+
+	C.  Allowed 1st-Order Combinations for Analysis Purposes:
+	   RHSS + RHFA   ==>   RTHI        "Right High"
+	   RLSS + RLFA   ==>   RTLO        "Right Low"
+	   LHSS + LHFA   ==>   LTHI        "Left  High"
+	   LLSS + LLFA   ==>   LTLO        "Left  Low"
+	   RHSS + RLSS   ==>   RTSL        "Right Slow"
+	   RHFA + RLFA   ==>   RTFA        "Right Fast"
+	   LHSS + LLSS   ==>   LTSL        "Left  Slow"
+	   LHFA + LLFA   ==>   LTFA        "Left  Fast"
+	   RHSS + LLSS   ==>   14SL        "Right High/Left Low  Slow"
+	   RHFA + LLFA   ==>   14FA        "Right High/Left Low  Fast"
+	   RLSS + LHSS   ==>   23SL        "Right Low/Left  High Slow"
+	   RLFA + LHFA   ==>   23FA        "Right Low/Left  High Fast"
+
+	D.  Allowed 2nd-Order Combinations for Production Processing:
+	   HISL + HIFA   ==>   HIGH        "High"
+	   LOSL + LOFA   ==>   LOWF        "Low"
+
+	E.  Allowed 2nd-Order Combinations for Analysis Purposes:
+	   RTHI + LTHI   ==>   HIGH        "High"
+	   RTLO + LTLO   ==>   LOWF        "Low"
+	   RTHI + RTLO   ==>   RIGT        "Right"
+	   LTHI + LTLO   ==>   LEFT        "Left"
+	   RTSL + RTFA   ==>   RIGT        "Right"
+	   LTSL + LTFA   ==>   LEFT        "Left"
+	   HISL + LOSL   ==>   SLOW        "Slow"
+	   HIFA + LOFA   ==>   FAST        "Fast"
+	   RTSL + LTSL   ==>   SLOW        "Slow"
+	   RTFA + LTFA   ==>   FAST        "Fast"
+	   RTHI + LTLO   ==>   RHLL        "Right High/Left Low"
+	   RTLO + LTHI   ==>   RLLH        "Right Low/Left High"
+
+	F.  Allowed 3rd-Order Combinations for Production Processing:
+	   HIGH + LOWF   ==>   LRES        "Low Resolution Skymap"
+
+	G.  Allowed 3rd-Order Combinations for Analysis Purposes:
+	   RIGT + LEFT   ==>   LRES        "Low Resolution Skymap"
+	   SLOW + FAST   ==>   LRES        "Low Resolution Skymap"
+
+
+2 Logical Pointers
+
+	FMS uses thre logical pointers to direct data input and output:
+
+	   CSDR$FIRAS_IN - points to the archive directory containing the two
+	                   input skymaps.
+
+	   CSDR$FIRAS_OUT - points to the archive directory that will contain
+	                    the merged output skymap, the merged D-Vector and
+	                    C-Vector datasets, and the computed correction
+	                    spectrum file.
+
+	   CSDR$FIRAS_REF - points to the archive directory containing the
+	                    input D-Vector and C-Vector datasets.
+
+
+2 Command Line Qualifiers
+
+	The following qualifiers are available to guide FMS processing.
+
+
+3 /SCRIPT
+  /SCRIPT = <filename>
+
+	The SCRIPT qualifier is used to specify the "script" file containing
+	the names of the two skymaps to be combined.  It may also contain an
+	output file name extension (optional).  If a file extension is not
+	included, the file extension from the first input skymap is used.  The
+	script file uses the VAX FORTRAN "namelist" direct input method.
+	/SCRIPT = <filename>
+	This qualifier is required; it must be specified.  A sample follows:
+
+	^$SMAPS
+	<tab> skymap(1) = 'fcs_sky_rhss.fad_8932800_9026409'
+	<tab> skymap(2) = 'fcs_sky_lhss.fad_8932800_9026409'
+	<tab> file_ext = 'fad_8932800_9026409'
+	^$END
+
+	where ^ indicates a space at the beginning of the line in the file.
+
+3 /COMBINATION
+  /COMBINATION = ( FREQUENCY | SCAN_MODE | SIDE | HYBRID )
+
+	The COMBINATION qualifier is used to specify the type of combination
+	being done.  It is required; it must be specified.  Possible values are:
+	   FREQUENCY - combining high and low frequency skymaps.
+	   SCAN_MODE - combining maps with differen scan modes.
+	   SIDE      - combining left and right detector skymaps.
+	   HYBRID    - combining maps with more than one difference.
+
+3 /ORDER
+  /ORDER = ( ZEROTH | FIRST | SECOND | THIRD )
+
+	The ORDER qualifier is used to specify the combination order as defined
+	in the "tennis tree" combination map below.  It is required; it must be
+	specified.  Possible values are: ZEROTH, FIRST, SECOND, or THIRD.  See
+	Lists of All Allowed Combinations.
+
+         0th-Order     1st-Order      2nd-Order        3rd_Order
+        Combination   Combination    Combination      Combination
+
+    RHSF ===\
+             ===> RHFA ===\
+    RHLF ===/              \
+                            ===> HIFA ===\
+    LHSF ===\              /              \
+             ===> LHFA ===/                \
+    LHLF ===/                               \
+                                             ===> HIGH ===\
+                                            /              \
+                  RHSS ===\                /                \
+                           \              /                  \
+                            ===> HISL ===/                    \
+                           /                                   \
+                  LHSS ===/                                     \
+                                                                 \
+                                                                  ===> LRES
+    RLSF ===\                                                    /
+             ===> RLFA ===\                                     /
+    RLFL ===/              \                                   /
+                            ===> LOFA ===\                    /
+    LLSF ===\              /              \                  /
+             ===> LLFA ===/                \                /
+    LLFL ===/                               \              /
+                                             ===> LOWF ===/
+                                            /
+                  RLSS ===\                /
+                           \              /
+                            ===> LOSL ===/
+                           /
+                  LLSS ===/
+
+                  RLLF ===\
+                           \
+                            ===> HRES
+                           /
+                  LLLF ===/
+
+3 /MODEL_EXT
+  /MODEL_EXT = < c-vector file extension >
+
+	The MODEL_EXT qualifier is used to specify the calibration model
+	solution and filename extension of the D-Vector and C-Vector data sets.
+	It is required; it must be specified.  /MODEL_EXT = F16_93HYBRID.
+
+3 /WEIGHT
+  /WEIGHT = ( CVECTOR | DVECTOR )
+
+	The WEIGHT qualifier is used to specify the spectral weight
+	specification switch.  It is required; it must be specified.  Possible
+	values are: DVECTOR and CVECTOR.  CVECTOR is used in production
+	processing.  All ZEROTH order combinations must use the DVECTOR.
+	/WEIGHT = CVECTOR.
+
+3 /TRANS_FREQ
+  /TRANS_FREQ = 21 (default)
+	The TRANS_FREQ qualifier is used to specify the correction spectrum
+	transition frequency in icm.  The default is /TRANS_FREQ = 21.  The
+	correction spectrum transition is specified in integer wavenumbers and
+	must fall in the frequency range of 19-23 wavenumbers.  An offset
+	correction applies for frequencies below the transition, and a gain
+	correction applies for those above the transition.
+
+3 /REPORT
+  /REPORT = < report file name >
+  /REPORT  default
+
+	The REPORT qualifier is used to specify a processing report filename.
+	The qualifier is optional.  If not specified, the default is to
+	create a report with default name:
+	   FMS_<order>_<ccss>_<xxxxxxx>_<yyyyyyy>.REP_<yydddhhmm>,
+	   where <order> is the combination order, <ccss> is channel/scan mode,
+	   <xxxxxxx> and <yyyyyyy> are the start and stop timetags from the
+	   input datasets, and yydddhhmm is the invocation time.
+	The qualifier may be used to specify that no report be created:
+	/NOREPORT.  A user chosen name is entered: /REPORT = <filename>.
+
+2 Input Data Sets
+
+	FMS takes as input either FCS skymaps: FCS_SKY_ccss or
+	FMS skymaps: FMS_SKY_ccss.  Exactly two skymaps are merged with a
+	run of FMS.  Their file names are specified in the "script" file
+	(see Command Line Qualifiers/SCRIPT).  The allowed channel/scan mode
+	specifications "ccss" are listed in Lists of All Allowed Combinations.
+	The input skymaps have one spectrum per pixel.  The skymaps are read
+	from the CSDR$FIRAS_IN archive.
+
+2 Reference Data Sets
+
+	FMS reads the C vector and D vector reference data files from the
+	CSDR$FIRAS_REF archive.
+	When FMS is run on FCS data, the reference files are:
+	   FEX_VAR_ccss:  The average variance of the sky spectra, computed
+	   from the uncombined FCF_SKY_ccss records.  The variance is a real*8,
+	   257-point array.
+	   FEX_CVS_ccss:  The square of the C-Vector, the average pixel
+	   variance of the destriped sky spectra, produced by the destriper
+	   routine FDS_CVECTOR.  The square is a real*8, 257-point array.
+	When FMS is run on FMS data, the reference files are:
+	   FMS_VAR_ccss:  The merged variance of the sky spectra, created by a
+	   previous run of FMS.  The variance is a real*8, 257-point array.
+	   FMS_CVS_ccss:  The merged square of the C-Vector, created by a
+	   previous run of FMS.  The square is a real*8, 257-point array.
+
+2 Output Data Sets
+
+	Each run of FMS creates four files in the CSDR$FIRAS_OUT archive:
+	   FMS_SKY_ccss:  Skymaps of merged sky spectra.  These skymaps
+	   contain one spectrum per pixel in a merged channel/scan mode.  The
+	   spectra are complex*8, 257-point arrays.
+	   FMS_VAR_ccss:  The merged variance of the sky spectra.  The variance
+	   is a real*8, 257-point array.
+	   FMS_CVS_ccss:  The merged square of the C-Vector.  The square of the
+	   C-Vector is a real*8, 257-point array.
+	   FMS_COR_ccss:  The correction spectrum applied to spectra merged
+	   across channels or scan modes.  The correction spectrum is a
+	   complex*16, 257-point array.

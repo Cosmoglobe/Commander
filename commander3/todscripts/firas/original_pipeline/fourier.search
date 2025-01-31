@@ -1,0 +1,213 @@
+fcc/fcc_calibrate.for:c     Replace each column of N by its inverse Fourier transform.
+fcc/fcc_calibrate.for:c     Replace N2 by its inverse two-sided Fourier transform.
+fcc/fcc_calibrate.for:c     Replace each row of N and each row of EQ by its forward Fourier
+fcc/fcc_calibrate.for:c     Replace each row of DA by its inverse Fourier transform.
+fcc/fcc_calibrate.for:c     Replace each column of N by its forward Fourier transform.
+fcc/fcc_calibrate.for:c     Replace N2 by its forward two-sided Fourier transform.
+fcc/fcc_calibrate.for:c     Replace each row of N and EQ by its inverse Fourier transform.
+fcc/fcc_calibrate.for:c     Replace each row of DA by its forward Fourier transform.
+fic/fic_coadd.for:c     Fast Fourier transform the coadded interferogram.
+fic/fic_coadd.for:c     Unpack the Fourier transform and multiply by the scaling vector.
+fic/fic_coadd.for:c     Fast Fourier transform the interferogram.
+fic/fic_coadd.for:c     Unpack the Fourier transform, multiply by the scaling vector, and
+fil/fil_coadd.for:c     interferogram.  Then apply the Fast Fourier transform.
+fil/fil_coadd.for:c     Unpack the Fourier transform and multiply by the scaling vector.
+fil/fil_coadd.for:c     interferogram.  Then apply the Fast Fourier transform.
+fil/fil_coadd.for:c     Unpack the Fourier transform, multiply by the scaling vector, and
+frdl/coad_datal.rdl:                                !  Length of fast Fourier
+frdl/ffp_ifg.rdl:! Length of fast Fourier transform used
+frdl/ffp_spc.rdl:! Length of fast Fourier transform used
+frdl/fip_mod.rdl:!   in the time domain prior to Fourier transformation
+frdl/spec_datal.rdl:                                !  Length of fast Fourier
+fref/ffp_ccl_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_ccl_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_ccl_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_ccl_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_ccl_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_csk_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_csk_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_csk_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_csk_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_csk_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_csk_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dcl_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dcl_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dcl_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dcl_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dsk_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dsk_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_dsk_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_dsk_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_icl_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_icl_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_icl_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_icl_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_icl_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_icl_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_lhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_lhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_lhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_lhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_lhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_lhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_llfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_isk_llfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_llfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_isk_llfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_lllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_lllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_llss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_llss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rhlf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_rhlf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rhsf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_rhsf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rhss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_rhss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rlfl_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_isk_rlfl_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rlfs_hdr.txt:FFT_LENGTH=                160 / Length of Fast Fourier Transform used
+fref/ffp_isk_rlfs_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rllf_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_rllf_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/ffp_isk_rlss_hdr.txt:FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+fref/ffp_isk_rlss_hdr.txt:COMMENT  Length of Fast Fourier Transform used
+fref/fip_hlp_lhfa_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_hlp_lhss_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_hlp_rhfa_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_hlp_rhss_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_llfa_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_lllf_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_llss_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_rlfa_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_rllf_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_llp_rlss_hdr.txt:COMMENT    determined by the Fourier transforms of the externally imposed
+fref/fip_mod_lhfa_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_lhss_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_llfa_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_lllf_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_llss_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_rhfa_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_rhss_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_rlfa_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_rllf_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fref/fip_mod_rlss_hdr.txt:COMMENT    in the time domain prior to Fourier transformation
+fsd/fsd_poserr_spectrum.for:c ***   Compute fourier transform
+fsl/fsl_invoc.txt:	integer * 4     fcc_fft_length          !  Fourier transform length
+fut/fut_apod_rotl.for:c            fft_len        i*4  Length of fast Fourier transform.
+fut/fut_params.txt:c Fast Fourier and spectrum lengths; Nyquist frequency correction

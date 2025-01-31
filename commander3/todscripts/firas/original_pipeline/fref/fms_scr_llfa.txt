@@ -1,0 +1,7 @@
+!  SCRIPT.LLFA
+!  FMS script file for merge  LLSF + LLFL = LLFA
+!
+ $SMAPS
+	skymap(1) = 'FCS_SKY_LLSF.FAD_8932800_9026409;'
+	skymap(2) = 'FCS_SKY_LLFL.FAD_8932800_9026409;'
+ $END

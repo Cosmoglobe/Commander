@@ -1,0 +1,30 @@
+!
+! FIRAS C-Vector project dataset
+!       record structure 
+!
+record FIP_CVS FIP_CVS
+!
+! C-Vector Identification
+!
+! Calibration model solution label
+scalar/text/length=40    MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4     CHANSCAN
+! Galactic latitude cut for C-Vector computation,
+! absolute value in deg (0 -> 90)        
+scalar/float             GALATEXC
+!
+! C-Vector Information
+!
+! Optical frequency of initial data point, in GHz
+scalar/float             NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float             DELTA_NU
+! Number of frequency points with good data
+scalar/long              NUM_FREQ
+!
+! C-Vector, in MJy/sr
+array/float/dim=180      C_VECTOR
+!
+!
+end_record

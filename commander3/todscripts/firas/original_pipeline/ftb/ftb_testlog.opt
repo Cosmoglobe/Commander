@@ -1,0 +1,2 @@
+sys$share:dtrshr.exe/share,-
+dtr$library:termserve/library/include=(adt,edt,gui,hlp)

@@ -1,0 +1,39 @@
+!
+! Average Calibration Resistances Count
+!
+record FEX_AV_CALRS FEX_AV_CALRS
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  scalar/text/length=14     Data_Stop
+                            ! GMT of data stop time  
+  scalar/adt                Data_Stop_Time
+                            ! Data stop binary time
+  scalar/text/length=14     Prev_Data_Start
+                            ! Previous data start time
+  scalar/float              Ave_Period
+                            ! Calres averaging period (day units)
+  scalar/long               Num_Good_Record 
+                            ! Number of good records
+  scalar/long               Num_Bad_Record 
+                            ! Number of bad records
+  array/float/dim=4         Calres_Ave_A_Lo
+  array/float/dim=4         Calres_Ave_A_Hi
+  array/float/dim=4         Calres_Ave_B_Lo
+  array/float/dim=4         Calres_Ave_B_Hi
+                            ! Average calibration resistance 
+  array/float/dim=4         Calres_Ave_A_Lo_Dev
+  array/float/dim=4         Calres_Ave_A_Hi_Dev
+  array/float/dim=4         Calres_Ave_B_Lo_Dev
+  array/float/dim=4         Calres_Ave_B_Hi_Dev
+                            ! Standard deviation 
+  array/word/dim=4          Calres_Bad_Pnts_A_Lo
+  array/word/dim=4          Calres_Bad_Pnts_A_Hi
+  array/word/dim=4          Calres_Bad_Pnts_B_Lo
+  array/word/dim=4          Calres_Bad_Pnts_B_Hi
+                            ! Number of bad points
+  array/byte/dim=48         Spares
+
+end_record

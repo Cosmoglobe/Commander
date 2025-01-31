@@ -1,0 +1,81 @@
+
+.p
+   This chapter describes the majority of the data sets used in the 
+FIRAS subsystem.  The remainder can be found in the Ingest Subsystem
+chapter, where they are identified by prefixes beginning with NFS_.
+.p
+   The entries in both chapters are constructed from two files:
+a description of the data set, and a description of its record
+organization, using the Record Definition Language (RDL).  Each
+file is identified by both a file name (for example, 
+COADDED_INTERFEROGRAMS_WITH_WEIGHTS) and an abbreviation (for
+example, FCI_SKYCO).  The prefix used in the abbreviation indicates
+the facility that creates the file.  In the previous example, 
+the Coadded IFGs With Weights file is created by the facility
+FCI_COADD_IFGS.  In the case of files originating in 
+the Ingest subsystem, the prefix in the abbreviation is NFS_,
+as noted above.  The prefixes FDB_ and FEX_ denote files owned
+by the FIRAS subsystem, but defined externally to it.  These
+are reference files, which are expected to be created once
+and then made available to the facilities using them.
+.p
+   The FIRAS portions of the Ingest subsystem and the FIRAS subsystem,
+taken together, constitute seven different phases of processing,
+and the files created in each phase have distinct characteristics.
+.p
+   In the first phase, the FIRAS portion of the Ingest subsystem,
+time-ordered archive files (science and housekeeping)
+are produced.
+.p
+   In the second phase (facilities FPP_PREPROCESSOR and
+FDQ_DATA_QUALIFY) the original time-ordered science file
+is modified by the addition of data quality and attitude-dependent
+parameters, and an engineering file containing converted housekeeping
+analog quantities is generated.  At the end of the second phase,
+the time-ordered archive files (science, engineering, and IFG index)
+are "complete" and available for pipeline processing.  
+.p
+   In the third phase, subsets of the time-ordered science data are
+organized into groups of data identified as being coaddable.  Sky data
+are grouped by pixel number as part of the coadd identification process
+and are written into pseudo-sky maps.  These sky data are organized into
+"time-tagged" data sets.  Non-sky data (i.e. calibration data) remains
+time-ordered.  FES_EXTRACT_SKY identifies coaddable sky data and
+FEC_EXTRACT_CALIBRATION identifies coaddable calibration data.
+.p
+   In the fourth phase, the coaddable data are selected
+for consistency checking and coadding by facility FCI_COADD_IFGS.  Both
+time-ordered data and time-tagged data are processed by FCI_COADD_IFGS.
+.p
+   The fifth phase of FIRAS processing produces FIRAS instrument model
+parameters from the coadded calibration interferograms.  It also produces
+calibrated sky spectra and related data from coadded sky interferograms.
+Facility FFC_CALIBRATE_FIRAS performs both of these functions.
+.p
+   The sixth phase of processing combines calibrated sky spectra from
+the various channels and instrument modes and produces high and low
+resolution sky spectra.  These sky spectra are smoothed and again combined
+to produce final smoothed spectrum.  At this point, sky data are organized
+into monthly and mission-to-date sky maps.
+.p
+   The seventh phase of FIRAS processing
+is the Science Pipeline.  The Science Pipeline models the smoothed spectra
+produced by the Project Pipeline.  Files used in the Science Pipeline
+are denoted by FSW_.  The description and RDL for these files
+will be provided in later editions of this manual.  
+.p
+   Data in the FIRAS subsystem are maintained as time-ordered
+files (for example, raw science IFGs and coadded calibration IFGs) or as
+psuedo-sky maps (such short science sky data, coadded sky IFGs, and
+uncombined calibrated sky spectra).  Only
+the Final Calibrated Spectra and Smoothed Spectra data sets (produced
+by facility FCS_COMBINE_AND_SMOOTH) are written as standard CSDR sky
+maps.  Facility FPS_PRODUCE_SKYMAPS can convert any of the psuedo-sky maps
+into actual sky maps.
+.p
+   Several data sets used in the subsystem are maintained simultaneously
+in a number of separate files.  For example, the
+FIRAS stripper, in the Ingest subsystem, produces four raw science archive
+files (NFS_SDF), one for each channel.  As in the case
+of this file,  multiple files are described for 
+purposes of simplicity by a single generic example.

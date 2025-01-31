@@ -1,0 +1,47 @@
+!	FCS_Combine_Spectra Command Line File
+
+	DEFINE VERB FCS
+
+	Image "CSDR$SYSTEM:FCS.EXE"
+
+	Qualifier  SKYFILE,  value (Required),  nonnegatable
+	! Name of "script" file, a namelist input file that contains:
+	! 1. the complete name of each skymap file to be combined,
+	! 2. (optional)  a time range for each input skymap file,
+	! 3. (optional)  an output file extension for the combined skymap.
+
+	Qualifier  INPUT,  value (type=fcs_input),  nonnegatable
+	! FCF or FAD input for processing.
+
+	Qualifier  CHANNEL,  value (type=fcs_channel),  nonnegatable,  default
+	! Channel to process.
+
+	Qualifier  SCAN_MODE,  value (type=fcs_scan_mode),  nonnegatable,
+		default
+	! Scan mode to process.
+
+	Qualifier  REPORT,  value (type=$file),  default,  negatable 
+	! (optional) Flag whether a report will be generated for the run.
+	! Allows specification of report file name.
+
+	DISALLOW Channel.rh AND Scan_Mode.fl
+	DISALLOW Channel.lh AND Scan_Mode.fl
+
+
+Define Type fcs_input
+	keyword FCF
+	keyword FAD
+
+Define Type fcs_channel
+	keyword rh, default
+	keyword rl
+	keyword lh
+	keyword ll
+
+Define Type fcs_scan_mode
+	keyword ss, default
+	keyword sf
+	keyword ls
+	keyword lf
+	keyword fl
+

@@ -1,0 +1,23 @@
+        scalar/byte             CHAN_ID
+                                !  Channel ID
+        scalar/byte             NGROUP
+                                !  Adds per group
+        scalar/byte             MTM_SPEED
+                                !  MTM speed
+        scalar/byte             MTM_LENGTH
+                                !  MTM length
+        scalar/word             GAIN
+                                !  Science gain
+        scalar/adt              AV_COLLECT_TIME
+                                !  Averaged collect time
+        scalar/byte             SCI_MODE
+                                !  Block ID from uP header
+        scalar/byte             FAKEIT
+                                !  Fake-it pulse
+        scalar/word             BOL_CMD_BIAS
+                                !  Commanded bias
+        scalar/float            BOL_VOLT
+                                !  Readout voltage
+        scalar/byte             SWEEPS
+                                !  Sweeps per IFG
+        array/byte/dim=51       CHAN_SPARES

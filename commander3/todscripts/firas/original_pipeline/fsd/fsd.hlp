@@ -1,0 +1,413 @@
+1 FSD
+
+  The FIRAS FSD facility consists of a number of utility
+  programs which are used to provide  assorted  types of
+  statistical data on the FIRAS pipeline.
+
+
+2 ASTROPLOTS
+
+  ASTROPLOTS  is a  quick-look  analysis  tool which,  at the user's
+  option,   plots  interferogram   peak  height,   glitch  rate  and
+  deglitcher  noise,  either as  a function  of time, or in a skymap
+  file.  A single plot is produced with  three separate windows, one
+  for each plot item.   Both the  interferogram peak height  and the
+  deglitcher noise are scaled by the appropriate gain factor.
+
+  Passage through the  South  Atlantic  Anomaly, the Van Allen Belts
+  and the  galactic plane are noted.  Close  approaches  to the Moon
+  are  also  noted; when the Moon is within 5, 15 and  30 degrees of
+  where FIRAS is pointing.   Within  the  deglitcher  noise plot are
+  marked the galactic plane crossings (using -) and close approaches
+  to the Moon  (using  'O'  for  5d,  'C'  for 15d and '(' for 30d).
+  Within  the  glitch  rate plot are marked passages through the Van
+  Allen belts (using ---) and within  the  interferogram peak height
+  plot are marked passages through the South Atlantic Anomaly (again
+  using ---).
+
+  Format:
+
+	ASTROPLOTS command_qualifiers
+
+
+3  /ATTITUDE
+
+  /ATTITUDE=SIMULATED,  default
+            PREDICTED,
+            COARSE,
+            FINE=DIRBE,
+                =WITHOUT_DIRBE,
+            DEFINITIVE
+
+  Selects the type of attitude solution.   /ATTITUDE=NONE performs no
+  attitude solution and zeroes all attitude quantities in the science
+  record  with the exception of the pixel number fields which are set
+  to -1.  /ATTITUDE=FINE  has  two  options, DIRBE and WITHOUT_DIRBE.
+  /ATTITUDE=FINE=DIRBE provides a fine attitude solution using sensor
+  data  from  DIRBE  and  /ATTITUDE=FINE=WITHOUT_DIRBE  without DIRBE
+  sensor data.
+
+  An attitude solution will be formed if and only if it is missing in
+  the raw science record, as it is with all raw science data prior to
+  running FDQ_Data_Qualify.
+
+3  /CHANNEL
+
+ /CHANNEL
+
+ This qualifier tells FSD to process data for only those specified
+ channel numbers.
+
+4  ALL
+
+ /CHANNEL=ALL
+
+ Processes all four channels.
+
+4  HIGH
+
+ /CHANNEL=HIGH
+
+ Processes the high frequency channel data.
+
+4  LEFT
+
+ /CHANNEL=LEFT
+
+ Processes left side channel data.
+
+4  LOW
+
+ /CHANNEL=LOW
+
+ Processes the low frequency channel data.
+
+4  RIGHT
+
+ /CHANNEL=RIGHT
+
+ Processes right side channel data.
+
+4  Channel_ID
+
+ /CHANNEL=(RH | RL | LH | LL)
+
+ Process right high channel data, right low channel data, left high
+ channel data, or left low channel data.
+
+3 /INPUT
+
+  /INPUT=TERMINAL          Default
+  /INPUT=(FILE=filename)
+
+  Accepts,  at the  terminal  or from  a disk file,  the
+  desired  start  and  stop  times  of  the  data  to be
+  retrieved from the archive.  /TERMINAL is the default.
+  In batch  mode,  input  is  from  a disk  file.   This
+  qualifier is  incompatible  with /JSTART,  /JSTOP, and 
+  CHANNEL.
+
+3 /INTERACTIVE
+
+  /INTERACTIVE    Default
+  /NOINTERACTIVE
+
+  Selects whether FSD_Astroplots  will prompt for inputs
+  at the terminal or  take them from  the invocation  on
+  the command line.  /NOINTERACTIVE is needed  to run in
+  batch mode.
+
+3 /JSTART
+
+  /JSTART=yydddhhmmssccc
+
+  Specifies the start time  of data to be retrieved from
+  the archive, when  running Astroplots by command line.
+  The time format is YYDDDHHMMSSCCC. /JSTART defaults to
+  0h of the current day.
+
+3 /JSTOP
+
+  /JSTOP=yydddhhmmssccc
+
+  Specifies the stop time  of data to be retrieved from
+  the archive, when  running Astroplots by command line.
+  The time format is YYDDDHHMMSSCCC. /JSTOP defaults to
+  24h of the current day.
+
+3 /OUTPUT
+
+  /OUTPUT=TIME
+  /OUTPUT=SKY
+
+  Allows the  user to  choose between  a time plot  or a
+  skymap file.  /OUTPUT=SKY cannot be used with /PLOTS.
+
+3 /PLOTDEVICE
+
+  /PLOTDEVICE="[filename]<PLT device type>"
+  /PLOTDEVICE=PLT_DEVICE    default
+  /NOPLOTDEVICE
+
+  Specifies the filename and plotting device 'format' in which PLT
+  outputs the plot.  Note that double quotes, ", must surround the
+  filename/device specification,  as it will always contain a  "/"
+  character.   The default device is  /VT125  which is the logical
+  translation of PLT_DEVICE.   In batch mode, /PLOTDEVICE defaults
+  to PLT_HARDCOPY which is /QMS, the laserprinter.   The valid PLT
+  device types are:
+
+      /VT125          for interactive mode when using a VT-graphics-
+                      compatible terminal, including VT200 series
+
+      /QMS, /VQMS     makes TALARIS-printable files, landscape and
+                      portrait modes, respectively ('V' = 'vertical')
+
+      /PRINTRONIX     make line-printer displayable files
+
+      /ARGS           /CANON          /CRINNELL       /FILE
+      /GOC            /HIPLOT         /HP7221         /HQ2648
+      /ID100          /LIACOM         /NULL           /PS
+      /VPS            /RETRO          /TEK4010        /TK4100
+      /TRILOG         /VERSATEC       /VVERSATEC      /ZETA
+
+  This qualifier cannot be used with /OUTPUT=SKY.
+
+3 /PLTFILE 
+
+  /PLTFILE[=filename]
+
+  Causes PLT commands in the specified file to be executed when plots are
+  produced.  If this qualifier is absent, default PLT options will be used.
+  The default filename is PLT.PCO.  
+
+  This qualifier cannot be used with /OUTPUT=SKY.
+
+3 /QUALITY
+
+  /QUALITY=(INSTRUMENT=<threshold>,ATTITUDE=<threshold>)
+  /QUALITY=(INSTRUMENT=3,ATTITUDE=3)     Default
+
+  Selects the acceptable data quality threshold for both the instrument
+  and attitude. Data with qualities less than or equal to the specified
+  thresholds are accepted for processing.  Thresholds are defined as
+  follows:
+
+        0 = no data quality established
+        1 = no yellow or red limit violations
+        2 = some yellow limit violations
+        3 = many yellow limit violations
+        4 = no yellow and some red limit violations
+        5 = some yellow and some red limit violations
+        6 = many yellow and some red limit violations
+        7 = many red limit violations
+
+3 /SCIENCE
+
+  /SCIENCE=NFS          Default
+  /SCIENCE=FPP
+  /SCIENCE=FDQ
+
+  Determines which of the raw science files will be read
+  by Astroplots:   NFS_SDF_xx,  which  is  science  data
+  untouched by the pipeline,  FPP_SDF_xx, which has been
+  run through FPP_Preprocessor, or FDQ_SDF_xx, which has
+  been taken through FPP and FDQ_Data_Qualify.
+
+
+2 GLITCHMAP
+
+  GLITCHMAP reads raw  science  data from  the  archive,
+  extracts  linear  glitchmap  and  interferogram  data,
+  computes glitch-rate, sorts  according to  scan  mode,
+  coadds and plots linear glitchmaps, sorts glitch  rate
+  data according to  longitude  and  latitude,  computes
+  average glitch rate, plots  terrestrial glitchmap  and
+  writes  the  information  to an RMS output file or the
+  archive.
+
+  Format:
+
+	GLITCHMAP command_qualifiers
+
+
+3  /CHANNEL
+
+ /CHANNEL
+
+ This qualifier tells FSD to process data for only those specified
+ channel numbers.
+
+4  ALL
+
+ /CHANNEL=ALL
+
+ Processes all four channels.
+
+4  HIGH
+
+ /CHANNEL=HIGH
+
+ Processes the high frequency channel data.
+
+4  LEFT
+
+ /CHANNEL=LEFT
+
+ Processes left side channel data.
+
+4  LOW
+
+ /CHANNEL=LOW
+
+ Processes the low frequency channel data.
+
+4  RIGHT
+
+ /CHANNEL=RIGHT
+
+ Processes right side channel data.
+
+4  Channel_ID
+
+ /CHANNEL=(RH | RL | LH | LL)
+
+ Process right high channel data, right low channel data, left high
+ channel data, or left low channel data.
+
+3 /IFG
+
+  /IFG     Default
+  /NOIFG
+
+  Process interferogram data along with linear glitchmap
+  data.
+
+3 /INTERACTIVE
+
+  /INTERACTIVE    Default
+  /NOINTERACTIVE
+
+  Selects whether  FSD_Glitchmap will  prompt for inputs
+  at the terminal (via Query  Builder) or take them from
+  the  invocation on  the command line.   /NOINTERACTIVE
+  is needed to run in batch mode.
+
+3 /PLOTDEVICE
+
+  /PLOTDEVICE="[filename]<PLT device type>"
+  /PLOTDEVICE=PLT_DEVICE    default
+  /NOPLOTDEVICE
+
+  Specifies the filename and plotting device 'format' in which PLT
+  outputs the plot.  Note that double quotes, ", must surround the
+  filename/device specification,  as it will always contain a  "/"
+  character.   The default device is  /VT125  which is the logical
+  translation of PLT_DEVICE.   In batch mode, /PLOTDEVICE defaults
+  to PLT_HARDCOPY which is /QMS, the laserprinter.   The valid PLT
+  device types are:
+
+      /VT125          for interactive mode when using a VT-graphics-
+                      compatible terminal, including VT200 series
+
+      /QMS, /VQMS     makes TALARIS-printable files, landscape and
+                      portrait modes, respectively ('V' = 'vertical')
+
+      /PRINTRONIX     make line-printer displayable files
+
+      /ARGS           /CANON          /CRINNELL       /FILE
+      /GOC            /HIPLOT         /HP7221         /HQ2648
+      /ID100          /LIACOM         /NULL           /PS
+      /VPS            /RETRO          /TEK4010        /TK4100
+      /TRILOG         /VERSATEC       /VVERSATEC      /ZETA
+
+3 /PLTFILE 
+
+  /PLTFILE[=filename]
+
+  Causes PLT commands in the specified file to be executed when plots are
+  produced.  If this qualifier is absent, default PLT options will be used.
+  The default filename is PLT.PCO.  
+
+3 /SCAN_MODE
+
+  /SCAN_MODE=scan_mode
+
+  Selects the scan mode for which data to process.   The
+  "scan_mode"  values  are  SS,  SF,  LS, LF or ALL. The
+  default is ALL, which selects all four scan modes.
+
+3 /SCIENCE
+
+  /SCIENCE=FPP
+  /SCIENCE=FDQ
+  /SCIENCE=NFS          Default
+
+  Determines which of the raw science files will be read
+  by  Glitchmap:   NFS_SDF_xx,  which  is  science  data
+  untouched by the pipeline,  FPP_SDF_xx, which has been
+  run through FPP_Preprocessor, or FDQ_SDF_xx, which has
+  been taken through FPP and FDQ_Data_Qualify.
+
+3 /WRITE
+
+  /NOWRITE                 Default
+  /WRITE=ARCHIVE
+  /WRITE=(FILE=filename)
+
+  Specifies whether the linear and terrestrial glitchmap
+  data will be saved.  The output will be  written  to a
+  disk file or to the archive.
+
+
+2 POSERR
+
+  POSERR  is an interactive program which finds position
+  error  in  an interferogram (IFG), real  or  imaginary
+  spectrum.  It can plot the IFG,  zero  path difference
+  position, intensity at zero path  difference position,
+  real  spectrum,  imaginary  spectrum  and  phase.  The
+  coadded intensity, standard deviation, and a histogram
+  of standard deviation  can also be plotted.  A scatter
+  plot of  coadded intensity  vs. standard deviation and
+  coadded derivative of intensity vs. standard deviation
+  are available.  The interferograms can be smoothed and
+  a template made from the smoothed IFGs.  All plots are
+  made with PLT.  POSERR directs all plots to the device
+  specified by logical PLT_DEVICE (default /VT125).
+
+  Format:
+
+	POSERR command_qualifiers
+
+
+3 /SCIENCE
+
+  /SCIENCE=NFS          Default
+  /SCIENCE=FPP
+  /SCIENCE=FDQ
+
+  Determines which of the raw  science files will be read
+  by Poserr: NFS_SDF_xx, which  is science data untouched
+  by the pipeline, FPP_SDF_xx, which has been run through
+  FPP_Preprocessor, or FDQ_SDF_xx, which  has  been taken
+  through FPP and FDQ_Data_Qualify.
+
+3 /PLTFILE 
+
+  /PLTFILE[=filename]
+
+  Causes PLT commands in the specified file to be executed when plots are
+  produced.  If this qualifier is absent, default PLT options will be used.
+  The default filename is PLT.PCO.  
+
+
+2  FIRAS_Logicals
+
+  Datasets  used by  FSD are  controlled by  the logical
+  name  "CSDR$FIRAS_ARCHIVE".   This logical name can be
+  used to  direct the  facility to  operate on  datasets
+  within  a private  archive  by  making  the  following
+  definition;
+
+  DEFINE CSDR$FIRAS_ARCHIVE DEVICE:[PRIVATE.ARCHIVE] .

@@ -1,0 +1,168 @@
+! Builds facility FSD_FIRAS_STATISTICS
+!
+! Author: Reid Wilson
+!	  March 23, 1988
+!	  ST Systems Corporation
+!____________________________________________________________________________
+!
+! Modifications:
+!	  Shirley M. Read
+!	  July 1988
+!	  ST Systems Corporation
+!	  Added new routines to FSD_Poserr and included PLT from XANADU:[Lib].
+!
+!	  QUOC CHUNG
+!	  JAN 6 1989
+!	  ST Systems Corporation
+!         SER 2375.
+!	  Added new routines to FSD_GLITCHMAP FOR USING QUERY BUILD TO ACCESS
+!         RAW SCIENCE DATA BY USING RSE.
+!
+!	  1989 Mar 20,  Fred Shuman,  ST Systems Corp.
+!	  Removed references to obsolete source files FSD_LEAP_CHECK and
+!	  FSD_YD_TO_YMD.  These are identical to MUT routines MUT_LEAP_CHECK
+!	  MUT_YD_TO_YMD.
+!
+!	  1989 May 23,  Fred Shuman,  ST Systems Corp.
+!	  Removed references to obsolete source file FSD_SPIN_AXIS.
+!
+!	  1990 Feb 1,  R. Kummerer,  ST Systems Corp.
+!	  Remove dependency on MUTLIB for ASTROPLOTS and GLITCHMAP.
+!
+!	  1990 Feb 12,  R. Kummerer,  ST Systems Corp.
+!	  SPR 6019, VMS 5.2 options file changes.
+!
+!	  1990 Apr 26,  R. Kummerer,  ST Systems Corp.
+!	  SER 4569, Convert ASTROPLOTS from TEMPLATE to PLT graphics.
+!____________________________________________________________________________
+
+FSD : FSD_ASTROPLOTS.EXE, FSD_GLITCHMAP.EXE, FSD_POSERR.EXE
+ ! Facility FSD is up to date
+
+INC_FILES = FSD_GLITCHMAP.TXT,-
+	    FSD_POSERR.TXT,-
+	    FSD_ASTROPLOTS.TXT
+
+FSDBLD.TLB : $(INC_FILES)
+  LIBRARY/CREATE/TEXT FSDBLD $(INC_FILES)
+  ! FSDBLD.TLB has been built.
+
+FSD_POSERR_OBJ =  -
+                  FSD_POSERR.OBJ, -
+                  FSD_POSERR_SELECT.OBJ, -
+		  FSD_POSERR_COMPARE_DISP.OBJ, -
+		  FSD_POSERR_SMOOTH_IFGS.OBJ, -
+                  FSD_POSERR_SPECTRUM.OBJ, -
+		  FSD_POSERR_ZPDDISP.OBJ, -
+                  FSD_POSERR_POSDISP.OBJ, -
+                  FSD_POSERR_POS.OBJ, -
+		  FSD_MSG.OBJ
+
+
+FSD_GLITCHMAP_OBJ = -
+                  FSD_GLITCHMAP.OBJ, -
+                  FSD_GLITCHMAP_PARSE.OBJ, -
+                  FSD_GLITCHMAP_INIT.OBJ, -
+                  FSD_GLITCHMAP_QRYREAD.OBJ, -
+                  FSD_GLITCHMAP_DATA.OBJ, -
+                  FSD_GLITCHMAP_LIN_DISP.OBJ, -
+		  FSD_MSG.OBJ
+
+
+FSD_ASTROPLOT_OBJ = -
+                  FSD_ASTROPLOTS.OBJ, -
+                  FSD_ASTROPLOTS_INIT.OBJ, -
+                  FSD_ASTROPLOTS_CATINFO.OBJ, -
+                  FSD_ASTROPLOTS_READ.OBJ, -
+                  FSD_ASTROPLOTS_DATA.OBJ, -
+                  FSD_ASTROPLOTS_TIMEAXIS.OBJ, -
+                  FSD_ASTROPLOTS_PARAM.OBJ, -
+                  FSD_ASTROPLOTS_INTANG.OBJ, -
+                  FSD_ASTROPLOTS_CHECK_RADFLD.OBJ, -
+                  FSD_ASTROPLOTS_PLOT.OBJ, -
+                  FSD_ASTROPLOTS_DISPLAY.OBJ, -
+                  FSD_ASTROPLOTS_LABEL.OBJ, -
+                  FSD_ASTROPLOTS_SKYMAP.OBJ, -
+		  FSD_MSG.OBJ
+
+
+text_libs =  FSDBLD.TLB/LIB + CSDR$LIBRARY:FUTLIB.TLB/LIB + CSDR$LIBRARY:CSDRLIB.TLB/LIB
+
+.FOR.OBJ
+ $(FORT) $(FFLAGS) /EXTEND_SOURCE $(MMS$SOURCE) + $(TEXT_LIBS)
+
+
+FSD_ASTROPLOTS.EXE : -
+                  FSDBLD.OLB($(FSD_ASTROPLOT_OBJ)), -
+                  CSDR$LIBRARY:FUTLIB.OLB, -
+                  CSDR$LIBRARY:TLINK.OPT, -
+                  CSDR$LIBRARY:V5.OPT
+ $(LINK) $(LINKFLAGS) -
+                  FSDBLD.OLB/LIB/INC=FSD_ASTROPLOTS/EXE=FSD_ASTROPLOTS + -
+                  CSDR$LIBRARY:FUTLIB/LIB + -
+                  CSDR$LIBRARY:CSDRLIB/LIB + -
+		  XANADU:[LIB]VILIB/LIB + -
+		  XANADU:[LIB]XLIB/LIB + -
+		  GRAPHICS:GRPSHR/LIB + -
+                  CSDR$LIBRARY:TLINK.OPT/OPTION + -
+                  CSDR$LIBRARY:V5.OPT/OPTION
+
+FSD_GLITCHMAP.EXE : -
+                  FSDBLD.OLB($(FSD_GLITCHMAP_OBJ)), -
+                  CSDR$LIBRARY:FUTLIB.OLB, -
+                  IMSL$DIR:IMSL.OLB, -
+                  CSDR$LIBRARY:V5.OPT
+ $(LINK) $(LINKFLAGS) -
+                  FSDBLD.OLB/LIB/INC=FSD_GLITCHMAP/EXE=FSD_GLITCHMAP + -
+                  CSDR$LIBRARY:FUTLIB/LIB + -
+                  CSDR$LIBRARY:CSDRLIB/LIB + -
+		  XANADU:[LIB]VILIB/LIB + -
+		  XANADU:[LIB]XLIB/LIB + -
+		  GRAPHICS:GRPSHR/LIB + -
+                  IMSL$DIR:IMSL.OLB/LIB + -
+                  CSDR$LIBRARY:V5.OPT/OPTION
+
+
+FSD_POSERR.EXE :  FSDBLD.OLB($(FSD_POSERR_OBJ)) -
+                  IMSL$DIR:IMSL.OLB, -
+		  CSDR$LIBRARY:FUTLIB.OLB, -
+	          XANADU:[LIB]VILIB.OLB, -
+		  XANADU:[LIB]XLIB.OLB, -
+		  GRAPHICS:GRPSHR.EXE, -
+                  CSDR$LIBRARY:V5.OPT
+ $(LINK) $(LINKFLAGS) -
+                  FSDBLD.OLB/LIB/INC=FSD_POSERR/EXE=FSD_POSERR + -
+                  CSDR$LIBRARY:FUTLIB.OLB/LIB + -
+                  CSDR$LIBRARY:CSDRLIB.OLB/LIB + -
+		  XANADU:[LIB]VILIB.OLB/LIB + -
+		  XANADU:[LIB]XLIB.OLB/LIB + -
+		  GRAPHICS:GRPSHR/LIB + -
+                  IMSL$DIR:IMSL.OLB/LIB + -
+                  CSDR$LIBRARY:V5.OPT/OPTION
+
+FSD_MSG.OBJ : FSD_MSG.MSG
+  MESSAGE FSD_MSG
+
+FSD_GLITCHMAP.OBJ : FSDBLD.TLB(FSD_GLITCHMAP)
+FSD_GLITCHMAP_PARSE.OBJ : FSDBLD.TLB(FSD_GLITCHMAP)
+FSD_GLITCHMAP_INIT.OBJ : FSDBLD.TLB(FSD_GLITCHMAP)
+FSD_GLITCHMAP_LIN_DISP.OBJ : FSDBLD.TLB(FSD_GLITCHMAP)
+FSD_GLITCHMAP_QRYREAD.OBJ : FSDBLD.TLB(FSD_GLITCHMAP)
+
+FSD_POSERR.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_SELECT.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_COMPARE_DISP.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_SMOOTH_IFGS.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_SPECTRUM.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_ZPDDISP.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_POSDISP.OBJ : FSDBLD.TLB(FSD_POSERR)
+FSD_POSERR_POS.OBJ : FSDBLD.TLB(FSD_POSERR)
+
+FSD_ASTROPLOTS.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_INIT.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_READ.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS), CT$LIBRARY:CTUSER.INC
+FSD_ASTROPLOTS_DATA.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_TIMEAXIS.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_PARAM.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_PLOT.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)
+FSD_ASTROPLOTS_DISPLAY.OBJ : FSDBLD.TLB(FSD_ASTROPLOTS)

@@ -1,0 +1,15 @@
+!
+! Housekeeping header.
+!
+        array/word/dim=8        STAT_MONITOR_CMD
+                                !  Status monitor command
+        array/byte/dim=8        IPDU_STAT
+                                !  IPDU status
+        array/byte/dim=2        DWELL_STAT
+                                !  Dwell status
+        array/byte/dim=2        LVDT_STAT
+                                !  MTM status
+        array/byte/dim=4        U_PROC_STAT
+                                !  Micro processor status
+        array/byte/dim=4        BOL_CMD_BIAS
+                                !  Bolometer command bias

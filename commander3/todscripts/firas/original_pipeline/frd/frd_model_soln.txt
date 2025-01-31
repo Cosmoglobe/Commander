@@ -1,0 +1,59 @@
+c-------------------------------------------------------------------------------
+c
+c	FRD_MODEL_SOLN.TXT
+c
+c	This include file contains the Firas calibration model solution that
+c	FRD_EXTRACT_MODEL will read from the RMS file FEX_MOD_CCSS.TXT and will
+c	write to the RDL FEX_MOD.
+c
+c	Author:  Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 2 October 1992
+c		 SER 8178
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Modifications to recover low frequency short fast data.
+c	Gene Eplee, GSC, 22 October 1993
+c	SER 11394
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the maximum number of bolometer parameters and the number of
+c	frequency points in the optical model.
+c
+	integer *  4	mpar		!  Maximum number of
+	parameter	(mpar = 32)	!    bolometer parameters
+	integer *  4	uplim(12)	!  Number of frequency points in
+					!    the optical model
+
+	data uplim / 170, 170, 170, 38, 38, 156, 175, 175, 175, 38, 38, 156 /
+
+c
+c  Define the model renormalization parameters.
+c
+	real	*  8	renormalize(mpar)	!  renormalization parameters
+
+	data renormalize / 1.0D+00, 1.0D+02, 1.0D-08, 1.0D+00,
+     .			   1.0D+00, 1.0D-10, 1.0D-10, 1.0D+00,
+     .			   1.0D+00, 1.0D-03, 1.0D-03, 1.0D-03,
+     .			   1.0D+00, 1.0D-03, 1.0D-04, 1.0D-04,
+     .			   1.0D-04, 1.0D-04, 1.0D-04, 1.0D-04,
+     .			   1.0D-03, 1.0D+00, 1.0D+00, 1.0D+00,
+     .			   1.0D+00, 1.0D+00, 1.0D+00, 1.0D+00,
+     .			   1.0D+00, 1.0D+00, 1.0D+00, 1.0D+00 /
+
+c
+c  Define the model solution RDL.
+c
+	dictionary 'fex_mod'
+	record  /fex_mod/  fex_model
+
+c
+c  Define the common block.
+c
+	common /fcc_model/  fex_model

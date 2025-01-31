@@ -1,0 +1,22 @@
+!
+! Real-valued Commanded Gains
+!
+record FEX_CMDGAIN FEX_CMDGAIN
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  structure chan/dim=4
+!
+! Gains by channel
+!
+     array/float/dim=8    CMDGAIN
+                          ! Real values corresponding
+                          !   to commanded gains from
+                          !   zero to 7
+  endstructure
+
+  arrays/byte/dim=64      SPARES
+                          ! Pad to 256 bytes
+end_record 

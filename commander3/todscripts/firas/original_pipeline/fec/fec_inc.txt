@@ -1,0 +1,28 @@
+      integer*4 FEC_TRUE,
+     .          FEC_FALSE,
+     .          FEC_MAX_AVERAGE_SIZE,
+     .          FAC_Struct,
+     .          FEC_UNSTABLE,
+     .          Num_Temps_Used,
+     .          MAX_DATA,                !Maximum number of engineering records
+     .          MAX_PLATEAUS,            !Maximum number of plateaus to allow
+     .          MAX_SEGMENTS,            !Maximum number of segments to allow
+     .          FEC_MAX_RSE,
+     .          FEC_ADD_TOLERANCE,
+     .		FEC_ADD_STRANDED,
+     .		FEC_ADD_GOOD
+      character*14 FEC_GMT_BAD_FLAG      !Flag for whether data point is bad
+      parameter (FEC_GMT_BAD_FLAG = 'XXXXXXXXXXXXXX')
+      parameter (FEC_TRUE = 1)
+      parameter (FEC_FALSE = 0)
+      parameter (FEC_MAX_AVERAGE_SIZE = 8)    !Calculate average from no more than this
+      parameter (FAC_Struct = 5)
+      parameter (Num_Temps_Used = 4)
+      parameter (FEC_UNSTABLE = -1)
+      parameter (MAX_DATA = 10000)     ! change from 3000 to 10000, H. Wang
+      parameter (MAX_PLATEAUS = 1000)
+      parameter (MAX_SEGMENTS = 16)
+      parameter (FEC_MAX_RSE = 16)
+      parameter (FEC_ADD_TOLERANCE = 1)
+      parameter (FEC_ADD_STRANDED = 2)
+      parameter (FEC_ADD_GOOD = 4)

@@ -1,0 +1,51 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_INVOC_CVS.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FIP_CVS.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 17 November 1994
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FIP version number
+	parameter	(fcc_version='12.7')
+
+	integer * 4	fcc_fip_csize		!  FIP C-Vector file
+	parameter	(fcc_fip_csize = 195)	!    size in long words
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_fip_cfile		!  FIP C-Vector file name
+	character * 20	fcc_file_ext		!  file name extension
+	character * 48	fcc_fms_cfile		!  FMS C-Vector file name
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 64	fcc_report_file		!  report file name
+
+	integer * 2	fcc_extlen		!  length of file name extension
+	integer * 2	fcc_fmslen		!  length of FMS file name
+	integer * 2	fcc_fiplen		!  length of FIP file name
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_flight		!  /FLIGHT qualifier
+	integer * 4	fcc_report		!  /REPORT qualifier
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_file_ext, fcc_extlen, fcc_scan_mode,
+     .			     fcc_flight, fcc_fms_cfile, fcc_fmslen,
+     .			     fcc_fip_cfile, fcc_fiplen, fcc_report,
+     .			     fcc_report_file, fcc_replen

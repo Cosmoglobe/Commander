@@ -1,0 +1,18 @@
+!
+!  Flags for enabling/disabling limit checking
+!  for data quality.
+!
+record FEX_LIMFLAGS NL:FEX_LIMFLAGS
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  structure lim_flags
+    include lim_flags.rdl
+  endstructure
+
+  array/byte/dim=192            LIMFLAGS_SPARES
+                                !  Spare bytes
+
+end_record

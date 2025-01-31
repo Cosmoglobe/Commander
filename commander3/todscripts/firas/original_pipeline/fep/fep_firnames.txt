@@ -1,0 +1,214 @@
+C/	FEP_FIRNAMES.TXT
+C/
+C/	Include file containing the (IGSE) database names for
+C/	FIRAS Housekeeping quantities.
+C/	
+C/	AUTHOR: H.WANG
+C/		GSFC
+C/		OCT. 23, 1989
+C/
+C/      changes:
+C/
+C/
+C 
+        INTEGER*2        NHSKP
+        INTEGER*2        NGRT
+        INTEGER*2        NIPDU 
+        INTEGER*2        NVOLT 
+        INTEGER*2        NCURR 
+        INTEGER*2        P_hskp
+        INTEGER*2        P_GRTA 
+        INTEGER*2        P_grtb
+        INTEGER*2        P_comb 
+        INTEGER*2        P_Ipdu
+        INTEGER*2        P_VOLT 
+        INTEGER*2        P_CURR
+C
+        PARAMETER       (NHSKP = 28)
+        PARAMETER       (NGRT = 32)
+        PARAMETER       (NIPDU = 14)
+        PARAMETER       (NVOLT= 20)
+        PARAMETER       (NCURR= 34)
+        PARAMETER       (P_HSKP = 1)
+        PARAMETER       (P_GRTA = 2)
+        PARAMETER       (P_GRTB = 3)
+        PARAMETER       (P_COMB = 4)
+        PARAMETER       (P_ipdu = 5)
+        PARAMETER       (P_VOLT = 6)
+        PARAMETER       (P_CURR = 7)
+C
+
+	CHARACTER*8	HSKP_DB(NHSKP)	! 
+	CHARACTER*8	GRTA_DB(NGRT)		! 
+	CHARACTER*8	GRTB_DB(NGRT)		! 
+	CHARACTER*8	IPDU_DB(NIPDU)		! 
+	CHARACTER*8	VOLT_DB(NVOLT)		! 
+	CHARACTER*8	CURR_DB(NCURR)		! 
+        common/dbword/ hskp_db,GRTA_DB,GRTB_DB,IPDU_DB,VOLT_DB,CURR_DB
+	DATA		HSKP_DB /
+	1		'        ',		!  1	
+	1		'        ',		!  2   
+	1		'        ',		!  3   
+	1		'        ',		!  4   
+	1		'        ',		!  5   
+	1		'        ',		!  6   
+	1		'        ',		!  7 
+	1		'        ',		!  8
+	1		'        ',		!  9	
+	1		'        ',		! 10
+	1		'        ',		! 11	
+	1		'        ', 		! 12
+	1		'        ', 		! 13
+	1		'        ',		! 14
+	1		'FAMTMPOS',		! 15	
+	1		'FBMTMPOS',		! 16    
+	1		'        ',		! 17	
+	1		'        ',		! 18
+	1		'        ',		! 19	
+	1		'        ',		! 20	
+	1		'        ',		! 21	
+	1		'        ',		! 22
+	1		'        ',		! 23	
+	1		'        ', 		! 24
+	1		'        ',		! 25	
+	1		'        ',		! 26    
+	1		'        ',		! 27	
+	1		'        '/		! 28
+	DATA		GRTA_DB /
+	1		'FABLHTHI',		!  1	
+	1		'FABLLTHI',		!  2   
+	1		'FABRHTHI',		!  3   
+	1		'FABRLTHI',		!  4   
+	1		'        ',		!  5   
+	1		'        ',		!  6   
+	1		'        ',		!  7 
+	1		'        ',		!  8
+	1		'FAC1RTHI',		!  9	
+	1		'FADIRTHI',		! 10
+	1		'FAIRTHI',		! 11	
+	1		'FAM1RTHI', 		! 12
+	1		'FARHTHI', 		! 13
+	1		'FASHTHI',		! 14
+	1		'FAXCTHI',		! 15	
+	1		'FAXCS5TH',		! 16    
+	1		'FABLHTLO',		! 17	
+	1		'FABLLTLO',		! 18
+	1		'FABRHTLO',		! 19	
+	1		'FABRLTLO',		! 20	
+	1		'        ',		! 21	
+	1		'        ',		! 22
+	1		'        ',		! 23	
+	1		'        ', 		! 24
+	1		'FAC1RTLO',		! 25	
+	1		'FADIRTLO',		! 26    
+	1		'FAIRTLO',		! 27	
+	1		'FAM1RTLO',		! 28
+	1		'FARHTLO',		! 29
+	1		'FASHTLO',		! 30
+	1		'FAXCTLO',		! 31
+	1		'FAXCS5TL'/		! 32
+	DATA		GRTB_DB /
+	1		'FBBLHTHI',		!  1	
+	1		'FBBLLTHI',		!  2   
+	1		'FBBRHTHI',		!  3   
+	1		'FBBRLTHI',		!  4   
+	1		'        ',		!  5   
+	1		'        ',		!  6   
+	1		'        ',		!  7 
+	1		'        ',		!  8
+	1		'FBC1LTHI',		!  9	
+	1		'FBDILTHI',		! 10
+	1		'FBIRTHI',		! 11	
+	1		'FBM1LTHI', 		! 12
+	1		'FBRHTHI', 		! 13
+	1		'FBSHTHI',		! 14
+	1		'FBXCTHI',		! 15	
+	1		'FBXCS6TH',		! 16    
+	1		'FBBLHTLO',		! 17	
+	1		'FBBLLTLO',		! 18
+	1		'FBBRHTLO',		! 19	
+	1		'FBBRLTLO',		! 20	
+	1		'        ',		! 21	
+	1		'        ',		! 22
+	1		'        ',		! 23	
+	1		'        ', 		! 24
+	1		'FBC1LTLO',		! 25	
+	1		'FBDILTLO',		! 26    
+	1		'FBIRTLO',		! 27	
+	1		'FBM1LTLO',		! 28
+	1		'FBRHTLO',		! 29
+	1		'FBSHTLO',		! 30
+	1		'FBXCTLO',		! 31
+	1		'FBXCS6TL'/		! 32
+        DATA		IPDU_DB /
+	1		'FLHWETP',		!  1	
+	1		'FLLWETP',		!  2   
+	1		'FRHWETP',		!  3   
+	1		'FRLWETP',		!  4   
+	1		'FPATP',		!  5   
+	1		'FDBTP1',		!  6   
+	1		'FDBTP2',		!  7 
+	1		'FAHSHI',		!  8
+	1		'FBHSHI',		!  9	
+	1		'FAIPDUTP',		! 10
+	1		'FBIPDUTP',		! 11	
+	1		'FOBTP', 		! 12
+	1		'FSMATP', 		! 13
+	1		'FSMBTP'/		! 14
+	DATA		VOLT_DB /
+	1		'FAACN15V',		!  1	
+	1		'FBACN15V',		!  2   
+	1		'FAACP15V',		!  3   
+	1		'FBACP15V',		!  4   
+	1		'FABIASV',		!  5   
+	1		'FBBIASV',		!  6   
+	1		'FADCN15V',		!  7 
+	1		'FBDCN15V',		!  8
+	1		'FADCP15V',		!  9	
+	1		'FBDCP15V',		! 10
+	1		'FADCP5V',		! 11	
+	1		'FBDCP5V', 		! 12
+	1		'FAICN15V', 		! 13
+	1		'FBICN15V',		! 14
+	1		'FAICP15V',		! 15	
+	1		'FBICP15V',		! 16    
+	1		'FAICP28V',		! 17	
+	1		'FBICP28V',		! 18
+	1		'FAICP5V',		! 19	
+	1		'FBICP5V'/		! 20	
+	DATA		CURR_DB /
+	1		'FAACI',		!  1	
+	1		'FBACI',		!  2   
+	1		'FABIASI',		!  3   
+	1		'FBBIASI',		!  4   
+	1		'FBBBVLH',		!  5   
+	1		'FBBBVLL',		!  6   
+	1		'FABBVRH',		!  7 
+	1		'FABBVRL',		!  8
+	1		'FBCCPILH',		!  9	
+	1		'FBCCPILL',		! 10
+	1		'FACCPIRH',		! 11	
+	1		'FACCPIRL', 		! 12
+	1		'FAICI', 		! 13
+	1		'FBICI',		! 14
+	1		'FADCI',		! 15	
+	1		'FBDCI',		! 16    
+	1		'FLMAC1T',		! 17	
+	1		'FLMAC2T',		! 18
+	1		'FAMTRI',		! 19	
+	1		'FBMTRI',		! 20	
+	1		'        ',		! 21	
+	1		'        ',		! 22
+	1		'        ',		! 23	
+	1		'        ', 		! 24
+	1		'        ',		! 25	
+	1		'        ',		! 26    
+	1		'        ',		! 27	
+	1		'        ',		! 28
+	1		'        ',		! 29
+	1		'        ',		! 30
+	1		'        ',		! 31
+	1		'        ',		! 32
+	1		'        ',		! 33
+	1		'        '/		! 34
+	

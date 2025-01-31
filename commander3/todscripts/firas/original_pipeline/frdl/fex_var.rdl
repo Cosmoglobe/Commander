@@ -1,0 +1,42 @@
+!
+!  FIRAS Average Variances Record Structure
+!
+record FEX_VAR FEX_VAR
+
+!
+!  Header Information
+!
+    scalar/text/length=14    GMT
+                             !  GMT Dataset Timetag
+    scalar/adt               TIME
+                             !  Binary Dataset Timetag
+    scalar/byte              CHANNEL
+                             !  Channel Number
+    scalar/byte              SCAN_LENGTH
+                             !  MTM Scan Length
+    scalar/byte              SCAN_SPEED
+                             !  MTM Scan Speed
+    scalar/text/length=40    MODEL_LABEL
+                             !  Calibration Solution Label
+    scalar/float             GALAT_EXC
+                             !  Galactic Latitude below which
+                             !    data is excluded
+
+!
+!  Number ifgs that contributed to average variance.
+!
+    scalar/float             NSKY_IFGS
+                             !  Number of sky ifgs
+
+!
+!  Average Real-to-Real Variances
+!
+    array/double/dim=257     VARIANCES
+                             !  Average Variances
+
+!
+!  Spares to Pad to Block Boundary
+!
+    array/byte/dim=47        SPARES
+
+end_record

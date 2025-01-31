@@ -1,0 +1,25 @@
+ 130  87  87  19  13  51 130  87  87  19  13  51  ! Primary Offsets
+  19  13  13  14   9  37  19  13  13  14   9  37  ! Secondary Offsets
+
+!  Reference Dataset FEX_VIBCORR Text File
+!
+!	This file contains the frequency offsets for which FCF corrects voltage 
+!	spectra for MTM vibrations.  The coefficients of the vibration 
+!	correction terms are contained in the calibration model solution.
+!
+!	The offset points for each correction are listed in the following order:
+!	rhss, rhsf, rhlf, rlss, rlsf, rllf, lhss, lhsf, lhlf, llss, llsf, lllf.
+!
+!	Author:   Gene Eplee
+!		  General Sciences Corp.
+!		  513-7768
+!		  11 February 1993
+!
+!-------------------------------------------------------------------------------
+!
+!	Changes:
+!
+!	Added low frequency short fast vibration offsets
+!	Gene Eplee, GSC, 16 August 1993, SER 11394.
+!
+!-------------------------------------------------------------------------------

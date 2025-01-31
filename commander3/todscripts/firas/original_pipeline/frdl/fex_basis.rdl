@@ -1,0 +1,12 @@
+!
+! Legendre Polynomial Basis Vectors for Baseline Subtraction
+!
+record FEX_BASIS FEX_BASIS
+
+array/double/dim=(512,5)  LEG_POLY
+                          ! Legendre polynomials for 512 index points.
+                          ! Second index value is degree of polynomial
+                          ! plus one.  Independent variable is divided
+                          ! by 512 to decrease dynamic range for better
+                          ! precision in the fit.
+end_record                             

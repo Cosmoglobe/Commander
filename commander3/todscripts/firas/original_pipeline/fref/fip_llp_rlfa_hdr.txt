@@ -1,0 +1,205 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'LLINE-PR'           / Low Frequency Line Profiles
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'RL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'SL'                 / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'F'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =         67.91283416  / Optical frequency of initial data point in GHz
+DELTA_NU=          16.97820854 / Optical frequency interval between data points 
+COMMENT                        / in GHz
+NUM_FREQ=                   34 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT
+COMMENT
+COMMENT    The widths of the line profiles contained in this file are
+COMMENT    determined by the Fourier transforms of the externally imposed
+COMMENT    apodization functions applied to the data as part of the 
+COMMENT    calibration process.  These spectral response functions are
+COMMENT    wider than the intrinsic response function of the instrument.
+COMMENT    See the FIRAS Explanatory Supplement for further details.
+COMMENT
+COMMENT  FIRAS low frequency line profiles record structure 
+COMMENT 
+COMMENT 
+COMMENT  Calibration model solution identification
+COMMENT 
+COMMENT  Calibration model solution label
+TFORM1='40A'
+TTYPE1='MODEL_LA' / entire fieldname = MODEL_LABEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM2='4A'
+TTYPE2='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET2=40
+TUNIT2=' '
+COMMENT 
+COMMENT  Frequency range of line profiles
+COMMENT 
+COMMENT  Optical frequency of initial data point, in GHz
+TFORM3='1E'
+TTYPE3='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET3=44
+TUNIT3='GHz'
+COMMENT  Optical frequency interval, in GHz
+TFORM4='1E'
+TTYPE4='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET4=48
+TUNIT4='GHz'
+COMMENT  Number of frequency points with good data
+TFORM5='1J'
+TTYPE5='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET5=52
+TUNIT5=' '
+COMMENT 
+COMMENT  Line Profiles
+COMMENT 
+COMMENT  Real part of 115.27 GHz CO (J=1-0) line profile, in 1/GHz
+TFORM6='180E'
+TDIM6='(180)'
+TTYPE6='RCO_115' / entire fieldname = RCO_115
+OFFSET6=56
+TUNIT6='1/GHz'
+COMMENT  Imaginary part of 115.27 GHz CO (J=1-0) line profile, in 1/GHz
+TFORM7='180E'
+TDIM7='(180)'
+TTYPE7='ICO_115' / entire fieldname = ICO_115
+OFFSET7=776
+TUNIT7='1/GHz'
+COMMENT 
+COMMENT  Real part of 230.54 GHz CO (J=2-1) line profile, in 1/GHz
+TFORM8='180E'
+TDIM8='(180)'
+TTYPE8='RCO_230' / entire fieldname = RCO_230
+OFFSET8=1496
+TUNIT8='1/GHz'
+COMMENT  Imaginary part of 230.54 GHz CO (J=2-1) line profile, in 1/GHz
+TFORM9='180E'
+TDIM9='(180)'
+TTYPE9='ICO_230' / entire fieldname = ICO_230
+OFFSET9=2216
+TUNIT9='1/GHz'
+COMMENT 
+COMMENT  Real part of 345.80 GHz CO (J=3-2) line profile, in 1/GHz
+TFORM10='180E'
+TDIM10='(180)'
+TTYPE10='RCO_345' / entire fieldname = RCO_345
+OFFSET10=2936
+TUNIT10='1/GHz'
+COMMENT  Imaginary part of 345.80 GHz CO (J=3-2) line profile, in 1/GHz
+TFORM11='180E'
+TDIM11='(180)'
+TTYPE11='ICO_345' / entire fieldname = ICO_345
+OFFSET11=3656
+TUNIT11='1/GHz'
+COMMENT 
+COMMENT  Real part of 424.75 GHz O2 line profile, in 1/GHz
+TFORM12='180E'
+TDIM12='(180)'
+TTYPE12='RO2_424' / entire fieldname = RO2_424
+OFFSET12=4376
+TUNIT12='1/GHz'
+COMMENT  Imaginary part of 424.75 GHz O2 line profile, in 1/GHz
+TFORM13='180E'
+TDIM13='(180)'
+TTYPE13='IO2_424' / entire fieldname = IO2_424
+OFFSET13=5096
+TUNIT13='1/GHz'
+COMMENT 
+COMMENT  Real part of 461.04 GHz CO (J=4-3) line profile, in 1/GHz
+TFORM14='180E'
+TDIM14='(180)'
+TTYPE14='RCO_461' / entire fieldname = RCO_461
+OFFSET14=5816
+TUNIT14='1/GHz'
+COMMENT  Imaginary part of 461.04 GHz CO (J=4-3) line profile, in 1/GHz
+TFORM15='180E'
+TDIM15='(180)'
+TTYPE15='ICO_461' / entire fieldname = ICO_461
+OFFSET15=6536
+TUNIT15='1/GHz'
+COMMENT 
+COMMENT  Real part of 492.23 GHz [C I] line profile, in 1/GHz
+TFORM16='180E'
+TDIM16='(180)'
+TTYPE16='RC_I_492' / entire fieldname = RC_I_492
+OFFSET16=7256
+TUNIT16='1/GHz'
+COMMENT  Imaginary part of 492.23 GHz [C I] line profile, in 1/GHz
+TFORM17='180E'
+TDIM17='(180)'
+TTYPE17='IC_I_492' / entire fieldname = IC_I_492
+OFFSET17=7976
+TUNIT17='1/GHz'
+COMMENT 
+COMMENT  Real part of 556.89 GHz H2O line profile, in 1/GHz
+TFORM18='180E'
+TDIM18='(180)'
+TTYPE18='RH2O_556' / entire fieldname = RH2O_556
+OFFSET18=8696
+TUNIT18='1/GHz'
+COMMENT  Imaginary part of 556.89 GHz H2O line profile, in 1/GHz
+TFORM19='180E'
+TDIM19='(180)'
+TTYPE19='IH2O_556' / entire fieldname = IH2O_556
+OFFSET19=9416
+TUNIT19='1/GHz'
+COMMENT 
+COMMENT  Real part of 576.27 GHz CO (J=5-4) line profile, in 1/GHz
+TFORM20='180E'
+TDIM20='(180)'
+TTYPE20='RCO_576' / entire fieldname = RCO_576
+OFFSET20=10136
+TUNIT20='1/GHz'
+COMMENT  Imaginary part of 576.27 GHz CO (J=5-4) line profile, in 1/GHz
+TFORM21='180E'
+TDIM21='(180)'
+TTYPE21='ICO_576' / entire fieldname = ICO_576
+OFFSET21=10856
+TUNIT21='1/GHz'
+COMMENT 
+END

@@ -1,0 +1,55 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_INVOC_MODEL.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FIP_MODEL.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 19 May 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Added FEX_CVS reference dataset.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FIP version number
+	parameter	(fcc_version='12.3')
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_cvs_file		!  FEX_CVS filename
+	character * 48	fcc_fip_file		!  FIP model solution filename
+	character * 20	fcc_model_ext		!  model solution file extension
+	character * 48	fcc_mod_file		!  FEX model solution filename
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 64	fcc_report_file		!  report file name
+
+	integer * 2	fcc_cvslen		!  length of FEX_CVS filename
+	integer * 2	fcc_fiplen		!  length of FIP model filename
+	integer * 2	fcc_modlen		!  length of FEX model filename
+	integer * 2	fcc_replen		!  length of report filename
+
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_flight		!  /FLIGHT qualifier
+	integer * 4	fcc_length		!  MTM scan length
+	integer * 4	fcc_ngroup		!  adds per group
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_model_ext, fcc_chan, fcc_length, fcc_speed,
+     .			     fcc_ngroup, fcc_smode,  fcc_scan_mode, fcc_flight,
+     .			     fcc_mod_file, fcc_modlen, fcc_cvs_file, fcc_cvslen,
+     .			     fcc_fip_file, fcc_fiplen, fcc_report,
+     .			     fcc_report_file, fcc_replen

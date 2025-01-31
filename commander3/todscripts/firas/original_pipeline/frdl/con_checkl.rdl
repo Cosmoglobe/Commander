@@ -1,0 +1,121 @@
+!
+!   Interferogram and coadd times
+!
+    scalar/text/length=14  GMT
+                           !  GMT of interferogram
+    scalar/adt             TIME
+                           !  Binary time of interferogram
+    scalar/text/length=14  COADD_GMT
+                           !  GMT of coadd
+    scalar/adt             COADD_TIME
+                           !  Binary time of coadd
+!   
+!   Identifying science quantities
+!
+    scalar/byte            CHAN_ID
+                           !  Channel ID of coadd
+    scalar/byte            MTM_SPEED
+                           !  MTM speed of coadd
+    scalar/byte            MTM_LENGTH
+                           !  MTM length of coadd
+    scalar/byte            FAKEIT
+                           !  Fake-it pulse of coadd
+    scalar/byte            SCI_MODE
+                           !  Block ID of coadd
+    scalar/byte            ADDS_PER_GROUP
+                           !  Adds per group of coadd
+    scalar/byte            XCAL_POS
+                           !  Xcal position of interferogram
+    scalar/byte            SWEEPS
+                           !  Sweeps of coadd
+    scalar/float           GAIN
+                           !  Gain of interferogram
+    scalar/float           GLITCH_RATE
+                           !  Glitch rate of interferogram
+!
+!   Attitude quantities
+!
+    scalar/long            PIXEL_NO
+                           !  Pixel number of inteferogram
+    scalar/word            EARTH_LIMB
+                           !  Earth limb of interferogram
+    scalar/word            EARTH_LIMB_AZIMUTH
+                           !  Earth limb azimuth of interferogram
+    scalar/word            SUN_ANGLE
+                           !  Sun angle of interferogram
+    scalar/word            MOON_ANGLE
+                           !  Moon angle of interferogram
+    scalar/word            MOON_AZ_ANGLE
+                           !  Moon azimuth of interferogram
+    scalar/word            MOON_PHASE
+                           !  Moon phase of interferogram
+    scalar/float           SUN_MOON_DIST
+                           !  Sun-moon distance of interferogram
+    scalar/float           COBE_MOON_DIST
+                           !  COBE-moon distance of interferogram
+!
+!   Subtraction coefficients
+!
+    scalar/float           B
+                           !  B coefficient for secondary
+                           !    template subtraction
+    scalar/float           C
+                           !  C coefficient for digital
+                           !    transient subtraction
+!
+!   Deglitcher quantities
+!
+    scalar/float           PRE_DG_MEDIAN
+                           !  Median value used in
+                           !  deglitcher noise
+    scalar/float           PRE_DG_NOISE
+                           !  Noise value guiding 
+                           !  deglitcher
+    scalar/word            GLITCH_POS
+                           !  Position of first glitch
+                           !  removed
+    scalar/float           GLITCH_AMP
+                           !  Amplitude of first glitch
+                           !  removed
+    scalar/word            GLITCH_ITER
+                           !  Number of deglitcher
+                           !  clean iterations
+    scalar/float           GLITCH_SIGNAL
+                           !  Glitch signal removed
+!
+!   Interferogram noise and consistency check results
+!
+    scalar/float           POST_DG_MEDIAN
+                           !  Median value used for
+                           !  shape check noise
+    scalar/float           NOISE
+                           !  Interferogram noise
+    scalar/long            CON_CHECK
+                           !  Consistency check value
+                           !  Zero = pass; non-zero = fail
+                           !  Failure reasons stored by bit:
+                           !  0=data and attitude quality;
+                           !  1=channel id; 2=mtm speed;
+                           !  3=mtm length; 4=fakeit; 
+                           !  5=sci mode; 6=adds and sweeps;
+                           !  7=xcal pos; 8=commanded bias;
+                           !  9=bol voltage; 10=xcal temp;
+                           !  11=ical temp; 12=skyhorn temp;
+                           !  13=refhorn temp; 14=bolometer temp;
+                           !  spatial gradients:
+                           !  15=xcal s5-s6; 16=xcal tip-cone;
+                           !  17=ical a-b; 18=skyhorn a-b;
+                           !  19=refhorn a-b;
+                           !  temporal gradients: 20=xcal;
+                           !  21=ical; 22=skyhorn; 23=refhorn;
+                           !  24=temp controller integral and
+                           !     prop gain status bits;
+                           !  25=pixel number;
+                           !  26=pixel def and skymap index;
+                           !  27=deglitcher failure;
+                           !  28=ifg not noisy enough;
+                           !  29=ifg too noisy;
+                           !  30=too many outlier points;
+                           !  31=too few ifgs in ensemble
+    array/byte/dim=4       SPARES
+                           !  Spares

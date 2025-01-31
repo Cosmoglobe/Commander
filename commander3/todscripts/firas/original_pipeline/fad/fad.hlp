@@ -1,0 +1,108 @@
+1 FAD
+
+	PURPOSE
+
+	FAD, FIRAS Apply Destriper, applies the "destriper" time dependent
+	corrections, created by FDS, to the FIRAS calibrated spectra,
+	FCF_SKY_ccss, producing the corrected data set FAD_SKY_ccss.
+
+	METHOD
+
+	The corrections for destriping are read from the FEX_EJV_ccss file
+	(cc = channel specification ie. RH,
+	ss = scan mode specification ie. SS).  The corrections consist of
+	1.  a spectrum E that gets weighted by an exponential time decay with
+	time constant Tau,
+	2.  a spectrum J that depends on the mission time period of the data.
+	It then calculates the spectral correction:
+	   Correction (f) = J (jperiod(t),f) + E(f) * exp (-t/tau)
+
+	The corrected spectrum is:
+	   Correct Spectra (f) = Spectra (f) - Correction (f)
+
+	where: f = frequency index, t is time in days since cover ejection
+	(893251118).
+
+2 /CHAN
+
+	The Chan qualifier allows the user to select which of the four channels
+	to process: RH, RL, LH or LL.  Required.
+
+	Format Example:
+
+	FAD/CHAN=RH/scan=ss/filext=ed_8932800_8934301/model=f16_93hybrid
+
+2 /SCAN
+
+	The Scan qualifier allows the user to select which of the four scan
+	modes to process:  SS, SF, LS, or LF.  Required.
+
+	Format Example:
+
+	FAD/chan=rh/SCAN=SS/filext=ed_8932800_8934301/model=f16_93hybrid
+
+2 /FILEXT
+
+	The Filext qualifier allows the user to specify the file extension of
+	the FCF_SKY_ccss file to process.  Required.
+
+	Format Example:
+
+	FAD/chan=rh/scan=ss/FILEXT=ED_8932800_8934301/model=f16_93hybrid
+
+2 /MODEL
+
+	The Model qualifier allows the user to specify the FISH model used
+	by FDS to create the FEX_EJV file.  It is the file name extension of
+	the FEX_EJV file.  Required.
+
+	Format Example:
+
+	FAD/chan=rh/scan=ss/filext=ed_8932800_8934301/MODEL=F16_93HYBRID
+
+2 /REPORT
+
+	The Report qualifier determines whether a report will be generated for
+	the run.  The default is to write the report file.  This qualifier is
+	negatable.  Default report name:
+		FAD_yydddhh_yydddhh_ccss.REP_yydddhhmm;
+	where the first two date/times are the start and stop times for the
+	data, the final date/time is the current GMT for that run, cc is the
+	channel, and ss is the scan mode.
+
+	Format Examples:
+
+	FAD/chan=rh/scan=ss/filext=ed_8932800_8934301/model=f16_93hybrid -
+	   /REPORT=MYTEST.REP
+	   ! Accepts file name for report.
+	FAD/chan=rh/scan=ss/filext=ed_8932800_8934301/model=f16_93hybrid -
+	   /REPORT
+	   ! Default file name used for report.
+	FAD/chan=rh/scan=ss/filext=ed_8932800_8934301/model=f16_93hybrid
+	   ! Default file name used for report.
+	FAD/chan=rh/scan=ss/filext=ed_8932800_8934301/model=f16_93hybrid -
+	   /NOREPORT
+	   ! No report file created
+
+2  FIRAS_Logicals
+
+	Archived datasets used by FAD are controlled by the logical names
+	"CSDR$FIRAS_IN", "CSDR$FIRAS_OUT", and "CSDR$FIRAS_CAL".  These
+	logical names can be used to direct the facility to operate on
+	datasets within a private archive by making definitions such as:
+	DEFINE CSDR$FIRAS_RAW DEVICE:[PRIVATE.ARCHIVE]
+
+	Input FCF_SKY file:      CSDR$FIRAS_IN
+	Reference FEX_EJV file:  CSDR$FIRAS_CAL
+	Output FAD_SKY file:     CSDR$FIRAS_OUT
+
+2  Production
+
+	During pipeline production FAD is invoked with:
+
+	FAD/CHAN=RH/SCAN=SS/FILEXT=ED_8932800_8934301/MODEL=F16_93HYBRID
+
+	This reads spectra from CSDR$FIRAS_IN:FCF_SKY_RHSS.ED_8932800_8934301,
+	reads the reference files CSDR$FIRAS_CAL:FEX_EJV_RHSS.F16_93HYBRID,
+	and writes destriped spectra to CSDR$FIRAS_OUT:
+	FAD_SKY_RHSS.ED_8932800_8934301.

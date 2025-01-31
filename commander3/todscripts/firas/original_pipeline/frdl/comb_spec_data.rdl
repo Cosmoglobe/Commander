@@ -1,0 +1,46 @@
+        !
+        !  Spectrum data
+        !
+        scalar/text/length=14   MODEL_TTAG
+                                !  Model solution time tag
+        scalar/text/length=40   MODEL_LABEL
+                                !  Model solution ID label
+        scalar/text/length=80   COMBINE_SCRIPT
+                                !  FCS script file name
+        scalar/float            RESPONSIVITY
+                                !  Bolometer responsivity
+        scalar/float            RESP_SIGMA
+                                !  Bolometer responsivity sigma
+        scalar/float            TIME_CONSTANT
+                                !  Bolometer time constant
+        scalar/float            TC_SIGMA
+                                !  Bolometer time constant sigma
+        array/floatc/dim=257    SPEC
+                                !  Spectrum
+        array/float/dim=257     REAL_VAR
+                                !  Variance of means contributed
+                                !    by real part of spectra
+        array/float/dim=257     IMAG_VAR
+                                !  Variance of means contributed
+                                !    by imaginary part of spectra
+        array/float/dim=257     CVS_VAR
+                                !  Spectrum variance defined as:
+                                !    C-Vector**2/Nifgs
+        scalar/float            PHASE_CORR
+                                !  Linear autophase correction
+        scalar/float            PC_SIGMA
+                                !  Linear autophase correction sigma
+        scalar/float            QRAD
+                                !  IR power from bolometer model (Watts)
+        scalar/float            QRAD_SIGMA
+                                !  IR power sigma
+        scalar/float            IR_POWER
+                                !  IR power from Planck functions (Watts)
+        scalar/float            IR_POWER_SIGMA
+                                !  IR power sigma
+        scalar/byte             DESTRIPED
+                                !  Destriper flag
+
+     structure COMBINATIONS
+       include combinations.rdl
+     endstructure

@@ -1,0 +1,8 @@
+C Error logging parameters.
+
+	Integer		*4	FUT_Report_LUN
+	Integer		*2	error_count
+	Integer		*4	error(100)
+	Character	*16	error_params(100,4)
+
+	Common /ERROR/ FUT_Report_LUN, error, error_params, error_count

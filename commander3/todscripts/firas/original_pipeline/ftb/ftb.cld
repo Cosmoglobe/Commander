@@ -1,0 +1,354 @@
+!
+! Facility FTB command definition file.
+!
+! Change Log:
+!
+!  Version 4.2.1 01/12/89, SPR 3069, Shirley M. Read, STX
+!          "HISTO", the old CLD synonym for FTB_HISTO, conflicts with
+!          "HISTORY", the IOPS history logging command. Rename the FTB
+!           synonym to FHISTO.
+!
+!  Version 4.4   08/08/89, SPR 3883, Jon Smid, STX
+!          Implementation of the noninteractive mode for FTB_HISTO and 
+!          WORD31
+!
+!  Version 4.5   09/22/89, SER 4180, David Bouler, STX
+!          Implement batch mode for TEMPCONTROL. 
+!
+!  Version 4.6   03/06/90, SER 5726, Steven Alexander, STX
+!	   Add capability to pass in a PLT command file.
+!
+!  Version 6.2   05/30/90, SER 6852, Nilo Gonzales, STX
+!          Add facilities FTB_VALID_TIME, FTB_BINFLD, FTB_CHECKSUM, 
+!                         FTB_CHECK_DQ
+!
+!  Version 9.7   06/29/92, SPR 9726, Steven Alexander, HSTX
+!          Remove FTB_GAPFLAG
+!
+!  Version 9.7A  07/10/92, SPR 9815, Steven Alexander, HSTX
+!          Correct disallows for FTB_CTVIEWER
+!
+!  Version 10.6  04/05/93, SPR 10764, Steven Alexander, HSTX
+!          New tool box program FTB_TRANS
+!
+!  Version 13.7  12/20/95, SPR 12285, Stefan Brodd, HSTX
+!          Modified tool box program FTB_LTRANS
+!
+!****************************************************************************
+!
+!
+! FTB_GET_TIME
+!
+Define Verb FTB_GET_TIME
+
+	Image "CSDR$SYSTEM:FTB_GETTIM.EXE"
+
+	   Synonym GETTIME
+!
+! FTB_MTM_JITTER
+!
+Define Verb FTB_MTM_JITTER
+
+	Image "CSDR$SYSTEM:FTB_MTM_JITTER.EXE"
+
+	   Synonym JITTER
+
+           Qualifier JSTART,
+                     Value
+           Qualifier JSTOP,
+                     Value
+           Qualifier PLTFILE,
+                     Value(Type=$File,Default=PLT.PCO),
+		     NonNegatable
+!
+! FTB_CONVTIME
+!
+Define Verb FTB_CONVTIME
+
+	Image "CSDR$SYSTEM:FTB_CONVTIME.EXE"
+
+	   Synonym TCONVERT
+!
+! FTB_CTVIEWER
+!
+Define Verb FTB_CTVIEWER
+
+	Image "CSDR$SYSTEM:FTB_CTVIEWER.EXE"
+
+	   Synonym CTVIEWER
+
+           Qualifier INTERACTIVE,
+		     Default,
+                     Negatable
+           Qualifier PLOTDEVICE,
+		     Value(Required),
+                     Default
+           Qualifier PLTFILE,
+           	     Value(Type=$File,Default=PLT.PCO),
+		     NonNegatable
+	   Qualifier DATASET,
+		     Value
+           Qualifier JSTART,
+                     Value
+           Qualifier JSTOP,
+                     Value
+	   Qualifier RSE,
+                     Value(Type=$FILE),
+                     Negatable                     
+
+	   Disallow  DATASET And (Not JSTART Or Not JSTOP)
+	   Disallow  JSTART And (Not DATASET Or Not JSTOP)
+	   Disallow  JSTOP And (Not DATASET Or Not JSTART)
+
+!
+! FTB_TESTLOG
+!
+Define Verb FTB_TESTLOG
+
+	Image "CSDR$SYSTEM:FTB_TESTLOG.EXE"
+
+	   Synonym TESTLOG
+!
+! FTB_JDATE
+!
+Define Verb FTB_JDATE
+
+	Image "CSDR$SYSTEM:FTB_JDATE.EXE"
+
+	   Synonym JDATE
+!
+! FTB_WORD31
+!
+Define Verb FTB_WORD31
+
+        Image "CSDR$SYSTEM:FTB_WORD31.EXE"
+
+           Synonym WORD31
+
+           Qualifier INTERACTIVE,
+                     Default,
+		     Negatable
+	   Qualifier SCAN_DIRECTION,
+		     Default
+	   Qualifier XCAL_STATUS
+    	   Qualifier LENGTH
+    	   Qualifier SPEED
+	   Qualifier RH_DATA_READY
+	   Qualifier RL_DATA_READY
+	   Qualifier LH_DATA_READY
+	   Qualifier LL_DATA_READY
+	   Qualifier ALL
+	   Qualifier STEP,
+		     Value(Default=128),
+		     Default
+	   Qualifier JSTART,
+		     Value(Required)
+	   Qualifier JSTOP,
+  		     Value(Required)
+           Qualifier PLOTDEVICE,
+		     Value(Required)
+           Qualifier PLTFILE,
+                     Value(Type=$File,Default=PLT.PCO),
+		     NonNegatable
+
+           Disallow  (Neg INTERACTIVE and Not JSTART)
+           Disallow  (Neg INTERACTIVE and Not JSTOP)
+	   Disallow  (Neg INTERACTIVE and Not PLOTDEVICE) 
+
+!        
+! FTB_TEMPCONTROL
+!
+Define Verb FTB_TEMPCONTROL
+
+        Image "CSDR$SYSTEM:FTB_TEMPCONTROL.EXE"
+
+           Synonym TEMPC
+
+           Qualifier INTERACTIVE,
+                     Default,
+		     Negatable
+           Qualifier ICAL
+           Qualifier XCAL
+           Qualifier SKYHORN
+           Qualifier REFHORN
+           Qualifier SIDE,
+		     Value(Default=B),
+		     Default
+           Qualifier JSTART,
+		     Value(Required)
+           Qualifier JSTOP,
+		     Value(Required)
+           Qualifier PLOTDEVICE,
+		     Value(Default=/VT)
+           Qualifier PLTFILE,
+                     Value(Type=$File,Default=PLT.PCO),
+		     NonNegatable
+
+	   Disallow  (Neg INTERACTIVE and Not PLOTDEVICE) 
+
+!
+! FTB_HISTO
+!
+DEFINE VERB FTB_HISTO
+
+	Image "CSDR$SYSTEM:FTB_HISTO.EXE"
+
+ 	   Synonym FHISTO
+
+           Qualifier INTERACTIVE,
+                     Default,
+		     Negatable
+           Qualifier CHANNEL,
+                     Value(Default=RH),
+                     Default
+           Qualifier JSTART,
+                     Value(Required)
+           Qualifier JSTOP,
+                     Value(Required)
+           Qualifier PLOTDEVICE,
+                     Value(Default=FHISTO.PR/PR),
+                     Default
+           Qualifier PLTFILE,
+                     Value(Type=$File,Default=PLT.PCO),
+		     NonNegatable
+           Qualifier INPUT,
+                     Value(Default=RAW),
+                     Default
+!
+! FTB_CHECK_DQ
+!
+DEFINE VERB FTB_CHECK_DQ
+
+	Image "CSDR$SYSTEM:FTB_CHECK_DQ.EXE"
+
+ 	   Synonym DQCHECK
+
+           Qualifier FILENAME,
+                     Value(Type=$File,Required)
+           Qualifier CHANNEL
+                     Value(Type=FTB_CHTYPE,Required)
+
+	   Define Type FTB_CHTYPE
+		     Keyword LH
+		     Keyword RL
+		     Keyword RH
+		     Keyword LL              
+!
+! FTB_OVERLAP
+!
+DEFINE VERB FTB_OVERLAP
+
+	Image "CSDR$SYSTEM:FTB_OVERLAP.EXE"
+
+ 	   Synonym OVERLAP
+
+           Qualifier JSTART,
+                     Value(Required)
+           Qualifier JSTOP,
+                     Value(Required)
+           Qualifier REPORT,
+                     Value(Default=FTB_OVERLAP_REPORT.LOG,Type=$FILE),
+                     Default,
+                     NonNegatable
+
+	   Disallow JSTART And Not JSTOP
+	   Disallow JSTOP And Not JSTART
+!
+! FTB_BINFLD
+!
+DEFINE VERB FTB_BINFLD
+
+	IMAGE "CSDR$SYSTEM:FTB_BINFLD.EXE"
+
+	   Synonym BINFLD
+
+	   Qualifier FIELD,Value(Required)
+
+	   Qualifier JSTART, Value(Required)
+	   Qualifier JSTOP, Value(Required)
+	   Qualifier NUMBINS, Value(Required,Type=$Number)
+	   Qualifier BINVALS, Value(Required,List)
+	   Qualifier REPORT, Value(Required, Type=FTB_RPT)
+
+	   Define Type FTB_RPT
+		        Keyword T
+			Keyword E
+			Keyword B, default
+!
+! FTB_CHECKSUM
+!
+DEFINE VERB FTB_CHECKSUM
+
+	IMAGE "CSDR$SYSTEM:FTB_CHECKSUM.EXE"
+
+	   Synonym CHECKSUM
+
+	   Qualifier CHANNEL,Value(Required, Type=FTB_CHTYPE)
+
+	   Qualifier JSTART, Value(Required)
+	   Qualifier JSTOP, Value(Required)
+	   Qualifier REPORT, Value(Required, Type=FTB_RPT1)
+           Qualifier CHECKSUM, Nonnegatable, Default
+           Qualifier BADTIME, Nonnegatable
+
+	   Define Type FTB_RPT1
+		        Keyword T, default
+			Keyword G
+			Keyword B
+!
+! FTB_VALID_TIME
+!
+DEFINE VERB FTB_VALID_TIME
+
+	IMAGE "CSDR$SYSTEM:FTB_VALID_TIME.EXE"
+
+	   Synonym INVTIM
+
+	   Qualifier DATASET,Value(Required)
+
+	   Qualifier JSTART, Value(Required)
+	   Qualifier JSTOP, Value(Required)
+
+           Qualifier DUMP
+
+	   Qualifier PRE_IT, Nonnegatable
+
+	   Qualifier COLLECT, Nonnegatable
+
+	   Qualifier LISTALL, Nonnegatable
+
+	   Disallow  PRE_IT And COLLECT
+
+	   Disallow  COLLECT And LISTALL
+
+	   Disallow  PRE_IT And LISTALL
+!
+! FTB_TRANS
+!
+Define Verb FTB_TRANS
+
+	Image "CSDR$SYSTEM:FTB_TRANS.EXE"
+
+	   Synonym FTRANS
+
+           Qualifier INFILE,
+           	     Value(Type=$File,Required),
+		     NonNegatable
+           Qualifier OUTFILE,
+           	     Value(Type=$File,Required),
+		     NonNegatable
+!
+! FTB_LTRANS
+!
+Define Verb FTB_LTRANS
+
+	Image "CSDR$SYSTEM:FTB_LTRANS.EXE"
+
+	   Synonym FLTRANS
+
+           Qualifier INFILE,
+           	     Value(Type=$File,Required),
+		     NonNegatable
+           Qualifier OUTFILE,
+           	     Value(Type=$File,Required),
+		     NonNegatable

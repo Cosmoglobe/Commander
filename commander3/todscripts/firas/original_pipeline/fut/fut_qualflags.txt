@@ -1,0 +1,259 @@
+C/
+C/	FUT_QUALFLAGS.TXT
+C/
+C/	INCLUDE file for describing quality flags and the parameters
+C/	relating to them (Offsets, indices, etc.)
+C/
+C/	This version proposed by Rich Isaacman based on Doug Ward's
+C/	draft, 3-Dec-87
+C/
+C/	Implemented by Shirley M. Read, STX, for Build 3.1.
+C/
+C/	Modified by Shirley M. Read, STX, for Build 3.2. Limit checking based 
+C/	    on these quality flags is implemented in FDQ as information needed
+C/	    for the checks becomes available. Thus some flags are defined for
+C/	    future software deliveries.
+C/ 
+C/	Modified by Shirley M. Read, STX, for Build 4.0. Added new flags for
+C/          LMAC analog and digital converter temperatures. 
+C/
+C/	Modified by Shirley M. Read, STX, for Build 4.2.1. Added new flags for
+C/          Moon contaminated IFGs and attitude summary flag. SPR 3062, Feb/1989
+C/
+	PARAMETER	FLG_BADSCI = 1		! Missing data ready bits
+						! in science data
+						! 0 = All OK
+						! 1 = Any bit is off
+						! RED Flag
+
+	PARAMETER	FLG_BADHKP = 2		! Missing minor frames in
+						! Housekeeping record
+						! 0 = All housekeeping TLM
+						! quality flags are zero
+						! 1 = Any housekeeping TLM 
+						! quality flag is nonzero
+						! RED Flag
+
+	PARAMETER	FLG_CAL = 3		! Flag indicating whether it is
+						! Science or Calibration data:
+						! 0 = Science or Calibration 
+						! 1 = Travel/error
+						! RED Flag
+
+	PARAMETER	FLG_MICRO = 4		! Microprocessor status word
+						! (except for timing bit 12)
+						! RED Flag
+
+	PARAMETER	FLG_ATT_ALT_RED = 6	! Attitude RED alert flag
+						! 0 = Pointing OK
+						! 1 = Sun
+						! 2 = Earth limb
+						! 4 = Moon
+						! 8 = SAA
+						! 16= Van Allen Belts
+
+	PARAMETER	FLG_ATT_ALT_YEL = 7	! Attitude YEL alert flag
+						! 0 = Pointing OK
+						! 1 = Sun
+						! 2 = Earth limb
+						! 4 = Moon
+						! 8 = SAA
+						! 16= Van Allen Belts
+
+	PARAMETER	FLG_GLITCH_CT = 8	! Glitch count 
+						! 0 = OK
+						! 1 = Too high
+						! RED Flag
+
+	PARAMETER	FLG_SATURATE = 9	! Saturated sample count
+						! 0 = OK
+						! 1 = Too high
+						! RED flag
+
+	PARAMETER	FLG_CKSM_ERR_ST = 10	! Checksum errors
+						! 0 = Agrees with checksum
+						! in science header
+						! 1 = Does not agree
+						! RED Flag
+
+	PARAMETER	FLG_GRTRED_ST = 11	! Start of GRT RED flags
+						! One bit set for each of 32 
+						! GRTs and cal resistors that
+						! exceeds a RED limit.
+						! Both A and B sides checked.
+
+	PARAMETER	FLG_GRTYEL_ST = 19	! Start of GRT YELLOW flags
+
+	PARAMETER	FLG_TC_RED = 27		! RED bits set for exceeding 
+						! temperature controller's
+						! (TC's) upper limit. 
+						! No poly-conversion is
+					        ! available and all 12 bits
+						! in command bit readback
+					        ! give a valid count. Need
+						! lookup tables and other
+                                                ! info to check TC limits.
+
+	PARAMETER	FLG_TC_YEL = 28		! YELLOW bits for TC's
+
+	PARAMETER	FLG_IPDU_TMP = 29	! IPDU temperature (A or B):
+						! Byte 1: 0 = OK on Analog Conv.
+						! 1 = YELLOW flag, 2 = RED flag
+						! Byte 2: 0 = OK on Digital Conv
+						! 1 = YELLOW flag, 2 = RED flag
+						! Depends on SC RU (remote unit)
+						! RU 1: Analog Converter A,
+						!       Digital Converter B.
+						! RU 2: Analog Converter B,
+						!       Digital Converter A.
+
+	PARAMETER	FLG_CHAN_TMP_ST = 31	! Channel temperatures. 
+						! Flag only the current channel.
+						! 0 = OK, 1 = YELLOW, 2 = RED
+						! Each SC RU has a thermistor
+						! for each channel.
+
+	PARAMETER	FLG_DBOX_TMP = 32	! Drive box temperature(A or B):
+						! Byte 1: 0 = OK on active
+						! side, 1 = YELLOW, 2 = RED
+						! Byte 2: 0 = OK on opposite 
+						! side, 1 = red or yellow limit
+						! on opposite side. YELLOW flag
+						! Whether A or B side drive box
+						! temperature is read depends 
+						! on which SC RU is controlling
+						! the drive electronics. SC side
+						! 1 reads FIRAS A, 2 reads FIRAS
+						! B. MTM and Xcal may be driven 
+					        ! from different FIRAS sides. 
+
+	PARAMETER	FLG_STMON_TMP = 34	! Status monitor temp. (A or B):
+						! 0 = OK, 1 = YELLOW, 2 = RED
+						! Flag the worst of the two.
+						! Each SC RU has a thermistor.
+
+	PARAMETER	FLG_CHPA_TMP = 35	! Channel pre-amp temperature:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+						! Each SC RU reads only A or B.
+
+	PARAMETER	FLG_OPPA_TMP = 36	! Optical pre-amp temperature:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+						! Each SC RU reads only A or B.
+
+	PARAMETER	FLG_HS_HEAT_A = 37	! Hot spot heater A current from
+						! internal reference source:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	PARAMETER	FLG_HS_HEAT_B = 38	! Hot spot heater B current:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	PARAMETER	FLG_MTMCAL_MTR = 39	! Current from MTM/CAL motor 
+						! temp. Latch and drive. Each 
+						! SC RU reads current. Relay
+						! status bits may trace FIRAS
+						! A and B sides. MTM and Xcal
+						! may be driven from different
+						! FIRAS sides. 
+						! Byte 1: 0 = OK on active side,
+						! 1 = YELLOW on active side, 
+						! 2 = RED on active side
+						! Byte 2: 0 = OK on inactive 
+						! side, 1 = red or yellow on
+						! inactive side. YELLOW flag
+
+	PARAMETER	FLG_BOL_VOL_ST = 41	! Bolometer voltage.
+						! Flag only the current channel.
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	PARAMETER	FLG_IPDU_VOL_ST = 42	! IPDU voltages (A or B) (10)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+						! Both A and B are checked.
+
+	PARAMETER	FLG_IPDU_CUR_ST = 52	! IPDU currents (A or B) (6)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+					        ! Both A and B are checked.
+
+	PARAMETER	FLG_STCHG_MJ_ST = 58	! Status changes across Major 
+						! Frame boundary. Four bytes.
+						! 1 = yes, 0 = no.
+						! Bit 0: GRT Dwell status for 
+						!        side (A or B)
+						! Bit 1: Micro bus readout for
+						!        channel
+						! Bit 2: Bolometer bias status
+						! Bits 3 - 6: Four temperature
+						!        controller statuses  
+						! Bit 7: XCAL position
+						! Bit 8: FAKEIT bit
+						! Bit 9: undefined
+						! Bit 10: undefined
+						! Bit 11: XCAL latch
+						! Bit 12: MTM latch
+						! Bit 13: undefined
+						! Bit 14: MTM speed
+						! Bit 15: MTM length
+						! Two bytes undefined as yet.
+						! If any bit set, RED flag.
+
+	PARAMETER	FLG_DIRBE_ST = 62	! DIRBE statuses that affect
+						! FIRAS:
+						! Annealing htrs (yel): 2 bytes
+						! Annealing htrs (red): 2 bytes
+						! IRS sources (yel): 1 byte
+						! IRS sources (red): 1 byte
+						! Chopper (1 byte)
+						! Shutter (1 byte)
+
+	PARAMETER	FLG_DMR_ST = 70		! DMR statuses that affect 
+						! FIRAS:
+						! Local oscillators flag 
+						! (yellow): 1 byte
+						! Local oscillators flag 
+						! (red): 1 byte
+						! Noise sources (yel): 2 bytes
+						! Noise sources (red): 2 bytes
+
+	PARAMETER	FLG_SPACECR_ST = 76	! Spacecraft statuses that
+						! affect FIRAS (8 items)
+						! Torquer Bars (yel): 1 byte
+						! Torquer Bars (red): 1 byte
+						!   Bars A to C: Lsb to Msb
+						! Momentum Wheels (yel): 1 byte
+						! Momentum Wheels (red): 1 byte
+
+	PARAMETER       FLG_ACLMAC_TMP = 84     ! LMAC temperature for analog
+                                                ! converter:
+                                                ! 0 = OK, 1 = YELLOW, 2 = RED
+
+	PARAMETER       FLG_DCLMAC_TMP = 85     ! LMAC temperature for digital
+                                                ! converter:
+                                                ! 0 = OK, 1 = YELLOW, 2 = RED
+
+	PARAMETER	FLG_SPARES = 86		! 21 spares
+
+	PARAMETER       FLG_NO_ATTITUDE = 108   ! 1 = no attitude solution
+					        ! 0 = OK
+	
+	PARAMETER       FLG_ATT_SUM = 109       ! Overall attitude quality
+						! summary.
+						! 0 = FDQ not yet run
+						! 1 = all flags OK
+						! 2 = "some" yellow, no red
+						! 3 = "many" yellow, no red
+						! 4 = no yellow, "some" red
+						! 5 = "some" yellow, "some" red
+						! 6 = "many" yellow, "some" red
+						! 7 = "many" red
+                                                !32 = no attitude solution 
+	PARAMETER	FLG_SUMMARY = 110	! Overall quality summary
+						! 0 = FDQ not yet run
+						! 1 = all flags OK
+						! 2 = "some" yellow, no red
+						! 3 = "many" yellow, no red
+						! 4 = no yellow, "some" red
+						! 5 = "some" yellow, "some" red
+						! 6 = "many" yellow, "some" red
+						! 7 = "many" red
+						! 32 = Bad midpoint collect time
+						! 64 = Housekeeping data missing
+						! 127 = TLM quality failure

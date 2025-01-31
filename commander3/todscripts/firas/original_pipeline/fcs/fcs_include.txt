@@ -1,0 +1,65 @@
+c	FCS_Include.txt
+c
+c Include file for FCS.
+c Larry Rosen, Hughes STX, April 1992, May 1993
+c
+c
+	integer*4	sum_rec_size			! size of the following
+	parameter	(sum_rec_size = 13476)		! record in bytes
+c
+c The following is a structure, similar to fcf_sky, except that any values
+c that are getting summed in fcs are real*8 here.  Thus, FCS does summations
+c in real*8 and stores them in a structure of this type.
+c
+	structure	/double_fcf/
+	   structure   /coad_spec_data/ coad_spec_data
+	      integer*4	adds_per_group, sweeps, peak_pos, bol_cmd_bias
+	      real*8	temp(10), temp_sigma(10)
+	      real*8	nyquist_hertz, nyquist_icm, noise, bl_coeffs(5)
+	      real*8	bol_volt, glitch_rate
+	      structure	/prim_template/ prim_template
+	         real*8		amplitude, snr
+	      endstructure
+	      structure	/sec_template/ sec_template
+	         real*8		amplitude, snr, variance, b_average, b_variance
+	      endstructure
+	      structure	/transient/ transient
+	         real*8		c_average, c_variance, bl_trans_coeff
+	      endstructure
+	      structure	/deglitch/ deglitch
+	         integer*4	glitch_iter
+	         real*8		glitch_signal
+	      endstructure
+	   endstructure
+	   structure	/spec_data/ spec_data
+	      real*8	responsivity, resp_sigma, time_constant, tc_sigma
+	      complex*16	spec(257)
+	      real*8	real_var(257), imag_var(257), real_imag_var(257)
+              real*8	phase_corr, phase_corr_sqrd, qrad, qrad_sqrd
+              real*8	ir_power, ir_power_sqrd
+	   endstructure
+	   structure	/en_stat/ en_stat
+	      real*8	group1(16), group2(14), hot_spot_cmd(2)
+	      real*8	power_a_status(2), power_b_status(2)
+	   endstructure
+	   structure	/en_analog/ en_analog
+	      real*8	grt(64), group1(62)
+	   endstructure
+	   structure	/en_sigma/ en_sigma
+	      real*8	sig_grt(64), group2(62)
+	   endstructure
+	   structure	/en_tempdiff/ en_tempdiff(2)
+	      real*8	xcal, ical, skyhorn, refhorn, dihedral
+	      real*8	collimator_mirror, bol_assem(4)
+	   endstructure
+	   structure	/attitude/ attitude
+	      real*8	sun_moon_dist, cobe_moon_dist
+	      real*8	equat(3), terr(3), elimb(3), mnang(3)
+	      real*8	angle, geovel, sc_rot_angle, ecl(3), gal(3)
+	      real*8	sky_idx(4), exc_gal_lat, sun_angle
+	      integer*4	altitude
+	      integer*4	projected_barycentric_velocity, mcilwain_l_param
+	      integer*4	att_sol(0:6), pixel_no(4), pix_def(4)
+	   endstructure
+	endstructure
+c

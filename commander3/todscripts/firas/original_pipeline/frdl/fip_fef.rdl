@@ -1,0 +1,53 @@
+!
+!  FIRAS Comparison Spectra
+!        Project Dataset Record Structure
+!
+record FIP_FEF FIP_FEF
+!
+! Comparison identification
+!
+!    Unless otherwise noted, times are in
+!    seconds since 00:00.00 UTC, 1 January 1981
+!
+! Comparison Description
+scalar/text/length=80      DESCRIP
+! Channel / MTM scan mode (length and speed) 1
+scalar/text/length=4       CHANSCAN1
+! Start times of mission periods 1 (s)
+array/double/dim=4         START_TIMES1
+! Stop times of mission periods 1 (s)
+array/double/dim=4         STOP_TIMES1
+! Exponential time constants 1 (days)
+array/float/dim=2          TAU1
+! Channel / MTM scan mode (length and speed) 2
+scalar/text/length=4       CHANSCAN2
+! Start times of mission periods 2 (s)
+array/double/dim=4         START_TIMES2
+! Stop times of mission periods 2 (s)
+array/double/dim=4         STOP_TIMES2
+! Exponential time constants 2 (days)
+array/float/dim=2          TAU2
+!
+! Frequency range of comparison
+!
+! Optical frequency of initial data point, in GHz
+scalar/float               NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float               DELTA_NU
+! Number of frequency points with good data
+scalar/long                NUM_FREQ
+!
+!  Comparison Spectra
+!
+! Real part of difference spectra (1-2), in MJy/sr
+array/float/dim=180        RDIFF_SPEC
+! Imaginary part of difference spectra (1-2), in MJy/sr
+array/float/dim=180        IDIFF_SPEC
+! Difference Spectra Sigma, in MJy/sr
+array/float/dim=180        DIFF_SPEC_SIG
+! Ratio Spectra (1/2)
+array/float/dim=180        RATIO_SPEC
+! Ratio Spectra Sigma
+array/float/dim=180        RATIO_SPEC_SIG
+!
+end_record

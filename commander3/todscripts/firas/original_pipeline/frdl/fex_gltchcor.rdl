@@ -1,0 +1,27 @@
+!
+!  Glitchrate Correction Slope and Intercept Record
+!
+record FEX_GLTCHCOR FEX_GLTCHCOR
+
+!
+!  Glitchrate Correction Slopes and Intercepts
+!
+   array/double/dim=12    SLOPE
+                          !  Glitchrate Correction Slope
+   array/double/dim=12    INTERCEPT
+                          !  Glitchrate Correction Intercept
+
+!
+!  Dataset Timetags
+!
+   scalar/adt             TIME
+                          !  Binary timetag
+   scalar/text/length=14  GMT
+                          !  GMT timetag
+
+!
+!  Spares to pad to block boundary
+!
+   array/byte/dim=42 SPARES 
+
+end_record

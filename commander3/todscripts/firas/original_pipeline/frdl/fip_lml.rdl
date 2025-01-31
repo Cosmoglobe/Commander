@@ -1,0 +1,34 @@
+!
+! FIRAS line map catalog (initial release product) record structure 
+!
+record FIP_LML FIP_LML
+!
+! FIRAS pixel number (resolution 6)
+scalar/long            PIXEL
+! Ecliptic longitude (pixel center), epoch 2000.0, in deg (0 -> 360)
+scalar/float           ECLON
+! Ecliptic latitude  (pixel center), epoch 2000.0, in deg (-90 -> +90)
+scalar/float           ECLAT
+!
+!
+! Line Flux Parameters & Uncertainties
+!
+! Real part of line flux, in watt / s m^2 sr
+array/float/dim=8      LINE_FLUX
+! Sigmas of real part of line flux, in watt / s m^2 sr
+array/float/dim=8      LINE_FLUX_SIGMA
+!
+!
+! Channel/Scan-Mode Identifier
+scalar/text/length=4   CHANSCAN
+! Number of IFGs in spectrum
+scalar/float           NUM_IFGS    
+! Galactic longitude (pixel average), in deg (0 -> 360)
+scalar/float           GALON          
+! Galactic latitude  (pixel average), in deg (-90 -> +90)
+scalar/float           GALAT          
+! Right ascension (pixel average), in deg (0 -> 360)
+scalar/float           RA             
+! Declination     (pixel average), in deg (-90 -> +90)
+scalar/float           DEC    
+end_record

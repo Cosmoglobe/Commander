@@ -1,0 +1,101 @@
+!
+! FIRAS coadded sky interferogram
+!       project dataset record structure 
+!
+record FIP_ISK FIP_ISK
+!
+! FIRAS pixel number (resolution 6)
+scalar/long            PIXEL
+! Ecliptic longitude, epoch 2000.0, in deg (0 -> 360)
+scalar/float           ECLON
+! Ecliptic latitude, epoch 2000.0, in deg (-90 -> +90)
+scalar/float           ECLAT
+! Coadded interferogram, in counts
+array/float/dim=512    COADDED_IFG
+! Variance of real part of coadd spectrum, in (MJy/sr)^2
+array/float/dim=180    REAL_VARIANCE
+! Variance of imaginary part of coadd spectrum, in (MJy/sr)^2
+array/float/dim=180    IMAG_VARIANCE
+! Covariance between real and imaginary
+!    parts of coadd spectrum, in (MJy/sr)^2
+array/float/dim=180    REAL_IMAG_VARIANCE
+! Glitchrate for coadded IFG, in glitches/s
+scalar/float           GLITCH_RATE
+! Number of IFGs in coadd
+scalar/long            NUM_IFGS
+! Number of templates subtracted from coadded IFG
+scalar/long            NUM_TEMPLATES
+! Average data collection time in seconds since
+!    00:00.00 UTC, 1 January 1981
+scalar/double          TIME
+!
+! Instrument State Information
+!
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4   CHANSCAN
+! Data type flag:  1 = Merged channel and scan mode 
+!                      destriped calibrated sky spectra
+!                  2 = Merged scan mode destriped 
+!                      calibrated sky spectra
+!                  3 = Single scan mode destriped 
+!                      calibrated sky spectra
+!                  4 = Single scan mode undestriped 
+!                      calibrated sky spectra  
+!                  5 = Single scan mode undestriped 
+!                      differential sky spectra 
+!                  6 = Single scan mode undestriped 
+!                      calibrated calibration spectra
+!                  7 = Single scan mode undestriped 
+!                      differential calibration spectra
+!                  8 = Coadded sky interferograms
+!                  9 = Coadded time-ordered calibration 
+!                      interferograms
+scalar/byte            DATATYPE
+! Interferogram peak position
+scalar/long            PEAK_POSITION
+! Commanded bolometer bias, in V
+scalar/float           BOLOM_BIAS
+! Bolometer readout voltage, in V
+scalar/float           BOLOM_VOLTAGE
+! Optical frequency of initial variance point, in GHz
+scalar/float           NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float           DELTA_NU
+! Number of variance points with good data
+scalar/long            NUM_FREQ
+!
+! Instrument Temperatures
+!
+! External calibrator temperature, in K
+scalar/float           XCAL_TEMP
+! Internal calibrator temperature, in K
+scalar/float           ICAL_TEMP
+! Sky horn temperature, in K
+scalar/float           SKYHORN_TEMP
+! Reference horn temperature, in K
+scalar/float           REFHORN_TEMP
+! Dihedral mirror temperature, in K
+scalar/float           DIHEDRAL_TEMP
+! Collimator mirror temperature, in K
+scalar/float           MIRROR_TEMP
+! Bolometer bath temperature, in K
+scalar/float           BATH_TEMP
+!
+! Instrument Attitude Information
+!
+! Galactic longitude, in deg (0 -> 360)
+scalar/float           GALON          
+! Galactic latitude, in deg (-90 -> +90)
+scalar/float           GALAT          
+! Right ascension, in deg (0 -> 360)
+scalar/float           RA             
+! Declination, in deg (-90 -> +90)
+scalar/float           DEC    
+! Galactic latitude exclusion, 
+! absolute value in deg (0 -> 90)        
+scalar/float           GALATEXC
+!
+! Spares to pad data to block boundary
+array/byte/dim=35      SPARES
+!
+end_record

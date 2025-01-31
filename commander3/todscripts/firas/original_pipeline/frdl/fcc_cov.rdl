@@ -1,0 +1,121 @@
+!
+! Calibrated Covariance Matrix and Other Statistical Quantities
+!
+!   Stored in 257 records: first record has information in 
+!   first map; records 2-257 in second map, each with 
+!   information for one bin of the binned dispersion vectors
+!   and up to 550 covariance matrix values
+!
+record FCC_COV FCC_COV
+
+!
+! Identifying labels, stored in each record
+!
+  scalar/text/length=40       MODEL_LABEL
+                              ! Model solution label
+  scalar/text/length=40       COV_LABEL
+                              ! Covariance matrix label
+!
+! Identifying science data, stored in each record
+!
+  structure IDENT
+
+    scalar/byte               CHAN_ID
+                              ! Channel ID
+    scalar/byte               MTM_SPEED
+                              ! MTM speed
+    scalar/byte               MTM_LENGTH
+                              ! MTM length
+    scalar/byte               SCI_MODE
+                              ! Block ID from uP header
+    scalar/byte               ADDS_PER_GROUP
+                              ! Adds per group
+  endstructure
+
+  union
+    map
+!
+! Average bolo temp, commanded bias, voltage, stored in first record
+!
+      scalar/float            BOL_AVG
+                              ! Avg bolo temp in degrees K
+      scalar/float            CBIAS_AVG
+                              ! Avg commanded bias in counts
+      scalar/float            VOLT_AVG
+                              ! Avg readout voltage in volts
+!
+! Detector responsivity, time constant, derived bolo temp, in first record
+!
+      scalar/double           S0
+                              ! Detector responsivity
+      scalar/double           TAU
+                              ! Detector time constant
+      scalar/double           TBOL
+                              ! Derived bolometer temperature
+!
+! Number of ifgs, coadds, degrees of freedom, stored in first record
+!
+      scalar/long             NUM_IFGS
+                              ! Number of contributing ifgs
+      scalar/long             NUM_COADDS
+                              ! Number of contributing coadds
+      scalar/long             DEG_FREEDOM
+                              ! Degrees of freedom
+!
+! Statistical data from calibrated spectra, stored in first record
+!
+      array/double/dim=257    AVG_RCALSPEC
+                              ! Average of real parts of calibrated
+                              !   spectra formed by coadds
+      array/double/dim=257    AVG_ICALSPEC
+                              ! Average of imaginary parts of calibrated
+                              !   spectra formed by coadds
+!
+! Spares to pad to block and map boundary
+!
+      array/byte/dim=4459     SPARES
+                              ! Spare bytes
+    endmap
+
+    map
+!
+! Dispersion vectors and associated data, stored in records 2-257
+!
+      scalar/long             BIN_TOTAL
+                              ! Number of calibrated spectra
+                              !   contributing to this bin
+      scalar/float            WTD_BIN_TOTAL
+                              ! Weighted total of calibrated spectra
+                              !   contributing to this bin
+      scalar/double           EFF_WT
+                              ! Effective weight of each calibrated 
+                              !   spectrum contributing to this bin
+      array/double/dim=257    RDISP
+                              ! Total of real part of calibrated
+                              !   spectra dispersions in this bin
+      array/double/dim=257    IDISP
+                              ! Total of imaginary part of calibrated
+                              !   spectra dispersions in this bin
+      array/double/dim=8      TEMP
+                              ! Temperature and glitch rate 
+                              !   dispersion totals in this bin
+!
+! Covariance matrix, stored in records 2-251, each with up to 550 values
+!    Real-real (35245 values) stored in records 2-66;
+!         upper half of symmetric submatrix stored as a single vector
+!    Real-imag (68105 values) stored in records 67-190;
+!         entirety of rectangular submatrix stored as a single vector
+!    Imag-imag (33153 values) stored in records 191-251;
+!         upper half of symmetric submatrix stored as a single vector
+!
+      array/double/dim=550    COVAR
+                              ! Covariance matrix
+!
+! Spares to pad to map and block boundary
+!
+      array/byte/dim=27       BIN_SPARES
+                              ! Spare bytes
+    endmap
+  endunion
+
+end_record

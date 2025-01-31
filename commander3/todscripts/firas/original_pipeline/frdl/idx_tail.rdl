@@ -1,0 +1,37 @@
+!
+! Tolerance values
+!
+        union
+
+          map
+            scalar/byte         CNTLD_TEMP_LO_TOL
+            scalar/byte         CNTLD_TEMP_HI_TOL
+            scalar/byte         DIHED_TEMP_LO_TOL
+            scalar/byte         DIHED_TEMP_HI_TOL
+            scalar/byte         BOLOM_TEMP_LO_TOL
+            scalar/byte         BOLOM_TEMP_HI_TOL
+            scalar/byte         MIRR_TEMP_LO_TOL
+            scalar/byte         MIRR_TEMP_HI_TOL
+            scalar/byte         TEMP_CONTROLLER_TOL
+            scalar/byte         OTHER_TEMP_TOL
+            scalar/byte         BOLOM_BIAS_RDOUT_TOL
+            scalar/byte         DIG_CONV_VOL_TOL
+            scalar/byte         ANLG_CONV_VOL_TOL
+            scalar/byte         BIAS_PRE_REG_VOL_TOL
+            scalar/byte         INT_PWR_SUPP_28V_TOL
+            scalar/byte         INT_PWR_SUPP_15V_TOL
+            scalar/byte         INT_PWR_SUPP_5V_TOL
+            scalar/byte         BIAS_PRE_REG_CURR_TOL
+            scalar/byte         ANLG_CONV_CURR_TOL
+            scalar/byte         DIG_CONV_CURR_TOL
+            scalar/byte         CONST_CURR_TOL
+            scalar/byte         INTERNAL_CONV_TOL
+          endmap
+
+          map
+            array/byte/dim=22   TOLS
+          endmap
+
+        endunion
+
+        array/byte/dim=12       IDXTAIL_SPARES

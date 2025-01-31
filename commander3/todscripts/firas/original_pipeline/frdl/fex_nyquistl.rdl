@@ -1,0 +1,50 @@
+!
+! Nyquist Frequencies
+! 
+record FEX_NYQUISTL FEX_NYQUISTL
+
+       array/float/dim=10       ICM 
+                                !
+                                ! Nyquist Frequencies in ICM
+                                !
+                                !    High frequency:
+                                !       SS scan mode -  1
+                                !       SF scan mode -  2
+                                !       LS scan mode -  3
+                                !       LF scan mode -  4
+                                !    Low frequency:
+                                !       SS scan mode -  5
+                                !       SF scan mode -  6
+                                !       LS scan mode -  7
+                                !       LF scan mode -  8
+                                !       FS scan mode -  9
+                                !       FL scan mode - 10
+                                !
+       array/float/dim=15       HZ
+                                !
+                                ! Nyquist Frequencies in Hz
+                                !
+                                !    High frequency:
+                                !       SS scan mode -  1
+                                !       SF scan mode -  2
+                                !       LS scan mode -  3
+                                !       LF scan mode -  4
+                                !    Low frequency:
+                                !       SS scan mode -  5
+                                !       SF scan mode -  6
+                                !       LS scan mode -  7
+                                !       LF scan mode -  8
+                                !       FS scan mode -  9
+                                !       FL scan mode - 10
+                                !    Fake-it:
+                                !       Adds-per-group = 1  - 11
+                                !       Adds-per-group = 2  - 12
+                                !       Adds-per-group = 3  - 13
+                                !       Adds-per-group = 8  - 14
+                                !       Adds-per-group = 12 - 15
+                                !
+       array/byte/dim=28        SPARES
+                                !
+                                ! Spares to pad to block boundary
+                                !
+end_record

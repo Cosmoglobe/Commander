@@ -1,0 +1,61 @@
+!
+!  FIRAS Calibration Errors Record Structure
+!
+record FER_ERR FER_ERR
+
+!
+!  Header Information
+!
+    scalar/text/length=14    GMT
+                             !  GMT Dataset Timetag
+    scalar/adt               TIME
+                             !  Binary Dataset Timetag
+    scalar/text/length=40    MODEL_LABEL
+                             !  Calibration Solution Label
+    scalar/long              CHANNEL
+                             !  Channel Number
+    scalar/long              SCAN_LENGTH
+                             !  MTM Scan Length
+    scalar/long              SCAN_SPEED
+                             !  MTM Scan Speed
+    scalar/float             GALATEXC
+                             !  Galactic Latitude below which
+                             !    data is excluded for
+                             !    D-Vector and C-Vector
+
+!
+!  Error Terms
+!
+    array/double/dim=200     D_VECTOR
+                             !  Detector Noise
+                             !    from Coadd Variance
+    array/double/dim=200     C_VECTOR
+                             !  Detector Noise
+                             !    from Pixel Variance
+    array/float/dim=200      PEP_GAIN
+                             !  Emissivity Gain Error
+    array/float/dim=200      PEP_OFFSET
+                             !  Emissivity Offset Error
+    array/float/dim=(14,200) JCJ_GAIN
+                             !  Bolometer Parameter
+                             !     Gain Error
+    array/float/dim=(14,200) JCJ_OFFSET
+                             !  Bolometer Parameter
+                             !     Offset Error
+    scalar/float             PUP_TEMP
+                             !  Ical Temperature Error
+    array/float/dim=200      PUP_SPEC
+                             !  Ical Temperature Error
+                             !     Spectrum
+    scalar/float             PTP_TEMP
+                             !  Absolute Temperature Error
+    array/float/dim=200      PTP_SPEC
+                             !  Absolute Temperature Error
+                             !     Spectrum
+
+!
+!  Spares to Pad to Block Boundary
+!
+    array/byte/dim=298       SPARES
+
+end_record

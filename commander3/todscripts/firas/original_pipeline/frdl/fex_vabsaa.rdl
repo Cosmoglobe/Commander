@@ -1,0 +1,46 @@
+!
+! Radiation Belt boundaries at COBE altitude, as taken from the
+!    CSDR$MPD files, VABN1.DAT, VABN2.DAT, VABS1.DAT, VABS2.DAT, and SAA.DAT
+!   Note:  All longitudes and latitudes are in DEGREES.
+!   First, the Van Allen Belts (1)=North, (2)=South
+!
+Record FEX_VABSAA FEX_VABSAA
+
+   structure CT_HEAD
+      include ct_head.rdl
+   endstructure
+
+   structure/dim=2      VAB
+      scalar/float         LONSTEP
+                           !  Longitude step interval for VAB
+      scalar/float         LATMIN
+                           !  Minimum latitude of this VAB
+      scalar/float         LATMAX
+                           !  Maximum latitude of this VAB
+      array/float/dim=41   LATN
+                           !  Latitude values for North bdy of this VAB
+      array/float/dim=41   LATS
+                           !  Latitude values for South bdy of this VAB
+   endstructure
+!
+!   Next, the South Atlantic Anomaly
+!
+   structure            SAA
+      scalar/float         LONSTEP
+                           !  Longitude step interval for SAA
+      scalar/float         LONMIN
+                           !  Minimum longitude of the SAA
+      scalar/float         LONMAX
+                           !  Maximum longitude of the SAA
+      scalar/float         LATMIN
+                           !  Minimum latitude of the SAA
+      scalar/float         LATMAX
+                           !  Maximum latitude of the SAA
+      array/float/dim=31   LATN
+                           !  Latitude values for the North bdy of the SAA
+      array/float/dim=31   LATS
+                           !  Latitude values for the South bdy of the SAA
+   endstructure
+   array/byte/dim=12    SPARES
+
+End_Record

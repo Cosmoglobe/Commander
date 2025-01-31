@@ -1,0 +1,22 @@
+!
+!  Vibration Correction Frequency Offset Record
+!
+record FEX_VIBCORRL FEX_VIBCORRL
+
+structure CT_HEAD
+   include ct_head.rdl
+endstructure
+!
+!  Vibration Correction Frequency Offsets
+!
+   array/float/dim=12 PRIMARY_OFFSET
+                      !  Frequency Offsets for
+                      !  Primary Vibration Correction
+   array/float/dim=12 SECONDARY_OFFSET
+                      !  Frequency Offsets for
+                      !  Secondary Vibration Correction
+!
+!  Spares to pad to block boundary
+!
+   array/byte/dim=96 SPARES 
+end_record

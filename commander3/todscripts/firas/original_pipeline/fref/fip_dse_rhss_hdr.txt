@@ -1,0 +1,103 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'DS-PSMAT'           / Destriper Pixel Stripe Matrix
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'RH'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'S'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'S'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT  FIRAS Destriper Error Matrix
+COMMENT     project dataset record structure 
+COMMENT 
+COMMENT 
+COMMENT  FIRAS pixel number (resolution 6)
+TFORM1='1J'
+TTYPE1='PIXEL' / entire fieldname = PIXEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Calibration model solution label
+TFORM2='40A'
+TTYPE2='MODEL_LA' / entire fieldname = MODEL_LABEL
+OFFSET2=4
+TUNIT2=' '
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM3='4A'
+TTYPE3='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET3=44
+TUNIT3=' '
+COMMENT 
+COMMENT   Error Matrix Elements for this Pixel
+COMMENT 
+COMMENT  Diagonal (Pixel-Pixel) Matrix Element  (Dimensionless)
+TFORM4='1D'
+TTYPE4='DIAG_ELE' / entire fieldname = DIAG_ELEMENT
+OFFSET4=48
+TUNIT4=' '
+COMMENT 
+COMMENT  Rectangular (Pixel-Stripe) Matrix Elements  (Dimensionless)
+TFORM5='5D'
+TDIM5='(5)'
+TTYPE5='RECT_ELE' / entire fieldname = RECT_ELEMENT
+OFFSET5=56
+TUNIT5=' '
+COMMENT 
+COMMENT  Beta (auxiliary Pixel-Stripe) Matrix Elements  (Dimensionless)
+TFORM6='5D'
+TDIM6='(5)'
+TTYPE6='BETA_ELE' / entire fieldname = BETA_ELEMENT
+OFFSET6=96
+TUNIT6=' '
+COMMENT 
+COMMENT  Pixel Contribution to Stripe Corrections flag:
+COMMENT    0 = pixel did not contribute to stripes,
+COMMENT    1 = pixel did contribute to stripes
+TFORM7='1J'
+TTYPE7='STRIPE_C' / entire fieldname = STRIPE_CONTRIB
+OFFSET7=136
+TUNIT7=' '
+COMMENT 
+END

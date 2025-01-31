@@ -1,0 +1,95 @@
+c-------------------------------------------------------------------------------
+c
+c	FCF_MODEL.TXT
+c
+c	This include file contains the FIRAS calibration model solution that
+c	FCF will apply to sky and calibration voltage spectra.
+c
+c	Author:  Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 11 March 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Hard-coded constants:
+c
+c		LOAD_RESISTANCE		4.0D+07 ohms		bolometer load
+c								   resistance
+c
+c		NPAR			24			number of
+c								bolometer
+c								parameters
+c
+c		TRLIM			1.0D-10			lower limit for
+c								a non-zero
+c								transfer
+c								function
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Added D-Vector file FEX_VAR.
+c	Gene Eplee, GSC, 25 October 1993.
+c	SER 11397
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the frequency parameters.
+c
+	real	*  8	afreq(257)	!  frequency array in radians
+	real	*  8	df		!  frequency interval in icm
+	real	*  8	dw		!  frequency interval in radians
+	real	*  8	fnyq_hz		!  Nyquist frequency in hz
+	real	*  8	fnyq_icm	!  Nyquist frequency in icm
+	real	*  8	freq(257)	!  frequency array in icm
+
+c
+c  Define various processing parameters.
+c
+	complex * 16	phase_shift	!  phase shift in radians
+
+	integer * 4	fcc_model_size	!  model solution size in long words
+	parameter	(fcc_model_size = 7424)
+	integer * 2	fcc_var_size	!  FEX_VAR record size in long words
+	parameter	(fcc_var_size = 544)
+	integer *  4	npar		!  Number of bolometer parameters
+	parameter	(npar = 24)
+
+	real	*  8	load_resistance	!  detector load resistance
+	parameter	(load_resistance = 4.0D+07)
+	real	*  8	spec_norm	!  Nyquist frequency * etendu
+	real	*  8	rscale		!  Conversion factor from
+	parameter	(rscale = 1.0D-07)  !    ergs/sec to watts
+	real	*  8	sky_temp	!  Sky temp for IR power calculation
+	parameter	(sky_temp = 2.726D0)
+	real	*  8	sky_temp_sig	!  Sky temp sigma (from noise floor)
+	parameter	(sky_temp_sig = 2.16659D-05)
+	real	*  8	trlim		!  lower limit for transfer function
+	parameter	(trlim = 1.0D-10)
+
+c
+c  Define the model solution.
+c
+	character * 40  model_label	!  model solution label
+	character * 14	model_ttag	!  model solution time tag
+
+	complex * 16	B(257)		!  detector delay
+	complex	* 16	emiss(7,257)	!  instrument emissivities
+
+	integer *  2	mod_lablen	!  model solution label length
+
+	real	*  8	bolparm(10)	!  bolometer parameters
+	real	*  8	dvector(257)	!  D-Vector^2
+	real	*  8	param(20)	!  model solution parameters
+	real	*  8	S0		!  detector responsivity
+	real	*  8	tau		!  detector time constant
+
+c
+c  Define the common block.
+c
+	common  /fcc_model/  fnyq_icm, fnyq_hz, df, dw, freq, afreq, dvector,
+     .			     phase_shift, spec_norm, model_label, mod_lablen,
+     .			     model_ttag, param, bolparm, S0, tau, B, emiss

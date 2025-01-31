@@ -1,0 +1,218 @@
+1 FXT 
+
+       FXT_Log_Extrema archives the minimum and maximum values of all of the
+       FIRAS engineering analogs along with the times associated with the new
+       extrema values. The FXT_ENG_XTRM COBETRIEVE dataset generated for a 
+       corresponding time range of engineering data will be tagged with the
+       start time of the engineering data. In accord with the established
+       convention, the time tag stop will be the maximum date allowed by
+       COBETRIEVE. 
+
+
+2 /ENGFILE
+      
+       Defines a specific FDQ_ENG file or segment to be processed. The data
+       in this file will be checked for extrema engineering values. This
+       option is used when the user wishes one complete file or segment of 
+       engineering data to generate a new FXT_ENG_XTRM record. The effective
+       time range used by the program would then be the data start and stop
+       times from the FDQ_ENG catalog. The Engfile qualifier and Jstart/Jstop
+       are mutually exclusive.
+
+       Format Examples:
+
+           FXT/Engfile=FDQ_ENG.ED_892841904
+
+	   MinMax/Engfile=FDQ_ENG.FS_983001000
+
+2 /JSTART
+
+       The start time of the FDQ_ENG data to be checked for extrema values.
+       Both start and stop times must be specified for an FXT run if the data
+       is to be accessed by a time range. The qualifiers Jstart/Jstop and 
+       Engfile are mutually exclusive.
+
+       Format for Qualifier:
+
+           Jstart=YYDDDHHMMSSmmm/Jstop=YYDDDHHMMSSmmm
+
+       Format Examples:
+
+	   FXT/Jstart=893002550/Jstop=89301
+
+	   MinMax/Jstart=88200/Jstop=882055959
+
+       
+2 /JSTOP
+
+       The stop time of the FDQ_ENG data to be checked for extrema values.
+       Both start and stop times must be specified for an FXT run if the data
+       is to be accessed by a time range. The qualifiers Jstart/Jstop and 
+       Engfile are mutually exclusive.
+
+       Format for Qualifier:
+
+           Jstart=YYDDDHHMMSSmmm/Jstop=YYDDDHHMMSSmmm
+
+       Format Examples:
+
+	   FXT/Jstart=893002550/Jstop=89301
+
+	   MinMax/Jstart=88200/Jstop=882055959
+
+
+2 /INIT
+
+       The Init qualifier generates an FXT_ENG_XTRM record with initial 
+       values set to the maximum and minimum values for every engineering
+       field checked during the current run. The program initializes all
+       extrema fields to the maximum and minimum values for a floating point
+       number to ensure that each field will be updated during the run.
+       Only in the case of a disabling of the extrema checking will the
+       flag value remain in the output FXT_ENG_XTRM record. Thus the run for
+       initialization should probably done without the Flags qualifier. The
+       Init qualifier is used to restart the time tagged extrema dataset in
+       the archive. This qualifier must be on the command line to restart. The
+       program default is to use the latest time tagged FXT_ENG_XTRM record 
+       from the archive for the updates during the run. 
+
+       Format Examples:
+
+           FXT/Init/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Init/Engfile=FDQ_ENG.PB_882051900
+
+
+2 /FILTER
+
+       The Filter qualifier gives the number of successive values of an 
+       engineering field which must be exceeded before a new extrema value 
+       is stored into the FXT_ENG_XTRM record to be written for the run.
+       The default is two. 
+
+       Format Examples:
+
+           FXT/Filter=3/Init/Jstart=88201/Jstop=882015959990
+
+              The filter is set to 3.
+
+	   MinMax/Init/Engfile=FDQ_ENG.PB_882051900
+
+              The filter is set to the default of 2.
+
+
+2 /PLOTS
+
+       This parameter indicates whether or not Engplots will be triggered
+       if engineering fields exceed the existing extrema values. If this
+       qualifier is set to laserprinter or lineprinter, an ENGPLOTS command
+       file will be written for the run. The default is no plots. If a time
+       range for a plot exceeds 24 hours from the time that the first extrema
+       is exceeded during the run, the command line for ENGPLOTS will be
+       written to the command file. If another extrema is exceeded, a new
+       command line will be started for the run.
+
+       Selections available are :
+
+         None          -- No ENGPLOTS will be produced, Default
+
+         Lasqms       -- An ENGPLOTS command file to be sent to the 
+                          laser QMS printer will be generated
+
+         Lastf        -- An ENGPLOTS command file to be sent to the 
+                          laser TF printer will be generated
+
+         Lineprinter   -- An ENGPLOTS command file to be sent to the 
+                          lineprinter will be generated
+        
+       Format:
+
+           FXT/Plots=Lasq/Jstart=88201/Jstop=882015959990
+
+           FXT/Plots=Last/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Plots=Line/Engfile=FDQ_ENG.PB_882051900
+
+
+2 /MIN_OFFTIME
+
+       This parameter determines the number of hours to offset the start
+       time for the first extrema value exceeded in order to set the start
+       time for the Engplots to be generated after the run. The number of 
+       hours will be subtracted from the first extrema time. The default 
+       is 12 hours. This qualifier is used only is the Plots qualifier is
+       set to laserprinter or lineprinter. 
+
+       Format Examples:
+
+           FXT/Plots=Laser/Min_Offtime=6/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Plots=Line/Min_Offtime=24/Engfile=FDQ_ENG.PB_882051900
+
+2 /MAX_OFFTIME
+
+       This parameter determines the number of hours to offset the stop
+       time for the first extrema value exceeded in order to set the stop
+       time for the Engplots to be generated after the run. The number of 
+       hours will be added to the first extrema time. The default is 24
+       hours. This qualifier is used only is the Plots qualifier is set to
+       laserprinter or lineprinter. 
+
+       Format Examples:
+
+           FXT/Plots=Laser/Max_Offtime=6/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Plots=Line/Max_Offtime=12/Engfile=FDQ_ENG.PB_882051900
+
+
+2 /FLAGS
+
+       The Flags qualifier effects the obtaining of the time tagged 
+       FEX_LIMFLAGS dataset to be used in the enable/disable of the extrema
+       checking for each of the engineering fields. The limit flags are used
+       for enabling or disabling of the checking of the red and yellow limits
+       for engineering analogs in the Data Qualify Program. Both red and 
+       yellow limit flags must be set to false in order to disable the extrema
+       checking for a particular engineering field. The FEX_LIMFLAGS will not 
+       be accessed unless this qualifier is on the command line.
+
+       Format Examples:
+
+           FXT/Flags/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Flags/Engfile=FDQ_ENG.PB_882051900
+
+2 /REPORT
+
+       The Report qualifier determines whether a report will be generated for
+       the run. The default is not writing the report file. This qualifier
+       is negatable.  It accepts a user entered report name or defaults to
+       standard form:   FXT_yydddhh_yydddhh.REP_yydddhhmm, where the first
+       set of times are the data start/stop times, and the last is the run time.
+
+       Format Examples:
+
+           FXT/Report/Init/Jstart=88201/Jstop=882015959990
+
+           FXT/Report=MYREPORT.FRIDAY/Init/Jstart=88201/Jstop=882015959990
+
+	   MinMax/Noreport/Engfile=FDQ_ENG.PB_882051900
+
+2  FIRAS_Logicals
+
+  Datasets input to and output from FXT can be directed to
+  different archives by appropriate definitions of the
+  Firas logical names.  The following is a list of datasets
+  and their corresponding logicals.
+
+  CSDR$FIRAS_IN:  fxt_eng_xtrm
+  CSDR$FIRAS_OUT: fxt_eng_xtrm
+  CSDR$FIRAS_RAW: fdq_eng
+  CSDR$FIRAS_REF: fex_limflags
+ 
+  These logical names are all defined in the system logical
+  name table to point to the same public archive.  A common
+  modification of this default set up is to redirect the
+  logicals to point to a private archive
+  (eg. 'DEF CSDR$FIRAS_"logical" DEV:[PRIVATE.ARCHIVE]').
+

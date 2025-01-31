@@ -1,0 +1,27 @@
+!
+! FIRAS Chi-Squared project dataset
+!       record structure 
+!
+record FIP_CSQ FIP_CSQ
+!
+! Chi-Squared Identification
+!
+! Output Skymap label
+scalar/text/length=4     OUTMAP
+! First Input Skymap label
+scalar/text/length=4     INMAP_1
+! Second Input Skymap label
+scalar/text/length=4     INMAP_2
+! Sky Pixel Number
+scalar/long              PIXEL
+! First Input Skymap Weight
+scalar/float             WEIGHT_1
+! Second Input Skymap Weight
+scalar/float             WEIGHT_2
+! Number of frequency points
+scalar/long              NUM_FREQ
+! Combined Chi-Squared
+scalar/float             COMB_CHI_SQUARE
+!
+!
+end_record

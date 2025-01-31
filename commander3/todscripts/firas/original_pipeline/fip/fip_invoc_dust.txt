@@ -1,0 +1,59 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_INVOC_DUST.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FIP_DUST.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 5 October 1994
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FIP version number
+	parameter	(fcc_version='12.7')
+
+	integer * 4	fcc_fip_size		!  FIP error file size
+	parameter	(fcc_fip_size = 372)	!    in long words
+	integer *  4	lolim(12)		!  Lower frequency index for
+	data lolim / 5, 5, 5, 5, 5, 9, 5, 5, 5, 5, 5, 9 /  !  error spectra
+	integer *  4	uplim(12)		!  Upper frequency index
+	data uplim / 171, 171, 171, 38, 38, 156, 171, 171, 171, 38, 38, 156 /
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_fla_file		!  FER error file name
+	character * 48	fcc_fip_file		!  FIP error file name
+	character * 20	fcc_file_ext		!  file name extension
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 64	fcc_report_file		!  report file name
+
+	integer * 2	fcc_extlen		!  length of file name extension
+	integer * 2	fcc_flalen		!  length of FER file name
+	integer * 2	fcc_fiplen		!  length of FIP file name
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_flight		!  /FLIGHT qualifier
+	integer * 4	fcc_length		!  mtm scan length
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+
+c
+c  Define the common block
+c
+	common  /fcc_invoc/  fcc_file_ext, fcc_extlen, fcc_chan, fcc_length,
+     .			     fcc_speed, fcc_smode, fcc_scan_mode, fcc_flight,
+     .			     fcc_fla_file, fcc_flalen, fcc_fip_file,
+     .			     fcc_fiplen, fcc_report, fcc_report_file, fcc_replen

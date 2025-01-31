@@ -1,0 +1,42 @@
+!
+! Coadded, non-baseline-subtracted sky interferogram record structure.
+!
+RECORD FIC_SCO FIC_SCO
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  structure COAD_SPEC_HEAD
+    include coad_spec_head.rdl
+  endstructure
+
+  structure COAD_SPEC_DATA
+    include coad_spec_data.rdl
+  endstructure
+
+  structure COAD_DATA
+    include coad_data.rdl
+  endstructure
+
+  structure EN_STAT
+    include eng_status.rdl
+  endstructure
+
+  structure EN_ANALOG
+    include eng_analog.rdl
+  endstructure
+
+  structure EN_SIGMA
+    include eng_sigma.rdl
+  endstructure
+
+  structure EN_TEMPDIFF/dim=2
+    include eng_tempdiff.rdl
+  endstructure
+
+  structure ATTITUDE
+    include attitude.rdl
+  endstructure
+
+END_RECORD

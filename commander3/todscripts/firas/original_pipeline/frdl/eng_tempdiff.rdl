@@ -1,0 +1,18 @@
+!
+! Temperature difference between bracketing major frames
+! in units of a tenth of a millikelvin.
+!
+        scalar/word             XCAL
+                                ! External calibrator temp diff
+        scalar/word             ICAL
+                                ! Internal ref source temp diff
+        scalar/word             SKYHORN
+                                ! Sky horn temp diff
+        scalar/word             REFHORN
+                                ! Reference horn temp diff
+        scalar/word             DIHEDRAL
+                                ! Dihedral temp diff
+        scalar/word             COLLIMATOR_MIRROR
+                                ! Collimator and mirror temp diff
+        array/word/dim=4        BOL_ASSEM
+                                ! Bolometer assembly temp diff

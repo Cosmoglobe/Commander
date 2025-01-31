@@ -1,0 +1,46 @@
+!
+! Nyquist Frequencies
+! 
+record FEX_NYQUIST FEX_NYQUIST
+
+       array/float/dim=8        ICM 
+                                !
+                                ! Nyquist Frequencies in ICM
+                                !
+                                !    High frequency:
+                                !       SS scan mode -  1
+                                !       SF scan mode -  2
+                                !       LS scan mode -  3
+                                !       LF scan mode -  4
+                                !    Low frequency:
+                                !       SS scan mode -  5
+                                !       SF scan mode -  6
+                                !       LS scan mode -  7
+                                !       LF scan mode -  8
+                                !
+       array/float/dim=13       HZ
+                                !
+                                ! Nyquist Frequencies in Hz
+                                !
+                                !    High frequency:
+                                !       SS scan mode -  1
+                                !       SF scan mode -  2
+                                !       LS scan mode -  3
+                                !       LF scan mode -  4
+                                !    Low frequency:
+                                !       SS scan mode -  5
+                                !       SF scan mode -  6
+                                !       LS scan mode -  7
+                                !       LF scan mode -  8
+                                !    Fake-it:
+                                !       Adds-per-group = 1  - 9
+                                !       Adds-per-group = 2  - 10
+                                !       Adds-per-group = 3  - 11
+                                !       Adds-per-group = 8  - 12
+                                !       Adds-per-group = 12 - 13
+                                !
+       array/byte/dim=44        SPARES
+                                !
+                                ! Spares to pad to block boundary
+                                !
+end_record

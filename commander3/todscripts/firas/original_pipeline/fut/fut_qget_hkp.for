@@ -1,0 +1,66 @@
+	INTEGER*4 FUNCTION FUT_QGET_HKP (HKP_LUN, HKP_REC)
+
+C---------------------------------------------------------------------------
+C
+C	PROGRAM NAME:
+C	  FUT_QGET_HKP
+C
+C	PROGRAM DESCRIPTION:
+C	  Program to read FIRAS Housekeeping Archive
+C
+C	AUTHOR:
+C	  E.Fung
+C	  GSFC
+C	  OCTOBER 31, 1985
+C
+C	Input parameters:
+C	  HKP_LUN	I*2	Logical unit for reading Housekeeping Archive
+C
+C	Output parameters:
+C	  HKP_REC		RECORD	Buffer containing Housekeeping record
+C
+C	INPUT FILES:
+C	  FIRAS HOUSEKEEPING ARCHIVE
+C
+C	OUTPUT FILES:
+C	  NONE
+C
+C	SUBROUTINES CALLED:
+C	  CT_QUERY_GET
+C
+C	INCLUDE FILES USED:
+C	  CT$LIBRARY:CTUSER.INC
+C
+C---------------------------------------------------------------------------
+
+	IMPLICIT	NONE
+
+	INCLUDE		'CT$LIBRARY:CTUSER.INC'
+
+	DICTIONARY 'NFS_HKP'
+	RECORD /NFS_HKP/ HKP_REC
+
+	INTEGER		*2	HKP_LUN
+	INTEGER		*2	ISTAT
+	INTEGER		*2	CT_STAT(20)
+
+	EXTERNAL		FUT_NORMAL
+	EXTERNAL		FUT_EOF
+	EXTERNAL		FUT_CTQGET_ERR
+
+
+	CALL CT_QUERY_GET (, HKP_LUN, HKP_REC, CT_STAT)
+	IF (CT_STAT(1) .NE. CTP_NORMAL) THEN
+	  IF (CT_STAT(1) .EQ. CTP_ENDOFFILE) THEN
+	    FUT_QGET_HKP = %LOC(FUT_EOF)
+	  ELSE
+	    CALL LIB$SIGNAL (FUT_CTQGET_ERR, %VAL(1), %VAL(CT_STAT(1)))
+	    FUT_QGET_HKP = %LOC(FUT_CTQGET_ERR)
+	  ENDIF
+	  RETURN
+	ENDIF
+
+	FUT_QGET_HKP = %LOC(FUT_NORMAL)
+
+	RETURN
+	END

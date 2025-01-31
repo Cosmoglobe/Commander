@@ -1,0 +1,57 @@
+c-----------------------------------------------------------------------------
+c
+c	FFP_INVOC_SKY.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FFP_SKY.
+c
+c	Author:	 S. Brodd, HSTX, 3/21/96
+c
+c       Modifications:
+c
+c-------------------------------------------------------------------------------
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FFP version number
+	parameter	(fcc_version='13.8')
+
+	integer * 2	fcc_slen		!  Size of PDS spectrum record
+	parameter	(fcc_slen = 1088)	!    in longwords
+
+	integer * 2	fcc_ilen		!  Size of PDS coadd record
+	parameter	(fcc_ilen = 1600)	!    in longwords
+
+	integer * 4	fcc_pix_offset		!  Pixel number offset in
+	parameter	(fcc_pix_offset = 0)	!    PDS spectrum record
+
+	real	* 4	fcc_glat_default	!  Default galactic latitude
+	parameter	(fcc_glat_default = 90.0)  !  cutoff
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_infile		!  FIRAS skymap file name
+	character * 48	fcc_outfile		!  ADB skymap file name
+	character * 64	fcc_report_file		!  report file name
+	character *  4	fcc_scan_mode		!  channel and scan mode
+
+	integer * 2	fcc_inlen		!  input file length
+	integer * 2	fcc_outlen		!  output file length
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_data_type		!  input data type
+	integer * 4	fcc_destriped		!  destriped data flag
+	integer * 4	fcc_diff		!  differential spectra flag
+	integer * 4	fcc_galexc		!  /EXC_GAL qualifier
+	integer * 4	fcc_num_type		!  num ifgs type
+	integer * 4	fcc_report		!  /REPORT qualifier
+
+	real	* 4	fcc_glat		!  galactic latitude upper limit
+	logical * 1	fcc_coadd		!  true = FIL, false = FSL
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_infile, fcc_inlen, fcc_data_type, fcc_num_type,
+     .			     fcc_scan_mode, fcc_outfile, fcc_outlen,
+     .			     fcc_destriped, fcc_diff, fcc_galexc, fcc_glat,
+     .			     fcc_report, fcc_report_file, fcc_replen, fcc_coadd

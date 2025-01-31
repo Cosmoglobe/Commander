@@ -1,0 +1,407 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'CAL-MOD'            / Calibration Model Solution
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution   [6, 9]
+COMMENT  
+COMMENT   FIRAS specific keywords
+CHANNEL = 'LL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'L'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'F'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =         33.95641708  / Optical frequency of initial data point in GHz
+DELTA_NU=          4.24455214  / Optical frequency interval between data points 
+COMMENT                        / in GHz
+NUM_FREQ=                  148 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT 
+COMMENT  FIRAS calibration model solution
+COMMENT        project dataset record structure
+COMMENT 
+COMMENT 
+COMMENT  Calibration model solution identification
+COMMENT 
+COMMENT  Calibration model solution label
+TFORM1='40A'
+TTYPE1='MODEL_LA' / entire fieldname = MODEL_LABEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM2='4A'
+TTYPE2='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET2=40
+TUNIT2=' '
+COMMENT 
+COMMENT  Frequency range of model solution
+COMMENT 
+COMMENT  Optical frequency of initial data point, in GHz
+TFORM3='1E'
+TTYPE3='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET3=44
+TUNIT3='GHz'
+COMMENT  Optical frequency interval, in GHz
+TFORM4='1E'
+TTYPE4='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET4=48
+TUNIT4='GHz'
+COMMENT  Audio frequency of initial data point, in rad/s
+TFORM5='1E'
+TTYPE5='OMEGA_ZE' / entire fieldname = OMEGA_ZERO
+OFFSET5=52
+TUNIT5='rad/s'
+COMMENT  Audio frequency interval, in rad/s
+TFORM6='1E'
+TTYPE6='DELTA_OM' / entire fieldname = DELTA_OMEGA
+OFFSET6=56
+TUNIT6='rad/s'
+COMMENT  Number of frequency points with good data
+TFORM7='1J'
+TTYPE7='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET7=60
+TUNIT7=' '
+COMMENT 
+COMMENT  Instrumental gain function normalization
+COMMENT    Units of (MJy*V) / (W*sr)
+TFORM8='1E'
+TTYPE8='NORMALIZ' / entire fieldname = NORMALIZATION
+OFFSET8=64
+TUNIT8='(MJy * V) / (W * sr)'
+COMMENT 
+COMMENT  Electronics gain function
+COMMENT 
+COMMENT  Real part of electronics gain function (dimensionless)
+TFORM9='180E'
+TDIM9='(180)'
+TTYPE9='RELEX_GA' / entire fieldname = RELEX_GAIN
+OFFSET9=68
+TUNIT9=' '
+COMMENT  Imaginary part of electronics gain function (dimensionless)
+TFORM10='180E'
+TDIM10='(180)'
+TTYPE10='IELEX_GA' / entire fieldname = IELEX_GAIN
+OFFSET10=788
+TUNIT10=' '
+COMMENT 
+COMMENT  Optical transfer function
+COMMENT 
+COMMENT  Real part of optical transfer function (dimensionless)
+TFORM11='180E'
+TDIM11='(180)'
+TTYPE11='RTRANSFE' / entire fieldname = RTRANSFER
+OFFSET11=1508
+TUNIT11=' '
+COMMENT  Imaginary part of optical transfer function (dimensionless)
+TFORM12='180E'
+TDIM12='(180)'
+TTYPE12='ITRANSFE' / entire fieldname = ITRANSFER
+OFFSET12=2228
+TUNIT12=' '
+COMMENT 
+COMMENT  Bolometer response function for the mission average
+COMMENT      bolometer state
+COMMENT 
+COMMENT      Response function = (1 + jwT)/S0, where
+COMMENT          T is the time constant and
+COMMENT          S0 is the DC response
+COMMENT 
+COMMENT  Bolometer time constant, in s
+TFORM13='1E'
+TTYPE13='TIME_CON' / entire fieldname = TIME_CONSTANT
+OFFSET13=2948
+TUNIT13='s'
+COMMENT  Bolometer DC response, in V/W
+TFORM14='1E'
+TTYPE14='DC_RESPO' / entire fieldname = DC_RESPONSE
+OFFSET14=2952
+TUNIT14='V/W'
+COMMENT 
+COMMENT  Detector noise determination
+COMMENT 
+COMMENT  Sigma of the detector noise per interferogram, in MJy/sr
+TFORM15='180E'
+TDIM15='(180)'
+TTYPE15='DETECTOR' / entire fieldname = DETECTOR_NOISE
+OFFSET15=2956
+TUNIT15='MJy/sr'
+COMMENT 
+COMMENT  Apodization function applied to interferograms
+COMMENT    in the time domain prior to Fourier transformation
+COMMENT 
+COMMENT  Apodization function (dimensionless)
+TFORM16='512E'
+TDIM16='(512)'
+TTYPE16='APODIZAT' / entire fieldname = APODIZATION
+OFFSET16=3676
+TUNIT16=' '
+COMMENT 
+COMMENT 
+COMMENT  Bolometer model parameters
+COMMENT 
+COMMENT  Characteristic resistance, in ohms
+TFORM17='1E'
+TTYPE17='BOLPARM_' / entire fieldname = BOLPARM_R0
+OFFSET17=5724
+TUNIT17='ohm'
+COMMENT  Characteristic temperature, in K
+TFORM18='1E'
+TTYPE18='BOLPARM2' / entire fieldname = BOLPARM_T0
+OFFSET18=5728
+TUNIT18='K'
+COMMENT  Coefficient of thermal conductance, in W/K**(bolparm_beta+1)
+TFORM19='1E'
+TTYPE19='BOLPARM3' / entire fieldname = BOLPARM_G1
+OFFSET19=5732
+TUNIT19='W/K**(bolparm_beta+1)'
+COMMENT  Index of thermal conductance (dimensionless)
+TFORM20='1E'
+TTYPE20='BOLPARM4' / entire fieldname = BOLPARM_BETA
+OFFSET20=5736
+TUNIT20=' '
+COMMENT  Resistance due to electric field, in K/V
+TFORM21='1E'
+TTYPE21='BOLPARM5' / entire fieldname = BOLPARM_RHO
+OFFSET21=5740
+TUNIT21='K/V'
+COMMENT  Heat capacity coefficient for linear temperature term, in J/K**2
+TFORM22='1E'
+TTYPE22='BOLPARM6' / entire fieldname = BOLPARM_C1
+OFFSET22=5744
+TUNIT22='J/K**2'
+COMMENT  Heat capacity coefficient for cubic temperature term, in J/K**4
+TFORM23='1E'
+TTYPE23='BOLPARM7' / entire fieldname = BOLPARM_C3
+OFFSET23=5748
+TUNIT23='J/K**4'
+COMMENT  Readout JFET offset, in V
+TFORM24='1E'
+TTYPE24='BOLPARM8' / entire fieldname = BOLPARM_JO
+OFFSET24=5752
+TUNIT24='V'
+COMMENT  Readout JFET gain (dimensionless)
+TFORM25='1E'
+TTYPE25='BOLPARM9' / entire fieldname = BOLPARM_JG
+OFFSET25=5756
+TUNIT25=' '
+COMMENT  Load resistance, in ohms
+TFORM26='1E'
+TTYPE26='BOLPARM10' / entire fieldname = BOLPARM_RL
+OFFSET26=5760
+TUNIT26='ohm'
+COMMENT 
+COMMENT  Mission average bolometer state
+COMMENT 
+COMMENT  Commanded bolometer bias, in V
+TFORM27='1E'
+TTYPE27='BOLOM_BI' / entire fieldname = BOLOM_BIAS
+OFFSET27=5764
+TUNIT27='V'
+COMMENT  Bolometer readout voltage, in V
+TFORM28='1E'
+TTYPE28='BOLOM_VO' / entire fieldname = BOLOM_VOLTAGE
+OFFSET28=5768
+TUNIT28='V'
+COMMENT  Bolometer bath temperature, in K
+TFORM29='1E'
+TTYPE29='BOLOM_B2' / entire fieldname = BOLOM_BATHTEMP
+OFFSET29=5772
+TUNIT29='K'
+COMMENT  Bolometer operating temperature, in K
+TFORM30='1E'
+TTYPE30='BOLOM_TE' / entire fieldname = BOLOM_TEMPERATURE
+OFFSET30=5776
+TUNIT30='K'
+COMMENT 
+COMMENT  Optical model
+COMMENT 
+COMMENT  Real part of internal calibrator emissivity (dimensionless)
+TFORM31='180E'
+TDIM31='(180)'
+TTYPE31='RICAL' / entire fieldname = RICAL
+OFFSET31=5780
+TUNIT31=' '
+COMMENT  Imaginary part of internal calibrator emissivity (dimensionless)
+TFORM32='180E'
+TDIM32='(180)'
+TTYPE32='IICAL' / entire fieldname = IICAL
+OFFSET32=6500
+TUNIT32=' '
+COMMENT  Real part of sky horn emissivity (dimensionless)
+TFORM33='180E'
+TDIM33='(180)'
+TTYPE33='RSKYHORN' / entire fieldname = RSKYHORN
+OFFSET33=7220
+TUNIT33=' '
+COMMENT  Imaginary part of sky horn emissivity (dimensionless)
+TFORM34='180E'
+TDIM34='(180)'
+TTYPE34='ISKYHORN' / entire fieldname = ISKYHORN
+OFFSET34=7940
+TUNIT34=' '
+COMMENT  Real part of reference horn emissivity (dimensionless)
+TFORM35='180E'
+TDIM35='(180)'
+TTYPE35='RREFHORN' / entire fieldname = RREFHORN
+OFFSET35=8660
+TUNIT35=' '
+COMMENT  Imaginary part of reference horn emissivity (dimensionless)
+TFORM36='180E'
+TDIM36='(180)'
+TTYPE36='IREFHORN' / entire fieldname = IREFHORN
+OFFSET36=9380
+TUNIT36=' '
+COMMENT  Real part of dihedral emissivity (dimensionless)
+TFORM37='180E'
+TDIM37='(180)'
+TTYPE37='RDIHEDRA' / entire fieldname = RDIHEDRAL
+OFFSET37=10100
+TUNIT37=' '
+COMMENT  Imaginary part of dihedral emissivity (dimensionless)
+TFORM38='180E'
+TDIM38='(180)'
+TTYPE38='IDIHEDRA' / entire fieldname = IDIHEDRAL
+OFFSET38=10820
+TUNIT38=' '
+COMMENT  Real part of structure emissivity (dimensionless)
+TFORM39='180E'
+TDIM39='(180)'
+TTYPE39='RSTRUCTU' / entire fieldname = RSTRUCTURE
+OFFSET39=11540
+TUNIT39=' '
+COMMENT  Imaginary part of structure emissivity (dimensionless)
+TFORM40='180E'
+TDIM40='(180)'
+TTYPE40='ISTRUCTU' / entire fieldname = ISTRUCTURE
+OFFSET40=12260
+TUNIT40=' '
+COMMENT  Real part of bolometer emissivity (dimensionless)
+TFORM41='180E'
+TDIM41='(180)'
+TTYPE41='RBOLOMET' / entire fieldname = RBOLOMETER
+OFFSET41=12980
+TUNIT41=' '
+COMMENT  Imaginary part of bolometer emissivity (dimensionless)
+TFORM42='180E'
+TDIM42='(180)'
+TTYPE42='IBOLOMET' / entire fieldname = IBOLOMETER
+OFFSET42=13700
+TUNIT42=' '
+COMMENT 
+COMMENT  Optical model harmonic correction coefficients
+COMMENT 
+COMMENT  2nd harmonic correction coefficient (dimensionless)
+TFORM43='1E'
+TTYPE43='OPTPARM_' / entire fieldname = OPTPARM_2H
+OFFSET43=14420
+TUNIT43=' '
+COMMENT  3rd harmonic correction coefficient (dimensionless)
+TFORM44='1E'
+TTYPE44='OPTPARM2' / entire fieldname = OPTPARM_3H
+OFFSET44=14424
+TUNIT44=' '
+COMMENT 
+COMMENT  Optical model vibration correction coefficients
+COMMENT 
+COMMENT      Primary vibration correction is a
+COMMENT          quartic polynomial in time
+COMMENT 
+COMMENT  Primary vibration correction offset (dimensionless)
+TFORM45='1E'
+TTYPE45='OPTPARM3' / entire fieldname = OPTPARM_VP0
+OFFSET45=14428
+TUNIT45=' '
+COMMENT  Primary vibration correction linear coefficient, in yr**(-1)
+TFORM46='1E'
+TTYPE46='OPTPARM4' / entire fieldname = OPTPARM_VP1
+OFFSET46=14432
+TUNIT46='yr**(-1)'
+COMMENT  Primary vibration correction quadratic coefficient, in yr**(-2)
+TFORM47='1E'
+TTYPE47='OPTPARM5' / entire fieldname = OPTPARM_VP2
+OFFSET47=14436
+TUNIT47='yr**(-2)'
+COMMENT  Primary vibration correction cubic coefficient, in yr**(-3)
+TFORM48='1E'
+TTYPE48='OPTPARM6' / entire fieldname = OPTPARM_VP3
+OFFSET48=14440
+TUNIT48='yr**(-3)'
+COMMENT  Primary vibration correction quartic coefficient, in yr**(-4)
+TFORM49='1E'
+TTYPE49='OPTPARM7' / entire fieldname = OPTPARM_VP4
+OFFSET49=14444
+TUNIT49='yr**(-4)'
+COMMENT  Secondary vibration correction coefficient (dimensionless)
+TFORM50='1E'
+TTYPE50='OPTPARM8' / entire fieldname = OPTPARM_VS
+OFFSET50=14448
+TUNIT50=' '
+COMMENT 
+COMMENT  Internal calibrator temperature correction parameters
+COMMENT 
+COMMENT     Temperature drift is exponential in time
+COMMENT         since COBE aperture cover ejection:
+COMMENT               11:18:00 UTC, 21 November 1989
+COMMENT 
+COMMENT  Ical drift amplitude, in K
+TFORM51='1E'
+TTYPE51='DRIFT_AM' / entire fieldname = DRIFT_AMP
+OFFSET51=14452
+TUNIT51='K'
+COMMENT  Ical drift time constant, in yr
+TFORM52='1E'
+TTYPE52='DRIFT_TC' / entire fieldname = DRIFT_TC
+OFFSET52=14456
+TUNIT52='yr'
+COMMENT  Ical drift offset, in K
+TFORM53='1E'
+TTYPE53='DRIFT_OF' / entire fieldname = DRIFT_OFFSET
+OFFSET53=14460
+TUNIT53='K'
+COMMENT 
+COMMENT  External calibrator temperature correction
+COMMENT 
+COMMENT  Xcal temperature correction, in K
+TFORM54='1E'
+TTYPE54='XCAL_COR' / entire fieldname = XCAL_CORRECTION
+OFFSET54=14464
+TUNIT54='K'
+COMMENT 
+END

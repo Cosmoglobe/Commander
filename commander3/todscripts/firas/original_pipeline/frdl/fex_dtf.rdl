@@ -1,0 +1,17 @@
+!
+!  Digital Transfer Function File Structure
+!
+Record FEX_DTF FEX_DTF
+
+  Array/FloatC/Dim=(288,257)    ZTRANSFCN
+                                ! Digital Transfer Function
+                                !   3 MTM modes (short, fast,
+                                !                fake-it)
+                                !   4 channels
+                                !   2 sci modes (digital filter
+                                !                ON,OFF)
+                                !  12 adds per group
+                                ! ---
+                                ! 288 total "instrument modes"
+
+End_Record

@@ -1,0 +1,7 @@
+!  SCRIPT.LOSL
+!  FMS script file for merge  RLSS + LLSS = LOSL
+!
+ $SMAPS
+	skymap(1) = 'FCS_SKY_RLSS.FAD_8932800_9026409;'
+	skymap(2) = 'FCS_SKY_LLSS.FAD_8932800_9026409;'
+ $END

@@ -1,0 +1,74 @@
+C------------------------------------------------------------------------
+C    FIT_INVOC.TXT
+C
+C	This include file contains the invocation parameters for FIT.
+C
+C	Author: Fred Shuman
+C		STX
+C		October 8, 1987
+C
+C	Revised:
+C	    1987 Nov 21
+C
+C	    1989 Jul 20.  SPR 3285:  Get COBE orbital period from
+C	                  FUT_Orbital_Period.   Added fcc_orbit here.
+C	                  Fred Shuman, STX.
+C
+C           1989 Aug 25.  SPR 4356   Add orbital_pd qualifier to command
+C                         line so that orbital period can be specified.
+C                         David Bouler, STX. Added fcc_orbit_select.
+C
+C           1989 Aug 29.  SPR 4358:  When binsize is obtained from parsing
+C                         the command line, if it is expressed in orbital
+C                         periods, as is usual, the orbital period has not yet
+C                         been picked up from FUT.  Need flag fcc_binorb_select
+C                         to remind FIT it still has to calculate the binsize.
+C                         Fred Shuman, STX.
+C
+C	    1990 Feb 28.  SER 5727:  Add capability to pass a command file
+C			  in to PLT.  Added fcc_plt_com_file and fcc_plt_com.
+C		 	  Steven Alexander, STX.
+C------------------------------------------------------------------------
+
+	Character	*256	fcc_command_line
+	Integer		*2	fcc_command_len
+	Integer		*4	fcc_interactive
+	Integer		*4	fcc_report
+	Character	*64	fcc_report_file
+	Integer		*4	fcc_report_lun
+	Character	*32	fcc_fields(10)
+	Integer		*2	fcc_fields_len(10)
+	Integer		*4	fcc_fields_count
+
+	Integer		*4	fcc_jstart_select
+	Integer		*4	fcc_jstop_select
+	Character	*14	fcc_jstart_time
+	Integer		*4	fcc_jstart(2)
+	Character	*14	fcc_jstop_time
+	Integer		*4	fcc_jstop(2)
+	Character	*30	fcc_time_range
+	Real		*4	fcc_orbit
+	Integer         *4      fcc_orbit_select
+	Real		*4	fcc_binsize
+	Integer         *4      fcc_binorb_select
+	Real		*4	fcc_binsize_orbit
+	Character	*7	fcc_binsize_length
+	Integer		*4	fcc_binsize_select
+	Character	*32	fcc_plot_device
+	Integer		*4	fcc_plot_dev_select
+	Character	*64	fcc_plt_com_file
+	Integer		*4	fcc_plt_com
+
+	Common /fit_invoc/
+	2		fcc_interactive,
+	3		fcc_command_line,fcc_command_len,
+	4		fcc_report,fcc_report_file,fcc_report_lun,
+	5		fcc_fields,fcc_fields_count,fcc_fields_len,
+	6		fcc_jstart_select,fcc_jstop_select,
+	7		fcc_jstart,fcc_jstop,
+	8		fcc_jstart_time,fcc_jstop_time,fcc_time_range,
+	9		fcc_orbit,fcc_orbit_select,
+	1		fcc_binsize,fcc_binorb_select,fcc_binsize_orbit,
+	1		fcc_binsize_length,fcc_binsize_select,
+	2		fcc_plot_device,fcc_plot_dev_select,
+	3		fcc_plt_com_file,fcc_plt_com

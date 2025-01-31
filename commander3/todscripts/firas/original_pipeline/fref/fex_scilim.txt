@@ -1,0 +1,65 @@
+****************************************************************************
+*
+*	File Name:       FEX_SCILIM.TXT
+*
+*	Purpose of File: To be used in creating the limits database for FDQ.
+*
+*	Designer:	 Shirley M. Read  ( STX )  January 1988
+*
+*	Description:
+*                        File containing science and attitude limits.
+*	                 Each line contains the field name of one of the
+*			 Fex_Scilim RDL parameters followed by the integer
+*			 values of the Red Limit and then the Yellow Limit.
+*			 The order of the parameters on the line is fixed 
+*			 but the starting column for each field may vary.
+*		         Comment lines must begin with a '*' or a '!'. 
+*	Assumptions: 
+*	                 The angles are assumed to be in units of degrees.
+*		         The altitude is assumed to be in units of 0.1 Km.
+*			 If the corresponding data quality flag has only
+*			 a 'Red' value, the red and yellow limits will be
+*			 the same. Both positions must be filled.
+*
+*                        SPR 8898, Harte Wang, STX, 8/26/91
+*                        The Glitch rate are assumed to be 100*counts/sec
+*                        for all four channels(RH,RL,LH,LL)
+*
+*	1991 Sept 24 -
+*	Origin of values: SC_HEAD20 see SER 8875 (Saturated Sample Count)
+*			EARTH_LIMB see SER 8804
+*			SUN_ANGLE see SER 8804 and 6511.
+*			MOON_ANGLE see SER 8943, and 7288. 
+*			GLIRAT_<channel> see SER 8876
+*			Removed the ALTITUDE flag, as it is not used
+*			DATA_READY set by telemetry requirement.
+*		See also discussion of the FPPFDQ input certification.
+*	1991 Oct 3 -
+*	Modified MOON_ANGLE to 22 and 23 degrees, as per discussion at the
+*		Pass 2 FPPFDQ Readiness review.
+*
+*	1992 August 17 -  S. Read, Hughes STX
+*       Modifications to limits for Pass 2 A according to SPR 9864 as per 
+*       analysis for liens against FDQ for Pass 2.
+*       Raised Earth Limb / Sun Angle values to absurd levels and modified the 
+*       glitch rate levels to allow more data in, based on the noise analysis.
+*       Pass 2  Red and Yellow Limits were the following:
+*          EARTH_LIMB     92    93    SUN_ANGLE     92    93         
+*          GLIRAT_RH     232   300    GLIRAT_RL    119   132        
+*          GLIRAT_LH      66    66    GLIRAT_LL     96   112   
+*  	Certification:	Rick Shafer 1992 August 17 - Pass 2A
+*				Pass 2 Liens:  FDQ-4, FDQ-5, FDQ-6, FDQ-8
+*
+****************************************************************************
+*
+SC_HEAD20            0         0
+GLIRAT_RH          630       300    
+GLIRAT_RL          280       132
+GLIRAT_LH          140        66 
+GLIRAT_LL          240       112  
+EARTH_LIMB          80	      86
+SUN_ANGLE           80        91
+MOON_ANGLE          22        23
+DATA_READY           0         0  
+*
+

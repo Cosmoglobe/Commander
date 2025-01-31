@@ -1,0 +1,586 @@
+1 FIL
+  The facility FIL (FIRAS Interferogram Long) averages homogeneous 
+  interferograms in order to filter bad and inconsistent data, improve the 
+  signal-to-noise ratio, and minimize subsequent processing time.  It is
+  the successor to FIC (FIRAS Interferogram Coaddition), with several
+  improvements, including the use of longer spectra.
+2 Method
+  FIL is able to ingest three forms of quality-checked data: calibration
+  data which has been sorted into temperature plateaus and scan modes by 
+  the facility FEC (FIRAS Extract Calibration), sky data which has been 
+  similarly sorted by scan modes, internal calibrator temperature, and 
+  pixel number by the facility FSS (FIRAS Sort Sky), and, for analysis 
+  purposes, raw data which has been processed only by the facility FDQ 
+  (FIRAS Data Qualify).  In the last case, FIL also has the capability to 
+  filter incoming data to user specifications.
+
+  The standard processing of a group of interferograms to be coadded 
+  (averaged) is first to check them all for quality and instrument state 
+  consistency, discarding any which fail.  They are then divided by the 
+  instrument gain and sweeps values, and each interferogram's median value 
+  is subtracted to remove the randomly added dither.
+
+  Each interferogram is next deglitched; the effects of cosmic rays hitting 
+  the detectors are eliminated.  The process involves subtraction of two 
+  different types of midaverages of the data set (templates) from each 
+  interferogram and cleaning of glitches from the resulting noise 
+  interferograms.  After this cleaning, each member of the set is checked 
+  for shape consistency and those which fail are discarded.
+
+  The set of cleaned noise interferograms is then coadded.  The average 
+  noise interferogram and also the averages of all relevant engineering and 
+  attitude data are formed.  Weights vectors and covariance matrices for 
+  statistical purposes are calculated as well.  The previously subtracted 
+  midaverages (templates) are then added back to the average noise 
+  interferogram.  Last, a quartic baseline is fitted to each interferogram 
+  and subtracted from it.
+2 Logical_Pointers
+  FIL uses five logical pointers to direct data input and output:
+
+  CSDR$FIRAS_IN     The archive containing short science input records
+                    (those produced by FSS or FEC).
+
+  CSDR$FIRAS_RAW    The archive containing full science and engineering
+                    input records (those produced by FDQ).
+
+  CSDR$FIRAS_OUT    The archive containing all output data files from
+                    FIL except for covariance matrices.
+
+  CSDR$FIRAS_STAT   The archive containing the covariance matrices,
+                    which may be input or output.
+
+  CSDR$FIRAS_REF    The archive containing all reference data sets
+                    required by FIL.
+2 Input_Data_Sets
+  Input to FIL falls into one of three processing branches:  sky, 
+  calibration, or raw data.  (In the following, "cc" refers to one of the 
+  four channels RH, LH, RL, and LL; "ss" refers to one of the four scan 
+  modes SS, SF, LS, and LF.)    
+
+  Input to the sky data processing branch of FIL includes short science 
+  records from FSS (FSS_SSSKY_cc), full science records from FDQ 
+  (FDQ_SDF_cc), and engineering records from FDQ (FDQ_ENG).  It may also 
+  include covariance matrices and associated statistical information from 
+  one or more previous invocations of FIL (FIL_COV_ccss).
+
+  Input to the calibration data processing branch of FIL includes short 
+  science records from FEC (FEC_SSCAL_cc), full science records from FDQ 
+  (FDQ_SDF_cc), and engineering records from FDQ (FDQ_ENG).
+
+  Input to the raw data processing branch of FIL includes only full science 
+  and engineering records from FDQ (FDQ_SDF_cc and FDQ_ENG).  The 
+  engineering data may be filtered by a collection of record selection 
+  expressions in an RSE file; in this case the index file FDQ_IDX is also 
+  required.
+2 Output_Data_Sets
+  Output from FIL is in one of seven output types.  (In the following, "cc"
+  refers to one of the four channels RH, LH, RL, and LL; "ss" refers to one 
+  of the four scan modes SS, SF, LS, and LF.  An "x" may be either "S" for 
+  skymaps output from the sky processing branch or "C" for time-ordered 
+  output from the calibration or raw data branches; note that the latter 
+  two branches have identical output names.)
+
+  Five of the seven output types share the same record structure.  These 
+  are:  the primary template (FIL_xPT_ccss), the secondary template 
+  (FIL_xST_ccss), deglitched interferograms (FIL_xDG_ccss), the coadded 
+  interferogram (FIL_xCO_ccss), and the baseline-subtracted interferogram 
+  (FIL_SKY_ccss or FIL_CAL_ccss).  Each of these produces one output record 
+  per coadd group, except the deglitch output type, which produces one 
+  record per input interferogram.
+
+  The primary and secondary template outputs are identical to the coadded
+  interferogram output, if a coadd was made, except that the actual 
+  interferogram is replaced by the respective template.
+
+  The deglitch outputs also share all information recorded in the coadd 
+  record up to actual deglitching, with the deglitched interferogram placed 
+  in the coadded interferogram position, and with the coefficients 
+  associated with secondary template and digital transient subtraction 
+  placed in each output record.
+
+  The sixth output data type is the consistency check data set 
+  (FIL_xCC_ccss).  One record is produced for each input interferogram; 
+  each contains information about the instrument state, attitude, noise, 
+  deglitching if the deglitcher was invoked, and the failure reason, if 
+  any, from consistency checking.
+
+  The seventh output data type is the covariance matrix (FIL_COV_ccss), 
+  associated only with the sky data processing branch and only with the 
+  scan modes SS, SF, and LF.  Sky interferograms are assigned to one of 256 
+  statistical bins based on certain science and engineering data.  Each 
+  covariance matrix data set consists of 257 records; the first is a header 
+  record storing statistical information about the coadded interferogram, 
+  and the remaining 256 records each have information about the 
+  interferograms in one of the bins.
+
+  The covariance matrix itself is a symmetric matrix; the upper half plus 
+  the diagonal elements total 266815 values.  These values may further be
+  divided into three sections:  the real-real, real-imaginary, and 
+  imaginary-imaginary parts.  They are stored in records 2 through 257 as
+  follows:  the real-real part, a triangular submatrix, is stored as a
+  single vector in records 2 through 67, with 1050 values in each record;
+  the real-imaginary part, a rectangular submatrix, is stored as a single
+  vector in records 68 through 194, with 1050 values in each record; and the
+  imaginary-imaginary part, a triangular submatrix, is stored similarly in
+  records 195 through 257.
+2 Reference_Data_Sets
+  The following reference data sets are used by FIL; they are retrieved
+  from the archive CSDR$FIRAS_REF.
+
+  FEX_APODL -- Apodization functions in their long spectral forms.
+
+  FEX_BASIS -- Five Legendre polynomial basis vectors used in fitting the 
+               baseline.
+
+  FEX_CMDGAIN -- Real-valued commanded gains corresponding to gain codes.
+
+  FEX_CTH -- Consistency threshold values associated with instrument state 
+             consistency checking, secondary template formation, 
+             interferogram shape consistency checking, and statistical 
+             binning.
+
+  FEX_DTRF -- Digital transient response functions.
+
+  FEX_ETFL -- Electronics transfer functions in their long spectra forms.
+
+  FEX_GLTCHCOR -- Glitch rate coefficients for use in glitch rate 
+                  weighting in coaddition.
+
+  FEX_GLTCHPRO -- Glitch profiles.
+
+  FEX_GRTCOAWT -- Weights for combining A and B side temperatures by 
+                  FUT_TEMP_LIST for coadds.
+
+  FEX_GRTRAWWT -- Weights for FUT_TEMP_LIST calculations on raw data; used 
+                  in FIL solely to calculate separate A and B side 
+                  temperatures for instrument state consistency checking.
+
+  FEX_GRTTRANS -- Transition temperatures and half-widths needed by the 
+                  FUT_TEMP_LIST routine.
+
+  FEX_MINCOADD -- Minimum number of good interferograms required to form a 
+                  coaddable ensemble for quality and instrument state 
+                  consistency checking.
+
+  FEX_NYQUISTL -- Nyquist frequencies in ICM and Hz for long spectra.
+
+  FEX_REFTEMPS -- Reference primary and secondary templates used to
+                  determine template amplitudes and signal-to-noise ratios.
+
+  FEX_SAMPRATE -- Sampling rate of the FIRAS instrument.
+2 Processing_Diagrams
+  These diagrams show data flow for each of the three FIL processing
+  scenarios.  (In the following, "cc" refers to one of the four channels
+  RH, LH, RL, and LL; "ss" refers to one of the four scan modes SS, SF, LS,
+  and LF.)    
+
+  Sky Branch
+
+     Input Data Sets                       Output Coadd Data Sets
+ 
+     CSDR$FIRAS_IN:FSS_SSSKY_cc           CSDR$FIRAS_OUT:FIL_SPT_ccss
+     CSDR$FIRAS_RAW:FDQ_SDF_cc       -->  CSDR$FIRAS_OUT:FIL_SST_ccss
+     CSDR$FIRAS_RAW:FDQ_ENG               CSDR$FIRAS_OUT:FIL_SDG_ccss
+                                          CSDR$FIRAS_OUT:FIL_SCO_ccss
+                                          CSDR$FIRAS_OUT:FIL_SKY_ccss
+
+                                          Output Consistency Check Data Sets
+
+                                          CSDR$FIRAS_OUT:FIL_SCC_ccss
+
+     Input Covariance Matrices            Output Covariance Matrices
+
+     [CSDR$FIRAS_STAT:FIL_COV_ccss]  -->  CSDR$FIRAS_STAT:FIL_COV_ccss
+
+  Calibration Branch
+
+     Input Data Sets                       Output Coadd Data Sets
+
+     CSDR$FIRAS_IN:FEC_SSCAL_cc           CSDR$FIRAS_OUT:FIL_CPT_ccss
+     CSDR$FIRAS_RAW:FDQ_SDF_cc       -->  CSDR$FIRAS_OUT:FIL_CST_ccss
+     CSDR$FIRAS_RAW:FDQ_ENG               CSDR$FIRAS_OUT:FIL_CDG_ccss
+                                          CSDR$FIRAS_OUT:FIL_CCO_ccss
+                                          CSDR$FIRAS_OUT:FIL_CAL_ccss
+
+                                          Output Consistency Check Data Sets
+
+                                          CSDR$FIRAS_OUT:FIL_CCC_ccss
+
+  Raw Branch
+
+     Input Data Sets                      Output Coadd Data Sets
+
+     CSDR$FIRAS_RAW:FDQ_ENG               CSDR$FIRAS_OUT:FIL_CPT_ccss
+     CSDR$FIRAS_RAW:FDQ_SDF_cc       -->  CSDR$FIRAS_OUT:FIL_CST_ccss
+     [CSDR$FIRAS_RAW:FDQ_IDX]             CSDR$FIRAS_OUT:FIL_CDG_ccss
+                                          CSDR$FIRAS_OUT:FIL_CCO_ccss
+                                          CSDR$FIRAS_OUT:FIL_CAL_ccss
+                                           
+                                          Output Consistency Check Data Sets
+
+                                          CSDR$FIRAS_OUT:FIL_CCC_ccss
+2 Command_Line_Qualifiers
+  The following qualifiers are available to guide FIL processing.
+3 INPUT
+  INPUT=(SKY | CALIBRATION | RAW)
+  INPUT=SKY  default
+
+  Specifies the source of the input data to be a skymap of pixel-ordered
+  sky data from FSS, or a time-ordered file of either calibration data 
+  from FEC or raw data from FDQ.
+3 CHANNEL
+  CHANNEL=(RH | RL | LH | LL | RIGHT | LEFT | HIGH | LOW | ALL)
+  CHANNEL=ALL  default
+
+  Specifies the channels for which FIL is to process input data.
+3 SCAN_MODE
+  SCAN_MODE=(SS | SF | LS | LF | FS | FL | ALL)
+  SCAN_MODE=ALL  default
+
+  Specifies the scan mode for which FIL is to process input data.  If a 
+  scan mode is specified, all other scan modes will be ignored in 
+  processing.  Note that scan modes FS and FL apply only to low channel
+  data.
+3 FILE
+  FILE=<filename_extension>
+  NOFILE  default
+
+  Specifies that input data is to be read from the file with the given 
+  filename extension.  A complete filename may be given, but only the 
+  extension will be used.  The filename itself is specified by the INPUT 
+  and CHANNEL qualifiers.  If this qualifier is used, a filename value is 
+  required.
+
+  This is the standard qualifier for sky data input; FIL will process only
+  one skymap per invocation.
+
+  The use of FILE as an input qualifier precludes the use of JSTART or 
+  JSTOP.
+3 JSTART
+  JSTART=<yydddhhmmssccc>
+  JSTART=86001000000000  default
+
+  Specifies the Julian start time.  It is used directly for time-ordered 
+  calibration or raw data and is used to search the archive catalog for 
+  pixel-ordered sky data.  If more than one skymap is found in the given
+  range, the one with the latest activity time is chosen.
+
+  "yy" is the year, "ddd" is the day, "hh" is the hour, "mm" is the 
+  minute, "ss" is the second, and "ccc" is the millisecond.
+
+  The JSTART and JSTOP qualifiers are the standard input qualifiers for 
+  calibration or raw data.
+
+  JSTART cannot be used in conjunction with FILE.
+3 JSTOP
+  JSTOP=<yydddhhmmssccc>
+  JSTOP=99365235959999  default
+
+  Specifies the Julian stop time.  It is used directly for time-ordered 
+  calibration or raw data and is used to search the archive catalog for 
+  pixel-ordered sky data.  If more than one skymap is found in the given
+  range, the one with the latest activity time is chosen.
+
+  "yy" is the year, "ddd" is the day, "hh" is the hour, "mm" is the 
+  minute, "ss" is the second, and "ccc" is the millisecond.
+
+  The JSTART and JSTOP qualifiers are the standard input qualifiers for 
+  calibration or raw data.
+
+  JSTOP cannot be used in conjunction with FILE.
+3 RSE
+  RSE=<filename>
+  NORSE  default
+   
+  Specifies a file containing record selection expressions (RSEs) to be 
+  applied to the input data to filter it to user specifications.  If this
+  qualifier is used, a filename value is required.
+
+  This qualifier may only be used with INPUT=RAW.
+3 NEIGHBORS
+  NEIGHBORS=<value>;  4 is default when NEIGHBORS is specified
+  NONEIGHBORS  default
+
+  Specifies use of interferograms from neighboring pixels for the purpose
+  of template formation.  If, after instrument state consistency checking,
+  there are at least as many good interferograms excluding neighbors as
+  the value of the NEIGHBORS qualifier, then neighbors will not be used
+  in template formation.
+
+  This qualifier may be used only for sky data.
+3 ORPHANS
+  ORPHANS
+  NOORPHANS  default
+
+  Specifies that coadd groups marked as orphan (having fewer than the
+  minimum number of interferograms to coadd) by FSS should be read and
+  coadded by FIL, using interferograms from neighboring pixels as needed.
+
+  This qualifier may be used only for sky data.
+3 POOL_MAX
+  POOL_MAX=<value>;  15 is default when POOL_MAX is specified
+  NOPOOL_MAX  default
+
+  Specifies the number of interferograms from neighboring pixels to be
+  read if they are required.  If the number of interferograms excluding
+  neighbors is less than the value of POOL_MAX, and NEIGHBORS or ORPHANS
+  has been requested, then neighbor interferograms will be read until
+  the value of POOL_MAX is reached, if there are enough neighbors to do
+  so.
+3 GROUP_MAX
+  GROUP_MAX=<value>;  10 is default when GROUP_MAX is specified
+  NOGROUP_MAX  default
+
+  Specifies the number of interferograms from neighboring pixels to be
+  used in template formation.  If neighbors need to be used for forming
+  the templates, then neighbors will be selected, if they exist, so that
+  a group of total size equal to the value of GROUP_MAX will form the
+  templates.  If there are more neighbors than are needed, then they are
+  selected on the basis of least absolute difference of galactic latitude
+  from the average galactic latitude of the non-neighbor coadd group when
+  this average is within a FEX_CTH specified range around the galactic
+  plane, and they are selected on the basis of increasing glitch rate if
+  not.
+3 COVAR
+  COVAR=(NEW | UPDATE);  UPDATE is default when COVAR is specified
+  NOCOVAR  default
+   
+  Specifies initializing or updating appropriate covariance matrices and 
+  associated statistical data.  COVAR=UPDATE will cause FIL to read in 
+  existing covariance matrices or to create new ones if none can be found.
+
+  This qualifier can only be used with INPUT=SKY, and cannot be used with
+  SCAN_MODE=LS, NOINST_STATE, NOPIXEL_NO, NODEGLITCH, NOSHAPE_CHECK, or  
+  NOCOADD.
+3 QUALITY
+  QUALITY=(INSTRUMENT=<threshold>,ATTITUDE=<threshold>)
+  QUALITY=(INSTRUMENT=3,ATTITUDE=3)  default
+
+  Specifies maximum acceptable data and attitude quality of input data. 
+  Data with qualities less than or equal to the specified thresholds are 
+  accepted for processing.  The thresholds are defined as follows:
+
+        0 = no data quality established
+        1 = no yellow or red limit violations
+        2 = some yellow limit violations
+        3 = many yellow limit violations
+        4 = no yellow and some red limit violations
+        5 = some yellow and some red limit violations
+        6 = many yellow and some red limit violations
+        7 = many red limit violations
+
+  Quality checking is invariably performed on all input data.  Sky data 
+  should normally be processed with the default quality thresholds of 3.  
+  Calibration data should normally be processed with an instrument quality 
+  threshold of 3 and an attitude quality threshold of 32 (no attitude 
+  solution), as calibration data does not depend on the presence of 
+  attitude information.
+3 SINGLE
+  SINGLE
+  NOSINGLE  default
+
+  Specifies that single interferograms, and not coadd groups, be processed 
+  by FIL.  This qualifier may be used with any input type, and will cause 
+  each input interferogram to be divided by gain and sweeps, have its 
+  dither and optionally its baseline subtracted, and be written out as a 
+  coadd record.  Engineering sigmas and weights vectors are set to flag 
+  values. 
+
+  This qualifier disables consistency checking, deglitching, and 
+  covariance matrix formation, and cannot be used with COVAR or NOCOADD.
+3 INST_STATE
+  INST_STATE  default
+  NOINST_STATE
+
+  Specifies instrument state consistency checking, which makes certain 
+  that instrument parameters (such as adds per group and science mode) are 
+  consistent within the coadd group.  Inconsistent interferograms are 
+  marked and do not contribute to output coadds.
+3 PIXEL_NO
+  PIXEL_NO  default
+  NOPIXEL_NO
+
+  Specifies that consistency checking of the interferogram's pixel number
+  should be enabled or disabled.  This qualifier is usually used for 
+  INPUT=RAW, when consistency checking of the pixel number might fail most 
+  of the data.
+3 SEC_TEMPLATE
+  SEC_TEMPLATE  default
+  NOSEC_TEMPLATE
+
+  Specifies that secondary template subtraction should be enabled or 
+  disabled.  Even if it is disabled, the secondary template will still be 
+  calculated and may be written as output.
+3 DEGLITCH
+  DEGLITCH  default
+  NODEGLITCH
+
+  Specifies that interferograms will be deglitched.
+3 SHAPE_CHECK
+  SHAPE_CHECK  default
+  NOSHAPE_CHECK
+
+  Specifies shape consistency checking, including comparing the ratio of 
+  the noise of individual interferograms with the noise of the coadd group 
+  and checking for outlier points.  Interferograms failing these checks 
+  are marked and do not contribute to a coadd.
+3 COADD
+  COADD  default
+  NOCOADD
+
+  Specifies the coaddition, or averaging, of the interferograms and 
+  associated science and engineering data.
+
+  Note that interferograms from neighboring pixels are never coadded.
+3 BASELINE_SUB
+  BASELINE_SUB  default
+  NOBASELINE_SUB
+
+  Specifies baseline calculation and subtraction from the coadded
+  interferogram.
+
+  This qualifier cannot be used with NOCOADD.
+3 OUTPUT
+  OUTPUT=(TEMPLATE,SEC_TEMPLATE,DEGLITCH,CON_CHECK,COADD,BASELINE_SUB)
+  NOOUTPUT
+  OUTPUT=BASELINE_SUB  default
+
+  Specifies the output data that FIL is to produce.  The output types are, 
+  in order, the primary template, secondary template, deglitched 
+  interferograms, consistency check results, the coadded interferogram, 
+  and the baseline-subtracted interferogram.
+
+  One or a combination of values may be chosen.
+
+  OUTPUT=TEMPLATE and OUTPUT=SEC_TEMPLATE may not be used if SINGLE or 
+  both NODEGLITCH and NOSHAPECHEK have been specified, as in these cases 
+  the templates are not formed.
+
+  OUTPUT=DEGLITCH may not be used with SINGLE or NODEGLITCH.
+
+  OUTPUT=COADD may not be used with NOCOADD.
+
+  OUTPUT=BASELINE_SUB may not be used with NOBASELINE_SUB.
+
+  Note that the CON_CHECK output will not include any interferograms from
+  neighboring pixels.
+3 OUTFILE
+  OUTFILE=<filename_extension>
+  NOOUTFILE  default
+
+  Specifies the filename extension to be used for output data files.  The
+  filename itself is given by the OUTPUT and CHANNEL qualifiers.  A 
+  complete filename may be given as the value to this qualifier, but only 
+  the extension will be used.
+
+  If this qualifier is not specified, the default output filename 
+  extension is ED_<yydddhh>_<yydddhh> where "yydddhh" specifies the first
+  seven numbers of JSTART and JSTOP.
+
+  No output filename may be specified when NOOUTPUT has been selected.
+3 REPORT
+  REPORT=(SUMMARY | DETAIL); SUMMARY is default when REPORT is used
+  REPORT=(SUMMARY=<filename> | DETAIL=<filename>)
+  NOREPORT  default
+
+  Specifies that reports for each channel and scan mode of processed data 
+  are to be produced.  
+
+  A summary report file is always produced by FIL; this qualifier permits 
+  the user to request an additional summary or detailed report for each 
+  channel and scan mode combination.  These reports contain the results of 
+  consistency checking and deglitching.  REPORT=DETAIL will result in the 
+  listing of the positions and amplitudes of all glitches found in each 
+  interferogram.
+
+  If no filename is given by the user, a default one will be constructed:
+  FIL_<yydddhh>_<yydddhh>.REP_<yydddhhmm> where the first two "yydddhh" 
+  values refer to the first seven numbers of JSTART and JSTOP, 
+  respectively, and the last "yydddhhmm" refers to the first nine numbers 
+  of the time FIL is run in Julian format.  The default names of the 
+  channel and scan mode reports are:  
+  FIL_<yydddhh>_<yydddhh>_ccss.REP_<yydddhhmm> as for the overall summary 
+  report, and where "cc" is one of the channels RH, LH, RL, and LL, and 
+  "ss" is one of the scan modes SS, SF, LS, and LF.
+
+  REPORT=DETAIL cannot be used with SINGLE or NODEGLITCH, since in those 
+  cases the deglitcher does not operate.
+
+  Note that report files do not include information about interferograms
+  from neighboring pixels.
+2 Examples
+  To process calibration data for the entire FIRAS mission period, use the
+  following command line:
+
+  FIL/INPUT=CALIBRATION/JSTART=89324/JSTOP=90264 -
+     /QUALITY=(INSTRUMENT=3,ATTITUDE=32)/REPORT -
+     /OUTPUT=(BASELINE_SUB,CON_CHECK)
+
+  In this example, calibration short science records will be read from 
+  FEC_SSCAL files in all channels in the CSDR$FIRAS_IN archive.  Records 
+  will be rejected if their instrument quality is greater than 3, but any 
+  attitude quality will be accepted.
+
+  An overall summary report named FIL_8932400_9026423.REP_921231054 will be 
+  produced along with reports for each channel and scan mode named, for 
+  example, FIL_8932400_9026423_RHSS.REP_921231054.  These reports will all 
+  be written to the directory from which FIL is invoked. 
+
+  Output data sets will be CSDR$FIRAS_OUT:FIL_CAL_RHSS.ED_8932400_9026423 
+  and CSDR$FIRAS_OUT:FIL_CCC_RHSS.ED_8932400_9026423 for all channel and 
+  scan mode combinations for which input data is found.
+
+  To process sky data for the first FIRAS mission period in the right high
+  channel, use the following command line:
+
+  FIL/FILE=ED_8932800_8934301/CHANNEL=RH/REPORT/COVAR -
+     /OUTPUT=(TEMPLATE,SEC_TEMPLATE,BASELINE_SUB,CON_CHECK)
+
+  In this example, the short science skymap 
+  CSDR$FIRAS_IN:FSS_SSSKY_RH.ED_8932800_8934301 will be read.
+
+  An overall summary report named FIL_8932800_8934301.REP_921231054 will be 
+  produced along with reports for each channel and scan mode named, for 
+  example, FIL_8932800_8934301_RHSS.REP_921231054.  These reports will all 
+  be written to the directory from which FIL is invoked. 
+
+  Output data sets will be: CSDR$FIRAS_OUT:FIL_SPT_RHSS.ED_8932800_8934301,
+  CSDR$FIRAS_OUT:FIL_SST_RHSS.ED_8932800_8934301,
+  CSDR$FIRAS_OUT:FIL_SKY_RHSS.ED_8932800_8934301,
+  and CSDR$FIRAS_OUT:FIL_SCC_RHSS.ED_8932800_8934301, for all scan modes
+  for which input data is found.
+
+  In addition, covariance matrices such as
+  CSDR$FIRAS_STAT:FIL_COV_RHSS.ED_8932800_8934301 will be written for all 
+  scan modes for which input data is found.  They will be updates of 
+  matrices already generated for this time period, if any can be found in
+  CSDR$FIRAS_STAT.
+
+  To use orphan interferograms and interferograms from neighboring pixels,
+  the command line might be:
+
+  FIL/CHANNEL=LL/SCAN=FS/FILE=ED_8934301_9001902/REPORT/COVAR -
+     /NEIGHBORS=6/ORPHANS/POOL_MAX=10/GROUP_MAX=6
+
+  In this example, the short science skymap 
+  CSDR$FIRAS_IN:FSS_SSSKY_LL.ED_8934301_9001902 will be read.
+  Only coadd groups in the SF scan mode will be used, but of these,
+  all coadd groups, including those marked as orphans, will be
+  read.  If there are fewer than 10 interferograms excluding neighbors,
+  then neighbors will be read until there are no more to read, or until
+  the total coadd group numbers 10.
+
+  After instrument state consistency checking, if there are 6 or more
+  interferograms excluding neighbors that are acceptable, then no
+  neighbors will be used in template formation.  Otherwise, neighbors
+  will be chosen so that the total group numbers 6, if there are enough
+  neighbors to do so.  The choice of neighbors is based either on
+  galactic latitude or on glitch rate, depending on how close the
+  pixel is to the galactic plane.
+
+  While neighbors will be used in template formation and to guide the
+  deglitcher, they will not be coadded.
+
+  Output data sets will be:
+  CSDR$FIRAS_OUT:FIL_SKY_LLFS.ED_8934301_9001902,
+  and CSDR$FIRAS_STAT:FIL_COV_LLFS.ED_8934301_9001902.

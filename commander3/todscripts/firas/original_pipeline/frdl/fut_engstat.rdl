@@ -1,0 +1,8 @@
+!
+! Engineering status substructure.
+!
+record FUT_ENGSTAT FUT_ENGSTAT
+
+  include eng_status.rdl
+
+end_record

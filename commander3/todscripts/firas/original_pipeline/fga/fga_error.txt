@@ -1,0 +1,7 @@
+C  FGA_ERROR.TXT  --  "Include" file for FGA and its LIST subroutines, for use
+C                 with the facility's error condition handler, FGA_ERROR.FOR
+C                 SPR 2552, 1989 Jan 5
+C
+	INTEGER		*2	ERROR_COUNT
+
+	COMMON	/ERR/	ERROR_COUNT

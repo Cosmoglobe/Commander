@@ -1,0 +1,289 @@
+!
+!	FDQ_TEXT_ITEM.TXT
+!
+!       Text items for fdq_new_idx.FOR
+
+	data item_text(1)	/'XCAL Position, Side A'/		!   1
+	data item_text(2)	/'XCAL Position, Side B'/		!   2
+	data item_text(3)	/'MP Science Mode, RH'/			!   3
+	data item_text(4)	/'Fake-it, RH'/				!   4
+	data item_text(5)	/'MP Adds/Group, RH'/			!   5
+	data item_text(6)	/'MP Sweeps/IFG, RH'/			!   6
+	data item_text(7)	/'MTM Speed at Transmit, RH'/		!   7
+	data item_text(8)	/'MTM Length at Transmit, RH'/		!   8
+	data item_text(9)	/'Science Gain, RH'/			!   9
+	data item_text(10)	/'Bolo. Commanded Bias, RH'/		!  10
+	data item_text(11)	/'Bolo. Voltage Readout, RH'/		!  11
+	data item_text(12)	/'MP Science Mode, RL'/			!  12
+	data item_text(13)	/'Fake-it, RL'/				!  13
+	data item_text(14)	/'MP Adds/Group, RL'/			!  14
+	data item_text(15)	/'MP Sweeps/IFG, RL'/			!  15
+	data item_text(16)	/'MTM Speed at Transmit, RL'/		!  16
+	data item_text(17)	/'MTM Length at Transmit, RL'/		!  17
+	data item_text(18)	/'Science Gain, RL'/			!  18
+	data item_text(19)	/'Bolo. Commanded Bias, RL'/		!  19
+	data item_text(20)	/'Bolo. Voltage Readout, RL'/		!  20
+	data item_text(21)	/'MP Science Mode, LH'/			!  21
+	data item_text(22)	/'Fake-it, LH'/				!  22
+	data item_text(23)	/'MP Adds/Group, LH'/			!  23
+	data item_text(24)	/'MP Sweeps/IFG, LH'/			!  24
+	data item_text(25)	/'MTM Speed at Transmit, LH'/		!  25
+	data item_text(26)	/'MTM Length at Transmit, LH'/		!  26
+	data item_text(27)	/'Science Gain, LH'/			!  27
+	data item_text(28)	/'Bolo. Commanded Bias, LH'/		!  28
+	data item_text(29)	/'Bolo. Voltage Readout, LH'/		!  29
+	data item_text(30)	/'MP Science Mode, LL'/			!  30
+	data item_text(31)	/'Fake-it, LL'/				!  31
+	data item_text(32)	/'MP Adds/Group, LL'/			!  32
+	data item_text(33)	/'MP Sweeps/IFG, LL'/			!  33
+	data item_text(34)	/'MTM Speed at Transmit, LL'/		!  34
+	data item_text(35)	/'MTM Length at Transmit, LL'/		!  35
+	data item_text(36)	/'Science Gain, LL'/			!  36
+	data item_text(37)	/'Bolo. Commanded Bias, LL'/		!  37
+	data item_text(38)	/'Bolo. Voltage Readout, LL'/		!  38
+	data item_text(39)	/'GRT, Ext. Cal., A low'/		!  39
+	data item_text(40)	/'GRT, Sky Horn, A low'/		!  40
+	data item_text(41)	/'GRT, Ref. Horn, A low'/		!  41
+	data item_text(42)	/'GRT, Int. Cal., A low'/		!  42
+	data item_text(43)	/'GRT, Dihedral, A low'/		!  43
+	data item_text(44)	/'GRT, Bolo. Assemb. RH, A low'/	!  44
+	data item_text(45)	/'GRT, Bolo. Assemb. RL, A low'/	!  45
+	data item_text(46)	/'GRT, Bolo. Assemb. LH, A low'/	!  46
+	data item_text(47)	/'GRT, Bolo. Assemb. LL, A low'/	!  47
+	data item_text(48)	/'GRT, Mirror M1, A low'/		!  48
+	data item_text(49)	/'GRT, Cal Resistor 1, A low'/		!  49
+	data item_text(50)	/'GRT, Cal Resistor 2, A low'/		!  50
+	data item_text(51)	/'GRT, Cal Resistor 3, A low'/		!  51
+	data item_text(52)	/'GRT, Cal Resistor 4, A low'/		!  52
+	data item_text(53)	/'GRT, Fold. Flat Mirror, A low'/	!  53
+	data item_text(54)	/'GRT, Collimator C1, A low'/		!  54
+	data item_text(55)	/'GRT, Ext. Cal., A high'/		!  55
+	data item_text(56)	/'GRT, Sky Horn, A high'/		!  56
+	data item_text(57)	/'GRT, Ref. Horn, A high'/		!  57
+	data item_text(58)	/'GRT, Int. Cal., A high'/		!  58
+	data item_text(59)	/'GRT, Dihedral, A high'/		!  59
+	data item_text(60)	/'GRT, Bolo. Assemb. RH, A high'/	!  60
+	data item_text(61)	/'GRT, Bolo. Assemb. RL, A high'/	!  61
+	data item_text(62)	/'GRT, Bolo. Assemb. LH, A high'/	!  62
+	data item_text(63)	/'GRT, Bolo. Assemb. LL, A high'/	!  63
+	data item_text(64)	/'GRT, Mirror M1, A high'/		!  64
+	data item_text(65)	/'GRT, Cal Resistor 1, A high'/		!  65
+	data item_text(66)	/'GRT, Cal Resistor 2, A high'/		!  66
+	data item_text(67)	/'GRT, Cal Resistor 3, A high'/		!  67
+	data item_text(68)	/'GRT, Cal Resistor 4, A high'/		!  68
+	data item_text(69)	/'GRT, Fold. Flat Mirror, A high'/	!  69
+	data item_text(70)	/'GRT, Collimator C1, A high'/		!  70
+	data item_text(71)	/'GRT, Ext. Cal., B low'/		!  71
+	data item_text(72)	/'GRT, Sky Horn, B low'/		!  72
+	data item_text(73)	/'GRT, Ref. Horn, B low'/		!  73
+	data item_text(74)	/'GRT, Int. Cal., B low'/		!  74
+	data item_text(75)	/'GRT, Dihedral, B low'/		!  75
+	data item_text(76)	/'GRT, Bolo. Assemb. RH, B low'/	!  76
+	data item_text(77)	/'GRT, Bolo. Assemb. RL, B low'/	!  77
+	data item_text(78)	/'GRT, Bolo. Assemb. LH, B low'/	!  78
+	data item_text(79)	/'GRT, Bolo. Assemb. LL, B low'/	!  79
+	data item_text(80)	/'GRT, Mirror M1, B low'/		!  80
+	data item_text(81)	/'GRT, Cal Resistor 1, B low'/		!  81
+	data item_text(82)	/'GRT, Cal Resistor 2, B low'/		!  82
+	data item_text(83)	/'GRT, Cal Resistor 3, B low'/		!  83
+	data item_text(84)	/'GRT, Cal Resistor 4, B low'/		!  84
+	data item_text(85)	/'GRT, Fold. Flat Mirror, B low'/	!  85
+	data item_text(86)	/'GRT, Collimator C1, B low'/		!  86
+	data item_text(87)	/'GRT, Ext. Cal., B high'/		!  87
+	data item_text(88)	/'GRT, Sky Horn, B high'/		!  88
+	data item_text(89)	/'GRT, Ref. Horn, B high'/		!  89
+	data item_text(90)	/'GRT, Int. Cal., B high'/		!  90
+	data item_text(91)	/'GRT, Dihedral, B high'/		!  91
+	data item_text(92)	/'GRT, Bolo. Assemb. RH, B high'/	!  92
+	data item_text(93)	/'GRT, Bolo. Assemb. RL, B high'/	!  93
+	data item_text(94)	/'GRT, Bolo. Assemb. LH, B high'/	!  94
+	data item_text(95)	/'GRT, Bolo. Assemb. LL, B high'/	!  95
+	data item_text(96)	/'GRT, Mirror M1, B high'/		!  96
+	data item_text(97)	/'GRT, Cal Resistor 1, B high'/		!  97
+	data item_text(98)	/'GRT, Cal Resistor 2, B high'/		!  98
+	data item_text(99)	/'GRT, Cal Resistor 3, B high'/		!  99
+	data item_text(100)	/'GRT, Cal Resistor 4, B high'/		! 100
+	data item_text(101)	/'GRT, Fold. Flat Mirror, B high'/	! 101
+	data item_text(102)	/'GRT, Collimator C1, B high'/		! 102
+	data item_text(103)	/'TC, Int. Cal., Side A'/		! 103
+	data item_text(104)	/'TC, Ref. Horn, Side A'/		! 104
+	data item_text(105)	/'TC, Sky Horn, Side A'/		! 105
+	data item_text(106)	/'TC, Ext. Cal., Side A'/		! 106
+	data item_text(107)	/'TC, Int. Cal., Side B'/		! 107
+	data item_text(108)	/'TC, Ref. Horn, Side B'/		! 108
+	data item_text(109)	/'TC, Sky Horn, Side B'/		! 109
+	data item_text(110)	/'TC, Ext. Cal., Side B'/		! 110
+	data item_text(111)	/'MTM Operating Mode, Side A'/		! 111
+	data item_text(112)	/'Int.Cal. TC integrator, Side A'/	! 112
+	data item_text(113)	/'Ref.Horn TC integrator, Side A'/	! 113
+	data item_text(114)	/'Sky Horn TC integrator, Side A'/	! 114
+	data item_text(115)	/'Ext.Cal. TC integrator, Side A'/	! 115
+	data item_text(116)	/'Dither RH'/				! 116
+	data item_text(117)	/'Dither RL'/				! 117
+	data item_text(118)	/'ROM power RH'/			! 118
+	data item_text(119)	/'ROM power RL'/			! 119
+	data item_text(120)	/'MTM latch, Side A'/			! 120
+	data item_text(121)	/'Ext.Cal. latch, Side A'/		! 121
+	data item_text(122)	/'Int.Cal. Current Range, Side A'/	! 122
+	data item_text(123)	/'Ref.Horn Current Range, Side A'/	! 123
+	data item_text(124)	/'Sky Horn Current Range, Side A'/	! 124
+	data item_text(125)	/'Ext.Cal. Current Range, Side A'/	! 125
+	data item_text(126)	/'Int.Cal. Integ. Gain, Side A'/	! 126
+	data item_text(127)	/'Ref.Horn Integ. Gain, Side A'/	! 127
+	data item_text(128)	/'Sky Horn Integ. Gain, Side A'/	! 128
+	data item_text(129)	/'Ext.Cal. Integ. Gain, Side A'/	! 129
+	data item_text(130)	/'Int.Cal. Proport. Gain, Side A'/	! 130
+	data item_text(131)	/'Ref.Horn Proport. Gain, Side A'/	! 131
+	data item_text(132)	/'Sky Horn Proport. Gain, Side A'/	! 132
+	data item_text(133)	/'Ext.Cal. Proport. Gain, Side A'/	! 133
+	data item_text(134)	/'MTM Stow, Side A'/			! 134
+	data item_text(135)	/'MTM Speed Command, Side A'/		! 135
+	data item_text(136)	/'MTM Length Command, Side A'/		! 136
+	data item_text(137)	/'Ext.Cal. Stow, Side A'/		! 137
+	data item_text(138)	/'Ext.Cal. Latch Command, Side A'/	! 138
+	data item_text(139)	/'MTM Latch Command, Side B'/		! 139
+	data item_text(140)	/'MTM Operating Mode, Side B'/		! 140
+	data item_text(141)	/'Int.Cal. TC integrator, Side B'/	! 141
+	data item_text(142)	/'Ref.Horn TC integrator, Side B'/	! 142
+	data item_text(143)	/'Sky Horn TC integrator, Side B'/	! 143
+	data item_text(144)	/'Ext.Cal. TC integrator, Side B'/	! 144
+	data item_text(145)	/'Dither LH'/				! 145
+	data item_text(146)	/'Dither LL'/				! 146
+	data item_text(147)	/'ROM power LH'/			! 147
+	data item_text(148)	/'ROM power LL'/			! 148
+	data item_text(149)	/'MTM latch, Side B'/			! 149
+	data item_text(150)	/'Ext.Cal. latch, Side B'/		! 150
+	data item_text(151)	/'Int.Cal. Current Range, Side B'/	! 151
+	data item_text(152)	/'Ref.Horn Current Range, Side B'/	! 152
+	data item_text(153)	/'Sky Horn Current Range, Side B'/	! 153
+	data item_text(154)	/'Ext.Cal. Current Range, Side B'/	! 154
+	data item_text(155)	/'Int.Cal. Integ. Gain, Side B'/	! 155
+	data item_text(156)	/'Ref.Horn Integ. Gain, Side B'/	! 156
+	data item_text(157)	/'Sky Horn Integ. Gain, Side B'/	! 157
+	data item_text(158)	/'Ext.Cal. Integ. Gain, Side B'/	! 158
+	data item_text(159)	/'Int.Cal. Proport. Gain, Side B'/	! 159
+	data item_text(160)	/'Ref.Horn Proport. Gain, Side B'/	! 160
+	data item_text(161)	/'Sky Horn Proport. Gain, Side B'/	! 161
+	data item_text(162)	/'Ext.Cal. Proport. Gain, Side B'/	! 162
+	data item_text(163)	/'MTM Stow, Side B'/			! 163
+	data item_text(164)	/'MTM Speed Command, Side B'/		! 164
+	data item_text(165)	/'MTM Length Command, Side B'/		! 165
+	data item_text(166)	/'Ext.Cal. Stow, Side B'/		! 166
+	data item_text(167)	/'Ext.Cal. Latch Command, Side B'/	! 167
+	data item_text(168)	/'MTM Latch Command, Side B'/		! 168
+	data item_text(169)	/'Status Monitor Sync, Side A'/		! 169
+	data item_text(170)	/'Status Monitor Sync, Side B'/		! 170
+	data item_text(171)	/'MTM power, Side A'/			! 171
+	data item_text(172)	/'Main Electronics Converter, RH'/	! 172
+	data item_text(173)	/'Main Electronics Converter, RL'/	! 173
+	data item_text(174)	/'Hot Spot Heater Enable, Side A'/	! 174
+	data item_text(175)	/'MTM Drive Moter, Side A'/		! 175
+	data item_text(176)	/'Ext.Cal. TC Power, Side A'/		! 176
+	data item_text(177)	/'Sky Horn TC Power, Side A'/		! 177
+	data item_text(178)	/'Ref.Horn TC Power, Side A'/		! 178
+	data item_text(179)	/'Int.Cal. TC Power, Side A'/		! 179
+	data item_text(180)	/'MTM Latch Motor, Side A'/		! 180
+	data item_text(181)	/'Ext.Cal. Latch Motor, Side A'/	! 181
+	data item_text(182)	/'Ext.Cal. Drive Motor, Side A'/	! 182
+	data item_text(183)	/'Ext.Cal. Motor Power, Side A'/	! 183
+	data item_text(184)	/'LMAC DC Converter, Side A'/		! 184
+	data item_text(185)	/'LMAC AC Converter, Side A'/		! 185
+	data item_text(186)	/'MTM power, Side B'/			! 186
+	data item_text(187)	/'Main Electronics Converter, LH'/	! 187
+	data item_text(188)	/'Main Electronics Converter, LL'/	! 188
+	data item_text(189)	/'Hot Spot Heater Enable, Side B'/	! 189
+	data item_text(190)	/'MTM Drive Moter, Side B'/		! 190
+	data item_text(191)	/'Ext.Cal. TC Power, Side B'/		! 191
+	data item_text(192)	/'Sky Horn TC Power, Side B'/		! 192
+	data item_text(193)	/'Ref.Horn TC Power, Side B'/		! 193
+	data item_text(194)	/'Int.Cal. TC Power, Side B'/		! 194
+	data item_text(195)	/'MTM Latch Motor, Side B'/		! 195
+	data item_text(196)	/'Ext.Cal. Latch Motor, Side B'/	! 196
+	data item_text(197)	/'Ext.Cal. Drive Motor, Side B'/	! 197
+	data item_text(198)	/'Ext.Cal. Motor Power, Side B'/	! 198
+	data item_text(199)	/'LMAC DC Converter, Side B'/		! 199
+	data item_text(200)	/'LMAC AC Converter, Side B'/		! 200
+	data item_text(201)	/'GRT Dwell Mode, Side A'/		! 201
+	data item_text(202)	/'GRT Dwell Address, Side A'/		! 202
+	data item_text(203)	/'GRT Dwell Mode, Side B'/		! 203
+	data item_text(204)	/'GRT Dwell Address, Side B'/		! 204
+	data item_text(205)	/'MP Bus Window RH'/			! 205
+	data item_text(206)	/'MP Bus Window RL'/			! 206
+	data item_text(207)	/'MP Bus Window LH'/			! 207
+	data item_text(208)	/'MP Bus Window LL'/			! 208
+	data item_text(209)	/'SIS Int.Conv., Side A'/		! 209
+	data item_text(210)	/'SIS A-D Conv., Side A'/		! 211
+	data item_text(211)	/'SIS Bias Pre-reg.Conv., Side A'/	! 213
+	data item_text(212)	/'SIS MTM and Ext.Cal., Side A'/	! 215
+	data item_text(213)	/'SIS Int.Conv., Side B'/		! 210
+	data item_text(214)	/'SIS A-D Conv., Side B'/		! 212
+	data item_text(215)	/'SIS Bias Pre-reg.Conv., Side B'/	! 214
+	data item_text(216)	/'SIS MTM and Ext.Cal., Side B'/	! 216
+	data item_text(217)	/'IPDU temperature, Side A'/		! 217
+	data item_text(218)	/'IPDU temperature, Side B'/		! 218
+	data item_text(219)	/'Drive Box Temp., Side A'/		! 219
+	data item_text(220)	/'Channel Pre-Amp.'/			! 220
+	data item_text(221)	/'Channel Temp., RH'/			! 221
+	data item_text(222)	/'Channel Temp., RL'/			! 222
+	data item_text(223)	/'Channel Temp., LH'/			! 223
+	data item_text(224)	/'Channel Temp., LL'/			! 224
+	data item_text(225)	/'Stat.Mon.Temp.,Side A'/		! 225
+	data item_text(226)	/'Stat.Mon.Temp.,Side B'/		! 226
+	data item_text(227)	/'Hot Spot Htr Current, Side A'/	! 227
+	data item_text(228)	/'Hot Spot Htr Current, Side B'/	! 228
+	data item_text(229)	/'Optical Pre-Amp.'/			! 229
+	data item_text(230)	/'Drive Box Temp., Side B'/		! 230
+	data item_text(231)	/'IPDU Voltage 1'/			! 231
+	data item_text(232)	/'IPDU Voltage 2'/			! 232
+	data item_text(233)	/'IPDU Voltage 3'/			! 233
+	data item_text(234)	/'IPDU Voltage 4'/			! 234
+	data item_text(235)	/'IPDU Voltage 5'/			! 235
+	data item_text(236)	/'IPDU Voltage 6'/			! 236
+	data item_text(237)	/'IPDU Voltage 7'/			! 237
+	data item_text(238)	/'IPDU Voltage 8'/			! 238
+	data item_text(239)	/'IPDU Voltage 9'/			! 239
+	data item_text(240)	/'IPDU Voltage 10'/			! 240
+	data item_text(241)	/'IPDU Voltage 11'/			! 241
+	data item_text(242)	/'IPDU Voltage 12'/			! 242
+	data item_text(243)	/'IPDU Voltage 13'/			! 243
+	data item_text(244)	/'IPDU Voltage 14'/			! 244
+	data item_text(245)	/'IPDU Voltage 15'/			! 245
+	data item_text(246)	/'IPDU Voltage 16'/			! 246
+	data item_text(247)	/'IPDU Voltage 17'/			! 247
+	data item_text(248)	/'IPDU Voltage 18'/			! 248
+	data item_text(249)	/'IPDU Voltage 19'/			! 249
+	data item_text(250)	/'IPDU Voltage 20'/			! 250
+	data item_text(251)	/'IPDU Current 1'/			! 251
+	data item_text(252)	/'IPDU Current 2'/			! 252
+	data item_text(253)	/'IPDU Current 3'/			! 253
+	data item_text(254)	/'IPDU Current 4'/			! 254
+	data item_text(255)	/'IPDU Current 5'/			! 255
+	data item_text(256)	/'IPDU Current 6'/			! 256
+	data item_text(257)	/'IPDU Current 7'/			! 257
+	data item_text(258)	/'IPDU Current 8'/			! 258
+	data item_text(259)	/'IPDU Current 9'/			! 259
+	data item_text(260)	/'IPDU Current 10'/			! 260
+	data item_text(261)	/'IPDU Current 11'/			! 261
+	data item_text(262)	/'IPDU Current 12'/			! 262
+	data item_text(263)	/'MTM Cal Motor, Side A'/		! 263
+	data item_text(264)	/'MTM Cal Motor, Side B' /		! 264
+	data item_text(265)	/'Notch Filter 1, Side A' /		! 265
+	data item_text(266)	/'Notch Filter 2, Side A' /		! 266
+	data item_text(267)	/'Notch Filter 3, Side A' /		! 267
+	data item_text(268)	/'Notch Filter 4, Side A' /		! 268
+	data item_text(269)	/'Notch Filter 5, Side A' /		! 269
+	data item_text(270)	/'Notch Filter 1, Side B' /		! 270
+	data item_text(271)	/'Notch Filter 2, Side B' /		! 271
+	data item_text(272)	/'Notch Filter 3, Side B' /		! 272
+	data item_text(273)	/'Notch Filter 4, Side B' /		! 273
+	data item_text(274)	/'Notch Filter 5, Side B' /		! 274
+	data item_text(275)	/'IPDU_Power_Relay_4_pole_A1' /		! 275
+	data item_text(276)	/'IPDU_Power_Relay_4_pole_B1' /		! 276
+	data item_text(277)	/'IPDU_Power_Relay_4_pole_A2' /		! 277
+	data item_text(278)	/'IPDU_Power_Relay_4_pole_B2' /		! 278
+	data item_text(279)	/'IPDU_Power_Relay_2_pole_A3' /		! 279
+	data item_text(280)	/'IPDU_Power_Relay_2_pole_B3' /		! 280
+	data item_text(281)	/'IPDU_Other_Status_A4' /		! 281
+	data item_text(282)	/'IPDU_Other_Status_B4' /		! 282
+	data item_text(283)	/'LVDT_STAT,Side-A' /    		! 283
+	data item_text(284)	/'LVDT_STAT,Side-B' /    		! 284

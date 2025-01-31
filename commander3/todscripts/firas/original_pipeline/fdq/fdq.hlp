@@ -1,0 +1,344 @@
+1 FDQ
+
+      FDQ is the facility which contains DATA_QUALIFY and HSKP_CONV.
+
+2 DATA_QUALIFY
+
+      PURPOSE
+
+          DATA QUALIFY, or FDQ creates the Engineering archive files (i.e.,
+          engineering data in physcial units) from raw Housekeeping archive
+          files, which are in telemetry units (counts). It also checks the
+          engineering data for consistency with red and yellow limit values,
+          activating ENGPLOTS (Engineering Plots) and setting a limit flag
+          in the science data when a limit is exceeded. Further, it inserts
+          FIRAS line-of-sight attitude information into the science record.
+          Finally, it creates the Cobetrieve Index file by which the science
+          data can be accessed by Boolean queries instead of just time order.
+
+      METHOD
+
+          FDQ is the second of FIRAS' scientific "off-line" processing
+          program.  It will process each record in the 4 FIRAS Science
+          Files (All being FIRAS Pre-processed raw archive files) that falls
+          within a given time interval that is selected by the user.
+          The processing includes the following:
+
+            (1) Align the Science records with the corresponding
+                Housekeeping records (the other raw archive data set).
+
+            (2) Convert the housekeeping data from counts to
+                engineering units (i.e., temperatures, voltages,
+                currents, etc.) and write out a corresponding
+                Engineering record, another FIRAS archive data set.
+
+            (3) Check the Science record header for consistency of modes
+                and data quality and write back to the Science record
+                the quality flags.
+
+            (4) Check limits on housekeeping data and report any
+                out-of-limits condition to an report file as
+                well as setting appropriate quality flags mentioned
+                in item (3) above.
+
+            (5) Compile engineering statistics once per orbit and write
+                them to the Engineering trend records file.
+
+            (6) Write out the index record.
+
+
+       DATA_QUALIFY is run from a command line file and can be used in
+       either interactive or batch mode. Either the file segment or a
+       time range must be specified. Note that the time refers to the
+       data start and stop for the science records. This time range
+       corresponds to the segment boundary times, however, the catalog
+       query will obtain all segments within the time range.  The plot
+       command file name is 'RUN_ENGPLOT_''PID''.COM where PID is the
+       process ID number.
+
+       Format:
+
+
+         DATA_QUALIFY/file=file_spec
+
+       or
+
+         FDQ/jstart=YYDDDHHMMSSmmm/jstop=YYDDDHHMMSSmmm
+
+3 BUGS
+
+       SPR 9345 has been written against an error in the altitude field
+       of the attitude substructure.  The error affects no other
+       attitude field, and this field is not used anywhere else in the
+       pipeline.  The correction will be included the next time FDQ is
+       delivered.  Meanwhile, for analysis purposes, here is a way to
+       get the correct value:
+
+       h(false) = r - R*(1 - ob*z/r) = r - R*(1 - ob*sin(lat))
+                = r - R + ob*R*sin(lat)
+
+       h(true)  = r - R*(1 - ob*(z/r)^2) = r - R*(1 - ob*sin^2(lat))
+                = h(false) - ob*R*sin(lat)*(1 - sin(lat))
+
+       where:
+
+               h = COBE altitude = fdq_sdf.attitude.altitude*0.1 km
+         (x,y,z) = geocentric COBE position (terr. equat. coords.)
+               r = geocentric COBE distance = |(x,y,z)|
+               R = Earth (equatorial) radius = 6378.164 km
+              ob = Earth oblateness = 1 - R(polar)/R(equat) = .0033529
+             lat = latitude of COBE = asin(z/r)
+                 = fdq_sdf.attitude.terrestrial_latitude*0.0001 radian
+
+       Here is an IDL function which does the correction:
+           (H_false = FDQ_SDF.ATTITUDE.ALTITUDE)
+           (    Lat = FDQ_SDF.ATTITUDE.TERRESTRIAL_LATITUDE)
+
+       Function Alt_corr, H_false, Lat
+       ob = 0.0033529
+       R  = 6378.164
+       H_true = H_false - ob * R * Sin(Lat) * ( 1. - Sin(Lat) )
+       Return, H_true
+       End
+
+3 /FILE
+
+       /FILE=<filename> defines a specific file segment to be processed.
+       The file name and file extension must be specified. The file may be
+       any one of the four FIRAS raw science data files (created by FPP)
+       with a particular file extension. The housekeeping file with the same
+       extension must exist in order to run Data_Qualify. The program will
+       build a set of science and housekeeping files from the given science
+       file extension.
+
+       /FILE /JSTART=<time> /JSTOP=<time> selects data for prcessing by
+       specifying the start time and stop time of the data.  Together
+       These qualifiers indicate that the data for the run will be obtained
+       from the COBETRIEVE catalog using a query catalog on time ordered
+       data within this range.
+
+
+       Format:
+
+           FDQ/file=File_Spec
+
+                or
+
+           FDQ/file/jstart=GMT_Start/jstop=GMT_Stop
+
+
+3 /JSTART
+
+       The start time of the data follows this qualifier on the command
+       line. Both start and stop time must be specified for an FDQ run.
+       It is given in the following format:
+
+       Format:
+
+           FDQ/jstart=YYDDDHHMMSSmmm/jstop=YYDDDHHMMSSmmm
+
+3 /JSTOP
+
+       The stop time of the data follows this qualifier on the command
+       line. Both start and stop time must be specified for an FDQ run.
+       It is given in the following format:
+
+       Format:
+
+           FDQ/jstart=YYDDDHHMMSSmmm/jstop=YYDDDHHMMSSmmm
+
+3 /SETSEC
+
+       The number of seconds for the grouping of the science records may
+       be selected using this qualifier. The start time of all of the
+       science records for the set must fall within the set number of
+       seconds. The default is 16 seconds. The range of allowed seconds
+       is 1 to 16.
+
+       Format:
+
+           FDQ/setsec=12
+
+
+3 /ATTITUDE
+
+       This qualifier selects the type of attitude solution for the run.
+       The selections available for Build 4.0 are :
+
+         NONE       -- No attitude for the run
+         SIMULATED  -- Simulated attitude for the run
+         COARSE     -- Coarse attitude solution
+         FINE       -- Fine aspect attitude with Dirbe
+         DEFINITIVE -- Definitive solution. For Build 4.0 only Fine aspect
+                       with Dirbe is available. Eventually this option
+                       will obtain the solution available with a return
+                       status indicating the type obtained.
+       The default is none.
+
+       Format:
+
+           FDQ/ATTITUDE=NONE
+
+           FDQ/ATTITUDE=FINE
+
+       See also BUGS.
+
+3 /REPORT
+
+       This qualifier determines report file name and creation.  By default,
+       FDQ writes a report with a default file name:
+                      FDQ_yydddhh_yydddhh.REP_yydddhhmm;
+       where the first two date/times are the start and stop times for the data.
+
+       (default)    -    writes reports with default file name.
+       /REPORT      -    writes reports with default file name.
+       /REPORT=name -    writes reports with name entered.  IDX report is named
+                        FDQ_IDX_name
+       /NOREPORT    -    no report file written.
+
+3 /LIMIT
+
+       This qualifier indicates whether or not Engplots will be triggered
+       if engineering fields exceed red or yellow limits. The user may
+       select either to generate plots if only red limits are exceeded or
+       if either red or yellow limits are exceeded. The default is none.
+
+       Selections available for Build 4.0 are :
+
+         NONE       -- No Engplots to be produced
+         RED        -- Trigger Engplots only when fields exceed red limits
+         YELLOW     -- Trigger Engplots when either red or yellow limits
+                       are exceeded
+
+       Format:
+
+           FDQ/LIMIT=NONE
+
+           FDQ/LIMIT=RED
+
+4 /PLOT_DEVICE
+
+        This qualifier indicates the plot device to be specified on the
+        Engplots command line. The laser or line printer may be specified.
+        The default is the lineprinter.
+
+        Selections available for Build 4.2 are :
+
+         LINEPRINTER, Default
+         QMS
+         LASTF
+       Format:
+
+           FDQ/PLOT_DEVICE=QMS
+
+           FDQ/PLOT_DEVICE=TF
+
+           FDQ/DEVICE=LINEPRINTER
+
+
+4 /MIN_OFFTIME
+
+        This qualifier allows the user to specify the number of hours to
+        offset the start of the plot from the time of the first bad
+        engineering field value. The default is 12 hours.
+
+        Selections available for Build 4.2 are :
+
+         MIN_OFFSET, Default is 12 hours
+
+       Format:
+
+           FDQ/MIN_OFFSET=24
+
+           FDQ/MIN_OFFSET=6
+
+
+4 /MAX_OFFTIME
+
+        This qualifier allows the user to specify the number of hours to
+        offset the stop of the plot from the time of the first bad
+        engineering field value. The default is 12 hours.
+
+        Selections available for Build 4.2 are :
+
+         MAX_OFFSET, Default is 12 hours
+
+       Format:
+
+           FDQ/MAX_OFFSET=24
+
+           FDQ/MAX_OFFSET=6
+
+
+3  FIRAS_Logicals
+
+  Datasets input to and output from FDQ can be directed to
+  different archives by appropriate definitions of the
+  Firas logical names.  In the following list of datasets and
+  their corresponding logicals, 'XX' in the dataset name
+  indicates a channel specifier (rh,rl,lh,ll).
+
+  CSDR$FIRAS_RAW: nfs_hkp
+  CSDR$FIRAS_IN:  fpp_sdf_XX
+  CSDR$FIRAS_OUT: fdq_sdf_XX,
+                  fdq_etr, fdq_eng, fdq_idx
+
+  CSDR$FIRAS_REF: fex_scilim, fex_englim, fex_limflags
+                  fex_idx_tols, fex_idx_flag, fex_grtrawwt, fex_grttrans
+                  fex_av_calrs, fex_vabsaa,
+                  fdb_limcuvky, fdb_grtrich, fdb_grtcal
+
+2 HSKP_CONV
+
+  HSKP_CONV stands for Housekeeping convert.  This routine uses
+  housekeeping records in the archive and converts them into
+  engineering records with accompanying index records. Like the
+  FIRAS facility DATA_QUALIFY, index records are generated on the
+  basis of changes in the engineering values. Further, an ascii
+  text file called hc_idx_report.dat is also produced. This file
+  contains an entry for each index record written. The entry
+  consists of the time of the old index record, the time of the
+  new index record, and the old and new engineering values associated
+  with the index record generation.
+
+  In the CSDR DATA_QUALIFY will usually do this, but in IGSE testing
+  it's easier to use HSKPCONV to create temporary engineering and
+  index files since there may be little or no science data associated
+  with them.
+
+        o       The engineering (HKP_FDQ_ENG) and index (HKP_FDQ_IDX)
+                files are always put in the archive defined by the
+                logical name CSDR$FIRAS_OUT.
+
+        o       IOPS routines may be then used to extract the data.
+                Use the RDL & RDF files called FDQ_ENG and FDQ_IDX
+                to extract the engineering and index data, respectively.
+
+        o       A formatted text file of the engineering or index
+                values can be obtained by running FGA on the datasets
+                HKP_FDQ_ENG or HKP_FDQ_IDX, respectively.
+  Format:
+
+        HOUSEKEEPING_CONVERT or HSKPCONV or HSKP_CONV
+
+3  FIRAS_Logicals
+
+  Datasets input to and output from HSKPCONV can be directed to
+  different archives by appropriate definitions of the
+  Firas logical names.  In the following list of datasets and
+  their corresponding logicals, 'XX' in the dataset name
+  indicates a channel specifier (rh,rl,lh,ll).
+
+  CSDR$FIRAS_OUT: fdq_hkp_eng, fdq_hkp_idx
+
+  CSDR$FIRAS_RAW: nfs_hkp
+
+  CSDR$FIRAS_REF: fex_scilim, fex_englim, fex_limflags
+                  fex_idx_tols, fex_idx_flag
+                  fdb_limcuvky, fdb_grtrich, fdb_grtcal
+
+  These logical names are all defined in the system logical name
+  table to point to the same public archive.  A modification of
+  this default setup is to redirect the logical CSDR$FIRAS_OUT to
+  point to a private archive (e.g.,
+  '$DEF CSDR$FIRAS_OUT DEV:[PRIVATE.ARCHIVE]').

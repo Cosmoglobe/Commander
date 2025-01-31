@@ -1,0 +1,46 @@
+2.431, .051	!XCAL GRT - A side		*** A SIDE ***
+2.597, .054	!Skyhorn GRT - A side
+2.428, .048	!Reference Horn GRT - A side
+2.485, .048	!ICAL GRT - A side
+2.487, .049	!Dihederal GRT - A side
+2.24, 0.10	!Bolometer RH - A side
+2.50, 0.11	!Bolometer RL - A side
+2.61, 0.12	!Bolometer LH - A side
+2.34, 0.10	!Bolometer LL - A side
+2.482, .054	!Mirror Mount GRT - A side
+0.00,-1.00	!Cal Res RH - A side
+0.00,-1.00	!Cal Res RL - A side
+0.00,-1.00	!Cal Res LH - A side
+0.00,-1.00	!Cal Res LL - A side
+2.482, .047	!XCAL S5 GRT - A side
+2.521, .049	!Collimator - A side
+2.688, .057	!XCAL GRT - B side		*** B SIDE ***
+2.399, .050	!Skyhorn GRT - B side
+2.636, .055	!Reference Horn GRT - B side
+2.495, .050	!ICAL GRT - B side
+2.761, .057	!Dihederal GRT - B side
+2.37, 0.10	!Bolometer RH - B side
+2.37, 0.11	!Bolometer RL - B side
+2.37, 0.10	!Bolometer LH - B side
+2.46, 0.10	!Bolometer LL - B side
+2.588, .052	!Mirror Mount GRT - B side
+0.00,-1.00	!Cal Res RH - B side
+0.00,-1.00	!Cal Res RL - B side
+0.00,-1.00	!Cal Res LH - B side
+0.00,-1.00	!Cal Res LL - B side
+2.589, .051	!XCAL S6 GRT - B side
+0.00,-1.00	!Collimator - B side
+!
+! FEX_GRTTRANS.TXT
+!
+!       SPR 8899, GRT transition temperature and half-width values are
+!                 copied from FEX_GRTSWTCH text file.
+!                 Nilo Gonzales/STX, August 21, 1991.
+!	Modified by Rick Shafer, 1991 Oct 3.
+!	Transition midpoint and half-width are defined so that the top of the 
+!  transition region equals 3300 ohm, and the bottom is at 3700 ohm, See
+!  SER 9111.
+!
+!	Certification:  1991 Oct 3, Rick Shafer Pass 2
+!
+!	Liens: Pass 2 FDQ-9

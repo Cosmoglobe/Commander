@@ -1,0 +1,66 @@
+	INTEGER*4 FUNCTION FUT_QGET_SSC (SSC_LUN, SSC_REC)
+
+C-------------------------------------------------------------------------
+C
+C	PROGRAM NAME:
+C	  FUT_QGET_SSC
+C
+C	PROGRAM DESCRIPTION:
+C	  Program to read FIRAS Short Science Archives
+C
+C	AUTHOR:
+C	  R.Kummerer
+C	  STX
+C	  March 30, 1988
+C
+C	Input parameters:
+C	  SSC_LUN	I*2	Logical unit for reading Archive
+C
+C	Output parameters:
+C	  SSC_REC	RECORD	Buffer containing record
+C
+C	INPUT FILES:
+C	  FIRAS short science archives
+C
+C	OUTPUT FILES:
+C	  NONE
+C
+C	SUBROUTINES CALLED:
+C	  CT_QUERY_GET
+C
+C	INCLUDE FILES USED:
+C	  CT$LIBRARY:CTUSER.INC
+C
+C-------------------------------------------------------------------------
+
+	IMPLICIT	NONE
+
+	INCLUDE		'CT$LIBRARY:CTUSER.INC'
+
+	DICTIONARY	'FEC_SSCAL'
+	RECORD /FEC_SSCAL/ SSC_REC
+
+	INTEGER		*2	SSC_LUN
+	INTEGER		*2	ISTAT
+	INTEGER		*2	CT_STAT(20)
+
+	EXTERNAL		FUT_NORMAL
+	EXTERNAL		FUT_EOF
+	EXTERNAL		FUT_CTQGET_ERR
+
+
+	CALL CT_QUERY_GET (, SSC_LUN, SSC_REC, CT_STAT)
+	IF (CT_STAT(1) .NE. CTP_NORMAL) THEN
+	  IF (CT_STAT(1) .EQ. CTP_ENDOFFILE) THEN
+	    FUT_QGET_SSC = %LOC(FUT_EOF)
+	  ELSE
+	    CALL LIB$SIGNAL (FUT_CTQGET_ERR, %VAL(1), %VAL(CT_STAT(1)))
+	    FUT_QGET_SSC = %LOC(FUT_CTQGET_ERR)
+	  ENDIF
+	  RETURN
+	ENDIF
+
+	FUT_QGET_SSC = %LOC(FUT_NORMAL)
+
+	RETURN
+	END

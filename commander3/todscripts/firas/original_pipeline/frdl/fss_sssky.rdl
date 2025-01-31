@@ -1,0 +1,96 @@
+!
+! RDL for the "short science records"
+!
+Record FSS_SSSKY FSS_SSSKY
+
+  scalar/adt                    TIME
+                                ! Raw Science IFG GMT
+  scalar/byte                   CHANNEL_ID
+                                ! Channel ID
+  scalar/long                   PIXEL_NO
+                                ! Pixel Number
+  scalar/byte                   MTM_SCAN_SPEED
+                                ! MTM Speed
+  scalar/byte                   MTM_SCAN_LENGTH
+                                ! MTM Length
+  scalar/byte                   SCI_MODE
+  scalar/byte                   ADDS_PER_GROUP
+                                ! Adds Per Group
+  scalar/byte                   TRANSITION_FLAG
+                                ! Flag denoting group
+                                !   of coaddable raw
+                                !   science IFGs
+  scalar/text/length=1          PIXEL_DEFINITION
+                                ! Type of pixelization:
+                                !   'q' = standard quad-cube
+                                !   'O' = orbit average
+                                !   'S' = scan angle
+                                !   'E' = geocentric
+                                !         quad-cube
+  scalar/word                   SKYMAP_INDEX
+                                ! Information supporting
+                                ! PIXEL_DEFINITION:
+                                !
+                                !  Type    SKYMAP_INDEX Content
+                                !    q      standard quad-cube
+                                !           skymap index
+                                !    O      orbit origin
+                                !          (units = 0.1d)
+                                !    S      scan angle
+                                !          (units = 0.1d)
+                                !    E      skymap index
+  scalar/byte                   DATA_QUALITY
+                                ! Summary Flag for Instruments
+  scalar/byte                   ATTITUDE_QUALITY
+                                ! Summary Flag for Attitude
+  scalar/float                  XCAL_TEMP
+                                ! External Calibrator Temperature
+  scalar/float                  SKYHORN_TEMP
+                                ! Skyhorn Temperature
+  scalar/float                  REFHORN_TEMP
+                                ! Reference Horn Temperature
+  scalar/float                  ICAL_TEMP
+                                ! Internal Calibrator Temperature
+  scalar/float                  DIHEDRAL_TEMP
+                                ! Dihedral Temperature
+  scalar/float                  BOLOMETER_TEMP
+                                ! Detector Temperature
+  scalar/byte                   BOL_CMD_BIAS
+                                ! Commanded Bias
+  scalar/word                   EXC_GALACTIC_LAT
+                                ! Exclude data within +/- 
+                                ! Galactic Latitude
+                                !   Range: 0 to +Pi/2
+                                !   Units: 10**-4 radians
+  scalar/word                   SUN_ANGLE
+                                ! Angle of sun from FIRAS
+                                ! skyhorn Line-of-sight
+                                !   Range: 0 to Pi
+                                !   Units: 10**-4 radians
+  scalar/word                   MOON_ANGLE
+                                ! Angle of moon from FIRAS
+                                ! skyhorn Line-of-sight
+                                !   Range: 0 to Pi
+                                !   Units: 10**-4 radians
+  scalar/word                   EARTH_LIMB
+                                ! Angle of Earth limb from
+                                ! FIRAS skyhorn Line-of-sight
+                                !   Range: 0 to Pi
+                                !   Units: 10**-4 radians
+  scalar/word                   GALACTIC_LATITUDE
+                                ! Galactic Latitude
+                                !   Range: -Pi/2 to +Pi/2
+                                !   Units: 10**-4 radians
+  scalar/word                   GALACTIC_LONGITUDE
+                                ! Galactic Longitude
+                                !   Range: -Pi/2 to +Pi/2
+                                !   Units: 10**-4 radians
+  scalar/word                   GLITCH_COUNT
+                                ! Total number of glitches
+  scalar/word                   ORIGINAL_PIXEL
+                                ! Actual pixel of record.
+                                ! Neighbor records have
+                                ! PIXEL_NO changed to be the
+                                ! same as the coadd's so
+                                ! that file is pixel ordered.
+end_record

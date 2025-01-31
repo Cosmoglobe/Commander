@@ -1,0 +1,81 @@
+!
+!    Miscellaneous status information
+!
+        union
+
+          map
+            scalar/byte         DWELL_FLAG_A
+            scalar/byte         DWELL_ADDRESS_A
+            scalar/byte         DWELL_FLAG_B
+            scalar/byte         DWELL_ADDRESS_B
+          endmap
+
+          map
+            array/byte/dim=4    DWELL
+          endmap
+
+        endunion
+
+        array/byte/dim=2        LVDT_STAT
+
+        union
+
+          map
+            scalar/byte         UP_STATUS_RDOUT_BUS_WINDOW_RH
+            scalar/byte         UP_STATUS_RDOUT_BUS_WINDOW_RL
+            scalar/byte         UP_STATUS_RDOUT_BUS_WINDOW_LH
+            scalar/byte         UP_STATUS_RDOUT_BUS_WINDOW_LL
+          endmap
+
+          map
+            array/byte/dim=4    STAT_RD_BUS
+          endmap
+
+        endunion
+
+        array/byte/dim=4        STAT_SPARES1
+
+        union
+
+          map
+            scalar/byte         IPDU_INTERNAL_CONVERTER_A_SIDE
+            scalar/byte         IPDU_A_D_CONVERTER_A_SIDE
+            scalar/byte         IPDU_BIAS_PRE_REG_CONV_A_SIDE
+            scalar/byte         IPDU_MTM_AND_XCAL_A_SIDE
+          endmap
+
+          map
+            array/byte/dim=4    POWER_A_STATUS
+          endmap
+
+        endunion
+
+        union
+
+          map
+            scalar/byte         IPDU_INTERNAL_CONVERTER_B_SIDE
+            scalar/byte         IPDU_A_D_CONVERTER_B_SIDE
+            scalar/byte         IPDU_BIAS_PRE_REG_CONV_B_SIDE
+            scalar/byte         IPDU_MTM_AND_XCAL_B_SIDE
+          endmap
+
+          map
+            array/byte/dim=4    POWER_B_STATUS
+          endmap
+
+        endunion
+
+        array/byte/dim=8        STAT_SPARES2
+
+        union
+
+          map
+            array/byte/dim=5    NTCH_FLTR_A
+            array/byte/dim=5    NTCH_FLTR_B
+          endmap
+
+          map
+            array/byte/dim=10   NTCH_FLTR_STAT
+          endmap
+
+        endunion

@@ -1,0 +1,56 @@
+c-------------------------------------------------------------------------------
+c
+c	FRD_MODEL_CONFIG.TXT
+c
+c	This include file contains the CCT_GET_CONFIG parameters for
+c	FRD_EXTRACT_MODEL.  This file give access to the FEX_NYQUIST reference
+c	dataset.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 30 July 1992
+c		 SER 8178
+c
+c-------------------------------------------------------------------------------
+
+
+	include '(cct_get_config)'
+
+c
+c  The reference dataset.
+c
+	character * 32	dset_tod
+	data dset_tod /'CSDR$FIRAS_REF:FEX_NYQUIST'/
+
+	integer *  4	ndset_tod /1/
+	integer *  4	size_tod /128/
+	integer *  4	tod_index
+	integer *  4	tod_lun
+
+	logical *  1	new_tod_segment
+
+	dictionary 'fex_nyquist'
+	record /fex_nyquist/  nyquist
+
+	record /config_status/  tod_stat
+
+c
+c  Common variables and reference data effective time range.
+c
+	character * 14	ref_gmt_start /'86001000100000'/
+	character * 14	ref_gmt_stop  /'99365235859999'/
+	character * 14	ref_gmt_time
+	character *  1	seq_access /' '/
+	integer *  4	ncache /1/
+	integer *  4	ref_count
+	integer	*  4	ref_start(2)
+	integer	*  4	ref_stop(2)
+	integer	*  4	ref_time(2)
+
+c
+c  Define the common block.
+c
+	common /fcc_config_data/ tod_lun, tod_index, tod_stat,
+     .				 ref_start, ref_stop, ref_gmt_time, ref_time,
+     .				 nyquist

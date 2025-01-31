@@ -1,0 +1,49 @@
+!
+!  Destriper corrections record structure
+!
+record FEX_EJV FEX_EJV
+!
+   structure CT_HEAD
+      include ct_head.rdl
+   endstructure
+!
+!  Destriper corrections
+!
+   array/float/dim=8          TAU
+                              ! Expontential correction
+                              !   time constants, in days
+                              !   days since apco ejection
+   array/floatc/dim=(257,13)  CORR_SPEC
+                              ! Correction spectra:
+                              !   exponential, vibration,
+                              !   or tophat corrections,
+                              !   as indicated by CORR_INDEX
+   array/byte/dim=13          CORR_INDEX
+                              ! Index to correction spectra
+                              !   0 = no correction
+                              !   1 = exponential correction
+                              !   2 = vibration correction
+                              !   3 = tophat correction
+   array/double/dim=5         VIB_CORR
+                              ! Vibration correction
+                              !   coefficients
+!
+!  Destriper processing parameters
+!
+   scalar/text/length=40      LABEL
+                              ! Model solution label
+   scalar/float               GALLAT
+                              ! Galactic latitude cut (degrees)
+   array/adt/dim=1            EJECT_TIME
+                              ! Binary hatch eject time
+   array/adt/dim=13           START_TIMES
+                              ! Binary start times of mission
+                              !   periods
+   array/adt/dim=13           STOP_TIMES
+                              ! Binary stop times of mission
+                              !   periods
+   array/word/dim=2           FREQ_RANGE
+                              ! Frequency range (bin number)
+   array/byte/dim=507         SPARES
+                              ! Spare bytes
+end_record

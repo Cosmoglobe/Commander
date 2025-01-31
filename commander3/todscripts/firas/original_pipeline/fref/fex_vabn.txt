@@ -1,0 +1,59 @@
+C******************************************************************************
+C  File Name:  FEX_VABN.TXT
+C
+C  Purpose:  To define the boundaries of the North Van Allen Belt.  This file
+C     is read, along with FEX_VABS.TXT and FEX_SAA.TXT, to make a reference file
+C     of longitude-latitude points defining all three Earth radiation regions.
+C     These values for the North Van Allen Belt boundaries were obtained by
+C     rearranging the Mission Planning files CSDR$MPD:VABN1.DAT and VABN2.DAT
+C     into (long, south lat, north lat)-triples, each representing a pair of
+C     points, one on the south and one on the north boundary of the North VAB.
+C
+C  Written by: Fred Shuman,  ST Systems Corp.,  1991 Apr 23
+C
+C       Validation of Values in SER 9097
+C       Certification:  1991 Sept 30 Rick Shafer Pass 2
+C
+C*****************************************************************************
+-180.00  57.00  73.00
+-171.00  56.00  72.00
+-162.00  55.00  70.00
+-153.00  53.00  69.00
+-144.00  51.00  67.00
+-135.00  49.00  65.00
+-126.00  47.00  63.00
+-117.00  45.00  61.00
+-108.00  43.00  59.00
+ -99.00  42.00  58.00
+ -90.00  40.00  57.00
+ -81.00  40.00  56.00
+ -72.00  40.00  57.00
+ -63.00  41.00  58.00
+ -54.00  43.00  59.00
+ -45.00  45.00  61.00
+ -36.00  47.00  63.00
+ -27.00  49.00  65.00
+ -18.00  51.00  66.00
+  -9.00  52.00  68.00
+   0.00  53.00  69.00
+   9.00  54.00  70.00
+  18.00  55.00  71.00
+  27.00  56.00  72.00
+  36.00  56.00  72.00
+  45.00  57.00  73.00
+  54.00  57.00  73.00
+  63.00  58.00  74.00
+  72.00  58.00  74.00
+  81.00  58.00  74.00
+  90.00  59.00  75.00
+  99.00  59.00  75.00
+ 108.00  59.00  75.00
+ 117.00  59.00  75.00
+ 126.00  60.00  75.00
+ 135.00  60.00  75.00
+ 144.00  60.00  75.00
+ 153.00  59.00  74.00
+ 162.00  59.00  74.00
+ 171.00  58.00  73.00
+ 180.00  57.00  73.00
+

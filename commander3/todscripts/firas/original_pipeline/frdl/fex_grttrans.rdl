@@ -1,0 +1,29 @@
+!
+! GRT Transition Temperature and Half-Width
+!
+record FEX_GRTTRANS FEX_GRTTRANS
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  scalar/long           NUM_GRT
+                        ! Number of GRTs
+
+  array/float/dim=16    GRT_A_TRANS_TEMP
+  array/float/dim=16    GRT_B_TRANS_TEMP
+                        ! Temperatures (K) where
+                        !   Low/High current
+                        !   transition occurs
+  scalar/float          TEMP_SPARES
+
+  array/float/dim=16    GRT_A_TRANS_HWID
+  array/float/dim=16    GRT_B_TRANS_HWID
+                        ! Temperature transition
+                        !   half-widths (K)
+  scalar/float          HWID_SPARES
+
+  array/byte/dim=52     GRT_SPARES
+                        ! Pad to 384 bytes
+
+end_record

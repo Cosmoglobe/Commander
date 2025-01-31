@@ -1,0 +1,52 @@
+!   FIRAS_Calibrate_Covariances (FCC) Command Language Definition File
+!
+!   Author: S. Alexander, HSTX, 7/93
+!
+!   Modifications:
+!
+define verb fcc_calibrate_covariances
+
+       image "csdr$system:fcc.exe"
+  
+       qualifier channel
+                 value(type=fcc_channel,required)
+                 nonnegatable
+
+       qualifier scan_mode
+                 value(type=fcc_scan_mode,required)
+                 nonnegatable
+
+       qualifier cov_ext
+                 value(type=$file,required)
+                 nonnegatable
+
+       qualifier mod_ext
+                 value(type=$file,required)
+                 nonnegatable
+
+       qualifier bol_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier cbias_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier volt_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier label
+                 value
+                 nonnegatable
+
+define type fcc_channel
+       keyword rh
+       keyword rl
+       keyword lh
+       keyword ll
+
+define type fcc_scan_mode
+       keyword ss
+       keyword sf
+       keyword lf

@@ -1,0 +1,467 @@
+!
+! Facility FRD command definition file.
+!
+! FRD_L_DEFINE_LIMITS
+!
+Define Verb FRD_L_DEFINE_LIMITS
+
+       Image "CSDR$SYSTEM:FRD_L_DEFINE_LIMITS.EXE"
+
+       Synonym LIMITS
+
+       Qualifier SCI
+                 NonNegatable
+
+       Qualifier ENG
+                 NonNegatable
+
+       Qualifier FLAG
+                 NonNegatable
+!
+! FRD_DEFINE_IDX_PARAMS
+!
+Define Verb FRD_DEFINE_IDX_PARAMS
+
+       Image "CSDR$SYSTEM:FRD_DEFINE_IDX_PARAMS.EXE"
+
+       Synonym IDX_PARAMS
+
+       Qualifier INDEX
+                 Value(Type=FRD_INDEX,Required)
+                 NonNegatable
+
+       Qualifier REPORT
+                 Negatable
+
+       Define Type FRD_INDEX
+              Keyword TOLS
+              keyword FLAGS
+!
+! FRD_CC_THRESHOLDS
+!
+Define Verb FRD_CC_THRESHOLDS
+
+       Image "CSDR$SYSTEM:FRD_CC_THRESHOLDS.EXE"
+
+       Synonym CCTHRESHOLDS
+!
+! FRD_GLITCH_PROFILE
+!
+Define Verb FRD_GLITCH_PROFILE
+
+       Image "CSDR$SYSTEM:FRD_GLITCH_PROFILE"
+
+       Synonym GPROFILE
+!
+! FRD_ELEX_TRANSFCN
+!
+Define Verb FRD_ELEX_TRANSFCN
+
+       Image "CSDR$SYSTEM:FRD_ELEX_TRANSFCN"
+
+       Synonym ELEX_TRANSFCN
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+
+       Define Type FRD_SAMPLE
+              Keyword MISSION
+                      Default
+              Keyword INT
+!
+! FRD_ELEX_TRANSFCNL
+!
+Define Verb FRD_ELEX_TRANSFCNL
+
+       Image "CSDR$SYSTEM:FRD_ELEX_TRANSFCNL"
+
+       Synonym LELEX_TRANSFCN
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+
+!
+! FRD_DGTL_TRANSFCN
+!
+Define Verb FRD_DGTL_TRANSFCN
+
+       Image "CSDR$SYSTEM:FRD_DGTL_TRANSFCN"
+
+       Synonym DGTL_TRANSFCN
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+!
+! FRD_DGTL_TRANSIENT
+!
+Define Verb FRD_DGTL_TRANSIENT
+
+       Image "CSDR$SYSTEM:FRD_DGTL_TRANSIENT"
+
+       Synonym DTRANS
+!
+! FRD_GTRANS
+!
+Define Verb FRD_GTRANS
+
+       Image "CSDR$SYSTEM:FRD_GTRANS.EXE"
+
+       Synonym GTRANS
+
+       Qualifier OUTPUT
+                 Value(Type=FRD_OUTPUT,Required)
+                 NonNegatable
+        
+       Define Type FRD_OUTPUT
+              Keyword RAW
+              Keyword TRAN
+              Keyword COAD
+!
+! FRD_CALRES
+!
+Define Verb FRD_CALRES
+
+       Image "CSDR$SYSTEM:FRD_CALRES"
+
+       Synonym CALRES
+!
+! FRD_EXTREMA
+!
+Define Verb FRD_EXTREMA
+
+       Image "CSDR$SYSTEM:FRD_EXTREMA"
+
+       Synonym EXTREMA
+!
+! FRD_AVE_CALRES
+!
+Define Verb FRD_AVE_CALRES
+
+       Image "CSDR$SYSTEM:FRD_AVE_CALRES.EXE"
+
+       Synonym FACR
+
+       Qualifier JSTART
+                 Value(Required)
+                 Default
+
+       Qualifier JSTOP
+                 Value(Required)
+                 Default
+
+       Qualifier AVETIME
+                 Value(Default=0.5)
+                 Default
+
+       Qualifier REPORT
+                 Value(Type=$File)
+                 Negatable 
+                 Default
+!
+! FRD_GFG
+!
+Define Verb FRD_GFG
+
+       Image "CSDR$SYSTEM:FRD_GFG.EXE"
+
+       Synonym FGFG
+
+       Qualifier MAX_SEC
+                 Value(Default=40)
+                 Default
+
+       Qualifier REPORT
+                 Value(Type=$File)
+                 Negatable 
+                 Default
+
+       Qualifier JSTART
+                 Value(Required)
+                 Default
+
+       Qualifier JSTOP
+                 Value(Required)
+                 Default
+!
+! FRD_VABSAA
+!
+Define Verb FRD_VABSAA
+
+       Image "CSDR$SYSTEM:FRD_VABSAA.EXE"
+
+       Synonym VABSAA
+!
+! FRD_MTMSWEEP
+!
+Define Verb FRD_MTMSWEEP
+
+       Image "CSDR$SYSTEM:FRD_MTMSWEEP.EXE"
+
+       Synonym MTMSWEEP
+!
+! FRD_CMDGAIN
+!
+Define Verb FRD_CMDGAIN
+
+       Image "CSDR$SYSTEM:FRD_CMDGAIN"
+
+       Synonym CMDGAIN
+!
+! FRD_BASIS
+!
+Define Verb FRD_BASIS
+
+       Image "CSDR$SYSTEM:FRD_BASIS"
+
+       Synonym BASIS
+!
+! FRD_MINCOADD
+!
+Define Verb FRD_MINCOADD
+
+       Image "CSDR$SYSTEM:FRD_MINCOADD.EXE"
+
+       Synonym MINCOADD
+!
+! FRD_NYQUIST
+!
+Define Verb FRD_NYQUIST
+
+       Image "CSDR$SYSTEM:FRD_NYQUIST.EXE"
+
+       Synonym NYQUIST
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+                 NonNegatable
+!
+! FRD_NYQUISTL
+!
+Define Verb FRD_NYQUISTL
+
+       Image "CSDR$SYSTEM:FRD_NYQUISTL.EXE"
+
+       Synonym LNYQUIST
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+                 NonNegatable
+!
+! FRD_SAMPRATE
+!
+Define Verb FRD_SAMPRATE
+
+       Image "CSDR$SYSTEM:FRD_SAMPRATE"
+
+       Synonym SAMPRATE
+
+       Qualifier SAMPLE
+                 Value(Type=FRD_SAMPLE,Required)
+!
+! FRD_REFTEMPS
+!
+Define Verb FRD_REFTEMPS
+
+       Image "CSDR$SYSTEM:FRD_REFTEMPS"
+
+       Synonym REFTEMPS        
+!
+! FRD_APOD
+!
+Define Verb FRD_APOD
+
+       Image "CSDR$SYSTEM:FRD_APOD.EXE"
+
+       Synonym APOD
+!
+! FRD_APODL
+!
+Define Verb FRD_APODL
+
+       Image "CSDR$SYSTEM:FRD_APODL.EXE"
+
+       Synonym LAPOD
+!
+! FRD_VIBCORR
+!
+Define Verb FRD_VIBCORR
+
+       Image "CSDR$SYSTEM:FRD_VIBCORR.EXE"
+
+       Synonym VIBCORR
+!
+! FRD_VIBCORRL
+!
+Define Verb FRD_VIBCORRL
+
+       Image "CSDR$SYSTEM:FRD_VIBCORRL.EXE"
+
+       Synonym LVIBCORR
+!
+! FRD_EXTRACT_MODEL
+!  
+Define Verb FRD_EXTRACT_MODEL
+
+       Image "CSDR$SYSTEM:FRD_EXTRACT_MODEL.EXE"
+
+       Synonym EXTRACT_MODEL
+
+       Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable
+
+       Qualifier FILE_EXT
+                 Value(Type=$File,Required)
+                 NonNegatable
+
+       Qualifier FLIGHT
+
+       Qualifier INT
+
+       Disallow SCAN_MODE.FL and (CHANNEL.RH or CHANNEL.LH)
+       Disallow FLIGHT And INT
+!
+! FRD_EXTRACT_MODELL
+!  
+Define Verb FRD_EXTRACT_MODELL
+
+       Image "CSDR$SYSTEM:FRD_EXTRACT_MODELL.EXE"
+
+       Synonym LEXTRACT_MODEL
+
+       Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable
+
+       Qualifier FILE_EXT
+                 Value(Type=$File,Required)
+                 NonNegatable
+
+       Qualifier FLIGHT
+
+       Qualifier INT
+
+       Disallow (SCAN_MODE.FL or SCAN_MODE.FS) and (CHANNEL.RH or CHANNEL.LH)
+       Disallow FLIGHT And INT
+
+       Define Type FRD_CHAN
+              Keyword RH
+              Keyword RL
+              Keyword LH
+              Keyword LL
+
+       Define Type FRD_SCAN
+              Keyword SS
+              Keyword SF
+              Keyword LS
+              Keyword LF
+              Keyword FS
+              Keyword FL
+!
+!  FRD_VARIANCES
+!
+Define Verb FRD_VARIANCES
+
+	Image "CSDR$SYSTEM:FRD_VARIANCES"
+
+	Synonym VARIANCES
+
+	Qualifier SCRIPT
+                 Value(Type=$File,Required)
+                 NonNegatable
+
+	Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable
+
+       Qualifier EXC_GLAT
+                 Value
+                 Negatable
+
+       Disallow SCAN_MODE.FL and (CHANNEL.RH or CHANNEL.LH)
+!
+!  FRD_FLV
+!
+Define Verb FRD_FLV
+
+	Image "CSDR$SYSTEM:FRD_FLV"
+
+	Synonym FLV_VECTORS
+
+	Qualifier SCRIPT
+                 Value(Type=$File,Required)
+                 NonNegatable
+
+	Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable
+
+       Qualifier EXC_GLAT
+                 Value
+                 Negatable
+
+       Qualifier MIN_IFGS
+                 Value
+                 Negatable
+
+       Qualifier LABEL
+                 Value
+                 Negatable
+
+       Disallow (SCAN_MODE.FL or SCAN_MODE.FS ) and (CHANNEL.RH or CHANNEL.LH)
+!
+! FRD_GLITCH_CORR
+!
+Define Verb FRD_GLITCH_CORR
+
+       Image "CSDR$SYSTEM:FRD_GLITCH_CORR"
+
+       Synonym GCORR
+!
+! FRD_EXTRACT_PIXEL
+!  
+Define Verb FRD_EXTRACT_PIXEL
+
+       Image "CSDR$SYSTEM:FRD_EXTRACT_PIXEL.EXE"
+
+       Synonym PEXTRACT
+
+       Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable
+!
+! FRD_EXTRACT_PIXELL
+!  
+Define Verb FRD_EXTRACT_PIXELL
+
+       Image "CSDR$SYSTEM:FRD_EXTRACT_PIXELL.EXE"
+
+       Synonym LPEXTRACT
+
+       Qualifier CHANNEL
+                 Value(Type=FRD_CHAN,Required)
+                 NonNegatable
+
+       Qualifier SCAN_MODE
+                 Value(Type=FRD_SCAN,Required)
+                 NonNegatable

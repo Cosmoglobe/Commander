@@ -1,0 +1,14 @@
+C    FUT_calrs.txt
+C
+C    This is Calibration resistor tolerance counts
+C
+C    H. Wang, STX, 3/15/91
+C
+        Integer*2   A_LO_MAX(4)/10253,14326,15659,15994/   ! A side low current maximum
+	Integer*2   A_LO_MIN(4)/10233,14306,15639,15974/   ! A side low current minimum
+        Integer*2   A_HI_MAX(4)/4936,10278,14333,15355/    ! A side high current maximum
+	Integer*2   A_HI_MIN(4)/4916,10258,14313,15335/    ! A side high current minimum
+        Integer*2   B_LO_MAX(4)/10262,14335,15670,16005/   ! B side low current maximum
+	integer*2   B_LO_MIN(4)/10242,14315,15650,15985/   ! B side low current minimum
+        Integer*2   B_HI_MAX(4)/4933,10281,14341,15365/    ! B side high current maximum
+	Integer*2   B_HI_MIN(4)/4913,10261,14321,15345/    ! B side high current minimum

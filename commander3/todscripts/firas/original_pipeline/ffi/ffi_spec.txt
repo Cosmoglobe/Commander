@@ -1,0 +1,43 @@
+c-------------------------------------------------------------------------------
+c
+c	FFI_SPEC.TXT
+c
+c	This include file contains the FISH voltage spectrum record.  It also
+c	contains processing parameters required by FFI.
+c
+c	Author:	  Gene Eplee
+c		  General Sciences Corp.
+c		  513-7768
+c		  19 February 1993
+c		  SER 10763
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the FISH record size.
+c
+	integer *  2	fcc_vrec_size		!  Fish output file record size
+	parameter	(fcc_vrec_size = 1071)	!  in long words.
+
+c
+c  Define the FISH spectrum record.
+c
+	structure /fish_spec/
+	   integer *  4		nifgs		!  number of ifgs per coadd
+	   real	   *  4		time		!  time since apco ejection
+	   real	   *  4		temp(7)		!  instrument temperatures
+	   real	   *  4		tsigma(7)	!  temperature sigmas
+	   real	   *  8		volt		!  bolometer voltage
+	   real	   *  8		bias		!  commanded bolometer bias
+	   integer *  4		gain		!  commanded gain
+	   complex * 16		vspec(175)	!  voltage spectrum
+	   real	   *  8		vsigma(175)	!  apodized voltage sigmas
+	endstructure
+
+c
+c  Define various processing parameters and their common block.
+c
+	complex * 16	phase_shift	!  phase shift in radians
+	real	*  8	var_norm	!  Nyquist frequency * etendu
+
+	common /fcc_fish/  phase_shift, var_norm

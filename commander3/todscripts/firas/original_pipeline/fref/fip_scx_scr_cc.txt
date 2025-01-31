@@ -1,0 +1,13 @@
+!  FIP_SPECTRA_COADD script file for
+!     FIRCOADD:[CALSPEC]FCF_CAL_ccss and FIRCOADD:[CALSPEC]FCF_DCL_ccss
+!        where cc is any of the 4 channels, ss is any of the scan modes
+!
+!  Larry Rosen , HSTX, 20 December 1994
+!	Namelist / sfiles / infilext, outfilext
+!	Character*20	infilext (fac_max_num)	! Input files extensions
+!	Character*20	outfilext		! Output file extension
+ $SFILES
+	infilext(1) = 'ED_8935311_9026210;'
+	outfilext = 'ED_8935311_9026210;'
+ $END
+

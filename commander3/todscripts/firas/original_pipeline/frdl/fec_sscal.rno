@@ -1,0 +1,19 @@
+.header level Short_Science_Calibration_Interferograms (FEC_SSCAL)
+
+    These abbreviated raw science records identify the raw science calibration
+interferograms that comprise stable calibration plateaus found by
+facility FEC_EXTRACT_CALIBRATION.  Interferograms that comprise a stable
+calibration plateau are coadded together by facility FCI_COADD_IFGS to
+form Coadded Calibration Interferograms, which are in turn used by facility
+FFC_CALIBRATE_FIRAS to produce the FIRAS Model Parameters.
+    The raw science interferograms in a stable calibration plateau are those
+IFGs recorded when the external calibrator, internal calibrator, sky horn and
+reference horn temperatures remained constant (within a small tolerance) over
+the same period of time.
+    The short science record is essentially a pointer into the Data Qualified
+Raw Science archive.  Given the timetag in the short science record,
+Cobetrieve can perform a direct access read of the corresponding raw science
+IFG.  The short science record prevents duplication of the raw science IFG at
+various stages of pipeline processing.  Using short science records reduces
+the total amount of disk space consumed by the FIRAS subsystem.  
+

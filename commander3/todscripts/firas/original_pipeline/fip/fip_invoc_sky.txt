@@ -1,0 +1,71 @@
+c-----------------------------------------------------------------------------
+c
+c	FIP_INVOC_SKY.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FIP_SKY.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 10 May 1993
+c
+c-------------------------------------------------------------------------------
+c
+c  Changes:
+c
+c	Change input filename variables.
+c	Gene Eplee, GSC, 10 February 1994.
+c
+c	Modifications for use with FCF spectra.
+c	Gene Eplee, GSC, 7 July 1994.
+c
+c	Add FCC_NUM_TYPE flag.
+c	Gene Eplee, GSC, 27 July 1994.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FIP version number
+	parameter	(fcc_version='12.7')
+
+	integer * 2	fcc_alen		!  Size of PDS spectrum record
+	parameter	(fcc_alen = 576)	!    in longwords
+
+	integer * 4	fcc_pix_offset		!  Pixel number offset in
+	parameter	(fcc_pix_offset = 0)	!    PDS spectrum record
+
+	real	* 4	fcc_glat_default	!  Default galactic latitude
+	parameter	(fcc_glat_default = 90.0)  !  cutoff
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_infile		!  FIRAS skymap file name
+	character * 48	fcc_outfile		!  ADB skymap file name
+	character * 64	fcc_report_file		!  report file name
+	character *  4	fcc_scan_mode		!  channel and scan mode
+
+	integer * 2	fcc_inlen		!  input file length
+	integer * 2	fcc_outlen		!  output file length
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_data_type		!  input data type
+	integer * 4	fcc_destriped		!  destriped data flag
+	integer * 4	fcc_diff		!  differential spectra flag
+	integer * 4	fcc_galexc		!  /EXC_GAL qualifier
+	integer * 4	fcc_num_type		!  num ifgs type
+	integer * 4	fcc_report		!  /REPORT qualifier
+
+	real	* 4	fcc_glat		!  galactic latitude upper limit
+	logical * 1	fcc_coadd		!  true = FIC, false = FCF
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_infile, fcc_inlen, fcc_data_type, fcc_num_type,
+     .			     fcc_scan_mode, fcc_outfile, fcc_outlen,
+     .			     fcc_destriped, fcc_diff, fcc_galexc, fcc_glat,
+     .			     fcc_report, fcc_report_file, fcc_replen, fcc_coadd

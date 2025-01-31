@@ -1,0 +1,287 @@
+C/
+C/	FUT_QUALFLAG_NAMES.TXT
+C/
+C/	INCLUDE file for printing summary of quality flags.
+C/
+C/	Author: Shirley M. Read, STX, January 1988.
+C/	
+C/      Modified: Shirley M. Read, STX, May 1988. Added new flags.
+C/                R. Kummerer, STX, June 29, 1988. Added new flags.
+C/	          Shirley M. Read, STX, February 18, 1989. Added new
+C/		    flags for moon contaminated IFGs and attitude 
+C/		    summary flag. SPR 3062, Build 4.2.1.
+C/
+	Character*15    Qualflag_Names (110)
+
+	Data Qualflag_Names(1)/'FLG_BADSCI    '/ ! Missing data ready bits
+						! in science data
+						! 0 = OK
+						! 1 = Too many
+						! RED Flag
+
+	Data Qualflag_Names(2)/'FLG_BADHKP     '/ ! Missing minor frames in
+						! Housekeeping record
+						! 0 = All housekeeping TLM
+						! quality flags are zero
+						! 1 = Any housekeeping TLM 
+						! quality flag is nonzero
+						! RED Flag
+
+	Data Qualflag_Names(3)/'FLG_CAL        '/ ! Flag indicating whether it is
+						! Science or Calibration data:
+						! 0 = Science or Calibration 
+						! 1 = Travel/error
+						! RED Flag
+
+	Data Qualflag_Names(4)/'FLG_MICRO      '/ ! Microprocessor status word
+						! (except for timing bit 12)
+						! RED Flag
+
+	Data Qualflag_Names(5)/'               '/
+
+	Data Qualflag_Names(6)/'FLG_ATT_ALT_RED'/ ! Attitude RED alert flag
+						! 0 = Pointing OK
+						! 1 = Sun
+						! 2 = Earth limb
+						! 4 = Moon
+						! 8 = SAA
+						! 16= Van Allen Belts
+
+	Data Qualflag_Names(7)/'FLG_ATT_ALT_YEL'/ ! Attitude YEL alert flag
+						! 0 = Pointing OK
+						! 1 = Sun
+						! 2 = Earth limb
+						! 4 = Moon
+						! 8 = SAA
+						! 16= Van Allen Belts
+
+	Data Qualflag_Names(8)/'FLG_GLITCH_CT  '/ ! Glitch count 
+						! 0 = OK
+						! 1 = Too high
+						! RED Flag
+
+	Data Qualflag_Names(9)/'FLG_SATURATE   '/ ! Saturated sample count
+						! 0 = OK
+						! 1 = Too high
+						! RED flag
+
+	Data Qualflag_Names(10)/'FLG_CKSM_ERR_ST'/ ! Checksum errors
+						! 0 = Agrees with checksum
+						! in science header
+						! 1 = Does not agree
+						! RED Flag
+
+	Data Qualflag_Names(11)/'FLG_GRTRED_ST  '/ ! Start of GRT RED flags
+						! One bit set for each of 32 
+						! GRTs and cal resistors that
+						! exceeds a RED limit.
+
+	Data Qualflag_Names(12)/'               '/
+	Data Qualflag_Names(13)/'               '/
+	Data Qualflag_Names(14)/'               '/
+	Data Qualflag_Names(15)/'               '/
+	Data Qualflag_Names(16)/'               '/
+	Data Qualflag_Names(17)/'               '/
+	Data Qualflag_Names(18)/'               '/
+
+	Data Qualflag_Names(19)/'FLG_GRTYEL_ST  '/ ! Start of GRT YELLOW flags
+
+	Data Qualflag_Names(20)/'               '/
+	Data Qualflag_Names(21)/'               '/
+	Data Qualflag_Names(22)/'               '/
+	Data Qualflag_Names(23)/'               '/
+	Data Qualflag_Names(24)/'               '/
+	Data Qualflag_Names(25)/'               '/
+	Data Qualflag_Names(26)/'               '/
+
+	Data Qualflag_Names(27)/'FLG_TC_RED     '/ ! RED bits set for exceeding 
+						! temperature controller's
+						! (TC's) upper limit
+
+	Data Qualflag_Names(28)/'FLG_TC_YEL     '/ ! YELLOW bits for TC's
+
+	Data Qualflag_Names(29)/'FLG_IPDU_TMP   '/ ! IPDU temperature (A or B):
+						! Byte 1: 0 = OK on appropriate
+						! A or B side, 1 = YELLOW flag,
+						! 2 = RED flag
+						! Byte 2: 0 = OK on opposite
+						! side, 1 = red or yellow limit
+						! on opposite side. YELLOW flag
+	Data Qualflag_Names(30)/'               '/
+
+	Data Qualflag_Names(31)/'FLG_CHAN_TMP_ST'/ ! Chan. temp. (this channel)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(32)/'FLG_DBOX_TMP   '/ ! Drive temperature (A or B):
+						! Byte 1: 0 = OK on appropriate
+						! side, 1 = YELLOW, 2 = RED
+						! Byte 2: 0 = OK on opposite 
+						! side, 1 = red or yellow limit
+						! on opposite side. YELLOW flag
+	Data Qualflag_Names(33)/'               '/
+
+	Data Qualflag_Names(34)/'FLG_STMON_TMP  '/ ! Status monitor temp. (A or B):
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(35)/'FLG_CHPA_TMP   '/ ! Channel pre-amp temp.:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(36)/'FLG_OPPA_TMP   '/ ! Optical pre-amp temp.:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(37)/'FLG_HS_HEAT_A  '/ ! Hot spot heater A:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(38)/'FLG_HS_HEAT_B  '/ ! Hot spot heater B:
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(39)/'FLG_MTMCAL_MTR '/ ! MTM/CAL motor temp.
+						! Byte 1: 0 = OK on active side,
+						! 1 = YELLOW on active side, 
+						! 2 = RED on active side
+						! Byte 2: 0 = OK on inactive 
+						! side, 1 = red or yellow on
+						! inactive side. YELLOW flag
+	Data Qualflag_Names(40)/'               '/
+
+	Data Qualflag_Names(41)/'FLG_BOL_VOL_ST '/ ! Bolometer voltage (this chan.)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+
+	Data Qualflag_Names(42)/'FLG_IPDU_VOL_ST'/ ! IPDU voltages (A or B) (10)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+	Data Qualflag_Names(43)/'               '/
+	Data Qualflag_Names(44)/'               '/
+	Data Qualflag_Names(45)/'               '/
+	Data Qualflag_Names(46)/'               '/
+	Data Qualflag_Names(47)/'               '/
+	Data Qualflag_Names(48)/'               '/
+	Data Qualflag_Names(49)/'               '/
+	Data Qualflag_Names(50)/'               '/
+	Data Qualflag_Names(51)/'               '/
+
+	Data Qualflag_Names(52)/'FLG_IPDU_CUR_ST'/ ! IPDU currents (A or B) (6)
+						! 0 = OK, 1 = YELLOW, 2 = RED
+	Data Qualflag_Names(53)/'               '/
+	Data Qualflag_Names(54)/'               '/
+	Data Qualflag_Names(55)/'               '/
+	Data Qualflag_Names(56)/'               '/
+	Data Qualflag_Names(57)/'               '/
+
+	Data Qualflag_Names(58)/'FLG_STCHG_MJ_ST'/ ! Status changes across Major 
+						! Frame boundary. Four bytes.
+						! 1 = yes, 0 = no, 16 defined:
+						! Bit 0: GRT Dwell status for 
+						!        side (A or B)
+						! Bit 1: Micro bus readout for
+						!        channel
+						! Bit 2: Bolometer bias status
+						! Bits 3 - 6: Four temperature
+						!        controller statuses  
+						! Bit 7: XCAL position
+						! Bit 8: FAKEIT bit
+						! Bit 9: uProcessor science mode
+						! Bit 10: uProcessor data type
+						! Bit 11: XCAL latch
+						! Bit 12: MTM latch
+						! Bit 13: LVDT status
+						! Bit 14: MTM speed
+						! Bit 15: MTM length
+						! If any bit set, RED flag.
+	Data Qualflag_Names(59)/'               '/
+	Data Qualflag_Names(60)/'               '/
+	Data Qualflag_Names(61)/'               '/
+
+	Data Qualflag_Names(62)/'FLG_DIRBE_ST   '/ ! DIRBE statuses that affect
+						! FIRAS:
+						! Annealing htrs (yel): 2 bytes
+						! Annealing htrs (red): 2 bytes
+						! IRS sources (yel): 1 byte
+						! IRS sources (red): 1 byte
+						! Chopper (1 byte)
+						! Shutter (1 byte)
+	Data Qualflag_Names(63)/'               '/
+	Data Qualflag_Names(64)/'               '/
+	Data Qualflag_Names(65)/'               '/
+	Data Qualflag_Names(66)/'               '/
+	Data Qualflag_Names(67)/'               '/
+	Data Qualflag_Names(68)/'               '/
+	Data Qualflag_Names(69)/'               '/
+
+	Data Qualflag_Names(70)/'FLG_DMR_ST     '/ ! DMR statuses that affect 
+						! FIRAS:
+						! Local oscillators flag 
+						! (yellow): 1 byte
+						! Local oscillators flag 
+						! (red): 1 byte
+						! Noise sources (yel): 2 bytes
+						! Noise sources (red): 2 bytes
+	Data Qualflag_Names(71)/'               '/
+	Data Qualflag_Names(72)/'               '/
+	Data Qualflag_Names(73)/'               '/
+	Data Qualflag_Names(74)/'               '/
+	Data Qualflag_Names(75)/'               '/
+
+	Data Qualflag_Names(76)/'FLG_SPACECR_ST '/ ! Spacecraft statuses that
+						   ! affect FIRAS (8 items)
+	Data Qualflag_Names(77)/'               '/ !Torquer Bars (yel): 1 byte
+	Data Qualflag_Names(78)/'               '/ !Torquer Bars (red): 1 byte
+	Data Qualflag_Names(79)/'               '/ !Momemtum Wheels (yel):1 byte
+	Data Qualflag_Names(80)/'               '/ !Momentum Wheels (red):1 byte
+	Data Qualflag_Names(81)/'               '/
+	Data Qualflag_Names(82)/'               '/
+	Data Qualflag_Names(83)/'               '/
+
+	Data Qualflag_Names(84)/'FLG_ACLMAC_TMP '/ ! Temperatures for LMAC
+                                                ! analog converter:
+                                                ! 0 = OK, 1 = YELLOW, 2 = RED
+	Data Qualflag_Names(85)/'FLG_DCLMAC_TMP '/ ! Temperatures for LMAC
+                                                ! digital converter:
+                                                ! 0 = OK, 1 = YELLOW, 2 = RED
+	Data Qualflag_Names(86)/'               '/
+	Data Qualflag_Names(87)/'               '/
+	Data Qualflag_Names(88)/'               '/
+	Data Qualflag_Names(89)/'               '/
+	Data Qualflag_Names(90)/'               '/
+	Data Qualflag_Names(91)/'               '/
+	Data Qualflag_Names(92)/'               '/
+	Data Qualflag_Names(93)/'               '/
+	Data Qualflag_Names(94)/'               '/
+	Data Qualflag_Names(95)/'               '/
+	Data Qualflag_Names(96)/'               '/
+	Data Qualflag_Names(97)/'               '/
+	Data Qualflag_Names(98)/'               '/
+	Data Qualflag_Names(99)/'               '/
+	Data Qualflag_Names(100)/'               '/
+	Data Qualflag_Names(101)/'               '/
+	Data Qualflag_Names(102)/'               '/
+	Data Qualflag_Names(103)/'               '/
+	Data Qualflag_Names(104)/'               '/
+	Data Qualflag_Names(105)/'               '/
+	Data Qualflag_Names(106)/'               '/
+	Data Qualflag_Names(107)/'               '/
+	Data Qualflag_Names(108)/'FLG_NO_ATTITUDE'/ ! ATTITUDE SOLUTION
+
+	Data Qualflag_Names(109)/'FLG_ATT_SUM    '/ ! Overall attitude quality
+                                                !     summary.
+						! 0 = FDQ not yet run
+						! 1 = all flags OK
+						! 2 = "some" yellow, no red
+						! 3 = "many" yellow, no red
+						! 4 = no yellow, "some" red
+						! 5 = "some" yellow, "some" red
+						! 6 = "many" yellow, "some" red
+						! 7 = "many" red
+						! 32 = no attitude solution
+
+	Data Qualflag_Names(110)/'FLG_SUMMARY    '/ ! Overall quality summary
+						! 0 = FDQ not yet run
+						! 1 = all flags OK
+						! 2 = "some" yellow, no red
+						! 3 = "many" yellow, no red
+						! 4 = no yellow, "some" red
+						! 5 = "some" yellow, "some" red
+						! 6 = "many" yellow, "some" red
+						! 7 = "many" red
+						! 32 = Bad midpoint collect time
+						! 64 = Housekeeping data missing
+						! 127 = TLM quality failure

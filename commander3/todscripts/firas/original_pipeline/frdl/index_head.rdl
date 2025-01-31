@@ -1,0 +1,11 @@
+!
+! Header for Index Data files.
+!
+        scalar/text/length=14   GMT_START_TIME_ASCII
+        scalar/text/length=14   GMT_END_TIME_ASCII
+        scalar/adt              BINARY_START_TIME
+        scalar/adt              BINARY_END_TIME
+        array/byte/dim=6        SPACECRAFT_START_TIME_PB5
+        array/byte/dim=6        SPACECRAFT_END_TIME_PB5
+        scalar/word             DATASET_ID
+        array/byte/dim=6        IDXHEAD_SPARES

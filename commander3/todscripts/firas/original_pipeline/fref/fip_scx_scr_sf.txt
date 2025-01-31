@@ -1,0 +1,17 @@
+!  FIP_SPECTRA_COADD script file for
+!     FIRCOADD:[SKY]FIC_SKY_ccSF,
+!     FIRCOADD:[SKY]FCF_SKY_ccSF,
+!     FIRCOADD:[SKY]FCF_DSK_ccSF,
+!        where cc is any of the 4 channels
+!
+!  Larry Rosen , HSTX, 20 December 1994
+!	Namelist / sfiles / infilext, outfilext
+!	Character*20	infilext (fac_max_num)	! Input files extensions
+!	Character*20	outfilext		! Output file extension
+ $SFILES
+	infilext(1) = 'ED_8932800_8934301;'
+	infilext(2) = 'ED_9013915_9019318;'
+	infilext(3) = 'ED_9019318_9020711;'
+	infilext(4) = 'ED_9020811_9022004;'
+	outfilext = 'ED_8932800_9026409;'
+ $END

@@ -1,0 +1,38 @@
+!
+! FIRAS Comparison Spectra Record Structure
+!
+record FEF_SPC FEF_SPC
+!
+! Comparison identification
+!
+! Comparison Description
+scalar/text/length=80      DESCRIP
+! Channel / MTM scan mode (length and speed) 1
+scalar/text/length=4       CHANSCAN1
+! Binary start times of mission periods 1
+array/adt/dim=4            START_TIMES1
+! Binary stop times of mission 1
+array/adt/dim=4            STOP_TIMES1
+! Exponential time constants 1 (days)
+array/float/dim=2          TAU1
+! Channel / MTM scan mode (length and speed) 2
+scalar/text/length=4       CHANSCAN2
+! Binary start times of mission periods 2
+array/adt/dim=4            START_TIMES2
+! Binary stop times of mission 2
+array/adt/dim=4            STOP_TIMES2
+! Exponential time constants 2 (days)
+array/float/dim=2          TAU2
+!
+!  Comparison Spectra
+!
+! Difference Spectra (1-2), in ergs/s/cm^2/sr/icm
+array/floatc/dim=167        DIFF_SPEC
+! Difference Spectra Sigma, in ergs/s/cm^2/sr/icm
+array/float/dim=167         DIFF_SPEC_SIG
+! Ratio Spectra (1/2)
+array/float/dim=167         RATIO_SPEC
+! Ratio Spectra Sigma
+array/float/dim=167         RATIO_SPEC_SIG
+!
+end_record

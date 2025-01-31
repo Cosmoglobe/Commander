@@ -1,0 +1,8 @@
+!
+!  FIRAS Line Profile Record Structure
+!
+record FLA_LIN FLA_LIN
+
+  array/floatc/dim=167  PROFILE
+
+end_record

@@ -1,0 +1,21 @@
+!
+! GRT Weights for Raw (FDQ) Data
+!
+record FEX_GRTRAWWT FEX_GRTRAWWT
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  scalar/long           NUM_GRT
+                        ! Number of GRTs
+
+  array/float/dim=16    GRT_A_WEIGHT
+  array/float/dim=16    GRT_B_WEIGHT
+                        ! Significance of GRT
+                        ! Temperature
+
+  array/byte/dim=60     GRT_SPARES
+                        ! Pad to 256 bytes
+
+end_record

@@ -1,0 +1,14 @@
+.header level STOL_Database_Words (FEP_STOLDB) (REF)
+
+     For each quantity stored in the housekeeping record there are
+a set of conversion coefficients by which the housekeeping counts
+can be converted into engineering units.  Each set of conversion
+coefficients has associated with it an eight character reference key
+(STOL data base word) with which the coefficients may be queried from
+the coefficients data base.  This structure maintains the STOL data base
+word for each field in the housekeeping record.
+    Facility FEP_ENGPLOTS plots any field in the housekeeping record, in
+engineering units.  Given the housekeeping field to plot, FEP_ENGPLOTS
+fetches the STOL data base word associated with the housekeeping field,
+fetches the conversion coefficients, converts to engineering units, and
+then produces a plot.

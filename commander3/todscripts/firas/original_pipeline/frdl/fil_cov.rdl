@@ -1,0 +1,126 @@
+!
+! Covariance Matrix and Other Statistical Quantities
+!
+!   Stored in 257 records: first record has information in 
+!   first map; records 2-257 in second map, each with 
+!   information for one bin of the binned dispersion vectors
+!   and up to 1050 covariance matrix values
+!
+record FIL_COV FIL_COV
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+!
+! Identifying science data, stored in each record
+!
+  structure IDENT
+
+    scalar/byte               CHAN_ID
+                              ! Channel ID
+    scalar/byte               MTM_SPEED
+                              ! MTM speed
+    scalar/byte               MTM_LENGTH
+                              ! MTM length
+    scalar/byte               SCI_MODE
+                              ! Block ID from uP header
+    scalar/byte               ADDS_PER_GROUP
+                              ! Adds per group
+  endstructure
+
+  union
+    map
+!
+! Number of contributing ifgs and coadds, stored in first record
+!
+      scalar/long             NUM_IFGS
+                              ! Number of contributing ifgs
+      scalar/float            ADJ_NUM_IFGS
+                              ! Glitch rate weighted number of 
+                              !   contributing ifgs
+      scalar/long             NUM_COADDS
+                              ! Number of contributing coadds
+!
+! Statistical data from coadded voltage spectra, stored in first record
+!
+      array/double/dim=361    AVG_RVOLTSPEC
+                              ! Average of real parts of voltage
+                              !   spectra formed by coadds
+      array/double/dim=361    AVG_IVOLTSPEC
+                              ! Average of imaginary parts of voltage
+                              !   spectra formed by coadds
+      array/double/dim=361    VOLT_RSQSUM
+                              ! Sum of number of ifgs in each coadd
+                              !   times squares of real parts of 
+                              !   coadded voltage spectra
+      array/double/dim=361    VOLT_ISQSUM
+                              ! Sum of number of ifgs in each coadd
+                              !   times squares of imaginary parts of 
+                              !   coadded voltage spectra
+!
+! Statistical data related to glitch rates, stored in first record
+!
+      scalar/double           SUM_QUOTS
+                              ! Sum of quotients of number of
+                              !   interferograms in the coadd less
+                              !   2 if secondary template was
+                              !   subtracted; 1 else divided by
+                              !   number of interferograms
+      scalar/double           SUM_WTS
+                              ! Sum of quotients times sum of the
+                              !   interferogram glitch rates
+      scalar/double           SUM_WTS_SQ
+                              ! Sum of quotients times square of
+                              !   the sum of the interferogram 
+                              !   glitch rates
+      array/double/dim=334    WTD_DISP_TOT
+                              ! Sum over all interferograms of
+                              !   square of absolute value of
+                              !   dispersion vector times
+                              !   interferogram glitch rate
+!
+! Spares to pad to block and map boundary
+!
+      array/byte/dim=7        SPARES
+                              ! Spare bytes
+    endmap
+
+    map
+!
+! Dispersion vectors and associated data, stored in records 2-257
+!
+      scalar/long             BIN_TOTAL
+                              ! Number of voltage spectra
+                              !   contributing to this bin
+      scalar/float            WTD_BIN_TOTAL
+                              ! Weighted total of voltage spectra
+                              !   contributing to this bin
+      array/doublec/dim=361   DISP
+                              ! Total of voltage spectra 
+                              !   dispersions in this bin
+      array/double/dim=2      NORMS
+                              ! Squares and fourth powers of norms
+                              !   of dispersion totals in this bin
+      array/double/dim=8      TEMP
+                              ! Temperature and glitch rate 
+                              !   dispersion totals in this bin
+!
+! Covariance matrix, stored in records 2-257, each with up to 1050 values
+!    Real-real (68265 values) stored in records 2-67;
+!         upper half of symmetric submatrix stored as a single vector
+!    Real-imag (133209 values) stored in records 68-194;
+!         entirety of rectangular submatrix stored as a single vector
+!    Imag-imag (65341 values) stored in records 195-257;
+!         upper half of symmetric submatrix stored as a single vector
+!
+      array/double/dim=1050    COVAR
+                              ! Covariance matrix
+!
+! Spares to pad to map and block boundary
+!
+      array/byte/dim=3        BIN_SPARES
+                              ! Spare bytes
+    endmap
+  endunion
+
+end_record

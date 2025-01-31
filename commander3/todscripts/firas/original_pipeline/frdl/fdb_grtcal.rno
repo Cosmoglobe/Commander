@@ -1,0 +1,17 @@
+.header level Calibration_Resistor_Table (FDB_GRTCAL) (REF)
+
+    Calibration resistor constants, conversion constants for
+the temperature monitors, are contained in this lookup table,
+as determined preflight.  Several editions are required, since these
+calibrations are done more than once.  Each edition is tagged by an
+effective timerange, the timerange to which the conversion tables are
+applicable.
+    Calibration resistor values for the temperature monitors are
+determined every major telemetry frame, and so must be recorded as a
+history file.  The calibration resistor table, together with the
+measured calibration resistor values, are used in converting GRT
+housekeeping counts to ohms, an intermediate step in the process of
+converting to temperatures.
+    This data set is created by STOL facility DBDEF and is entered into
+the archive via facility CCL.
+

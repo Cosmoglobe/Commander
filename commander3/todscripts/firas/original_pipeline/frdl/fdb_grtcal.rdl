@@ -1,0 +1,9 @@
+!
+!  Calibrator Resistor Table Record Structure
+!
+record FDB_GRTCAL FDB_GRTCAL
+
+  array/byte/dim=20   CALRES_TABLE
+                      ! Calibrator resistor table
+
+end_record

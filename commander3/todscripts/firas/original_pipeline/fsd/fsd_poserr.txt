@@ -1,0 +1,54 @@
+c-----------------------------------------------------------------------------
+c
+c       fsd_poserr.inc
+c
+c       Created by:
+c
+c            J. D. Dave'
+c               ARC
+c            August, 1987
+c
+c       This include file contains variables which are common to many
+c       of the routines in poserr
+c
+c	SER 5728, Steven Alexander, STX, March 7, 1990.  Add capability
+c		to pass in a PLT command file.
+c
+c-----------------------------------------------------------------------------
+
+	integer   *  4      num
+	real      *  4      x(513)
+	character * 14      gmt(100)
+	integer   *  2      ngr(100)
+	integer   *  2      nsw(100)
+
+	integer   *  4      chan_id        ! channel number
+	integer   *  4      ngroup         ! mean adds per group
+        integer   *  4      nsweep         ! mean number of sweeps
+	integer   *  4      fakeit         ! fake-it mode
+	integer   *  4      speed
+	integer   *  4      length
+	integer   *  4      upmode
+	integer   *  4      xcal_pos
+	integer   *  4      gain
+
+	character *100      ptitle(3)
+	character * 60      plot_label
+	character * 60      label
+	complex   *  8      difg(513)      ! plot buffer
+	real      *  4      startx
+	real      *  4      spacex
+	integer   *  4      interactive    ! interactive plot production flag
+	integer   *  4      zp             ! display zero-point on plot flag
+	character * 32      plot_device
+	integer   *  4      plt_com
+	character * 64      plt_com_file
+
+        character *  2      scan           ! scan_mode
+	character *  1      ans
+	logical   *  4      init
+
+	common /data/ gmt, ngr, nsw, num, chan_id, ngroup, nsweep,
+	2	      speed, length, upmode, xcal_pos, gain,
+	3	      scan, fakeit, init, x
+	common /plot/ plot_device, interactive, zp, plt_com, plt_com_file

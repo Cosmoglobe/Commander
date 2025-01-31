@@ -1,0 +1,65 @@
+!
+! FIRAS offset correction spectra
+!    project dataset record structure 
+!
+record FIP_EJV FIP_EJV
+!
+! Calibration model solution identification
+!
+! Calibration model solution label
+scalar/text/length=40    MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4     CHANSCAN
+!
+! Frequency range of offset correction spectra
+!
+! Optical frequency of initial data point, in GHz
+scalar/float             NU_ZERO
+! Optical frequency interval, in GHz
+scalar/float             DELTA_NU
+! Number of frequency points with good data
+scalar/long              NUM_FREQ
+!
+! Galactic latitude cut for correction computation,
+! absolute value in deg (0 -> 90)        
+scalar/float             GALATEXC
+!
+! Mission period times.
+!
+! Times are in seconds since
+!    00:00.00 UTC, 1 January 1981
+!
+!  Aperture cover ejection time, in s
+scalar/double            EJECT_TIME
+!  Start times of mission periods, in s
+array/double/dim=5       START_TIMES
+!  Stop times of mission periods, in s
+array/double/dim=5       STOP_TIMES
+!
+! Destriper Corrections
+!
+! Index to correction spectra:
+!     0 = no correction
+!     1 = exponential correction
+!     2 = vibration correction
+!     3 = tophat correction
+array/byte/dim=5         CORR_INDEX
+!
+! Exponential correction time constants,
+!  in days since the aperture cover ejection
+array/float/dim=5        TAU
+!
+! Vibration correction coefficients
+array/double/dim=5       VIB_CORR
+!
+! Correction spectra, as indicated by CORR_INDEX
+!
+! Real part of the correction spectra, in MJy/sr
+array/float/dim=(180,5)  RCORR_SPEC
+! Imaginary part of the correction spectra, in MJy/sr
+array/float/dim=(180,5)  ICORR_SPEC
+!
+! Spares to pad data to block boundary
+array/byte/dim=3         SPARES
+!
+end_record
