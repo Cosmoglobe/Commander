@@ -1398,9 +1398,10 @@ contains
                !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
-                  &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
-                  &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                  &   - mono &
+                  &   - data(i)%tod%scans(scan)%d(j)%gain * &
+                  &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky &
+                  &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
+                  &   + mono) &
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                   &)
                chisq_tot     = chisq_tot     + chisq
@@ -1408,7 +1409,7 @@ contains
                call wall_time(t4)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
                
-!!$               write(*,*) 'a', i, scan!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+!!$               write(*,*) 'a', i, scan!, allocated(data(i)%tod%scans(scan)%d(j)%downsa1mp_tod)
 !!$               write(*,*) 'b', j!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                !write(*,*) 'do not remove -- memory corruption bug "fix"', ndof!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
@@ -1428,9 +1429,10 @@ contains
                   open(58,file=trim(cpar%outdir)//'/todres_'//trim(data(i)%tod%freq)//'_'//scan_str//'.dat', recl=2048)
                   do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                      write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
-                          &   - mono
+                          &   - data(i)%tod%scans(scan)%d(j)%gain * &
+                          &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
+                          &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
+                          &   + mono)
                   end do
                   close(58)
                end if

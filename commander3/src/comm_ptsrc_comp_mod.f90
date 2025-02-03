@@ -907,7 +907,7 @@ contains
           !if (self%myid == 0) write(*,*) 'a3'
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
-             if (mod(j,1000) == 0 .and. self%myid == 0) &
+             if (mod(j,10000) == 0 .and. self%myid == 0) &
                   & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc
              self%src(j)%T(ia)%nside   = data(i)%info%nside
              self%src(j)%T(ia)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
@@ -966,7 +966,8 @@ contains
 
     call read_alloc_hdf(stars_file, '/reported_values', catalog) !nstars, nbands        
     call read_alloc_hdf(stars_file, '/band_column_mapping', band_list)
-     ! trim unused bands from star catalog
+
+    ! trim unused bands from star catalog
     allocate(star_catalog(self%nactive, size(catalog(1,:))))
 
     do i=1, numband
@@ -974,7 +975,7 @@ contains
           found = .false.
           do j=1, size(band_list)
             if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
-              star_catalog(self%b2a(i),:) = catalog(j,:)
+              star_catalog(self%b2a(i),:) = catalog(j,:)/ catalog(1,:)
               found = .true.
               !write(*,*) "Found band ", trim(data(i)%label), " at position ", j
               exit
@@ -1003,7 +1004,7 @@ contains
     ii           = 0
     do i=1, self%nsrc
        if (myid_pre == 0) then
-          if (mod(ii,10000) == 0) then
+          if (mod(ii,100000) == 0) then
              write(*,fmt='(a,i6,a,i6,a,a)') ' |    Reading src ', ii, ' of ', self%nsrc
           end if
        end if
@@ -1038,7 +1039,7 @@ contains
        if (cpar%myid_chain == 0) self%ncr  = self%ncr  + self%nmaps
 
        ! Normalize to first frequency
-       self%src(ii)%amp_precomp = star_catalog(:,i)/star_catalog(1,i)
+       self%src(ii)%amp_precomp = star_catalog(:,i)!/star_catalog(1,i)
 
        do j=1, numband !self%nactive
           ja = self%b2a(j)
@@ -1576,7 +1577,7 @@ contains
              pt1 => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,1000) == 0) write(*,*) k1, pt1%nsrc, n
+                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
                 i1 = i1+1   
                 i2 = pt1%myid
                 do c2 = 1, nactive
@@ -1604,7 +1605,7 @@ contains
              pt1  => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,1000) == 0) write(*,*) k1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Computing A =', k1, pt1%nsrc
                 i1 = i1+1
 
                 i2 = 0
@@ -1673,7 +1674,7 @@ contains
 
           ! Construct matrix with sparsity pattern
           do i1 = 1, P_cr(samp_group)%invM_src(1,j)%M%ni
-             if (myid_pre == 0 .and. mod(i1,1000) == 0) write(*,*) i1, P_cr(samp_group)%invM_src(1,j)%M%ni
+             if (myid_pre == 0 .and. mod(i1,10000) == 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
              c1 = 1
              k1 = i1
              do while (k1 > pc(c1)%p%nsrc)

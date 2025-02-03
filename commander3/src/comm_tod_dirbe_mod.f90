@@ -121,6 +121,10 @@ contains
       c%nmaps           = info%nmaps
       c%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
       c%sol_elong_range = cpar%zs_sol_elong
+
+      c%gain_tune_sigma0 = .false.
+      c%gain_samprate    = 1.d0 / 3600.d0 / 24.d0
+      c%gain_sigma_0     = 0.005
       
       nside_beam                  = 128
       nmaps_beam                  = 1
@@ -280,7 +284,7 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
+      sample_gain           = .true.                         ! Gain sampling, LB TOD sims have perfect gain
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
@@ -343,13 +347,13 @@ contains
       !------------------------------------
 
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-      if (sample_gain) then
+      if (iter > 1 .and. sample_gain) then
          ! 'abscal': the global constant gain factor
-         call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask2, procmask2, smooth=.true.)
       end if
 
       ! Prepare intermediate data structures
