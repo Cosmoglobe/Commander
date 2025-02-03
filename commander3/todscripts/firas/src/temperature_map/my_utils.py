@@ -9,9 +9,9 @@ from utils.fut import apod_recnuml, get_recnum
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     rscale = 1.0e-7
 
-    cmd_bias = (
-        bol_cmd_bias.astype("double") / 25.5
-    )  # only use the factor for when it's not in volts? i.e. don't use for the data from lambda
+    cmd_bias = bol_cmd_bias.astype(
+        "double"
+    )  # / 25.5  # only use the factor for when it's not in volts? i.e. don't use for the data from lambda
 
     # print("cmd_bias:", cmd_bias)
 
@@ -212,11 +212,18 @@ def ifg_to_spec(
 
     B = 1.0 + 1j * tau * afreq
 
+    # print("B:", B)
+    print("S0:", S0)
+
     spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]  # * norm
+
+    print(f"spec before cutoff: {spec}")
 
     # optical transfer function
     spec = spec[:, cutoff : (len(otf) + cutoff)] / otf
     # spec = spec / otf
+
+    print(f"spec after cutoff: {spec}")
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz

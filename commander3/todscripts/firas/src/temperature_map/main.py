@@ -352,7 +352,8 @@ for channel, channel_value in channels.items():
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
-                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"],
+                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
+                / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 fnyq_hz=fnyq["hz"][frec[f"{channel}_{mode}"]],
@@ -382,9 +383,7 @@ nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_s
 f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             f_ghz[f"{channel}_{mode}"] = np.linspace(
                 nu0[mode],
                 nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
@@ -419,7 +418,7 @@ for channel in channels.keys():
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]
             )
             ical_emiss[f"{channel}_{mode}"] = ical_emiss[f"{channel}_{mode}"][
-                : nf[f"{channel}_{mode}"]
+                np.abs(ical_emiss[f"{channel}_{mode}"]) > 0
             ]
 
             # dihedral spectrum
@@ -432,7 +431,7 @@ for channel in channels.keys():
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IDIHEDRA"][0]
             )
             dihedral_emiss[f"{channel}_{mode}"] = dihedral_emiss[f"{channel}_{mode}"][
-                : nf[f"{channel}_{mode}"]
+                np.abs(dihedral_emiss[f"{channel}_{mode}"]) > 0
             ]
 
             bb_refhorn[f"{channel}_{mode}"] = planck(
@@ -444,7 +443,7 @@ for channel in channels.keys():
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IREFHORN"][0]
             )
             refhorn_emiss[f"{channel}_{mode}"] = refhorn_emiss[f"{channel}_{mode}"][
-                : nf[f"{channel}_{mode}"]
+                np.abs(refhorn_emiss[f"{channel}_{mode}"]) > 0
             ]
 
             # skyhorn spectrum
@@ -457,7 +456,7 @@ for channel in channels.keys():
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["ISKYHORN"][0]
             )
             skyhorn_emiss[f"{channel}_{mode}"] = skyhorn_emiss[f"{channel}_{mode}"][
-                : nf[f"{channel}_{mode}"]
+                np.abs(skyhorn_emiss[f"{channel}_{mode}"]) > 0
             ]
 
             # bolometer spectrum
@@ -482,7 +481,7 @@ for channel in channels.keys():
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IBOLOMET"][0]
             )
             bolometer_emiss[f"{channel}_{mode}"] = bolometer_emiss[f"{channel}_{mode}"][
-                : nf[f"{channel}_{mode}"]
+                np.abs(bolometer_emiss[f"{channel}_{mode}"]) > 0
             ]
 
 
@@ -499,37 +498,35 @@ for channel in channels.keys():
             sky[f"{channel}_{mode}"] = (
                 spec[f"{channel}_{mode}"]
                 - (
-                    (bb_ical[f"{channel}_{mode}"] * ical_emiss[f"{channel}_{mode}"])[
-                        :, : len(spec[f"{channel}_{mode}"][0])
-                    ]
+                    (bb_ical[f"{channel}_{mode}"] * ical_emiss[f"{channel}_{mode}"])
                     + (
                         bb_dihedral[f"{channel}_{mode}"]
                         * dihedral_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_refhorn[f"{channel}_{mode}"]
                         * refhorn_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_skyhorn[f"{channel}_{mode}"]
                         * skyhorn_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_bolometer_rh[f"{channel}_{mode}"]
                         * bolometer_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_bolometer_rl[f"{channel}_{mode}"]
                         * bolometer_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_bolometer_lh[f"{channel}_{mode}"]
                         * bolometer_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                     + (
                         bb_bolometer_ll[f"{channel}_{mode}"]
                         * bolometer_emiss[f"{channel}_{mode}"]
-                    )[:, : len(spec[f"{channel}_{mode}"][0])]
+                    )
                 )
                 / otf[f"{channel}_{mode}"][np.newaxis, :]
             )

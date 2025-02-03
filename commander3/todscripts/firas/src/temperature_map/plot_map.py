@@ -290,9 +290,12 @@ m_joint[~joint_mask] = (
 )[:, len(f_ghz["ll_ss"]) :] - monopole
 m_joint[joint_mask] = np.nan  # hp.UNSEEN
 
+print(f"shape of m_joint after mask: {m_joint.shape}")
+
 for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
+    print(f"plotting {freq}: {int(f_ghz['lh_ss'][freq])}")
     hp.mollview(
-        m_joint[:, freq],
+        m_joint[:, (freq - len(f_ghz["ll_ss"]))],
         # coord="G",
         title=f"{int(f_ghz['lh_ss'][freq]):04d} GHz",
         unit="MJy/sr",
