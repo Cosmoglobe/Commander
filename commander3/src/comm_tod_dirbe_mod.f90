@@ -372,7 +372,8 @@ contains
          if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
+               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask)
+
             end do
             call sd%dealloc
             if (.not. any(self%scans(i)%d%accept)) cycle
