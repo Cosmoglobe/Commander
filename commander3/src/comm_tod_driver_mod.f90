@@ -600,6 +600,7 @@ contains
     if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
     if (allocated(sd%s_zodi_scat))   deallocate(sd%s_zodi_scat)
     if (allocated(sd%s_zodi_therm))  deallocate(sd%s_zodi_therm)
+    if (allocated(sd%mask_zodi))     deallocate(sd%mask_zodi)
     if (allocated(sd%s_totA))        deallocate(sd%s_totA)
     if (allocated(sd%s_totB))        deallocate(sd%s_totB)
     if (allocated(sd%s_inst))        deallocate(sd%s_inst)
