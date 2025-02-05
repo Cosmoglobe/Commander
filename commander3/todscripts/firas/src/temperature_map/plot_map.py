@@ -20,13 +20,13 @@ data = np.load("../../output/data/sky.npz")
 
 sky = {}
 pix_gal = {}
+scan = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
             pix_gal[mode] = data[f"pix_gal_{mode}"]
+            scan[f"{channel}_{mode}"] = data[f"scan_{channel}_{mode}"]
 
 # to not use ICAL higher than 3
 # a_ical = np.array(data["df_data/a_ical"][()])
@@ -157,10 +157,11 @@ for channel in channels.keys():
                     0,
                     len(sky[f"{channel}_{mode}"][0]),
                 ],
-                vmax=10,
+                vmax=400,
                 vmin=0,
             )
-            plt.savefig(f"../../output/plots/sky_over_time_{f"{channel}_{mode}"}.png")
+            plt.title(f"{channel}_{mode}")
+            plt.savefig(f"../../output/plots/sky_over_time/{f"{channel}_{mode}"}.png")
             plt.clf()
 
 
@@ -173,9 +174,7 @@ data_density = {}
 
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             hpxmap[f"{channel}_{mode}"] = np.zeros(
                 (npix, len(f_ghz[f"{channel}_{mode}"]))
             )
@@ -195,15 +194,13 @@ for channel in channels.keys():
 m = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             m[f"{channel}_{mode}"] = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
             monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
             mask = data_density[f"{channel}_{mode}"] == 0
-            print(
-                f"shapes of map and density: {hpxmap[f'{channel}_{mode}'].shape}, {data_density[f'{channel}_{mode}'].shape}, monopole {monopole.shape}"
-            )
+            # print(
+            #     f"shapes of map and density: {hpxmap[f'{channel}_{mode}'].shape}, {data_density[f'{channel}_{mode}'].shape}, monopole {monopole.shape}"
+            # )
             m[f"{channel}_{mode}"][~mask] = (
                 hpxmap[f"{channel}_{mode}"][~mask]
                 / data_density[f"{channel}_{mode}"][~mask, np.newaxis]
@@ -214,18 +211,16 @@ for channel in channels.keys():
 
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
                 hp.mollview(
                     m[f"{channel}_{mode}"][:, freq],
                     # coord="G",
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz",
+                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                     unit="MJy/sr",
                     # norm="hist",
                     min=0,
-                    max=200,
+                    max=50,
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
@@ -278,22 +273,22 @@ for freq in range(len(f_ghz["ll_lf"])):
 # high frequencies
 joint_map = hpxmap["lh_ss"] + hpxmap["rh_ss"]
 joint_density = data_density["lh_ss"] + data_density["rh_ss"]
-print(f"joint density shape: {joint_density.shape}")
+# print(f"joint density shape: {joint_density.shape}")
 m_joint = np.zeros((npix, (len(f_ghz["lh_ss"]) - len(f_ghz["ll_ss"]))))
 monopole = planck(f_ghz["lh_ss"], np.array(T_CMB))[len(f_ghz["ll_ss"]) :]
 joint_mask = joint_density == 0
-print(
-    f"shapes of joint map and joint density: {joint_map.shape}, {joint_density.shape} and monopole {monopole.shape}"
-)
+# print(
+#     f"shapes of joint map and joint density: {joint_map.shape}, {joint_density.shape} and monopole {monopole.shape}"
+# )
 m_joint[~joint_mask] = (
     joint_map[~joint_mask] / joint_density[~joint_mask, np.newaxis]
 )[:, len(f_ghz["ll_ss"]) :] - monopole
 m_joint[joint_mask] = np.nan  # hp.UNSEEN
 
-print(f"shape of m_joint after mask: {m_joint.shape}")
+# print(f"shape of m_joint after mask: {m_joint.shape}")
 
 for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
-    print(f"plotting {freq}: {int(f_ghz['lh_ss'][freq])}")
+    # print(f"plotting {freq}: {int(f_ghz['lh_ss'][freq])}")
     hp.mollview(
         m_joint[:, (freq - len(f_ghz["ll_ss"]))],
         # coord="G",
@@ -301,11 +296,68 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
         unit="MJy/sr",
         # norm="hist",
         min=0,
-        max=100,
+        max=50,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png")
     plt.close()
+
+print("plotting up/down scan map")
+
+for channel in channels.keys():
+    for mode in modes.keys():
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            hpxmap_up = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            hpxmap_down = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            data_density_up = np.zeros(npix)
+            data_density_down = np.zeros(npix)
+            for i in range(len(pix_gal[mode])):
+                if scan[f"{channel}_{mode}"][i] == 1:
+                    hpxmap_up[pix_gal[mode][i]] += np.abs(sky[f"{channel}_{mode}"][i])
+                    data_density_up[pix_gal[mode][i]] += 1
+                else:
+                    hpxmap_down[pix_gal[mode][i]] += np.abs(sky[f"{channel}_{mode}"][i])
+                    data_density_down[pix_gal[mode][i]] += 1
+
+            m_up = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            m_down = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
+            mask_up = data_density_up == 0
+            mask_down = data_density_down == 0
+            m_up[~mask_up] = (
+                hpxmap_up[~mask_up] / data_density_up[~mask_up, np.newaxis]
+            ) - monopole
+            m_down[~mask_down] = (
+                hpxmap_down[~mask_down] / data_density_down[~mask_down, np.newaxis]
+            ) - monopole
+            m_up[mask_up] = np.nan  # hp.UNSEEN
+            m_down[mask_down] = np.nan
+
+            for freq in range(len(f_ghz[f"{channel}_{mode}"])):
+                hp.mollview(
+                    m_up[:, freq],
+                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
+                    unit="MJy/sr",
+                    min=0,
+                    max=50,
+                )
+                plt.savefig(
+                    f"../../output/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
+                )
+                plt.close()
+
+                hp.mollview(
+                    m_down[:, freq],
+                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
+                    unit="MJy/sr",
+                    min=0,
+                    max=50,
+                )
+                # hp.graticule(coord="G")
+                plt.savefig(
+                    f"../../output/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
+                )
+                plt.close()
 
 # print("Calculating temperature map")
 

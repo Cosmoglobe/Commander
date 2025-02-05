@@ -7,6 +7,10 @@ from utils.fut import apod_recnuml, get_recnum
 
 # @njit(parallel=True)
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
+    """
+    Taken largely from calc_responsivity in fsl.
+    """
+
     rscale = 1.0e-7
 
     cmd_bias = bol_cmd_bias.astype(
@@ -65,6 +69,31 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, bet
     return S0
 
 
+def calculate_time_constant(
+    C3, Tbol, C1, G1, beta, bol_volt, Jo, Jg, bol_cmd_bias, rho, T0
+):
+    """
+    Taken largely from calc_responsivity in fsl.
+    """
+    C = C3 * Tbol**3 + C1 * Tbol
+
+    G = G1 * Tbol**beta
+
+    V = (bol_volt - Jo) / Jg
+    RL = 4.0e7
+    R = RL * V / (bol_cmd_bias - V)
+
+    X = V * rho
+    H = Tbol / X * np.tanh(X / Tbol)
+    DT = 1.0 / H - 1.0 - 0.5 * np.sqrt(T0 / Tbol)
+
+    Z = (G * Tbol * R + DT * V**2) / (G * Tbol * R / H - DT * V**2)
+
+    tau = C / G * (Z + 1.0) * (R * H + RL) / ((Z * R + RL) * (H + 1.0))
+
+    return tau
+
+
 # @njit(parallel=True)
 def my_median(arr):
     sort = np.zeros_like(arr)
@@ -90,10 +119,14 @@ def clean_ifg(
     sweeps,
     apod,
 ):
+    print("ifg shape before subtraction:", ifg.shape)
+
     median_ifg = np.expand_dims(my_median(ifg), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg
+
+    print("ifg shape after subtraction:", ifg.shape)
 
     # Ensure gain and sweeps are reshaped for broadcasting
     gain = np.expand_dims(gain, axis=-1)
@@ -119,9 +152,13 @@ def clean_ifg(
 
     ifg = ifg * apod
 
+    print("ifg shape after apodization:", ifg.shape)
+
     # roll
     peak_pos = 360
     ifg = np.roll(ifg, -peak_pos)
+
+    print("ifg shape after roll:", ifg.shape)
 
     return ifg
 
@@ -145,15 +182,19 @@ def ifg_to_spec(
     T0,
     beta,
     G1,
-    tau,
+    C3,
+    C1,
+    # tau,
     # etf,
     # S0,
     # norm,
 ):
+
+    print("ifg shape:", ifg.shape)
     # fft
     spec = np.fft.rfft(ifg)
 
-    # print("spec after rfft:", spec)
+    print("spec after rfft:", spec.shape)
 
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
@@ -210,7 +251,21 @@ def ifg_to_spec(
         G1=G1,
     )
 
-    B = 1.0 + 1j * tau * afreq
+    tau = calculate_time_constant(
+        C3=C3,
+        Tbol=Tbol,
+        C1=C1,
+        G1=G1,
+        beta=beta,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        bol_cmd_bias=bol_cmd_bias,
+        rho=rho,
+        T0=T0,
+    )
+
+    B = 1.0 + 1j * tau * afreq[np.newaxis, :]
 
     # print("B:", B)
     print("S0:", S0)

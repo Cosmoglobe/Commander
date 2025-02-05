@@ -56,14 +56,14 @@ variable_names = [
     "stat_word_16",
     "lvdt_stat_a",
     "lvdt_stat_b",
+    "adds_per_group",
+    "gain",
+    "sweeps",
 ]
 channel_dependent = [
     "ifg",
-    "adds_per_group",
     "bol_cmd_bias",
     "bol_volt",
-    "gain",
-    "sweeps",
 ]
 
 for channel in channels:
@@ -270,6 +270,8 @@ R0 = {}
 rho = {}
 G1 = {}
 beta = {}
+C3 = {}
+C1 = {}
 
 # bolometer function
 for channel in channels.keys():
@@ -317,6 +319,12 @@ for channel in channels.keys():
             beta[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
                 "BOLPARM4"
             ][0]
+            C3[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "BOLPARM7"
+            ][0]
+            C1[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "BOLPARM6"
+            ][0]
 
 print("cleaning interferograms")
 
@@ -331,8 +339,8 @@ for channel, channel_value in channels.items():
                 mtm_speed=0 if mode[1] == "s" else 1,
                 # channel=channel_value,
                 # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
-                gain=variablesm[f"gain_{channel}_{mode}"],
-                sweeps=variablesm[f"sweeps_{channel}_{mode}"],
+                gain=variablesm[f"gain_{mode}"],
+                sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
 
@@ -351,7 +359,7 @@ for channel, channel_value in channels.items():
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
-                adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
+                adds_per_group=variablesm[f"adds_per_group_{mode}"],
                 bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
@@ -366,12 +374,14 @@ for channel, channel_value in channels.items():
                 T0=T0[f"{channel}_{mode}"],
                 beta=beta[f"{channel}_{mode}"],
                 G1=G1[f"{channel}_{mode}"],
-                tau=tau[f"{channel}_{mode}"],
+                # tau=tau[f"{channel}_{mode}"],
+                C3=C3[f"{channel}_{mode}"],
+                C1=C1[f"{channel}_{mode}"],
                 # etf=etf[f"{channel}_{mode}"],
                 # S0=S0[f"{channel}_{mode}"],
                 # norm=norm[mode],
             )
-            print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
+            # print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
 
 print("making the diff")
 
@@ -491,10 +501,10 @@ for channel in channels.keys():
         if mode == "lf" and (channel == "lh" or channel == "rh"):
             continue
         else:
-            print(f"channel: {channel}, mode: {mode}")
-            print(
-                f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
-            )
+            # print(f"channel: {channel}, mode: {mode}")
+            # print(
+            #     f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
+            # )
             sky[f"{channel}_{mode}"] = (
                 spec[f"{channel}_{mode}"]
                 - (
@@ -576,6 +586,7 @@ extra_variables = [
     "int_ref_temp_b",
     "sky_hrn_temp_a",
     "sky_hrn_temp_b",
+    "scan",
 ]
 for variable in extra_variables:
     for mode in modes.keys():
