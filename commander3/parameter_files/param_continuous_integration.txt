@@ -719,6 +719,7 @@ CG_SAMPLING_GROUP&&          = cmb,ff,ame,synch,dust
 CG_SAMPLING_GROUP_MASK&&     = fullsky
 CG_SAMPLING_GROUP_MAXITER&&  = 60
 CG_SAMPLING_GROUP_BANDS&&    = all
+
 @END 02
 
 #@START 02
