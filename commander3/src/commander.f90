@@ -54,7 +54,14 @@ program commander
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
-    call get_command_argument(arg_indx, arg)
+    call get_command_argument(arg_indx, arg, j, stat)
+    if (stat .ne. 0) then
+      if (stat == -1) then
+        write(*,*) 'Command line argument was truncated: ', arg
+      else 
+        write(*,*) 'Command line argument retrieval failed: ', arg
+      end if
+    end if
 
     select case (arg)
       case ('-v', '--version')
