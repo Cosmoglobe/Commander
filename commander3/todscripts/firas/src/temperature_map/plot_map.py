@@ -26,7 +26,7 @@ for channel in channels.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
             pix_gal[mode] = data[f"pix_gal_{mode}"]
-            scan[f"{channel}_{mode}"] = data[f"scan_{channel}_{mode}"]
+            scan[mode] = data[f"scan_{mode}"]
 
 # to not use ICAL higher than 3
 # a_ical = np.array(data["df_data/a_ical"][()])
@@ -312,7 +312,7 @@ for channel in channels.keys():
             data_density_up = np.zeros(npix)
             data_density_down = np.zeros(npix)
             for i in range(len(pix_gal[mode])):
-                if scan[f"{channel}_{mode}"][i] == 1:
+                if scan[mode][i] == 1:
                     hpxmap_up[pix_gal[mode][i]] += np.abs(sky[f"{channel}_{mode}"][i])
                     data_density_up[pix_gal[mode][i]] += 1
                 else:
@@ -339,7 +339,7 @@ for channel in channels.keys():
                     title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
                     unit="MJy/sr",
                     min=0,
-                    max=50,
+                    max=200,
                 )
                 plt.savefig(
                     f"../../output/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
@@ -351,7 +351,7 @@ for channel in channels.keys():
                     title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
                     unit="MJy/sr",
                     min=0,
-                    max=50,
+                    max=200,
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(

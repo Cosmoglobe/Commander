@@ -75,6 +75,9 @@ def calculate_time_constant(
     """
     Taken largely from calc_responsivity in fsl.
     """
+    # print(
+    #     f"shapes of arguments:\nC3: {C3.shape}\nTbol: {Tbol.shape}\nC1: {C1.shape}\nG1: {G1.shape}\nbeta: {beta.shape}\nbol_volt: {bol_volt.shape}\nJo: {Jo.shape}\nJg: {Jg.shape}\nbol_cmd_bias: {bol_cmd_bias.shape}\nrho: {rho.shape}\nT0: {T0.shape}"
+    # )
     C = C3 * Tbol**3 + C1 * Tbol
 
     G = G1 * Tbol**beta
@@ -190,11 +193,11 @@ def ifg_to_spec(
     # norm,
 ):
 
-    print("ifg shape:", ifg.shape)
+    print("ifg", ifg)
     # fft
     spec = np.fft.rfft(ifg)
 
-    print("spec after rfft:", spec.shape)
+    print("spec after rfft:", spec)
 
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
@@ -213,6 +216,7 @@ def ifg_to_spec(
         cutoff = 7
 
     spec = spec / etf
+    print(f"spec after etf: {spec}")
     # spec = spec[:, cutoff : (len(etf) + cutoff)] / etf  # kills 0 frequency
     # print("spec after etf:", spec)
     spec = (
@@ -265,20 +269,25 @@ def ifg_to_spec(
         T0=T0,
     )
 
-    B = 1.0 + 1j * tau * afreq[np.newaxis, :]
+    B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
+    # print(f"B: {B}")
 
-    # print("B:", B)
+    print("B:", B)
     print("S0:", S0)
 
-    spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]  # * norm
+    spec = B * spec / S0[:, np.newaxis]  # * norm
+    print(f"shape of spec after B multiplication: {spec.shape}")
 
     print(f"spec before cutoff: {spec}")
 
-    # optical transfer function
-    spec = spec[:, cutoff : (len(otf) + cutoff)] / otf
-    # spec = spec / otf
+    spec = spec[:, cutoff : (len(otf) + cutoff)]
 
-    print(f"spec after cutoff: {spec}")
+    print(f"shape of spec after cutoff: {spec.shape}")
+
+    # optical transfer function
+    spec = spec / otf
+
+    print(f"spec after otf: {spec}")
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz

@@ -68,6 +68,7 @@ for channel in channels:
     eng_time[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/eng_time"][()]
     # print(f"eng_time: {eng_time[channel].shape}")
     ifg[channel] = fdq_sdf[f"fdq_sdf_{channel}/ifg_data/ifg"][()]
+    print(f"ifg at beginning: {ifg[channel]}")
     xcal_pos[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/xcal_pos"][()]
     mtm_length[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/mtm_length"][()]
     mtm_speed[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/mtm_speed"][()]
@@ -132,6 +133,7 @@ for channel in channels:
             "moon_angle": list(moon_angle[channel]),
         }
     ).sort_values("gmt")
+    print(f"ifg in df: {df[channel]['ifg']}")
     # print(df[channel].columns)
     # check for nans in adds_per_group
     if np.isnan(df[channel]["adds_per_group"]).any():
@@ -289,6 +291,10 @@ merged_df = merged_df[
 
 print("Size after dropping rows with all nans in ifg:")
 print(merged_df.shape)
+for channel in channels.keys():
+    print(
+        f"ifg after merging and dropping columns for channel {channel}: {merged_df[f'ifg_{channel}']}"
+    )
 
 # making sure engineering record is the same for each channel
 merged_df["eng_time"] = merged_df.apply(clean_variable, axis=1, args=("eng_time",))
@@ -853,6 +859,10 @@ for channel in channels:
     )
     calibration_df[f"ifg_{channel}"] = calibration_df[f"ifg_{channel}"].apply(
         lambda x: zero_list if (isinstance(x, float) and np.isnan(x)) else x
+    )
+
+    print(
+        f"ifg after filling nans with zeros for channel {channel}: {sky_df[f'ifg_{channel}'].tail()}"
     )
 
 sky_variables = [

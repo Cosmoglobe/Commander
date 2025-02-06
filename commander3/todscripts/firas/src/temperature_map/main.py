@@ -352,9 +352,8 @@ print("converting interferograms to spectra")
 spec = {}
 for channel, channel_value in channels.items():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            print(f"ifg to spec of {channel}_{mode}")
             spec[f"{channel}_{mode}"] = ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_speed=0 if mode[1] == "s" else 1,
