@@ -132,26 +132,6 @@ module comm_map_mod
 
 contains
 
-subroutine tod2file_dp3(filename,d)
-   implicit none
-   character(len=*),                 intent(in)            :: filename
-   real(dp),           dimension(:), intent(in)            :: d
-
-   integer(i4b)                                            :: unit, io_error, length, i
-
-   write(*,*) "Writing TOD to file - ", trim(filename)
-   unit = 22
-
-   length = size(d)
-
-   open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
-   do i = 1, length
-     write(unit,*) d(i)
-   end do
-
-   close(unit)
- end subroutine tod2file_dp3
-
   !**************************************************
   !             Constructors
   !**************************************************
@@ -172,18 +152,14 @@ subroutine tod2file_dp3(filename,d)
     character(len=512) :: weight_file, healpixdir
     class(comm_mapinfo), pointer :: p => null(), p_prev => null(), p_new => null()
 
-    if( .not. present(dist)) then
-      distval = .true.
-    else
-      distval = dist
-    end if
+    distval = .true.
 
     ! Check if requested mapinfo already exists in library; if so return a link to that object
     p => mapinfos
     do while (associated(p)) 
        if ((p%nside == nside) .and. (p%lmax == lmax) .and. &
             & (p%nmaps == nmaps) .and. (p%pol .eqv. pol) .and. (p%dist .eqv. distval)) then
-          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps
+          write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps
           constructor_mapinfo => p
           return
        else
@@ -193,13 +169,8 @@ subroutine tod2file_dp3(filename,d)
     end do
 
     ! Set up new mapinfo object
-    if (.not. distval) then
-      myid=0
-      nprocs = 1
-    else
-      call mpi_comm_rank(comm, myid, ierr)
-      call mpi_comm_size(comm, nprocs, ierr)
-    end if
+    call mpi_comm_rank(comm, myid, ierr)
+    call mpi_comm_size(comm, nprocs, ierr)
 
     allocate(p_new)
     p_new%comm   = comm
@@ -378,21 +349,7 @@ subroutine tod2file_dp3(filename,d)
     allocate(constructor_alms%map(0:info%np-1,info%nmaps))
     allocate(constructor_alms%alm(0:info%nalm-1,info%nmaps))
 
-!    info%mmax = 0
-
     if( hdf ) then
-      !write(*,*) 'About to call read_hdf'
-!!$      if(info%myid == 0) then
-!!$        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'mmax', mmax)
-!!$        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'lmax', lmax)
-!!$      end if
-!!$      call mpi_bcast(mmax, 1, MPI_INTEGER, 0, info%comm, ierr)
-!!$      call mpi_bcast(lmax, 1, MPI_INTEGER, 0, info%comm, ierr)
-      !bcast mmax, lmax to all cores
-
-      
-!!$      info%lmax = lmax
-!!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
       if (info%nmaps == 3) then
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
@@ -467,20 +424,6 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout)          :: self
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
-    if (self%info%pol) then
-       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_Y, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
-       end if
-    else
-       call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info_T, comm=self%info%comm)       
-    end if
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y
 
@@ -489,20 +432,6 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout)          :: self
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
-    if (self%info%pol) then
-       call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_WY, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
-       end if
-    else
-       call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info_T, comm=self%info%comm)       
-    end if
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_WY
 
@@ -512,13 +441,6 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout)          :: self
     integer(i4b) :: i
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
-    do i = 1, self%info%nmaps
-       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
-    end do
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y_scalar
   
@@ -530,16 +452,6 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info => null()
     
-    call timer%start(TOT_SHT)
-    info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
-
-    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
-    do i = 1, self%info%nmaps
-       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
-            & self%map(:,i:i), info%geom_info_T, comm=info%comm)
-    end do
-    deallocate(info)
-    call timer%stop(TOT_SHT)
 
   end subroutine exec_sharp_Y_EB
 
@@ -548,21 +460,6 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout) :: self
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
-    if (self%info%pol) then
-       call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_Yt, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
-       end if
-       
-    else
-       call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info_T, comm=self%info%comm)       
-    end if
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt
 
@@ -572,13 +469,6 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
-    do i = 1, self%info%nmaps
-       call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
-    end do
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt_scalar
 
@@ -587,20 +477,6 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout) :: self
 
-    call timer%start(TOT_SHT)
-    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
-    if (self%info%pol) then
-       call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
-       end if
-    else
-       call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info_T, comm=self%info%comm)
-    end if
-    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW
 

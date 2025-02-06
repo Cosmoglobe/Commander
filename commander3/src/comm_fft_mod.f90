@@ -37,30 +37,6 @@ contains
 
     integer(i4b)       :: i, n, unit
 
-    if (trim(cpar%fft_magic_number_file) == 'none') then
-       min_fft_magic_number = 0
-       max_fft_magic_number = 0
-       return
-    end if
-
-    ! Read magic numbers list
-    unit = getlun()
-    if(cpar%fft_magic_number_file(1:1) == '/') then ! full path given
-      filename = trim(cpar%fft_magic_number_file)
-    else
-      filename = trim(cpar%fft_magic_number_file)
-    end if
-
-    open(unit, file=trim(filename))
-    read(unit,*) n
-    allocate(fft_magic_numbers(n))
-    do i = 1, n
-       read(unit,*) fft_magic_numbers(i)
-    end do
-    close(unit)
-
-    min_fft_magic_number = minval(fft_magic_numbers)
-    max_fft_magic_number = maxval(fft_magic_numbers)
 
   end subroutine initialize_fft_mod
 
@@ -71,12 +47,9 @@ contains
 
     integer(i4b) :: ind
 
-    if (i > max_fft_magic_number .or. i < min_fft_magic_number) then
-       get_closest_fft_magic_number = i
-    else
-       ind                          = locate(fft_magic_numbers, i)
-       get_closest_fft_magic_number = fft_magic_numbers(ind)
-    end if
+
+    get_closest_fft_magic_number = 0
+
 
   end function get_closest_fft_magic_number
 
@@ -84,7 +57,7 @@ contains
     implicit none
     real(dp) :: freq, samp_rate
     integer(i4b) :: n, ind
-    freq = (ind-1)*(samp_rate/2)/(n-1)
+    freq = 0
   end function ind2freq
 
 end module comm_fft_mod

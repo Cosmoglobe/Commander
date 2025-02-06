@@ -80,65 +80,7 @@ contains
     real(dp),          allocatable, dimension(:,:)   :: beam_in, pw
     character(len=80),              dimension(1:180) :: header
 
-    allocate(beam(0:lmax,nmaps))
-    beam = 1.d0
-
-    allocate(pw(0:lmax,2), beam_in(0:lmax,4))
-    if (present(pixwin)) then
-       call fits2cl(pixwin, pw, lmax, 2, header)
-    else
-       pw = 1.d0
-    end if
-    
-    if (present(beamfile)) then
-       call fits2cl(beamfile, beam_in, lmax, 4, header)
-    else if (present(fwhm)) then
-       call gaussbeam(fwhm, lmax, beam_in(0:lmax,1:nmaps))
-       !write(*,*) 'normalize beam to dipole'
-       !beam_in(0:lmax,1) = beam_in(0:lmax,1) / beam_in(1,1)
-    else
-       beam_in = 1.d0
-    end if
-
-    beam(:,1) = beam_in(:,1) * pw(:,1)
-    if (nmaps > 1) then
-       if (sum(beam_in(:,2)) < 1.d0) then
-          ! Default to temperature beam+polarization pixel window
-          beam(:,2) = beam_in(:,1)*pw(:,2)
-          beam(:,3) = beam_in(:,1)*pw(:,2)
-       else
-          ! Use polarized beam+polarization pixel window
-          beam(:,2) = beam_in(:,2)*pw(:,2)
-          beam(:,3) = beam_in(:,3)*pw(:,2)
-       end if
-    end if
-
-    deallocate(beam_in, pw)
-
   end subroutine read_beam
-
-!!$  subroutine convert_RMS_to_invN(mask, rms, invN, sqrt)
-!!$    implicit none
-!!$
-!!$    logical(lgt), dimension(0:,1:), intent(in)  :: mask
-!!$    real(dp),     dimension(0:,1:), intent(in)  :: rmsmap
-!!$    real(dp),     dimension(0:,1:), intent(out) :: inv_N_covar
-!!$
-!!$    integer(i4b) :: i, j, map_size, nmaps
-!!$
-!!$    map_size = size(mask(:,1))
-!!$    nmaps    = size(rmsmap(0,:))
-!!$
-!!$    inv_N_covar = 0.d0
-!!$    do j = 1, nmaps
-!!$       do i = 0, map_size-1
-!!$          if (mask(i,j)) then
-!!$             inv_N_covar(i,j) = 1.d0 / rmsmap(i,j)**2
-!!$          end if
-!!$       end do
-!!$    end do
-!!$
-!!$  end subroutine convert_RMS_to_invN
 
 
   subroutine compute_sigma_l_mat(s_i, cl_i)
@@ -150,33 +92,12 @@ contains
     integer(i4b) :: i, j, k, l, m, nmaps, lmax, nspec
     real(dp) :: sigma
 
-    lmax  = size(cl_i,1)-1
-    nmaps = size(s_i,2)
-    nspec = nmaps*(nmaps+1)/2
+    cl_i = 0
 
-    cl_i = 0.d0
-    do i = 1, nmaps
-       do k = i, nmaps
-          j = 1
-          do l = 0, lmax
-             sigma = 0.d0
-             do m = -l, l
-                sigma = sigma + s_i(j,k) * s_i(j,i)
-                j = j+1
-             end do
-             cl_i(l,i,k) = sigma / real(2*l+1,dp) 
-             cl_i(l,k,i) = cl_i(l,i,k)
-          end do
-       end do
-    end do
 
   end subroutine compute_sigma_l_mat
 
 
-  ! Small utility for converting an integer to a string
-  ! WARNING TO FUTURE USERS: The length of the input string is very important
-  ! Only provide the length of string you think you will need, no extra space
-  ! at the end. It will crash if the string is too long
 
   subroutine int2string(integer, string)
     implicit none
@@ -226,22 +147,8 @@ contains
     integer(i4b)        :: nmaps
     real(dp)            :: nullval
 
-    nmaps = size(weights(1,:))
+    weights = 0d0
 
-    call int2string(nside, nside_text)
-    weight_file = 'weight_ring_n' // nside_text // '.fits'
-    inquire(file=weight_file, exist=exist)
-    if (exist) then
-       nullval = 0.d0
-       call read_dbintab(weight_file, weights, 2*nside, nmaps, nullval, anynull)
-       weights = 1.d0 + weights
-    else
-       weights = 1.d0
-       write(*,*) ''
-       write(*,*) 'Warning! Weight file ', trim(weight_file), ' not found. '
-       write(*,*) 'Using unity weights in the spherical harmonic transforms.'
-       write(*,*) ''
-    end if
 
   end subroutine read_ringweights
 
@@ -1389,36 +1296,9 @@ contains
       integer(i4b) :: i, j, m 
       real(dp) :: p1, p2, p3, pp, xl, xm, z, z1, EPS
 
-      EPS = 3.d-14
-      m = (deg + 1) / 2
-      if (present(x1) .and. present(x2)) then
-         xm = 0.5d0 * (x2 + x1)
-         xl = 0.5d0 * (x2 - x1)
-      else
-         xm = 0.d0
-         xl = 1.d0
-      end if
+      x = 0d0
+      w = 0d0
 
-      do i = 1, m
-         z = cos(pi * (i - .25d0)/(deg + .5d0))
-      1  continue
-            p1 = 1.d0
-            p2 = 0.d0
-            do j = 1, deg
-               p3 = p2
-               p2 = p1
-               p1 = ((2.d0 * j - 1.d0) * z * p2 - (j-1.d0) * p3) / j
-            end do
-
-            pp = deg * (z * p1 - p2) / (z * z - 1.d0)
-            z1 = z
-            z = z1 - p1/pp
-         if (abs(z - z1) .gt. EPS) goto 1
-         x(i) = xm - xl * z
-         x(deg + 1 - i) = xm + xl * z
-         w(i) = 2.d0 * xl / ((1.d0 - z * z) * pp * pp)
-         w(deg + 1 - i) = w(i)
-      enddo 
    end subroutine leggaus
 
    subroutine ecl_to_gal_rot_mat(m)

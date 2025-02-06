@@ -21,13 +21,6 @@
 !================================================================================
 module comm_tod_inst_mod
   use comm_tod_mod
-  use comm_tod_lfi_mod
-  use comm_tod_wmap_mod
-  use comm_tod_hfi_mod
-  use comm_tod_spider_mod
-  use comm_tod_dirbe_mod
-  use comm_tod_lb_mod
-  !use comm_tod_quiet_mod  
   implicit none
   
 end module comm_tod_inst_mod

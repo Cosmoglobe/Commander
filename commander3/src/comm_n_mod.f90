@@ -126,7 +126,6 @@ contains
     real(dp)     :: l0min, l0max, l1min, l1max, npix, t1, t2
     integer(i4b) :: j, l, m, lp, l2, ier, twolmaxp2, pos, lmax
     complex(dpc) :: val(invN_diag%info%nmaps)
-    real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
 
     lmax      = invN_diag%info%lmax
@@ -137,58 +136,6 @@ contains
     allocate(a_l0(0:lmax,invN_diag%info%nmaps))
     call invN_diag%YtW_scalar
 
-    if (invN_diag%info%myid == 0) then
-       ! Seriously ugly hack. Should figure out how to compute N_{lm,l'm'} properly
-       ! for polarization
-       a_l0(:,:) = invN_diag%alm(0:lmax,:)
-    end if
-    call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
-
-    call update_status(status, "compute_invN_lm 3j")
-
-    !call wall_time(t1)
-    !!$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
-    allocate(threej_symbols(twolmaxp2))
-    allocate(threej_symbols_m0(twolmaxp2))
-    !!$OMP DO SCHEDULE(guided)
-    do j = 1, invN_diag%info%nm
-       m = invN_diag%info%ms(j)
-       do l = m, lmax
-       
-          call DRC3JJ(real(l,dp), real(l,dp), 0.d0, 0.d0, l0min, l0max, &
-               & threej_symbols_m0, twolmaxp2, ier)
-          call DRC3JJ(real(l,dp), real(l,dp), real(-m,dp), real(m,dp), l1min, l1max, &
-               & threej_symbols, twolmaxp2, ier)
-             
-          val = dcmplx(0.d0,0.d0)
-          do l2 = 1, nint(l1max-l1min)+1
-             lp = nint(l1min) + l2 - 1
-             if (lp > lmax) exit
-             ! Only m3 = 0 contributes, because m2 = -m1 => m3 = 0
-             val = val + a_l0(lp,:) * sqrt(2.d0*lp+1.d0) * &
-                  & threej_symbols(l2) * threej_symbols_m0(lp-nint(l0min)+1)
-          end do
-          val = val * (2*l+1) / sqrt(4.d0*pi) * npix / (4.d0*pi)
-          if (mod(m,2)/=0) val = -val
-
-          call invN_diag%info%lm2i(l,m,pos)
-          if (m == 0) then
-             N_lm(pos,:)   = real(val,dp)
-          else
-             N_lm(pos,:)   = real(val,dp)
-             N_lm(pos+1,:) = real(val,dp)
-          end if
-       end do
-    end do
-    !!$OMP END DO
-    deallocate(threej_symbols, threej_symbols_m0)
-    !!$OMP END PARALLEL
-    call wall_time(t2)
-
-    call update_status(status, "compute_invN_lm done")
-
-    invN_diag%alm = N_lm
-    !write(*,*) sum(abs(invN_diag%alm))
 
     deallocate(N_lm, a_l0)
     
@@ -206,57 +153,6 @@ contains
     real(dp)     :: limits(2), dx, threshold, sigma
     real(dp), allocatable, dimension(:) :: F
 
-    if (fsky <= 0.d0) then
-       if (present(regnoise)) regnoise = 0.d0
-       return
-    end if
-
-    allocate(F(nbin))
-    do j = 1, rms%info%nmaps
-       if (all(mask%map(:,j) < 0.5d0)) cycle
-       ! Find pixel histogram across cores
-       limits(1) = minval(rms%map(:,j), mask%map(:,j) > 0.5d0)
-       limits(2) = maxval(rms%map(:,j), mask%map(:,j) > 0.5d0)
-       call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
-       call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
-       dx = (limits(2)-limits(1))/nbin
-       if (dx == 0.d0) then
-          if (present(regnoise)) regnoise(:,j) = 0.d0
-          cycle
-       end if
-       F = 0.d0
-       do i = 0, rms%info%np-1
-          if (mask%map(i,j) <= 0.5d0) cycle
-          b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)
-          F(b) = F(b) + 1.d0
-       end do
-       call mpi_allreduce(MPI_IN_PLACE, F, nbin, MPI_DOUBLE_PRECISION, MPI_SUM, rms%info%comm, ierr)
-
-       ! Compute cumulative distribution
-       do i = 2, nbin
-          F(i) = F(i-1) + F(i)
-       end do
-       F = F / maxval(F)
-
-       ! Find threshold
-       i = 1
-       do while (F(i) < fsky)
-          i = i+1
-       end do
-       threshold = limits(1) + dx*(i-1)
-
-       ! Update RMS map, and draw corresponding noise realization
-       do i = 0, rms%info%np-1
-          if (rms%map(i,j) < threshold .and. mask%map(i,j) > 0.5d0) then
-             sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
-             rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
-             if (present(regnoise)) regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization
-          else
-             if (present(regnoise)) regnoise(i,j) = 0.d0
-          end if
-       end do
-    end do
-    deallocate(F)
 
   end subroutine uniformize_rms
 

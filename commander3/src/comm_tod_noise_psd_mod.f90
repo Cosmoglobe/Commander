@@ -144,16 +144,6 @@ contains
 
     allocate(constructor_oof)
 
-    if (P_active_mean(FKNEE) <= 0.0)     write(*,*) 'comm_noise_psd error: Default fknee less than zero'
-    if (P_uni(FKNEE,1) <= 0.0)           write(*,*) 'comm_noise_psd error: Lower fknee prior less than zero'
-    if (P_uni(FKNEE,1) > P_uni(FKNEE,2)) write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
-    if (P_uni(ALPHA,1) > P_uni(ALPHA,2)) write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
-
-    constructor_oof%npar = 3
-
-    call constructor_oof%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
-
-    constructor_oof%P_lognorm     = [.false., .true., .false.] ! [sigma0, fknee, alpha]
 
   end function constructor_oof
 
@@ -172,28 +162,6 @@ contains
     real(sp),              dimension(:,:),  intent(in)      :: nu_fit
     real(dp),     optional, dimension(:,:), intent(in)   :: filter
 
-    allocate(self%xi_n(self%npar))
-    allocate(self%P_uni(self%npar,2))
-    allocate(self%P_active(self%npar,2))
-    allocate(self%P_lognorm(self%npar))
-
-    self%xi_n          = P_active_mean
-    self%P_uni         = P_uni
-    self%P_active(:,1) = P_active_mean
-    self%P_active(:,2) = P_active_rms
-    self%nu_fit        = nu_fit
-
-    self%sigma0 => self%xi_n(1)
-
-    if(.not. present(filter)) then
-      self%apply_filter = .false.
-    else
-      self%apply_filter = .true.
-    end if
-
-    if(self%apply_filter) then
-      call spline(self%modulation_filter, filter(1,:), filter(2,:))
-    end if
 
 
   end subroutine
@@ -214,13 +182,8 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_full
 
-    eval_noise_psd_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA))
+    eval_noise_psd_full = 0
 
-    if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_full = eval_noise_psd_full * splint(self%modulation_filter, dble(nu))
-      end if
-    end if
 
   end function eval_noise_psd_full
 
@@ -240,13 +203,8 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_corr
 
-    eval_noise_psd_corr = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
+    eval_noise_psd_corr = 0
 
-    if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_corr = eval_noise_psd_corr * splint(self%modulation_filter, dble(nu))
-      end if
-    end if
 
   end function eval_noise_psd_corr
 

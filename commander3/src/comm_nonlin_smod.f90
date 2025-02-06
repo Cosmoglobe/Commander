@@ -1918,50 +1918,50 @@ contains
     class(comm_comp),         pointer :: c => null()
     class(comm_diffuse_comp), pointer :: c_lnL => null()
 
-    eps = 1d-9
+    !eps = 1d-9
 
-    c           => compList     
-    do while (comp_id /= c%id)
-       c => c%nextComp()
-    end do
-    select type (c)
-    class is (comm_diffuse_comp)
-       c_lnL => c !to be able to access all diffuse comp parameters through c_lnL
-    end select
-
-
-!    do pol = 1, c_lnL%theta_smooth(par_id)%p%info%nmaps
-    pol = 1
-    do pix = 0, c_lnL%theta_smooth(par_id)%p%info%np-1
-       if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) <= c_lnL%p_uni(1,par_id)+eps) then
-          x(1) = c_lnL%p_uni(1,par_id)+eps
-          x(3) = min(x(1) + c_lnL%p_gauss(2,par_id), c_lnL%p_uni(2,par_id)-eps)
-          x(2) = 0.5d0*(x(1)+x(3))
-       else if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) >= c_lnL%p_uni(2,par_id)-eps) then
-          x(3) = c_lnL%p_uni(2,par_id)-eps
-          x(1) = max(x(3) - c_lnL%p_gauss(2,par_id), c_lnL%p_uni(1,par_id)+eps)
-          x(2) = 0.5d0*(x(1)+x(3))
-       else
-          x(2) = c_lnL%theta_smooth(par_id)%p%map(pix,pol)
-          x(1) = max(x(2) - c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(1,par_id)))
-          x(3) = min(x(2) + c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(2,par_id)))
-          if (x(2) == x(1) .or. x(2) == x(3)) x(2) = 0.5d0*(x(1)+x(3))
-       end if
-       theta_old = x(2)
-
-       if (mod(pix,1000) == 0) lnL_old = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
-       c_lnL%theta_smooth(par_id)%p%map(pix,pol) = &
-            & sample_InvSamp(handle, x, lnL_simple, prior=c_lnL%p_uni(:,par_id), &
-            & optimize=(trim(cpar%operation)=='optimize'), status=status)
-       if (mod(pix,1000) == 0) then
-          lnL_new = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
-          write(*,fmt='(i8,2f8.3,2e16.8)') c_lnL%theta_smooth(par_id)%p%info%pix(pix+1), theta_old, c_lnL%theta_smooth(par_id)%p%map(pix,pol), lnL_old, lnL_new
-       end if
-    end do
+    !c           => compList     
+    !do while (comp_id /= c%id)
+    !   c => c%nextComp()
     !end do
-!!$call mpi_finalize(ierr)
-!!$    stop
-    call c_lnL%theta_smooth(par_id)%p%udgrade(c_lnL%theta(par_id)%p)
+    !select type (c)
+    !class is (comm_diffuse_comp)
+    !   c_lnL => c !to be able to access all diffuse comp parameters through c_lnL
+    !end select
+
+
+!   ! do pol = 1, c_lnL%theta_smooth(par_id)%p%info%nmaps
+    !pol = 1
+    !do pix = 0, c_lnL%theta_smooth(par_id)%p%info%np-1
+    !   if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) <= c_lnL%p_uni(1,par_id)+eps) then
+    !      x(1) = c_lnL%p_uni(1,par_id)+eps
+    !      x(3) = min(x(1) + c_lnL%p_gauss(2,par_id), c_lnL%p_uni(2,par_id)-eps)
+    !      x(2) = 0.5d0*(x(1)+x(3))
+    !   else if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) >= c_lnL%p_uni(2,par_id)-eps) then
+    !      x(3) = c_lnL%p_uni(2,par_id)-eps
+    !      x(1) = max(x(3) - c_lnL%p_gauss(2,par_id), c_lnL%p_uni(1,par_id)+eps)
+    !      x(2) = 0.5d0*(x(1)+x(3))
+    !   else
+    !      x(2) = c_lnL%theta_smooth(par_id)%p%map(pix,pol)
+    !      x(1) = max(x(2) - c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(1,par_id)))
+    !      x(3) = min(x(2) + c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(2,par_id)))
+    !      if (x(2) == x(1) .or. x(2) == x(3)) x(2) = 0.5d0*(x(1)+x(3))
+    !   end if
+    !   theta_old = x(2)
+
+    !   if (mod(pix,1000) == 0) lnL_old = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
+    !   c_lnL%theta_smooth(par_id)%p%map(pix,pol) = &
+    !        & sample_InvSamp(handle, x, lnL_simple, prior=c_lnL%p_uni(:,par_id), &
+    !        & optimize=(trim(cpar%operation)=='optimize'), status=status)
+    !   if (mod(pix,1000) == 0) then
+    !      lnL_new = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
+    !      write(*,fmt='(i8,2f8.3,2e16.8)') c_lnL%theta_smooth(par_id)%p%info%pix(pix+1), theta_old, c_lnL%theta_smooth(par_id)%p%map(pix,pol), lnL_old, lnL_new
+    !   end if
+    !end do
+    !!end do
+!!$c!all mpi_finalize(ierr)
+!!$ !   stop
+    !call c_lnL%theta_smooth(par_id)%p%udgrade(c_lnL%theta(par_id)%p)
 
   contains
 
@@ -1974,36 +1974,9 @@ contains
       integer(i4b) :: i, j, n
       real(dp)     :: s, res, theta(6)
       real(dp), allocatable, dimension(:,:) :: f_precomp
-      
-      ! Check priors
-      if (x < c_lnL%p_uni(1,par_id) .or. x > c_lnL%p_uni(2,par_id)) then
-         lnL_simple = 1.d30
-         return
-      end if
-      
-      ! Set up internal parameter array
-      n = c_lnL%npar
-      do i = 1, n
-         theta(i) = c_lnL%theta_smooth(i)%p%map(pix,pol)
-         theta(i) = max(theta(i), c_lnL%p_uni(1,i)+eps)
-         theta(i) = min(theta(i), c_lnL%p_uni(2,i)-eps)
-      end do
-      theta(par_id) = x
-      
-      ! Compute chi-square term
-      lnL_simple      = 0.d0
-      do j = 1, numband
-         if (.not. associated(rms_smooth(j)%p)) cycle
-         s   = c_lnL%x_smooth%map(pix,pol) * c_lnL%F_int(1,j,0)%p%eval(theta(1:n))&
-              & * data(j)%gain * c_lnL%cg_scale(pol)
-         res = res_smooth(j)%p%map(pix,pol) - s
-         lnL_simple = lnL_simple - 0.5d0 * res**2 / rms_smooth(j)%p%rms_pix(pix,pol)**2
-      end do
 
-      ! Add Gaussian prior
-      if (c_lnL%p_gauss(2,par_id) > 0.d0) then
-         lnL_simple = lnL_simple -0.5d0*((x-c_lnL%p_gauss(1,par_id))/c_lnL%p_gauss(2,par_id))**2
-      end if
+      lnL_simple = 0d0
+      
 
     end function lnL_simple
     
