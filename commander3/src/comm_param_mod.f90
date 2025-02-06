@@ -3086,7 +3086,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      end if
 
 
-end subroutine
+end subroutine read_zodi_params_hash
 
   ! ********************************************************
   !                     Utility routines
