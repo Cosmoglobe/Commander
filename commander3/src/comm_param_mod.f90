@@ -318,6 +318,8 @@ contains
 
     call getarg(1, paramfile)
 
+    write(*,*) cpar%myid, cpar%root, 'stuff is here'
+
     ! Read parameters into cache
     if (cpar%myid == cpar%root) then
        paramfile_len = 512
@@ -380,7 +382,9 @@ contains
     cpar%myid_chain = ind(cpar%myid,2)
     cpar%init_chain_prefix = cpar%init_chain_prefixes(mod(cpar%mychain-1,cpar%num_init_chains)+1)
 
+    write(*,*) 'pre-comm_split', cpar%mychain, cpar%myid_chain, cpar%comm_chain, ierr
     call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
+    write(*,*) 'post-comm_split', cpar%mychain, cpar%myid_chain, cpar%comm_chain, ierr
     call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
 
     !Communicators for shared memory access

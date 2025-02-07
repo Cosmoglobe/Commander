@@ -163,6 +163,7 @@ contains
           constructor_mapinfo => p
           return
        else
+          write(*,*) "Map hasnt existed yet"
           p_prev => p
           p      => p%nextLink
        end if
@@ -488,7 +489,6 @@ contains
     integer(i4b) :: i
 
     call timer%start(TOT_SHT)
-    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)

@@ -132,12 +132,9 @@ contains
     twolmaxp2 = 2*lmax+2
     npix      = real(invN_diag%info%npix,dp)
 
-    allocate(N_lm(0:invN_diag%info%nalm-1,invN_diag%info%nmaps))
-    allocate(a_l0(0:lmax,invN_diag%info%nmaps))
     call invN_diag%YtW_scalar
 
 
-    deallocate(N_lm, a_l0)
     
   end subroutine compute_invN_lm
 

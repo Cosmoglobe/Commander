@@ -25,8 +25,12 @@ program commander
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call MPI_Init(ierr)
+  write(*,*) 'MPI_init ierr ', ierr
+
+  write(*,*) cpar%myid, 'uninitialized?'
 
   call read_comm_params(cpar)
+  write(*,*) cpar%myid, 'initialized?'
   
   call initialize_mpi_struct(cpar, handle)
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)

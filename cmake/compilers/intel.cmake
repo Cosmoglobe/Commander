@@ -82,16 +82,18 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-g" 
 		"-xHost" 
     "-debug" "all"
-    "-check" "all,nouninit"
+    "-check" "all,nouninit,bounds,pointer"
     "-warn" "all,nounused,noexternal"
     "-fp-stack-check"
     "-fstack-protector-all"
 		"-traceback" 
-		"-qopenmp"
+		"-fno-openmp"
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
+    "-fno-inline"
+    "-no-vec"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
