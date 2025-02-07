@@ -99,61 +99,6 @@ contains
     allocate(c)
 
 
-    ! Initialize general parameters
-    c%class     = cpar%cs_class(id_abs)
-    c%type      = cpar%cs_type(id_abs)
-    c%label     = label !cpar%cs_label(id_abs)
-    c%id        = id
-    c%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
-    c%outprefix = trim(cpar%cs_label(id_abs))
-    c%init_from_HDF   = cpar%cs_initHDF(id_abs)
-    c%cg_scale  = 1.d0
-    c%output    = .true.
-    c%myid      = cpar%myid_chain
-    c%comm      = cpar%comm_chain
-    c%numprocs  = cpar%numprocs_chain
-    c%P         = [mu,rms]
-    c%T_scale   = 1.d0
-    npre                  = npre + 1
-    comm_pre              = cpar%comm_chain
-    myid_pre              = cpar%myid_chain
-    numprocs_pre          = cpar%numprocs_chain
-
-    if (c%myid == 0) then
-       c%ncr = 1
-       c%x   = def
-    else
-       c%ncr = 0
-    end if
-
-    if (present(mapfile)) then
-       c%band      = band
-
-       ! Read template and mask
-       c%T => comm_map(data(band)%info, trim(mapfile))
-       if (trim(maskfile) /= 'fullsky') then
-          c%mask  => comm_map(data(band)%info, trim(maskfile))
-          c%P_cg  =  c%P      ![mu,1.d-6]
-       else
-          c%P_cg  =  c%P      
-       end if
-    end if
-
-    ! Set up CG sampling groups
-    allocate(c%active_samp_group(cpar%cg_num_samp_groups))
-    c%active_samp_group = .false.
-    if (mu > 0.d0) then
-       do i = 1, cpar%cg_num_samp_groups
-          call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-          do j = 1, n
-             if (trim(c%label) == trim(comp_label(j))) then
-                c%active_samp_group(i) = .true.
-                if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component
-                exit
-             end if
-          end do
-       end do
-    end if
 
   end function constructor_template
   
@@ -171,31 +116,10 @@ contains
     character(len=1024) :: line, label, mapfile, maskfile
     class(comm_comp), pointer :: c => null()
 
-    unit  = getlun()
 
-    ! Find number of lines
+    initialize_template_comps => null()
     n = 0
-    open(unit, file=trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
-    do while (.true.)
-       read(unit,'(a)', end=1) line
-       line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
-       read(line,*) label, mapfile, maskfile, mu, rms, def
-       do i = 1, numband
-          if (trim(label) == trim(data(i)%label)) exit
-       end do
-       if (i > numband) cycle
 
-       if (n == 0) then
-          initialize_template_comps => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, &
-               & i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
-       else
-          c => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
-          call initialize_template_comps%addComp(c)
-       end if
-       n = n+1
-    end do
-1   close(unit)
   
   end function initialize_template_comps
 

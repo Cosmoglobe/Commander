@@ -82,7 +82,6 @@ contains
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
 
-    call timer%start(TOD_NCORR, self%band)
 
     nomono_ = .false.; if (present(nomono)) nomono_ = nomono
     
@@ -96,16 +95,6 @@ contains
     n        = nfft / 2 + 1
 
 
-    call timer%start(TOT_FFT)
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-    call timer%stop(TOT_FFT)
-
-    call timer%start(TOT_FFT)
-    allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-    call timer%stop(TOT_FFT)
 
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -169,9 +158,6 @@ contains
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          call timer%start(TOT_FFT)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          call timer%stop(TOT_FFT)
 
           if (nomono_) then
              dv(0)    = 0.d0
@@ -199,9 +185,6 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
-          call timer%start(TOT_FFT)
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
-          call timer%stop(TOT_FFT)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
@@ -228,7 +211,6 @@ contains
     call dfftw_destroy_plan(plan_fwd)                                           
     call dfftw_destroy_plan(plan_back)                                          
 
-    call timer%stop(TOD_NCORR, self%band)
   
   end subroutine sample_n_corr
 
@@ -363,13 +345,6 @@ contains
       allocate(dt(nfft), dv(0:n-1))
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-      call timer%start(TOT_FFT)
-      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-      call timer%stop(TOT_FFT)
-      dv = dv * mat
-      call timer%start(TOT_FFT)
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
-      call timer%stop(TOT_FFT)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       deallocate(dt, dv)
@@ -392,50 +367,6 @@ contains
     character(len=1024) :: filename
     real(dp), allocatable, dimension(:) :: d_downsamp, backup
     
-    ntod       = self%scans(scan)%ntod
-    n_downsamp = floor(self%samprate)
-    n          = ntod - mod(ntod, n_downsamp)
-    n_short    = n / n_downsamp
-
-    allocate(backup(n_short), d_downsamp(n_short))
-
-    avg = mean(d_prime * 1.d0)
-    do i = 1, n_short
-       backup(i) = sum(d_prime((i-1)*n_downsamp+1:i*n_downsamp) - avg) / n_downsamp  
-    end do
-    
-    do i = 1, n_short
-       l = max(i-5, 1)
-       k = min(i+5, n_short)
-       d_downsamp(i) = backup(i) - median(backup(l:k))
-    end do
-    found_spike = .false.
-    rms = sqrt(variance(d_downsamp(:)))
-    n_sigma = 10
-    do i = 1, n_short
-       if (.false. .and. d_downsamp(i) > n_sigma * rms) then
-          if (.not. found_spike) then
-             write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
-             open(62,file=filename, status='REPLACE')
-             found_spike = .true.
-          end if
-          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(62, '(4I7, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
-       end if
-    end do
-    
-    if (.false. .and. found_spike) then
-       close(62)
-       write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
-       open(63,file=filename, status='REPLACE')
-       do i = 1, n_short
-          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(63, '(I7, 2(E15.6E3))') sampnum, d_downsamp(i), rms
-       end do
-       close(63)
-    end if
-
-    deallocate(backup, d_downsamp)
   end subroutine find_d_prime_spikes
 
 
@@ -463,7 +394,6 @@ contains
 
     ! Subroutine to fit noise parameters, alpha, 1/f sigma_0
 
-    call timer%start(TOD_XI_N, self%band)
     
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -510,11 +440,6 @@ contains
     
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
-    call timer%start(TOT_FFT)
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call timer%stop(TOT_FFT)
 
     ! Sample non-linear spectral parameters
     do i = 1, ndet
@@ -530,9 +455,6 @@ contains
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              dt     = n_corr(:,i)
 
-             call timer%start(TOT_FFT)
-             call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-             call timer%stop(TOT_FFT)
              do l = n_low, n_high
                 ps(l) = abs(dv(l)) ** 2 / ntod
              end do
@@ -555,7 +477,6 @@ contains
     deallocate(ps)
     call sfftw_destroy_plan(plan_fwd)
 
-    call timer%stop(TOD_XI_N, self%band)
     
   contains
 
@@ -641,12 +562,6 @@ contains
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
     
     allocate(dt(2*ntod,m), dv(0:n-1,m))
-    call timer%start(TOT_FFT)
-    call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
-         & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
-    call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
-         & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
-    call timer%stop(TOT_FFT)
     
     j = 0
     do i = 1, ndet
@@ -656,9 +571,6 @@ contains
        dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
     end do
 
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-    call timer%stop(TOT_FFT)
 
     j = 0
     do i = 1, ndet
@@ -674,9 +586,6 @@ contains
        end do
     end do
       
-    call timer%start(TOT_FFT) 
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    call timer%stop(TOT_FFT) 
     dt = dt / (2*ntod)
 
     j = 0

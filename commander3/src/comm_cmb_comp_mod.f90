@@ -56,21 +56,6 @@ contains
 
     ! General parameters
     allocate(c)
-    c%npar         = 0
-    call c%initDiffuse(cpar, id, id_abs)
-
-    ! Precompute mixmat integrator for each band
-    allocate(c%F_int(3,numband,0:c%ndet))
-    call c%update_F_int
-    
-    ! Initialize mixing matrix
-    call c%updateMixmat
-
-    ! Prepare CMB dipole prior
-    if (trim(cpar%cmb_dipole_prior_mask) /= 'none') then
-       c%priormask        => comm_map(c%x%info, trim(cpar%cmb_dipole_prior_mask))
-       c%cmb_dipole_prior =  c%cmb_dipole_prior / c%RJ2unit_(1)
-    end if
 
   end function constructor_cmb
 
@@ -86,7 +71,7 @@ contains
     real(dp)                                      :: evalSED_cmb
 
     real(dp) :: x
-    x           = h*nu / (k_B*T_CMB)
+    x           = 0
     evalSED_cmb = (x**2 * exp(x)) / (exp(x)-1.d0)**2
 
   end function evalSED_cmb
@@ -109,12 +94,6 @@ contains
                    cycle
                 end if
              end if
-             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
-             !if (.not. associated(self%F_int(k,i,j)%p)) then
-                self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
-             !else
-             !   call self%F_int(k,i,j)%p%update(f_precomp=f)
-             !end if
           end do
        end do
     end do
@@ -131,29 +110,6 @@ contains
     class(comm_map),  pointer :: map
     class(comm_comp), pointer :: c => null()
 
-    c => compList
-    do while (associated(c))
-       select type (c)
-       class is (comm_cmb_comp)
-          call c%x%Y
-          md = c%x%fit_MDpoles(c%priormask)
-          
-          do i = 0, c%x%info%nalm-1
-             call c%x%info%i2lm(i,l,m)
-             if (l == 1 .and. m == -1) then   ! Y dipole
-                c%x%alm(i,1) = c%x%alm(i,1) - sqrt(4.d0*pi/3.d0) * md(2) + cpar%cmb_dipole_prior(2)
-             end if
-             if (l == 1 .and. m ==  0) then   ! Z dipole
-                c%x%alm(i,1) = c%x%alm(i,1) - sqrt(4.d0*pi/3.d0) * md(3) + cpar%cmb_dipole_prior(3)
-             end if
-             if (l == 1 .and. m ==  1) then   ! X dipole
-                c%x%alm(i,1) = c%x%alm(i,1) + sqrt(4.d0*pi/3.d0) * md(1) + cpar%cmb_dipole_prior(1)
-             end if
-          end do
-
-       end select
-       c => c%nextComp()
-    end do
 
   end subroutine apply_cmb_dipole_prior
 

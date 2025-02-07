@@ -44,7 +44,6 @@ module comm_tod_adc_mod
     real(sp)                                     :: v_min, v_max ! Global variable for the experiment determined in the parameter file 
     class(comm_mapinfo), pointer                 :: info => null()    ! Map definition
     character(len=512)                           :: outdir
-    type(spline_type)                            :: sadc
 
     real(sp),          allocatable, dimension(:) :: rms_bins2
     integer(i4b),      allocatable, dimension(:) :: nval2

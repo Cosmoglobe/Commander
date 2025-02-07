@@ -47,11 +47,9 @@ contains
     if (cpar%myid_chain == 0) then
        inquire(file=trim(chainfile), exist=exist)
        if (trim(cpar%chain_status) == 'new' .or. .not. exist) then
-          if (exist) call rm(trim(chainfile))
           call open_hdf_file(chainfile, file, 'w')
 
           ! testing hdf parameter output
-          call write_params_to_hdf(cpar, file)
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -76,7 +74,6 @@ contains
        !delete fg_ind_mean_cXXXX.dat if it exists
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
        inquire(file=fg_file, exist=exist)
-       if (exist) call rm(trim(fg_file))
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -125,58 +122,9 @@ contains
        call create_hdf_group(chainfile, trim(adjustl(iter))//'/bandpass')
     end if
     
-    unit = getlun()
-    open(unit, file=trim(filename), recl=1024)
-    write(unit,*) '#       Band          Gain         delta_bp(0)%p'
-    do i = 1, numband
-       write(unit,'(a15,f12.5,f10.2)') adjustl(trim(data(i)%label)), data(i)%gain, data(i)%bp(0)%p%delta
-       if (output_hdf) then
-          call write_hdf(chainfile, trim(adjustl(iter))//'/gain/'//trim(adjustl(data(i)%label)), &
-               & data(i)%gain)
-
-          allocate(bp_delta(0:data(i)%ndet,data(i)%bp(0)%p%npar))
-          do j = 0, data(i)%ndet
-             bp_delta(j,:) = data(i)%bp(j)%p%delta
-          end do
-          call write_hdf(chainfile, trim(adjustl(iter))//'/bandpass/'//&
-               & trim(adjustl(data(i)%label)//'_det'), bp_delta)
-          deallocate(bp_delta)
-       end if
-    end do
-    close(unit)
 
   end subroutine output_inst_params
 
   ! =============== testing hdf parameter output ===============
-  subroutine write_params_to_hdf(cpar, chainfile)
-      implicit none 
-      type(comm_params), intent(in) :: cpar
-      type(hdf_file),    intent(in) :: chainfile
-      integer(i4b) :: n, i
-      character(len=512) :: hdf_path, polarization
-
-      call create_hdf_group(chainfile, 'parameters')
-      n = size(cpar%cs_label)
-      do i = 1, n
-         hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
-         call create_hdf_group(chainfile, trim(hdf_path))
-
-         if (cpar%cs_polarization(i)) then
-            polarization = "True"
-         else
-            polarization = "False"
-         endif
-
-         ! Model parameters required by cosmoglobe not included in the gibbs iter part tof h5 file
-         call write_hdf_0d_char(chainfile, trim(adjustl(hdf_path))//'/type', trim(cpar%cs_type(i)))
-         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/class', trim(cpar%cs_class(i)))
-         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/nside', cpar%cs_nside(i))
-         call write_hdf_0d_char(chainfile, trim(adjustl(hdf_path))//'/polarization', trim(polarization))
-         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/unit', trim(cpar%cs_unit(i)))
-         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/nu_ref', cpar%cs_nu_ref(i,:))
-         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/fwhm', cpar%cs_fwhm(i))
-      end do 
-
-  end subroutine write_params_to_hdf
   ! ============================================================
 end module comm_output_mod

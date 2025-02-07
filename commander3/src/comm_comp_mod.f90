@@ -227,66 +227,6 @@ contains
     integer(i4b) :: i, j, n
     character(len=16), dimension(1000) :: comp_label
 
-    self%id              = id
-    self%active          = cpar%cs_include(id_abs)
-    self%label           = cpar%cs_label(id_abs)
-    self%type            = cpar%cs_type(id_abs)
-    self%class           = cpar%cs_class(id_abs)
-    self%unit            = cpar%cs_unit(id_abs)
-    self%nu_ref          = cpar%cs_nu_ref(id_abs,:)
-    self%myid            = cpar%myid_chain    
-    self%comm            = cpar%comm_chain
-    self%numprocs        = cpar%numprocs_chain
-    self%init_from_HDF   = cpar%cs_initHDF(id_abs)
-    self%operation       = cpar%operation
-
-    call get_tokens(cpar%output_comps, ",", comp_label, n)
-    self%output = .false.
-    do i = 1, n
-       if (trim(comp_label(i)) == trim(self%label) .or. trim(comp_label(i)) == 'all') then
-          self%output = .true.
-          exit
-       end if
-    end do
-
-    ! Set up conversion factor between RJ and native component unit
-    do i = 1, 3
-       select case (trim(self%unit))
-       case ('uK_cmb')
-          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i))
-       case ('mK_cmb')
-          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-3
-       case ('K_cmb')
-          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-6
-       case ('MJy/sr') 
-          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1d14
-       case ('Kkm/s') 
-          ! Deferred to dedicated module
-          self%RJ2unit_(i) = 1.d0
-       case ('y_SZ') 
-          self%RJ2unit_(i) = 2.d0*self%nu_ref(i)**2*k_b/c**2 / &
-               & (comp_bnu_prime(self%nu_ref(i)) * comp_sz_thermo(self%nu_ref(i)))
-       case ('uK_RJ') 
-          self%RJ2unit_(i) = 1.d0
-       case default
-          call report_error('Unsupported unit: ' // trim(self%unit))
-       end select
-    end do
-
-    ! Set up CG sampling groups
-    allocate(self%active_samp_group(cpar%cg_num_samp_groups))
-    self%active_samp_group = .false.
-    !loop the additional sampling groups added to guarantee all components having their own sampling group
-    do i = 1, cpar%cg_num_samp_groups 
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(self%label) == trim(comp_label(j))) then
-             self%active_samp_group(i) = .true.
-             if (n == 1) self%cg_unique_sampgroup = i ! Dedicated sampling group for this component
-             exit
-          end if
-       end do
-    end do
 
   end subroutine initComp
 
@@ -298,58 +238,20 @@ contains
     integer(i4b) :: i
     real(dp)     :: nu, dnu, S
 
-    if (trim(self%type) == 'line') then
-       do i = 1, numband
-          S = self%S(band=i, theta=self%theta_def(1:self%npar))
-          if (S /= 0.d0) write(unit,*) data(i)%bp(0)%p%nu_c*1d-9, S
-       end do
-    else
-       nu = nu_dump(1)
-       dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
-       do i = 1, n_dump
-          if (self%npar > 0) then
-             S = self%S(nu, theta=self%theta_def(1:self%npar), pol=1)
-          else
-             S = self%S(nu)
-          end if
-          if (S /= 0.d0) write(unit,*) nu*1d-9, S
-          nu = nu*dnu
-       end do
-    end if
     
   end subroutine dumpSED
 
-!!$  subroutine dumpCompMaps(postfix, dir)
-!!$    implicit none
-!!$    character(len=*), intent(in) :: postfix, dir
-!!$
-!!$    class(comm_comp), pointer :: c
-!!$
-!!$    c => compList
-!!$    do while (associated(c))
-!!$       call c%dumpFITS(postfix, dir)
-!!$       c => c%next()
-!!$    end do
-!!$    
-!!$  end subroutine dumpCompMaps
 
-  function RJ2unit(self, pol, bp)
+  function RJ2unit(self, pol)
     implicit none
 
     class(comm_comp), intent(in)           :: self
     integer(i4b),     intent(in)           :: pol
-    class(comm_bp),   intent(in), optional :: bp
     real(dp)                               :: RJ2unit
 
-    if (present(bp)) then
-       if (trim(self%unit) == 'K km/s') then
-          RJ2unit = 1.d0 / bp%lineAmp_RJ(self%nu_ref(pol))
-       else
-          RJ2unit = self%RJ2unit_(pol)
-       end if
-    else
-       RJ2unit = self%RJ2unit_(pol)
-    end if
+
+    RJ2unit = 0d0
+
     
   end function RJ2unit
 

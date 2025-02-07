@@ -63,42 +63,6 @@ contains
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
-
-    ! Component specific parameters
-    constructor%type        =  'b_l'    
-    constructor%info        => info
-    constructor%almFromConv = .true.
-    if (present(fwhm)) then
-       allocate(constructor%b_l(0:constructor%info%lmax,constructor%info%nmaps))
-!!$       do l = 0, constructor%info%lmax
-!!$          constructor%b_l(l,:) = exp(-0.5d0*l*(l+1)*(fwhm*pi/180.d0/60/sqrt(8.d0*log(2.d0)))**2)
-!!$       end do
-       if (present(nside)) then
-          call int2string(nside, nside_text)
-          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'pixel_window_n'//nside_text//'.fits')
-       else if (present(pixwin)) then
-          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'/'//trim(pixwin))
-       else
-          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
-       end if
-    else
-       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
-            & beamfile=trim(cpar%ds_blfile(id_abs)), &
-            & pixwin=trim(cpar%ds_pixwin(id_abs)))
-    end if
-
-    ! Multiply with main beam filling factor
-    constructor%mb_eff = 1.d0; if (present(mb_eff)) constructor%mb_eff = mb_eff
-
-    ! Initialize real-space profile
-!!$    init_real = .true.; if (present(init_realspace)) init_real = init_realspace
-!!$    if (init_real) then
-!!$       call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
-!!$       constructor%r_max = maxval(constructor%b_theta(1)%x)
-!!$    end if
     
   end function constructor
   
@@ -108,18 +72,6 @@ contains
     logical(lgt),     intent(in)    :: trans
     class(comm_map),  intent(inout) :: map
 
-    integer(i4b) :: i, j, l
-
-    do i = 0, map%info%nalm-1
-       l = map%info%lm(1,i)
-       if (l <= self%info%lmax) then
-          do j = 1, min(self%info%nmaps, map%info%nmaps)
-             map%alm(i,j) = map%alm(i,j) * self%b_l(l,j) * self%mb_eff
-          end do
-       else
-          map%alm(i,:) = 0.d0
-       end if
-    end do
 
   end subroutine matmulB_bl
 
@@ -129,22 +81,6 @@ contains
     logical(lgt),     intent(in)    :: trans
     class(comm_map),  intent(inout) :: map
 
-    integer(i4b) :: i, l, j
-
-    do i = 0, map%info%nalm-1
-       l = map%info%lm(1,i)
-       if (l <= self%info%lmax) then
-          do j = 1, min(self%info%nmaps, map%info%nmaps)
-             if (self%b_l(l,j) > 1.d-12) then
-                map%alm(i,j) = map%alm(i,j) / self%b_l(l,j) / self%mb_eff
-             else
-                map%alm(i,j) = 0.d0
-             end if
-          end do
-       else
-          map%alm(i,:) = 0.d0
-       end if
-    end do
 
   end subroutine matmulInvB_bl
 

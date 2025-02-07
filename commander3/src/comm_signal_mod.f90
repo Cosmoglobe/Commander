@@ -90,7 +90,6 @@ contains
     character(len=3) :: toks(MAXSAMPGROUP)
 
 
-    call timer%stop(TOT_AMPSAMP)
 
   end subroutine sample_all_amps_by_CG
 

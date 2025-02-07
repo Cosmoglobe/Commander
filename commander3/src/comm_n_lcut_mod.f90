@@ -78,73 +78,6 @@ contains
     ! General parameters
     allocate(constructor)
 
-    ! Component specific parameters
-    constructor%type              = cpar%ds_noise_format(id_abs)
-    constructor%nmaps             = info%nmaps
-    constructor%pol               = info%nmaps == 3
-    constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
-    constructor%set_noise_to_mean = cpar%set_noise_to_mean
-    constructor%cg_precond        = cpar%cg_precond
-    constructor%info              => info
-    constructor%lcut              = cpar%ds_noise_lcut(id_abs)
-
-    if (id_smooth == 0) then
-       constructor%nside        = info%nside
-       constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
-       constructor%np           = info%np
-       if (cpar%ds_regnoise(id_abs) /= 'none') then
-          constructor%rms_reg => comm_map(constructor%info, trim(cpar%ds_regnoise(id_abs)))
-       end if
-       if (present(procmask)) then
-          call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
-               & noisefile=trim(cpar%ds_noisefile(id_abs)))
-       else
-          call constructor%update_N(info, handle, mask, regnoise, &
-               & noisefile=trim(cpar%ds_noisefile(id_abs)))
-       end if
-    else
-       tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
-       info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-            & constructor%nmaps, constructor%pol)
-       constructor%nside   = info_smooth%nside
-       constructor%np      = info_smooth%np
-       constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-
-       where (constructor%siN%map > 0.d0) 
-          constructor%siN%map = 1.d0 / constructor%siN%map
-       elsewhere
-          constructor%siN%map = 0.d0
-       end where
-
-       ! Set siN to its mean; useful for debugging purposes
-       if (cpar%set_noise_to_mean) then
-          do i = 1, constructor%nmaps
-             sum_noise = sum(constructor%siN%map(:,i))
-             npix      = size(constructor%siN%map(:,i))
-             call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             constructor%siN%map(:,i) = sum_noise/npix
-          end do
-       end if
-
-    end if
-
-    constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
-    call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
-
-    ! Initialize CG sample group masks
-    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
-    do i = 1, cpar%cg_num_user_samp_groups
-       if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
-       where (constructor%samp_group_mask(i)%p%map > 0.d0)
-          constructor%samp_group_mask(i)%p%map = 1.d0
-       elsewhere
-          constructor%samp_group_mask(i)%p%map = 0.d0
-       end where
-    end do
-
-    call constructor%init_P0(mask)
 
   end function constructor
 
@@ -160,106 +93,6 @@ contains
     character(len=*),                    intent(in),   optional :: noisefile
     class(comm_map),                     intent(in),   optional :: map
 
-    integer(i4b) :: i, j, ierr
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
-    class(comm_map),     pointer :: invW_tau => null(), iN => null()
-    class(comm_mapinfo), pointer :: info_lowres => null()
-
-    if (present(noisefile)) then
-       self%rms0     => comm_map(info, noisefile)
-    else
-       self%rms0%map = map%map
-    end if
-    if (associated(self%siN)) then
-       self%siN%map = self%rms0%map
-    else
-       self%siN     => comm_map(self%rms0)
-    end if
-    if (associated(self%rms_reg)) then
-       self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
-    end if
-    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-    self%siN%map = self%siN%map * mask%map ! Apply mask
-    if (present(procmask)) then
-       where (procmask%map < 0.5d0)
-          self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
-       end where
-    end if
-
-    ! Invert rms
-    where (self%siN%map > 0.d0) 
-       self%siN%map = 1.d0 / self%siN%map
-    elsewhere
-       self%siN%map = 0.d0
-    end where
-
-    ! Add white noise corresponding to the user-specified regularization noise map
-    if (associated(self%rms_reg) .and. present(regnoise)) then
-       do j = 1, self%rms_reg%info%nmaps
-          do i = 0, self%rms_reg%info%np-1
-             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
-          end do
-       end do
-    end if
-
-    ! Set siN to its mean; useful for debugging purposes
-    if (self%set_noise_to_mean) then
-       do i = 1, self%nmaps
-          sum_noise = sum(self%siN%map(:,i))
-          npix      = size(self%siN%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          self%siN%map(:,i) = sum_noise/npix
-       end do
-    end if
-
-    if (trim(self%cg_precond) == 'diagonal') then
-       ! Set up diagonal covariance matrix
-       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
-       self%invN_diag%map = self%siN%map**2
-       call compute_invN_lm(self%invN_diag)
-    else if (trim(self%cg_precond) == 'pseudoinv') then
-       ! Compute alpha_nu for pseudo-inverse preconditioner
-       if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
-       invW_tau     => comm_map(self%siN)
-       invW_tau%map =  invW_tau%map**2
-       call invW_tau%Yt()
-       call invW_tau%Y()
-       ! Temperature
-       sum_tau  = sum(invW_tau%map(:,1))
-       sum_tau2 = sum(invW_tau%map(:,1)**2)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-       if (sum_tau > 0.d0) then
-          self%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
-       else
-          self%alpha_nu(1) = 0.d0
-       end if
-
-       if (self%nmaps == 3) then
-          sum_tau  = sum(invW_tau%map(:,2:3))
-          sum_tau2 = sum(invW_tau%map(:,2:3)**2)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          if (sum_tau > 0.d0) then
-             self%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
-          else
-             self%alpha_nu(2:3) = 0.d0
-          end if
-          call invW_tau%dealloc(); deallocate(invW_tau)
-       end if
-    end if
-
-    ! Set up lowres map
-    if (.not.associated(self%siN_lowres)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
-       self%siN_lowres => comm_map(info_lowres)
-    end if
-    iN => comm_map(self%siN)
-    iN%map = iN%map**2
-    call iN%udgrade(self%siN_lowres)
-    call iN%dealloc(); deallocate(iN)
-    self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_lcut
 
@@ -351,12 +184,12 @@ contains
     where (self%siN%map > 0.d0)
        res%map = 1.d0/self%siN%map
     elsewhere
-       res%map = infinity
+       res%map = 0
     end where
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           where (self%samp_group_mask(samp_group)%p%map == 0.d0)
-             res%map = infinity
+             res%map = 0
           end where
        end if
     end if
@@ -373,12 +206,12 @@ contains
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMS_lcut_pix = 1.d0/self%siN%map(pix,pol)
     else
-       returnRMS_lcut_pix = infinity
+       returnRMS_lcut_pix = 0
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
-             returnRMS_lcut_pix = infinity
+             returnRMS_lcut_pix = 0
           end if
        end if
     end if
@@ -448,7 +281,6 @@ contains
     call mpi_allreduce(MPI_IN_PLACE, C,  size(C), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
 
     ! Compute eigen-decomposition
-    call get_eigen_decomposition(C, W, V)
 
     ! Store relevant modes
     self%nmode = count(W > eps*maxval(W))

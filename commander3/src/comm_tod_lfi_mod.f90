@@ -45,7 +45,6 @@ module comm_tod_lfi_mod
      logical(lgt) :: use_dpc_gain_modulation
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
-     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet, ndiode/2
      type(adc_pointer), allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet

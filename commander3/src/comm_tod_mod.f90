@@ -183,7 +183,6 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
      real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
-     type(spline_type)                                 :: x_obs_spline(3), x_earth_spline(3) ! splines to compute observer and earth positions
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -235,7 +234,6 @@ module comm_tod_mod
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
      integer(i4b), allocatable, dimension(:) :: split
 
-     ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
    !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cache for zodi
@@ -244,7 +242,6 @@ module comm_tod_mod
      !real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
-     type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering, udgrade_zodi
    contains
      procedure                           :: read_tod
@@ -652,7 +649,6 @@ contains
     real(dp)     :: psi_, unwrap, x0, x1
 
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
 
 
     s_sl = 0
@@ -899,42 +895,6 @@ contains
     logical(lgt),                    intent(in), optional :: absbp, verbose
 
     
-    real(dp)     :: chisq, d0, g
-    integer(i4b) :: i, n
-
-    call timer%start(TOD_CHISQ, self%band)
-
-    chisq       = 0.d0
-    n           = 0
-    g           = self%scans(scan)%d(det)%gain
-    do i = 1, self%scans(scan)%ntod
-       if (mask(i) < 0.5) cycle
-       n     = n+1
-       d0    = tod(i) - (g * s_spur(i) + n_corr(i))
-       if (present(s_jump)) d0 = d0 - s_jump(i)
-       chisq = chisq + (d0 - g * s_sky(i))**2
-    end do
-
-    if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
-       if (present(absbp)) then
-          self%scans(scan)%d(det)%chisq_prop   = 0.d0
-       else
-          self%scans(scan)%d(det)%chisq        = 0.d0
-       end if
-    else
-       chisq      = chisq      / self%scans(scan)%d(det)%N_psd%sigma0**2
-       if (present(absbp)) then
-          self%scans(scan)%d(det)%chisq_prop   = chisq
-       else
-          self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
-       end if
-    end if
-    if (present(verbose)) then
-      if (verbose) write(*,fmt='(a,i8,i3,e16.8,i10,f16.3)') "chi2 :  ", self%scanid(scan), det, &
-         &self%scans(scan)%d(det)%N_psd%sigma0, n, self%scans(scan)%d(det)%chisq
-    end if
-
-    call timer%stop(TOD_CHISQ, self%band)
 
   end subroutine compute_tod_chisq
 
@@ -1147,25 +1107,9 @@ contains
     integer(i4b),        dimension(:),intent(in)  :: pix, psi
     integer(i4b),        dimension(:),intent(out) :: pix_sol, psi_sol
 
-    integer(i4b) :: i, j
-    real(dp)     :: alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
+    pix_sol = 0d0
+    psi_sol = 0d0
 
-    call ecl_to_gal_rot_mat(M_ecl2gal)
-    
-    do j = 1, tod%scans(scan)%ntod
-       ! Set up transformation from Ecliptic to Solar centered coordinates
-       alpha = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
-       x_sun = - (1.d0-alpha) * tod%scans(scan)%x0_obs - alpha * tod%scans(scan)%x1_obs ! Sun position at time t in Ecliptic coordinates
-       call vec2ang(x_sun, theta_sun, phi_sun)
-       call compute_euler_matrix_zyz(-phi_sun, 0.d0, 0.d0, M_sun)
-       
-       ! Compute pointing in solar centered coordinates
-       call pix2vec_ring(tod%nside, pix(j), vec0) ! Galactic coordinates
-       vec0 = matmul(transpose(M_ecl2gal), vec0)    ! Ecliptic coordinates
-       vec0 = matmul(M_sun, vec0)                   ! Solar-centered coordinates
-       call vec2pix_ring(tod%nside, vec0, pix_sol(j))
-    end do
-    psi_sol = 0 ! Not computed yet
     
   end subroutine compute_solar_centered_pointing
 
@@ -1428,108 +1372,6 @@ contains
       real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
       real(dp), allocatable :: time(:), x_obs(:, :), x_earth(:, :)
 
-      allocate(x0_obs(3, self%nscan_tot), x1_obs(3, self%nscan_tot))
-      allocate(x0_earth(3, self%nscan_tot), x1_earth(3, self%nscan_tot))
-      allocate(t0(self%nscan_tot), t1(self%nscan_tot))
-
-      x0_obs = 0.
-      x1_obs = 0.
-      x0_earth = 0.
-      x1_earth = 0.
-      t0 = 0.
-      t1 = 0.
-
-      do i = 1, self%nscan
-         t0(self%scanid(i)) = self%scans(i)%t0(1)
-         t1(self%scanid(i)) = self%scans(i)%t1(1)
-         x0_obs(:, self%scanid(i)) = self%scans(i)%x0_obs
-         x1_obs(:, self%scanid(i)) = self%scans(i)%x1_obs
-         x0_earth(:, self%scanid(i)) = self%scans(i)%x0_earth
-         x1_earth(:, self%scanid(i)) = self%scans(i)%x1_earth
-      end do
-
-      
-      call mpi_allreduce(MPI_IN_PLACE, t0, size(t0), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, t1, size(t1), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x0_obs, size(x0_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x1_obs, size(x1_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x0_earth, size(x0_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x1_earth, size(x1_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-
-      ! filter out non zero values
-      t0_packed = pack(t0, t0 /= 0.)
-      t1_packed = pack(t1, t1 /= 0.)
-      if (size(t0_packed) /= size(t1_packed)) then
-          write(*,*) "Irregularity in number of unique start/end-times of tods, ", size(t0_packed), ' versus ', size(t1_packed), ' needed for zodi/tod interpolation'
-          stop
-      end if
-  
-
-      allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))
-      allocate(x0_earth_packed(3, size(t0_packed)), x1_earth_packed(3, size(t0_packed)))
-      do i = 1, 3
-         x0_obs_packed(i, :) = pack(x0_obs(i, :), x0_obs(i, :) /= 0.)
-         x1_obs_packed(i, :) = pack(x1_obs(i, :), x1_obs(i, :) /= 0.)
-         x0_earth_packed(i, :) = pack(x0_earth(i, :), x0_earth(i, :) /= 0.)
-         x1_earth_packed(i, :) = pack(x1_earth(i, :), x1_earth(i, :) /= 0.)
-      end do
-
-      ! make new time, obs_pos and earth_pos arrays containing both chunk start and chunk end values
-      allocate(time(size(t0_packed) * 2))
-      allocate(x_obs(3, size(t0_packed) * 2))
-      allocate(x_earth(3, size(t0_packed) * 2))
-      do i = 1, size(t0_packed) * 2 , 2
-         j = (i - 1) / 2 + 1 ! index from 1, to size(t0)
-         time(i) = t0_packed(j)
-         time(i + 1) = t1_packed(j)
-         x_obs(:, i) = x0_obs_packed(:, j)
-         x_obs(:, i + 1) = x1_obs_packed(:, j)
-         x_earth(:, i) = x0_earth_packed(:, j)
-         x_earth(:, i + 1) = x1_earth_packed(:, j)
-      end do
-
-      do i = 2, size(time)
-         if (.not. time(i) > time(i - 1)) stop "precomputed MJD time array must be strictly increasing"
-      end do
-
-      do i = 1, 3
-         call spline_simple(self%x_obs_spline(i), time, x_obs(i, :))
-         call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
-      end do
-
-      self%zodi_init_cache_time = self%scans(1)%t0(1)
-      call self%clear_zodi_cache()
-      
-      !allocate spectral quantities
-      allocate(self%zodi_b_nu_spl_obj(self%ndet))
-
-      ! allocate cache files and precompute ecliptic unit vectors
-      call ecl_to_gal_rot_mat(rotation_matrix)
-      allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
-      allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
-      self%zodi_scat_cache = -1.d0
-      self%zodi_therm_cache = -1.d0
-      allocate(self%ind2vec_ecl(3, self%nobs))
-      do i = 1, self%nobs
-         self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
-      end do
-      
-      ! If zodi sampling is turned on we precompute lowres zodi lookups
-      if (.not. cpar%sample_zodi) return
-      ! Skip if zodi nside = tod nside
-      if (self%nside == zodi_nside) return
-      n_subpix = (self%nside / zodi_nside)**2
-
-      npix_lowres = 12*zodi_nside**2
-      npix_highres = 12*self%nside**2
-
-      ! Make lookup table for highres pixels to lowres pixels
-      allocate(self%udgrade_pix_zodi(0:npix_highres - 1))
-      do i = 0, npix_highres - 1
-         call ring2nest(self%nside, i, nest_pix)
-         nest_pix = nest_pix / n_subpix
-         call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
-      end do
    
    end subroutine precompute_zodi_lookups
 

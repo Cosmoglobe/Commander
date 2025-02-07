@@ -56,16 +56,6 @@ contains
 
     type(comm_params), intent(in) :: cpar
 
-    ! Set up global parameters
-    T_CMB = cpar%T_CMB
-    if (trim(cpar%MJysr_convention) == 'PSM') then
-       ind_iras = 0.d0
-    else if (trim(cpar%MJysr_convention) == 'IRAS') then
-       ind_iras = 1.d0
-    else
-       write(*,*) 'Unsupported MJy/sr convention = ', trim(cpar%MJysr_convention)
-       stop
-    end if
     
   end subroutine initialize_bp_mod
   

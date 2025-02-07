@@ -101,12 +101,6 @@ contains
     implicit none
     type(shared_ofile) :: ofile
     integer(i4b)       :: cfile
-    cfile = open_atomic_file(trim(ofile%filename), 0)
-    call lock_atomic_file(cfile, 0, 0)
-    call append_atomic_file(cfile, ofile%bufind, ofile%buffer)
-    ofile%bufind = 0
-    call unlock_atomic_file(cfile, 0, 0)
-    call close_atomic_file(cfile)
   end subroutine
 
 end module

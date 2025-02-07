@@ -102,7 +102,7 @@ contains
        real(dp)                                :: returnRMSpix
        integer(i4b),    intent(in),   optional :: samp_group
        logical(lgt),    intent(in),   optional :: ret_invN
-       returnRMSpix = infinity
+       returnRMSpix = 0
      end function returnRMSpix
 
      ! Update noise model

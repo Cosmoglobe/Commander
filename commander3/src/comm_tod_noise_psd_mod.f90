@@ -58,7 +58,6 @@ module comm_tod_noise_psd_mod
      real(sp),     allocatable, dimension(:,:)  :: P_active          ! Informative prior on xi_n (n_xi, mean/rms)
      logical(lgt), allocatable, dimension(:)    :: P_lognorm         ! true = lognorm prior; false = Gaussian prior
      logical(lgt)                               :: apply_filter      ! If we should apply the spline filter to the noise output
-     type(spline_type)                          :: modulation_filter ! The filter multiplied to the output noise
    contains
      procedure :: eval_full   => eval_noise_psd_full
      procedure :: eval_corr   => eval_noise_psd_corr
@@ -274,13 +273,8 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_2oof_full
 
-    eval_noise_psd_2oof_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA) + (nu/self%xi_n(FKNEE2))**self%xi_n(ALPHA2))
+    eval_noise_psd_2oof_full = 0
 
-    if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_2oof_full = eval_noise_psd_2oof_full * splint(self%modulation_filter, dble(nu))
-      end if
-    end if
 
   end function eval_noise_psd_2oof_full
 
@@ -300,13 +294,8 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_2oof_corr
 
-    eval_noise_psd_2oof_corr = self%xi_n(SIGMA0)**2 * ((nu/self%xi_n(FKNEE))**self%xi_n(ALPHA) + (nu/self%xi_n(FKNEE2))**self%xi_n(ALPHA2))
+    eval_noise_psd_2oof_corr = 0
 
-    if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_2oof_corr = eval_noise_psd_2oof_corr * splint(self%modulation_filter, dble(nu))
-      end if
-    end if
 
 
   end function eval_noise_psd_2oof_corr
@@ -386,9 +375,7 @@ contains
     eval_noise_psd_oof_gauss_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)) + self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC))/self%xi_n(G_SIG)))**2 ) 
 
     if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_gauss_full = eval_noise_psd_oof_gauss_full * splint(self%modulation_filter, dble(nu))
-      end if
+        eval_noise_psd_oof_gauss_full = eval_noise_psd_oof_gauss_full 
     end if
 
 
@@ -418,9 +405,7 @@ contains
     eval_noise_psd_oof_gauss_corr = S1 + S2
 
     if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_gauss_corr = eval_noise_psd_oof_gauss_corr * splint(self%modulation_filter, dble(nu))
-      end if
+        eval_noise_psd_oof_gauss_corr = eval_noise_psd_oof_gauss_corr 
     end if
 
   end function eval_noise_psd_oof_gauss_corr
@@ -493,9 +478,7 @@ contains
     eval_noise_psd_oof_quad_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
 
     if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_quad_full = eval_noise_psd_oof_quad_full * splint(self%modulation_filter, dble(nu))
-      end if
+        eval_noise_psd_oof_quad_full = eval_noise_psd_oof_quad_full 
     end if
 
   end function eval_noise_psd_oof_quad_full
@@ -525,9 +508,7 @@ contains
 
 
     if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_quad_corr = eval_noise_psd_oof_quad_corr * splint(self%modulation_filter, dble(nu))
-      end if
+        eval_noise_psd_oof_quad_corr = eval_noise_psd_oof_quad_corr 
     end if
 
 

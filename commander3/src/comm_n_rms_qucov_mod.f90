@@ -83,74 +83,10 @@ contains
     type(comm_mapinfo), pointer :: info_cg => null()
     type(comm_mapinfo), pointer :: info_lowres => null()
 
-    call update_status(status, "comm_N_rms_QUcov constructor")
     
     ! General parameters
     allocate(constructor)
 
-    ! Component specific parameters
-    constructor%type              = cpar%ds_noise_format(id_abs)
-    constructor%nmaps             = info%nmaps
-    constructor%pol               = (info%nmaps == 3 .or. info%nmaps == 4)
-    constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
-    constructor%set_noise_to_mean = cpar%set_noise_to_mean
-    constructor%cg_precond        = cpar%cg_precond
-    constructor%info              => info
-
-    if (id_smooth == 0) then
-       constructor%nside        = info%nside
-       constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
-       constructor%np           = info%np
-       if (cpar%ds_regnoise(id_abs) /= 'none') then
-          constructor%rms_reg => comm_map(constructor%info, trim(cpar%ds_regnoise(id_abs)))
-       end if
-       if (present(procmask)) then
-          call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
-               & noisefile=trim(cpar%ds_noisefile(id_abs)))
-       else
-          call constructor%update_N(info, handle, mask, regnoise, &
-               & noisefile=trim(cpar%ds_noisefile(id_abs)))
-       end if
-    else
-       if (present(map)) then
-          constructor%nside        = info%nside
-          constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
-          constructor%np           = info%np
-          call constructor%update_N(info, handle, mask, regnoise, map=map)
-       else
-          info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-               & constructor%nmaps, constructor%pol)
-          constructor%nside   = info_smooth%nside
-          constructor%np      = info_smooth%np
-          constructor%N_map   => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-          info_lowres => comm_mapinfo(info%comm, constructor%nside_chisq_lowres, 0, constructor%nmaps, constructor%pol)
-          constructor%N_low => comm_map(info_lowres)
-          call constructor%N_map%udgrade(constructor%N_low)
-          constructor%N_low%map = constructor%N_low%map / (constructor%nside/constructor%nside_chisq_lowres)**2
-          allocate(constructor%iN(4,0:info_smooth%np-1))
-          allocate(constructor%iN_low(4,0:info_smooth%np-1))
-          allocate(constructor%siN(4,0:info_smooth%np-1))
-          call initialize_iN_siN(constructor%N_map, constructor%N_low, constructor%iN, constructor%siN, constructor%iN_low)
-       end if
-    end if
-
-    constructor%pol_only = all(constructor%siN(1,:) == 0.d0)
-    call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
-
-    call update_status(status, "cg sample group masks")
-
-    ! Initialize CG sample group masks
-    info_cg => comm_mapinfo(info%comm, info%nside, 0, 3, info%pol)
-    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) 
-    do i = 1, cpar%cg_num_user_samp_groups
-       if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(info_cg, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
-       where (constructor%samp_group_mask(i)%p%map > 0.d0)
-          constructor%samp_group_mask(i)%p%map = 1.d0
-       elsewhere
-          constructor%samp_group_mask(i)%p%map = 0.d0
-       end where
-    end do
 
   end function constructor
 
@@ -171,133 +107,6 @@ contains
     class(comm_mapinfo), pointer :: info_lowres => null()
     class(comm_mapinfo), pointer :: info_pre => null()
 
-    call update_status(status, "update_N_rms_QUcov")
-
-    if (associated(self%rms_reg) .or. self%uni_fsky > 0) then
-       call report_error( "Regularization noise not yet supported for rms_QUcov")
-    end if
-
-    ! Initialize N
-    if (present(noisefile)) then
-       self%N_map     => comm_map(info, noisefile)
-    else if (present(map)) then
-       self%N_map => comm_map(info)
-       if (map%info%nmaps == 3) then
-           self%N_map%map(:,1:3) = map%map
-           self%N_map%map(:,4)   = 0
-       else
-           self%N_map%map = map%map
-       end if
-    else
-       call report_error('Error in update_N_rms - no noisefile or map declared')
-    end if
-
-
-
-    ! Add regularization noise; rms_reg is N for this type, not RMS
-!!$    if (associated(self%rms_reg)) self%N_map = self%N_map + self%rms_reg 
-!!$    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-
-    ! Apply mask
-    if (present(mask)) then
-       if (self%pol) then
-           self%N_map%map(:,1:3) = self%N_map%map(:,1:3) * mask%map
-           self%N_map%map(:,4)   = self%N_map%map(:,4)   * mask%map(:,2)*mask%map(:,3)
-       else
-           self%N_map%map = self%N_map%map * mask%map
-       end if
-    end if
-
-    ! Set N to its mean; useful for debugging purposes
-    if (self%set_noise_to_mean) then
-       do i = 1, self%nmaps
-          sum_noise = sum(self%N_map%map(:,i))
-          npix      = size(self%N_map%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          self%N_map%map(:,i) = sum_noise/npix
-       end do
-    end if
-
-
-    ! Add white noise corresponding to the user-specified regularization noise map
-!!$    if (associated(self%rms_reg) .and. present(regnoise)) then
-!!$       write(*,*) 'Warning -- QUcov not accounted for in regnoise'
-!!$       do j = 1, size(regnoise,2)
-!!$          do i = 0, self%rms_reg%info%np-1
-!!$             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
-!!$          end do
-!!$       end do
-!!$    end if
-    regnoise = 0d0
-
-    ! Boost noise rms by 20 in processing mask; only for T
-    if (present(procmask)) then
-       where (procmask%map(:,1) < 0.5d0)
-          self%N_map%map(:,1) = self%N_map%map(:,1) * 400.d0 
-       end where
-    end if
-
-
-    ! Set up lowres map
-    call update_status(status, "N_rms_QUcov lowres")
-    if (.not.associated(self%N_low)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
-       self%N_low => comm_map(info_lowres)
-    end if
-    call self%N_map%udgrade(self%N_low)
-    self%N_low%map = self%N_low%map / (self%nside/self%nside_chisq_lowres)**2
-
-    ! Compute invN and sqrt(invN); both are symmetric 
-    if (.not. allocated(self%iN))  allocate(self%iN(4,0:info%np-1))
-    if (.not. allocated(self%siN)) allocate(self%siN(4,0:info%np-1))
-    if (.not. allocated(self%iN_low)) allocate(self%iN_low(4,0:info%np-1))
-    call initialize_iN_siN(self%N_map, self%N_low, self%iN, self%siN, self%iN_low)
-
-    ! Initialize preconditioner noise
-    call update_status(status, "N_rms_QUcov cg_precond")
-    info_pre => comm_mapinfo(info%comm, info%nside, info%lmax, &
-         & min(info%nmaps,3), info%pol)
-    if (trim(self%cg_precond) == 'diagonal') then
-       ! Set up diagonal covariance matrix
-       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info_pre)
-       do i = 1, info_pre%nmaps
-          self%invN_diag%map(:,i) = self%iN(i,:)
-       end do
-       call compute_invN_lm(self%invN_diag)
-    else if (trim(self%cg_precond) == 'pseudoinv') then
-       ! Compute alpha_nu for pseudo-inverse preconditioner
-       if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
-       invW_tau     => comm_map(info_pre)
-       do i = 1, info_pre%nmaps
-          invW_tau%map(:,i) = self%iN(i,:)
-       end do
-       call invW_tau%Yt()
-       call invW_tau%Y()
-       ! Temperature
-       sum_tau  = sum(invW_tau%map(:,1))
-       sum_tau2 = sum(invW_tau%map(:,1)**2)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-       if (sum_tau > 0.d0) then
-          self%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
-       else
-          self%alpha_nu(1) = 0.d0
-       end if
-
-       if (info_pre%nmaps == 3) then
-          sum_tau  = sum(invW_tau%map(:,2:3))
-          sum_tau2 = sum(invW_tau%map(:,2:3)**2)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          if (sum_tau > 0.d0) then
-             self%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
-          else
-             self%alpha_nu(2:3) = 0.d0
-          end if
-          call invW_tau%dealloc(); deallocate(invW_tau)
-       end if
-    end if
 
 
   end subroutine update_N_rms_QUcov
@@ -429,12 +238,12 @@ contains
     where (self%N_map%map(:,1:3) > 0.d0)
        res%map = sqrt(self%N_map%map(:,1:3))
     elsewhere
-       res%map = infinity
+       res%map = 0
     end where
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           where (self%samp_group_mask(samp_group)%p%map == 0.d0)
-             res%map = infinity
+             res%map = 0
           end where
        end if
     end if
@@ -451,12 +260,12 @@ contains
     if (self%N_map%map(pix,pol) > 0.d0) then
        returnRMS_rms_qucov_pix = sqrt(self%N_map%map(pix,pol))
     else
-       returnRMS_rms_qucov_pix = infinity
+       returnRMS_rms_qucov_pix = 0
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
-             returnRMS_rms_qucov_pix = infinity
+             returnRMS_rms_qucov_pix = 0
           end if
        end if
     end if
@@ -501,12 +310,6 @@ contains
              A(2,1)  = N%map(i,4) ! UQ
              A(2,2)  = N%map(i,3) ! UU
 
-             call compute_hermitian_root(A, -1.d0)
-             iN(2,i)  = A(1,1)    ! QQ
-             iN(3,i)  = A(2,2)    ! UU
-             iN(4,i)  = A(1,2)    ! QU = UQ
-
-             call compute_hermitian_root(A, 0.5d0)
              siN(2,i) = A(1,1)    ! QQ
              siN(3,i) = A(2,2)    ! UU
              siN(4,i) = A(1,2)    ! QU = UQ
@@ -533,7 +336,6 @@ contains
              A(2,1)  = N_low%map(i,4) ! UQ
              A(2,2)  = N_low%map(i,3) ! UU
 
-             call compute_hermitian_root(A, -1.d0)
              iN_low(2,i)  = A(1,1)    ! QQ
              iN_low(3,i)  = A(2,2)    ! UU
              iN_low(4,i)  = A(1,2)    ! QU = UQ

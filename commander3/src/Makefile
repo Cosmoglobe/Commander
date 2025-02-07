@@ -25,7 +25,6 @@ FSOURCES=d1mach.f drc3jj.f
 F90SOURCES=hashtbl.f90 \
            hashtbl_4dmap.f90 \
            powell_mod.f90 \
-           hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
            sort_utils.f90 \
@@ -240,7 +239,7 @@ comm_tod_spider_mod.o       : comm_tod_driver_mod.o comm_conviqt_mod.o
 comm_tod_spider_smod.o      : comm_tod_spider_mod.o
 comm_tod_wmap_mod.o         : comm_tod_driver_mod.o comm_conviqt_mod.o
 comm_tod_zodi_mod.o         : comm_tod_mod.o comm_zodi_mod.o
-comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o locate_mod.o math_tools.o powell_mod.o hmc_mod.o
+comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o locate_mod.o math_tools.o powell_mod.o
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
 comm_zodi_mod.o             : comm_tod_mod.o comm_zodi_comp_mod.o comm_bp_mod.o
 comm_zodi_samp_mod.o        : comm_zodi_mod.o comm_chisq_mod.o powell_mod.o

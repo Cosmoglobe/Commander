@@ -23,7 +23,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 module comm_param_mod
-  use comm_status_mod
+  use comm_utils
   use hashtbl
   implicit none
 
@@ -38,25 +38,7 @@ module comm_param_mod
   integer(i4b), parameter, private :: MAXSAMPGROUP     = 100
   integer(i4b), parameter, private :: MAXZODICOMPS     = 100
   integer(i4b), parameter, private :: MAXZODIPARAMS    = 100
-  type(status_file)                :: status
 
-  type InterplanetaryDustParamLabels
-     character(len=128), dimension(2)  :: general = [character(len=128) :: "T_0", "T_DELTA"]
-     character(len=128), dimension(6)  :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
-     character(len=128), dimension(4)  :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
-     character(len=128), dimension(4)  :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(5)  :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(5)  :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(2)  :: interstellar = [character(len=128) :: 'R', 'ALPHA']
-     character(len=128), dimension(5)  :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
-     character(len=128), dimension(4)  :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
-     character(len=128), dimension(16) :: WrightCloudRing = [character(len=128) :: 'p1', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19']
-     character(len=128), dimension(6)  :: WrightBand = [character(len=128) :: 'q1', 'q5', 'q6', 'q7', 'q8', 'R_1']
-     character(len=128), dimension(6)  :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE', 'WRIGHTCLOUDRING', 'WRIGHTBAND']
-     
-     contains
-            procedure :: get_labels
-  end type InterplanetaryDustParamLabels
 
   type comm_params
 
@@ -86,11 +68,6 @@ module comm_param_mod
      logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
      integer(i4b)       :: zodi_solar_nside
      character(len=512) :: zodi_solar_initmap, zodi_static_bands
-     real(dp),           allocatable, dimension(:)     :: fwhm_smooth
-     real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
-     integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
-     integer(i4b),       allocatable, dimension(:)     :: nside_smooth
-     character(len=512), allocatable, dimension(:)     :: pixwin_smooth
      character(len=512), allocatable, dimension(:)     :: init_chain_prefixes
      character(len=512)                                :: sims_output_dir !< simulations directory
 
@@ -120,185 +97,17 @@ module comm_param_mod
      ! Data parameters
      integer(i4b)       :: numband
      character(len=512) :: datadir, ds_sourcemask, ds_procmask
+
+     character(len=512), allocatable, dimension(:)   :: ds_maskfile
+     character(len=512), allocatable, dimension(:)   :: ds_noisefile
+     character(len=512), allocatable, dimension(:)   :: ds_instlabel
      logical(lgt),       allocatable, dimension(:)   :: ds_active
-     integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
      integer(i4b),       allocatable, dimension(:)   :: ds_nside
      integer(i4b),       allocatable, dimension(:)   :: ds_lmax
      character(len=512), allocatable, dimension(:)   :: ds_label
-     character(len=512), allocatable, dimension(:)   :: ds_instlabel
-     character(len=512), allocatable, dimension(:)   :: ds_unit
-     character(len=512), allocatable, dimension(:)   :: ds_noise_format
-     integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
-     character(len=512), allocatable, dimension(:)   :: ds_mapfile
-     character(len=512), allocatable, dimension(:)   :: ds_noisefile
-     character(len=512), allocatable, dimension(:)   :: ds_regnoise
-     character(len=512), allocatable, dimension(:,:) :: ds_noise_rms_smooth
-     real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
-     character(len=512), allocatable, dimension(:)   :: ds_maskfile
-     character(len=512), allocatable, dimension(:)   :: ds_maskfile_calib
-     character(len=512), allocatable, dimension(:)   :: ds_beamtype
-     character(len=512), allocatable, dimension(:)   :: ds_blfile
-     character(len=512), allocatable, dimension(:)   :: ds_btheta_file
-     character(len=512), allocatable, dimension(:)   :: ds_pixwin
-     logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
-     character(len=512), allocatable, dimension(:)   :: ds_bptype
-     character(len=512), allocatable, dimension(:)   :: ds_bpfile
-     character(len=512), allocatable, dimension(:)   :: ds_bpmodel
-     real(dp),           allocatable, dimension(:)   :: ds_nu_c
-     logical(lgt),       allocatable, dimension(:)   :: ds_sample_gain
-     real(dp),           allocatable, dimension(:,:) :: ds_gain_prior
-     character(len=512), allocatable, dimension(:)   :: ds_gain_calib_comp
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmin
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
-     character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
-     character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
-     real(dp),           allocatable, dimension(:,:) :: ds_defaults
-     character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
-     real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
-     logical(lgt),       allocatable, dimension(:)   :: ds_zodi_reference_band
-
-     !TOD data parameters
-     character(len=512), allocatable, dimension(:)   :: ds_tod_type
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask_zodi
-     character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
-     character(len=512), allocatable, dimension(:)   :: ds_tod_jumplist
-     character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
-     character(len=512), allocatable, dimension(:)   :: ds_tod_dets
-     character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
-     character(len=512), allocatable, dimension(:)   :: ds_tod_initHDF
-     character(len=512), allocatable, dimension(:)   :: ds_tod_level
-     character(len=512), allocatable, dimension(:)   :: ds_tod_abscal
-     integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_mask
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_model
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_init
-
-     ! Component parameters
-     character(len=512) :: cs_inst_parfile
-     character(len=512) :: cs_init_inst_hdf
-     integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
-     logical(lgt)       :: cs_output_localsamp_maps
-     real(dp)           :: cmb_dipole_prior(3)
-     character(len=512) :: cmb_dipole_prior_mask
-     logical(lgt),       allocatable, dimension(:)     :: cs_include
-     character(len=512), allocatable, dimension(:)     :: cs_initHDF
-     character(len=512), allocatable, dimension(:)     :: cs_label
-     character(len=512), allocatable, dimension(:)     :: cs_type
-     character(len=512), allocatable, dimension(:)     :: cs_class
-     logical(lgt),       allocatable, dimension(:)     :: cs_polarization
-     real(dp),           allocatable, dimension(:,:)   :: cs_cg_scale
-     integer(i4b),       allocatable, dimension(:)     :: cs_nside
-     integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
-     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_fix_pixreg
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg_priors
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mask
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_mask
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_freeze
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_type
-     character(len=512), allocatable, dimension(:,:)   :: cs_almsamp_init
-     character(len=512), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
-     real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
-     real(dp),           allocatable, dimension(:,:)   :: cs_spec_corr_limit
-     real(dp),           allocatable, dimension(:,:,:,:) :: cs_theta_prior
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
-     logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_mono_combined
-     logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_corr_convergence
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
-     integer(i4b),       allocatable, dimension(:)     :: cs_samp_samp_params_niter
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_lmax_ind_pol
-     integer(i4b),       allocatable, dimension(:)     :: cs_lmin_amp
-     integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
-     integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp_prior
-     integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
-     integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
-     character(len=512), allocatable, dimension(:)     :: cs_unit
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_ref
-     real(dp),           allocatable, dimension(:)     :: cs_nu_min, cs_nu_max
-     character(len=512), allocatable, dimension(:)     :: cs_band_ref
-     real(dp),           allocatable, dimension(:)     :: cs_fwhm
-     character(len=512), allocatable, dimension(:)     :: cs_cltype
-     character(len=512), allocatable, dimension(:)     :: cs_clfile
-     character(len=512), allocatable, dimension(:)     :: cs_binfile
-     integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
-     character(len=512), allocatable, dimension(:)     :: cs_mask
-     character(len=512), allocatable, dimension(:)     :: cs_mono_prior
-     real(dp),           allocatable, dimension(:)     :: cs_latmask
-     character(len=512), allocatable, dimension(:)     :: cs_indmask
-     character(len=512), allocatable, dimension(:)     :: cs_defmask
-     real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
-     real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
-     real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
-     real(dp),           allocatable, dimension(:,:)   :: cs_cl_theta_def
-     integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
-     logical(lgt),       allocatable, dimension(:)     :: cs_output_EB
-     character(len=512), allocatable, dimension(:)     :: cs_input_amp
-     character(len=512), allocatable, dimension(:)     :: cs_prior_amp
-     character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
-     character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
-     character(len=512), allocatable, dimension(:)     :: cs_MBBtab_type
-     real(dp),           allocatable, dimension(:)     :: cs_SED_prior
-     real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
-     integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
-     real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
-     real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
-     character(len=512), allocatable, dimension(:)     :: cs_catalog
-     character(len=512), allocatable, dimension(:)     :: cs_init_catalog
-     character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_min_beta
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_max_beta
-     logical(lgt),       allocatable, dimension(:)     :: cs_burn_in
-     logical(lgt),       allocatable, dimension(:)     :: cs_output_ptsrc_beam
-     logical(lgt),       allocatable, dimension(:)     :: cs_apply_pos_prior
-     real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
-     real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
-     real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
-     logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
-
-     ! Zodi parameters
-     integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
-     integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
-     real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
-     real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
-     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS), zs_randomize_rms
-     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_sol_elong(2)
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
-     character(len=2048)                     :: zs_wiring
-     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
-     logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
-     type(InterplanetaryDustParamLabels)     :: zodi_param_labels
 
 
-     ! MH spectral index sampling parameters
-     integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
-     integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
-     character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
-                                                                                                  ! Sample using specificed cg
-                                                                                                  ! groups. If none, skip amplitude
-                                                                                                  ! sampling
-     integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
-     integer(i4b), allocatable, dimension(:)     :: mcmc_samp_group_numstep
   end type comm_params
 
 
@@ -363,6 +172,8 @@ contains
 
     integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
     integer(i4b), allocatable, dimension(:,:) :: ind
+
+    ierr = 0
 
     cpar%numchain = min(cpar%numchain, cpar%numprocs)
 
@@ -451,7 +262,7 @@ contains
 
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_active(n), cpar%ds_label(n), cpar%ds_instlabel(n))
-    allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
+    allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_active(i))
@@ -1110,19 +921,6 @@ contains
     
   end subroutine define_cg_samp_groups
   
-  function get_labels(self, comp_type, add_common) result(labels)
-     class(InterplanetaryDustParamLabels), intent(in) :: self
-     character(len=*), intent(in) :: comp_type
-     logical(lgt), intent(in), optional :: add_common
-     character(len=128), allocatable :: labels(:)
-     character(len=128) :: comp_type_upper
-
-
-     allocate(labels(1))
-
-     labels = ''
-
-  end function 
 
   
 end module comm_param_mod

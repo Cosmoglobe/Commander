@@ -75,64 +75,6 @@ contains
     ! Initialize general parameters
     allocate(c)
 
-    c%class         = cpar%cs_class(id_abs)
-    c%type          = cpar%cs_type(id_abs)
-    c%label         = cpar%cs_label(id_abs)
-    c%id            = id
-    c%nmaps         = 1    ! Only used for CR book-keeping; must be 1 for templates
-    c%outprefix     = trim(cpar%cs_label(id_abs))
-    c%cg_scale      = 1.d0
-    c%band          = 0
-    c%myid          = cpar%myid_chain
-    c%comm          = cpar%comm_chain
-    c%numprocs      = cpar%numprocs_chain
-    c%P             = [cpar%cs_P_gauss(id_abs,1,1), cpar%cs_P_gauss(id_abs,2,1)]
-    c%init_from_HDF = cpar%cs_initHDF(id_abs)
-
-    if (c%myid == 0) then
-       c%ncr = 1
-       c%x   = cpar%cs_theta_def(1,id_abs)
-    else
-       c%ncr = 0
-    end if
-
-    ! Component specific parameters
-    c%T_cmb   = cpar%T_cmb
-    c%v_sun   = 370.082d3   ! m/s;  Planck 2015
-    c%lon_sun = 264.000d0   ! deg;  Planck 2015
-    c%lat_sun = 48.24d0     ! deg;  Planck 2015
-    c%nside   = 128
-    c%lmax    = 2
-    c%nmaps   = 1
-    c%ndet    = maxval(data%ndet)
-    c%info    => comm_mapinfo(c%comm, &
-         & c%nside, c%lmax, c%nmaps, .false.)
-    c%T       => comm_map(c%info)
-
-    ! Construct spatial template
-    call c%update_template
-
-    ! Read band definition file
-    allocate(c%band_active(numband))
-    call c%read_definition_file(trim(cpar%cs_SED_template(1,id_abs)))
-
-    ! Precompute mixmat for each band; temperature only
-    allocate(c%F_int(numband,0:c%ndet))
-    allocate(c%q(numband,0:c%ndet))
-
-    ! Set up CG sampling groups
-    allocate(c%active_samp_group(cpar%cg_num_samp_groups))
-    c%active_samp_group = .false.
-    do i = 1, cpar%cg_num_samp_groups
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(c%label) == trim(comp_label(j))) then
-             c%active_samp_group(i) = .true.
-             if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component
-             exit
-          end if
-       end do
-    end do
 
   end function constructor_relquad
   
@@ -159,10 +101,7 @@ contains
 
     real(dp) :: x, cmb2RJ, beta
 
-    beta    = self%v_sun/c
-    x       = h*nu / (k_B*self%T_cmb)
-    cmb2RJ  = (x**2 * exp(x)) / (exp(x)-1.d0)**2
-    evalSED_relquad = cmb2RJ * beta**2 * 1.d6*self%T_cmb * (x/2.d0)*(exp(x)+1.d0)/(exp(x)-1.d0)
+    evalSED_relquad = 0
 
   end function evalSED_relquad
 
@@ -193,56 +132,9 @@ contains
     integer(i4b),                                 intent(in),  optional :: det
     real(dp),        dimension(:,:), allocatable                        :: evalRelquadBand
 
-    integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp, d
-    logical(lgt) :: alm_out_
-    real(dp)     :: t1, t2
-    class(comm_mapinfo), pointer :: info 
-    class(comm_map),     pointer :: m
 
-    alm_out_ = .false.; if (present(alm_out)) alm_out_ = alm_out
-    d = 0; if (present(det)) d = det
+    evalRelquadBand = 0d0
 
-    if (.not. self%band_active(band)) then
-       if (alm_out_) then
-          if (.not. allocated(evalRelquadBand)) allocate(evalRelquadBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
-       else
-          if (.not. allocated(evalRelquadBand)) allocate(evalRelquadBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-       end if
-       evalRelquadBand = 0.d0
-       return
-    end if
-
-    ! Initialize amplitude map
-    nmaps =  min(data(band)%info%nmaps, self%nmaps)
-    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, nmaps==3)
-    m     => comm_map(info)
-    if (present(amp_in)) then
-       m%alm(:,1:nmaps) = amp_in(:,1:nmaps)
-    else
-       call self%T%alm_equal(m)
-    end if
-
-    ! Scale to correct frequency through multiplication with mixing matrix
-    m%alm = m%alm * self%q(band,d)
-       
-    ! Convolve with band-specific beam
-    call data(band)%B(d)%p%conv(trans=.false., map=m)
-    if (.not. alm_out_) call m%Y()
-
-    ! Return correct data product
-    if (alm_out_) then
-       if (.not. allocated(evalRelquadBand)) allocate(evalRelquadBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) evalRelquadBand = 0.d0
-       evalRelquadBand(:,1:nmaps) = m%alm(:,1:nmaps)
-    else
-       if (.not. allocated(evalRelquadBand)) allocate(evalRelquadBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) evalRelquadBand = 0.d0
-       evalRelquadBand(:,1:nmaps) = m%map(:,1:nmaps)
-    end if
-       
-    ! Clean up
-    call m%dealloc(); deallocate(m)
-    nullify(info)
     
   end function evalRelquadBand
   
@@ -283,34 +175,6 @@ contains
        return
     end if
 
-    d = 0; if (present(det)) d = det
-
-    nmaps     =  min(self%nmaps, map%info%nmaps)
-    info_in   => comm_mapinfo(self%info%comm, map%info%nside, map%info%lmax, nmaps, nmaps==3)
-    info_out  => comm_mapinfo(self%info%comm, map%info%nside, self%lmax, nmaps, nmaps==3)
-    m         => comm_map(info_in)
-    m_out     => comm_map(info_out)
-    alm_in_ = .false.; if (present(alm_in)) alm_in_ = alm_in
-
-    ! Convolve with band-specific beam
-    if (alm_in) then
-       m%alm = map%alm(:,1:nmaps)
-    else
-       m%map = map%map(:,1:nmaps)
-       call m%Yt()
-    end if
-    call data(band)%B(d)%p%conv(trans=.true., map=m)
-    
-    ! Apply mixing matrix
-    m%alm(:,1) = m%alm(:,1) * self%q(band,d)
-
-    ! Output map
-    if (.not. allocated(projectRelquadBand)) allocate(projectRelquadBand(0:self%info%nalm-1,self%info%nmaps))
-    call m%alm_equal(m_out)
-    projectRelquadBand = m_out%alm
-
-    call m%dealloc(); deallocate(m)
-    call m_out%dealloc(); deallocate(m_out)
 
   end function projectRelquadBand
 
@@ -388,10 +252,6 @@ contains
           self%q(i,:) = 0.d0
           cycle
        end if
-       do j = 0, data(i)%ndet
-          self%F_int(i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, 1)
-          self%q(i,j)       = self%F_int(i,j)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
-       end do
     end do
     
   end subroutine updateIntF_relquad

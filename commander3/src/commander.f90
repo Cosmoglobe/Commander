@@ -33,20 +33,17 @@ program commander
   write(*,*) cpar%myid, 'initialized?'
   
   call initialize_mpi_struct(cpar, handle)
-  call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
-  status%active = cpar%myid_chain == 0 !.false.
 
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
 
-  call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_data_mod(cpar, handle)
 
   ! Wait for everybody to exit
   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
   ! And exit
-  call free_status(status)
   call mpi_finalize(ierr)
 
 

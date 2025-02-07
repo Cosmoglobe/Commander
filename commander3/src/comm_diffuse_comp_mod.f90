@@ -83,8 +83,6 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      logical(lgt),       allocatable, dimension(:)     :: spec_mono_combined
      character(len=512), allocatable, dimension(:)     :: spec_mono_type
      character(len=512), allocatable, dimension(:)     :: spec_mono_freeze
-     class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
-     class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
      character(len=512) :: mono_prior_type, mono_prior_band
      real(dp)           :: mono_prior_gaussian_mean, mono_prior_gaussian_rms, mono_prior_fwhm
@@ -100,8 +98,6 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      real(dp)                                   :: x_scale !overall scaling parameter for component
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
-     class(comm_B),                 pointer     :: B_out => null()       ! Output beam
-     class(comm_B),                 pointer     :: B_mono_prior => null() ! monopole prior beam
      class(comm_Cl),                pointer     :: Cl => null()          ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters

@@ -27,9 +27,6 @@ module comm_bp_utils
      module procedure compute_sz_thermo_single, compute_sz_thermo_array
   end interface comp_sz_thermo
 
-  interface comp_a2t
-     module procedure compute_ant2thermo_single
-  end interface comp_a2t
 
   interface comp_bnu_prime
      module procedure compute_bnu_prime_single, compute_bnu_prime_array
@@ -107,7 +104,7 @@ contains
     real(dp), dimension(:),        intent(in)  :: nu
     real(dp), dimension(size(nu))              :: compute_bnu_prime_RJ_array
 
-    compute_bnu_prime_RJ_array = 2.d0*k_B*nu**2/c**2
+    compute_bnu_prime_RJ_array = 2.d0
     
   end function compute_bnu_prime_RJ_array
 
@@ -139,7 +136,7 @@ contains
     real(dp), intent(in)  :: nu
     real(dp)              :: dB_rj_dnu
 
-    dB_rj_dnu = 2*nu**2*k_b / c**2
+    dB_rj_dnu = 2
     
   end function dB_rj_dnu
 

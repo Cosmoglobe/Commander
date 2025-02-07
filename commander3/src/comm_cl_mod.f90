@@ -80,8 +80,6 @@ module comm_Cl_mod
      procedure :: sqrtS    => matmulSqrtS
      procedure :: sqrtInvS => matmulSqrtInvS
      procedure :: sampleCls
-     procedure :: read_binfile
-     procedure :: read_binfile2
      procedure :: binCls
      procedure :: binCls2
      procedure :: binCl2
@@ -120,107 +118,6 @@ contains
 
     allocate(constructor)
     
-    ! General parameters
-    constructor%type   = cpar%cs_cltype(id_abs)
-    if (trim(constructor%type) == 'none') return
-    
-    constructor%info   => info
-    constructor%label  = cpar%cs_label(id_abs)
-    constructor%lmin   = cpar%cs_lmin_amp(id_abs)
-    constructor%lmax   = cpar%cs_lmax_amp(id_abs)
-    constructor%lmax_prior = cpar%cs_lmax_amp_prior(id_abs)
-    constructor%l_apod = cpar%cs_l_apod(id_abs)
-    constructor%unit   = cpar%cs_unit(id_abs)
-    constructor%nu_ref = cpar%cs_nu_ref(id_abs,:)
-    constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
-    constructor%nspec  = 1; if (cpar%cs_polarization(id_abs)) constructor%nspec = 6
-    constructor%outdir = cpar%outdir
-    datadir            = cpar%datadir
-    nmaps              = constructor%nmaps
-    constructor%only_pol = cpar%only_pol
-    constructor%lmin_lookup = -1
-    constructor%lmax_lookup = -1
-
-    ! Set up conversion factor between RJ and native component unit
-    ! D_l is defined in component units, while S, invS etc are defined in RJ
-    do l = 1, 3
-       select case (trim(constructor%unit))
-       case ('uK_cmb')
-          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l))
-       case ('mK_cmb')
-          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-3
-       case ('K_cmb')
-          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
-       case ('MJy/sr') 
-          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1d14
-       case ('Kkm/s') 
-          constructor%RJ2unit(l) = 1.d0
-          !constructor%RJ2unit(l) = 1.d0 / (constructor%nu_ref(l)/c * 1d9)
-          !write(*,*) 'Kkm/s not yet supported in md_mod'
-          !call mpi_finalize(ierr)
-          !stop
-       case ('y_SZ') 
-          constructor%RJ2unit(l) = 2.d0*constructor%nu_ref(l)**2*k_b/c**2 / &
-               & (comp_bnu_prime(constructor%nu_ref(l)) * comp_sz_thermo(constructor%nu_ref(l)))
-       case ('uK_RJ') 
-          constructor%RJ2unit(l) = 1.d0
-       case default
-          call report_error('Unsupported unit: ' // trim(constructor%unit))
-       end select
-    end do
-
-    allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
-    allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
-    allocate(constructor%sqrtInvS_mat(nmaps,nmaps,0:constructor%lmax))
-    allocate(constructor%S_mat(nmaps,nmaps,0:constructor%lmax))
-
-    if (trim(constructor%type) == 'binned') then
-       !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
-       call constructor%read_binfile2(datadir, cpar%cs_binfile(id_abs))
-       call read_Cl_file(trim(cpar%cs_clfile(id_abs)), &
-            & constructor%Dl, 0, constructor%lmax, 'TT_TE_EE_BB')
-       call constructor%binCls2
-       if (cpar%only_pol) then
-          constructor%stat(:,1:3) = '0'
-          constructor%Dl(:,TT)     = 0.d0
-          if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
-       end if
-    else if (trim(constructor%type) == 'power_law') then
-       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
-       constructor%lpiv          = cpar%cs_lpivot(id_abs)
-       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
-       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
-    else if (trim(constructor%type) == 'power_law_gauss') then
-       allocate(constructor%amp(nmaps), constructor%beta(nmaps),constructor%theta(nmaps))
-       constructor%lpiv          = cpar%cs_lpivot(id_abs)
-       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
-       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlawGauss(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps),cpar%cs_cl_theta_def(id_abs,1:nmaps))
-    else if (trim(constructor%type) == 'exp') then
-       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
-       constructor%lpiv          = cpar%cs_lpivot(id_abs)
-       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
-       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
-    else if (trim(constructor%type) == 'gauss') then
-       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
-       constructor%lpiv          = cpar%cs_lpivot(id_abs)
-       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
-       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
-    else
-       call report_error("Unknown Cl type: " // trim(constructor%type))
-    end if
-    if (constructor%only_pol) then
-       constructor%Dl(:,TT)     = 0.d0
-       if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
-    end if
-    constructor%Dl(0:1,2:constructor%nspec) = 0.d0
-    constructor%Dl(0:constructor%lmin-1,:)  = 0.d0
-
-    !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
-    call constructor%updateS
     
   end function constructor
 
@@ -386,52 +283,6 @@ contains
 
   end subroutine updateS
 
-  subroutine read_binfile(self, binfile)
-    implicit none
-    class(comm_Cl),   intent(inout) :: self
-    character(len=*), intent(in)  :: binfile
-
-    integer(i4b)       :: unit, l1, l2, n
-    character(len=512) :: line
-    character(len=1), dimension(6) :: stat
-
-    unit = getlun()
-
-    ! Find number of bins
-    n = 0
-    open(unit,file=trim(binfile))
-    do while (.true.)
-       read(unit,'(a)',end=1) line
-       line = trim(line)
-       if (line(1:1) == '#' .or. trim(line) == '') cycle
-       read(line,*) l1, l2
-       if (l1 <= self%lmax .and. l2 <= self%lmax .and. l1 >= 0 .and. l2 >= 0) n = n+1
-    end do
-1   close(unit)
-
-    if (n == 0) call report_error("Error: Cl bin file " // trim(binfile) &
-         & // " does not contain any valid entries")
-
-    self%nbin = n
-    allocate(self%stat(n,6), self%bins(n,2))
-    open(unit,file=trim(binfile))
-    n = 0
-    do while (.true.)
-       read(unit,'(a)',end=2) line
-       line = trim(line)
-       if (line(1:1) == '#' .or. trim(line) == '') cycle
-       read(line,*) l1, l2
-       if (l1 <= self%lmax .and. l2 <= self%lmax .and. l1 >= 0 .and. l2 >= 0) then
-          n = n+1
-          read(line,*) l1, l2, stat   !self%bins(n,1), self%bins(n,2), self%stat(n,:)
-          self%bins(n,1) = l1
-          self%bins(n,2) = l2
-          self%stat(n,:) = stat
-       end if
-    end do
-2   close(unit)
-
-  end subroutine read_binfile
 
   recursive subroutine read_bin(unit, bin, ntot, pos, sigma)
     implicit none
@@ -477,77 +328,6 @@ contains
 
   end subroutine read_bin
 
-  subroutine read_binfile2(self, datadir, binfile)
-    implicit none
-    class(comm_Cl),   intent(inout) :: self
-    character(len=*), intent(in)    :: datadir, binfile
-
-    integer(i4b)       :: unit, unit2, l1, l2, l, k, n, i, j, pos, nspline
-    logical(lgt)       :: flag(6)
-    real(dp), dimension(1000)           :: sigma
-    real(dp), allocatable, dimension(:)     :: p_in
-    real(dp), allocatable, dimension(:,:,:) :: Dl_in
-    character(len=2)   :: spec
-    character(len=512) :: line, filename
-    character(len=1), dimension(6) :: stat
-    type(spline_type) :: Dl_spline
-
-    unit    = getlun()
-    nspline = 100
-    open(unit,file=trim(binfile))
-
-    ! Check for parameter lookup table
-    read(unit,'(a)') line
-    if (trim(line) /= 'none') then
-       read(line,*) filename, self%lmin_lookup, self%lmax_lookup, self%active_lookup, n
-       allocate(p_in(n), Dl_in(self%lmin_lookup:self%lmax_lookup,6,n))
-       allocate(self%par_lookup(nspline*(n-1)+1), self%Dl_lookup(self%lmin_lookup:self%lmax_lookup,6,nspline*(n-1)+1))
-       unit2 = getlun()
-       open(unit2,file=trim(datadir)//'/'//trim(filename))
-       do i = 1, n
-          read(unit2,*) p_in(i), filename
-          call read_Cl_file(trim(datadir) // '/' // trim(filename), &
-            & Dl_in(:,:,i), self%lmin_lookup, self%lmax_lookup, 'TT_EE_BB_TE')
-          if (i == n/2) then
-             do l1 = self%lmin_lookup, self%lmax_lookup
-                where (self%active_lookup) 
-                   self%Dl(l1,:) = Dl_in(l1,:,i) 
-                end where
-             end do
-          end if
-       end do
-       close(unit2)
-
-       ! Spline spectra
-       do j = 1, 6
-          if (.not. self%active_lookup(j)) cycle
-          do l = self%lmin_lookup, self%lmax_lookup
-             call spline(Dl_spline, p_in, Dl_in(l,j,:))
-             do k = 1, nspline*(n-1)+1
-                self%par_lookup(k) = p_in(1) + (p_in(n)-p_in(1)) * (k-1)/real(nspline*(n-1),dp)
-                self%Dl_lookup(l,j,k) = splint(Dl_spline, self%par_lookup(k))
-             end do
-             call free_spline(Dl_spline)
-          end do
-       end do
-    end if
-
-    ! Find number of bins
-    read(unit,*) self%nbin2
-    allocate(self%bins2(self%nbin2))
-    do i = 1, self%nbin2
-       pos = 0
-       call read_bin(unit, self%bins2(i), n, pos, sigma)
-       self%bins2(i)%ntot = n
-       allocate(self%bins2(i)%M_prop(n,n))
-       self%bins2(i)%M_prop = 0.d0
-       do j = 1, n
-          self%bins2(i)%M_prop(j,j) = sigma(j)
-       end do
-    end do
-    close(unit)
-
-  end subroutine read_binfile2
 
 
   subroutine matmulS(self, map, alm, info)

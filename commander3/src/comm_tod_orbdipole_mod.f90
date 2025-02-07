@@ -28,7 +28,6 @@ module comm_tod_orbdipole_mod
     logical(lgt) :: beam_4pi
     real(dp),       dimension(:,:), allocatable :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term
     class(map_ptr), dimension(:),   allocatable :: beam
-    type(spline_type) :: s
   contains
     procedure :: precompute_orb_dp_s
     procedure :: compute_CMB_dipole

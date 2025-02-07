@@ -297,7 +297,6 @@ contains
    if (sum(flag)==0) then
     allocate(tmp(n))
     tmp = x
-    call QuickSort_real(tmp)
     median_flagged = tmp(n/2+1)
     deallocate(tmp)
    else
@@ -315,7 +314,6 @@ contains
           x_not_flagged(counter2) = x(i)
       end if
     end do
-    call QuickSort_real(x_not_flagged)
     median_flagged = x_not_flagged(counter2/2+1)
     deallocate(x_not_flagged)
    end if

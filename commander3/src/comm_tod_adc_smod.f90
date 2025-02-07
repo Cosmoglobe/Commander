@@ -196,7 +196,6 @@ contains
     constructor_precomp%nval2(:)      = 0
     constructor_precomp%rms_bins2(:) = 0.0
     deallocate(buffer)
-    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_in,dp), real(constructor_precomp%adc_out,dp))
 
   end function constructor_precomp
 
@@ -234,8 +233,6 @@ contains
     do i = 1, size(tod_in)
        if (tod_in(i) < self%v_min .or. tod_in(i) > self%v_max) then
           tod_out(i) = tod_in(i)
-       else
-          tod_out(i) = splint(self%sadc,real(tod_in(i),dp))
        end if
        !if (abs(tod_in(i)-tod_out(i))/tod_in(i) > 1d-2) then
        !    write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
@@ -468,8 +465,6 @@ contains
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
 
-    ! call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
-    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp))
     
   end subroutine build_table
 

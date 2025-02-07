@@ -19,10 +19,6 @@
 !
 !================================================================================
 module comm_data_mod
-  use comm_bp_mod
-  use comm_noise_mod
-  use comm_beam_mod
-  use comm_tod_inst_mod
   use comm_N_mod
   use comm_N_rms_mod
   implicit none
@@ -50,12 +46,7 @@ module comm_data_mod
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
      class(comm_map),     pointer :: gainmask  => null()
-     class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
-     class(B_ptr),         allocatable, dimension(:) :: B
-     class(comm_bp_ptr),   allocatable, dimension(:) :: bp
-     type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
-     type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data

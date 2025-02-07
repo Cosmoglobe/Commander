@@ -55,14 +55,6 @@ contains
     real(dp), allocatable, dimension(:) :: s
     
     allocate(c)
-    c%comp => comp
-    c%bp   => bp
-
-    if (present(f_precomp)) then
-       call c%update(f_precomp)
-    else
-       call c%update
-    end if
 
   end function constructor_0d
 
@@ -93,18 +85,6 @@ contains
     integer(i4b) :: m, j
     real(dp), allocatable, dimension(:) :: s
 
-    if (present(f_precomp)) then
-       self%f_precomp = f_precomp
-    else
-       ! Evaluate the bandpass integrated SED
-       m = self%bp%n
-       allocate(s(m))
-       do j = 1, m
-          s(j) = self%comp%S(nu=self%bp%nu(j))
-       end do
-       self%f_precomp = self%bp%SED2F(s)
-       deallocate(s)
-    end if
   end subroutine updateIntF_0d
 
 end module comm_F_int_0D_mod
