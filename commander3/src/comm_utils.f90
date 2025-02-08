@@ -21,11 +21,8 @@
 module comm_utils
   use rngmod
   use iso_c_binding
-  use sort_utils
   use comm_mpi_mod
   implicit none
-
-  include 'fftw3.f'
 
 contains
 

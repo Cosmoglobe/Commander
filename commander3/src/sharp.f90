@@ -196,7 +196,6 @@ contains
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
-      stop
     else
       call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &

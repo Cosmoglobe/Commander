@@ -54,11 +54,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_n_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_param_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90
 	${COMMANDER3_SOURCE_DIR}/hashtbl.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
-	${COMMANDER3_SOURCE_DIR}/sort_utils.f90
 	)
 
 # Setting executable name
@@ -145,7 +143,7 @@ target_link_libraries(${commander3}
 	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
 	# Including HDF5 - first fortran and then general
-	${HDF5_Fortran_LIBRARIES}
+  #${HDF5_Fortran_LIBRARIES}
 	# hdf5 requires zlib (?), otherwise will get some stupid error
 	#"-lz"
 	#"/usr/lib64/libz.so"

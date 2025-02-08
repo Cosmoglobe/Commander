@@ -112,7 +112,6 @@ option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
 # Commander3 source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
-set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
 # Some projects are build with configure and others are build with CMake. 
 # To avoid errors when compiling on different owls (or other machines),
 # we put special variable prefix for all subprojects' builds to be located 

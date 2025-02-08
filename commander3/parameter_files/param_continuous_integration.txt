@@ -1,23 +1,6 @@
 **************************************************************
 *                  Commander parameter file                  *
 **************************************************************
-
-# Monte Carlo options
-NUMCHAIN         = 1       # Number of independent chains
-NUM_INIT_CHAINS  = 1
-INIT_CHAIN01 = none
-
-##############################################################
-#                       Output options                       #
-##############################################################
-
-OUTPUT_DIRECTORY              = chains
-
-DATA_DIRECTORY                 = /mn/stornext/d23/cmbco/cg/dirbe/data
-NUMBAND                        = 1
-
 # HFI 
-INCLUDE_BAND001                = .true.   # 857-2
 BAND_NSIDE001                  = 256
 BAND_LMAX001                   = 750
-BAND_NOISEFILE001              = rms_dx11d_r2_resc_857-2_0256_60arcmin_full.fits

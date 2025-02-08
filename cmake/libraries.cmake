@@ -87,15 +87,10 @@ set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
 message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 #------------------------------------------------------------------------------
-# Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
-#------------------------------------------------------------------------------
-add_custom_target(tempita ALL "")
-set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
-#------------------------------------------------------------------------------
 # Creating a Unified target
 #------------------------------------------------------------------------------
 add_custom_target(required_libraries ALL "" 
-	DEPENDS tempita 
+	DEPENDS 
 					mpi
 					openmp
 					)
@@ -105,47 +100,6 @@ add_custom_target(required_libraries ALL ""
 if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for BLAS and LAPACK
-	if(USE_SYSTEM_BLAS)
-		# TODO: Need to add FindMKL.cmake to separately search for MKL, which
-		# has both BLAS/LAPACK and FFTW3. If it exists will go with that, and
-		# if not then seacrh for OpenBLAS and FFTW3 and compile those (if necessary)
-		#
-		# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
-		# for some weird reason. In this case it is a good idea to logout and login
-		# to refresh terminal.
-		set($ENV{BLA_VENDOR} 
-				OpenBLAS
-				Intel10_32
-				Intel10_64lp
-				Intel10_64lp_seq
-				Intel10_64ilp
-				Intel10_64ilp_seq
-				Intel10_64_dyn
-				)
-		find_package(BLAS)
-		find_package(LAPACK)
-		if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-			set(COMPILE_BLAS TRUE)
-		endif()
-	else()
-		set(COMPILE_BLAS TRUE)
-	endif()
-	#------------------------------------------------------------------------------
-	# Performing search for HDF5 and its dependencies
-	if(USE_SYSTEM_HDF5)
-		message(STATUS "---------------------------------------------------------------")
-		# Using static linking instead of dynamic
-		set(HDF5_USE_STATIC_LIBRARIES FALSE)
-		# Using parallel build instead of serial
-		set(HDF5_PREFER_PARALLEL TRUE)
-		#find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
-		find_package(HDF5 1.10.5 COMPONENTS Fortran Fortran_HL)
-		if(NOT HDF5_FOUND)
-			set(COMPILE_HDF5 TRUE)
-		endif()
-	else()
-		set(COMPILE_HDF5 TRUE)
-	endif()
 	#------------------------------------------------------------------------------
 	# Performing search for CFITSIO
 	if(USE_SYSTEM_CFITSIO)
@@ -171,19 +125,6 @@ if(USE_SYSTEM_LIBS)
 		endif()
 	endif()
 	# Other HDF5 dependencies
-	if(COMPILE_HDF5)	
-		if(USE_SYSTEM_LIBAEC)
-			message(STATUS "---------------------------------------------------------------")
-			# Placeholder for FindLIBAEC.cmake
-			message(STATUS "No LibAEC, will compile from source.")
-			# find_package(LIBAEC)
-			if(NOT LIBAEC_FOUND)
-				set(COMPILE_LIBAEC TRUE)
-			endif()
-		else()
-			set(COMPILE_LIBAEC TRUE)
-		endif()
-	endif()
 	# Other CFITSIO dependencies. Compile only if we want to have CURL support
 	if(COMPILE_CFITSIO AND CFITSIO_USE_CURL)
 		message(STATUS "---------------------------------------------------------------")
@@ -232,23 +173,6 @@ if(USE_SYSTEM_LIBS)
 		set(COMPILE_HEALPIX TRUE)
 	endif()
 	#------------------------------------------------------------------------------
-	# Performing search for FFTW
-	if(USE_SYSTEM_FFTW)
-		message(STATUS "---------------------------------------------------------------")
-		find_package(FFTW
-			COMPONENTS
-			DOUBLE
-			DOUBLE_THREADS
-			FLOAT
-			FLOAT_OPENMP
-			FLOAT_THREADS
-			)
-		if(NOT FFTW_FOUND)
-			set(COMPILE_FFTW TRUE)
-		endif()
-	else()
-		set(COMPILE_FFTW TRUE)
-	endif()
 endif()
 #------------------------------------------------------------------------------
 # Including the projects to compile 
@@ -263,8 +187,6 @@ list(APPEND projects
 	cfitsio
 	blas # blas-lapack module 
 	##sharp2
-	fftw
-	hdf5
 	healpix
 	#camb
 	commander3

@@ -38,6 +38,8 @@ program commander
   ! And exit
   call mpi_finalize(ierr)
 
+  write(*,*) 'Completed successfully'
+
 
 
 end program commander

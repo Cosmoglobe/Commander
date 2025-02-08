@@ -97,12 +97,7 @@ contains
 
     integer(i4b) :: myid, nprocs, ierr
     integer(i4b) :: l, m, i, j, k, np, ind
-    real(dp)     :: nullval
-    logical(lgt) :: anynull
     integer(i4b), allocatable, dimension(:) :: pixlist
-    character(len=5)   :: nside_text
-    character(len=512) :: weight_file, healpixdir
-    character(len=20), allocatable, dimension(:) :: units
     class(comm_mapinfo), pointer :: p => null(), p_new => null()
 
     ! Set up new mapinfo object
@@ -191,18 +186,8 @@ contains
     call sharp_make_mmajor_real_packed_alm_info(lmax, ms=p_new%ms, &
          & alm_info=p_new%alm_info)
 
-
-
-    call getEnvironment('HEALPIX', healpixdir) 
-    call int2string(nside, nside_text)
-    weight_file = trim(healpixdir)//'/data/weight_ring_n' // nside_text // '.fits'
     allocate(p_new%W(2*nside,1))
-    p_new%W = 0d0
-    nullval = 0d0
-    anynull = .false.
-    units = ''
-    call read_dbintab(weight_file, p_new%W, 2*nside, 1, nullval, anynull)
-    p_new%W = p_new%W + 1.d0
+    p_new%W = 0d0 
     call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
          & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
 
