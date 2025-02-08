@@ -25,9 +25,7 @@ module comm_data_mod
 
   type comm_data_set
      character(len=512)                  :: label, instlabel, unit, comp_sens, noise_format
-     integer(i4b)                        :: period, id_abs
-     logical(lgt)                        :: sample_gain
-     integer(i4b),       allocatable, dimension(:) :: gain_stat
+     integer(i4b)                        :: id_abs
      real(dp)                            :: gain, gain_tmp, gain_prior(2)
      real(dp), allocatable, dimension(:) :: gain_sigmas
      character(len=128)                  :: gain_comp
@@ -47,32 +45,22 @@ module comm_data_mod
      class(comm_map),     pointer :: procmask  => null()
      class(comm_map),     pointer :: gainmask  => null()
      class(comm_N),       pointer :: N         => null()
-     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
-   contains
-     procedure :: RJ2data
-     procedure :: chisq => get_chisq
   end type comm_data_set
 
   integer(i4b) :: numband
   type(comm_data_set), allocatable, dimension(:) :: data
-  integer(i4b),        allocatable, dimension(:) :: ind_ds
 
   
 contains
 
-  subroutine initialize_data_mod(cpar, handle)
+  subroutine initialize_data_mod(cpar)
     !
     ! Routine to initialise Commander3 data
     !
     implicit none
     type(comm_params), intent(in)    :: cpar
-    type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
-
-    integer(i4b)                        :: n_dummy
-
-    character(len=1) :: j_str
+    integer(i4b)       :: i, n, nmaps, numband_tot
 
     ! Read all data sets
     numband = count(cpar%ds_active)
@@ -93,62 +81,15 @@ contains
        ! Initialize mask structures
        data(n)%mask     => comm_map(data(n)%info)
 
-       data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)!, regnoise)
+       data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, i)!, regnoise)
 
     end do
 
 
   end subroutine initialize_data_mod
 
-  function get_chisq(self)
-    implicit none
-    class(comm_data_set), intent(in)           :: self
-    real(dp)                                   :: get_chisq
-
-    integer(i4b) :: ierr
-    real(dp)     :: chisq
-    class(comm_map), pointer :: invN_res => null()
-
-    get_chisq = 0d0    
-
-  end function get_chisq
-
-  function RJ2data(self, det)
-    implicit none
-
-    class(comm_data_set), intent(in)           :: self
-    integer(i4b),         intent(in), optional :: det
-    real(dp)                                   :: RJ2data
-
-    integer(i4b) :: d
-
-    d = 0; if (present(det)) d = det
-
-    RJ2data = 1.d0
-    
-  end function RJ2data
-
-  subroutine dump_unit_conversion(dir)
-    implicit none
-    character(len=*), intent(in) :: dir
-    integer(i4b) :: i, q, unit
-
-  end subroutine dump_unit_conversion
 
 
-  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out, spinzero)
-    implicit none
-    class(comm_mapinfo),                      intent(in),   target :: info
-    logical(lgt),                             intent(in)           :: alms_in
-    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
-    class(comm_map),                          intent(inout)        :: map_in
-    class(comm_map),                          intent(out), pointer :: map_out
-    logical(lgt),                             intent(in), optional :: spinzero
 
-    integer(i4b) :: i, j, l, b, lmax
-    logical(lgt) :: spinzero_
-
-
-  end subroutine smooth_map
 
 end module comm_data_mod

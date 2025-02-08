@@ -2587,24 +2587,6 @@ contains
   end subroutine read_hdf_opaque
 
 
-  subroutine write_hdf_opaque(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*),                intent(in)  :: setname
-    byte,       dimension(:), target, intent(in) :: val
-
-    integer(hid_t)  :: dtype
-    integer(size_t) :: len, numint
-    type(c_ptr)     :: f_ptr
-    !call open_hdf_set(file, setname)
-    !call h5dget_type_f(file%sethandle, dtype, file%status)
-    !call h5tget_size_f(dtype, len, file%status)
-    !numint = len
-    !allocate(val(numint))
-    !f_ptr = c_loc(val)
-    !call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
-    !call h5tclose_f(dtype, file%status)
-  end subroutine write_hdf_opaque
 
   subroutine read_hdf_vlen(file, setname, val)
     implicit none

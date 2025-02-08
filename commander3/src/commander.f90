@@ -38,7 +38,7 @@ program commander
   ! *               Initialize modules             *
   ! ************************************************
 
-  call initialize_data_mod(cpar, handle)
+  call initialize_data_mod(cpar)
 
   ! Wait for everybody to exit
   call mpi_barrier(MPI_COMM_WORLD, ierr)

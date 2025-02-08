@@ -250,9 +250,8 @@ contains
     type(hash_tbl_sll), intent(in) :: htbl
     type(comm_params),  intent(inout) :: cpar
 
-    integer(i4b)     :: i, j, n,len_itext
+    integer(i4b)     :: i, n,len_itext
     character(len=3) :: itext
-    character(len=2) :: jtext
 
     call int2string(1, itext)
     len_itext=len(trim(itext))
@@ -410,49 +409,6 @@ contains
     if(present(num)) num = n
   end subroutine get_tokens
 
-  subroutine get_detectors(filename, detectors, num_dets)
-    !
-    ! Reads detector names from a text file and saves them in a character array.
-    !
-    ! Arguments:
-    ! ----------
-    ! filename:  character string
-    !            Filename of the file where detector names are stored.
-    ! num_dets:  integer (optional)
-    !            Number of detectors
-    !
-    ! Return:
-    ! -------
-    ! detectors: character array
-    !            Initially empty array is filled with detector names. 
-    ! 
-    implicit none
-    character(len=*), intent(in)           :: filename
-    character(len=*), intent(inout)        :: detectors(:)
-    integer(i4b),     intent(in), optional :: num_dets
-
-    character(len=500)           :: detector_list_file
-    integer(i4b)                 :: unit,io_error,counter, ndet, i
-    character(len=30)             :: line
-
-  end subroutine get_detectors
-
-  function has_token(token, string, sep, group, allow_empty) result(res)
-    implicit none
-    character(len=*) :: token, string, sep
-    character(len=*), optional :: group
-    logical(lgt),     optional :: allow_empty
-    logical(lgt)     :: res
-    integer(i4b)     :: ext(2)
-    res = .true.
-    ext = -1
-    call tokenize(string, sep, ext, group, allow_empty)
-    do while(ext(1) > 0)
-       if(string(ext(1):ext(2)) == trim(token)) return
-       call tokenize(string, sep, ext, group, allow_empty)
-    end do
-    res = .false.
-  end function has_token
 
   function num_tokens(string, sep, group, allow_empty) result(res)
     implicit none
@@ -469,32 +425,6 @@ contains
     end do
   end function num_tokens
 
-  integer(i4b) function count_detectors(filename)
-    ! 
-    ! Takes in the filename and directory of a detector list and returns the number of 
-    ! detectors in that list. Each detector has to be written on a separate line, as 
-    ! the function simply counts the lines of the file that don't start in '#'.
-    !
-    ! Arguments:
-    ! ----------
-    ! filename:    character string
-    !              Filename of the detector list             
-    !
-    ! Returns:
-    ! --------
-    ! count_detectors: integer
-    !                  Number of lines in the file that are not commented out using '#'.
-    !
-    implicit none
-    character(len=*) :: filename
-
-    character(len=500)           :: detector_list_file
-    integer(i4b)                 :: unit,io_error,counter
-    logical                      :: counting
-    character(len=8)             :: line
-    count_detectors=0
-
-  end function count_detectors
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none
@@ -744,13 +674,13 @@ contains
          if(present(par_present)) par_present = .true.
       else
          call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
-              & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
+              & par_char, par_string, par_sp, par_dp, par_lgt, path)
       end if
     end subroutine get_parameter_hashtable
 
     ! getting parameter value from hash table
     subroutine get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, &
-         & par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
+         & par_string, par_sp, par_dp, par_lgt, path)
       implicit none
       type(hash_tbl_sll), intent(in) :: htbl
       character(len=*),   intent(in) :: parname
@@ -761,8 +691,6 @@ contains
       real(sp),         optional :: par_sp
       real(dp),         optional :: par_dp
       logical(lgt),     optional :: par_lgt
-      logical(lgt),     optional :: par_present
-      character(len=*), optional :: desc
       logical(lgt),     optional :: path
       character(len=256)         :: key
       character(len=:), ALLOCATABLE   :: itext,jtext
@@ -892,7 +820,7 @@ contains
     character(len=512), intent(out) :: chainfile
     integer(i4b),       intent(out) :: initsamp
     
-    integer(i4b) :: i, num, e
+    integer(i4b) :: num, e
     character(len=512), dimension(2) :: toks
 
 
@@ -911,15 +839,6 @@ contains
     
   end subroutine get_chainfile_and_samp
   
-  subroutine define_cg_samp_groups(cpar)
-    implicit none
-    type(comm_params), intent(inout) :: cpar
-    
-    integer(i4b) :: i, j, k, n
-    character(len=16), dimension(1000) :: comp_label
-    
-    
-  end subroutine define_cg_samp_groups
   
 
   

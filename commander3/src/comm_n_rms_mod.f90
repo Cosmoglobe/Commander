@@ -32,12 +32,6 @@ module comm_N_rms_mod
    contains
      ! Data procedures
 
-     procedure :: invN        => matmulInvN_1map
-     procedure :: invN_lowres => matmulInvN_1map_lowres
-     procedure :: N           => matmulN_1map
-     procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS_rms
-     procedure :: rms_pix     => returnRMS_rms_pix
      procedure :: update_N    => update_N_rms
   end type comm_N_rms
 
@@ -55,46 +49,26 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask, map)
+  function constructor(cpar, info, id_abs)
     implicit none
     class(comm_N_rms),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
-    integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
-    class(comm_map),                    intent(in)    :: mask
-    type(planck_rng),                   intent(inout) :: handle
-    real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
-    class(comm_map),                    pointer, intent(in), optional :: procmask
-    class(comm_map),                    pointer, intent(in), optional :: map
-
-    integer(i4b)       :: i, ierr, tmp, nside_smooth
-    real(dp)           :: sum_noise, npix
-    type(comm_mapinfo), pointer :: info_smooth => null()
+    integer(i4b),                       intent(in)    :: id_abs
 
     ! General parameters
     allocate(constructor)
 
-    call constructor%update_N(info, handle, mask, regnoise, &
-         & noisefile=trim(cpar%ds_noisefile(id_abs)))
+    call constructor%update_N(info, noisefile=trim(cpar%ds_noisefile(id_abs)))
 
 
   end function constructor
 
-  subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
+  subroutine update_N_rms(self, info, noisefile)
     implicit none
     class(comm_N_rms),                   intent(inout)          :: self
     class(comm_mapinfo),                 intent(in)             :: info
-    type(planck_rng),                    intent(inout)          :: handle
-    class(comm_map),                     intent(in),   optional :: mask
-    real(dp),          dimension(0:,1:), intent(out),  optional :: regnoise
-    class(comm_map),                     intent(in),   optional :: procmask
     character(len=*),                    intent(in),   optional :: noisefile
-    class(comm_map),                     intent(in),   optional :: map
-
-    integer(i4b) :: i, j, ierr
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
-    class(comm_map),     pointer :: invW_tau => null(), iN => null()
-    class(comm_mapinfo), pointer :: info_lowres => null()
 
     self%rms0     => comm_map(info, noisefile)
     self%siN     => comm_map(self%rms0)
@@ -107,61 +81,8 @@ contains
 
   end subroutine update_N_rms
 
-  ! Return map_out = invN * map
-  subroutine matmulInvN_1map(self, map, samp_group)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: map
-    integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b)  :: nmaps_band, nmaps_inp
-  end subroutine matmulInvN_1map
-
-  ! Return map_out = invN * map
-  subroutine matmulInvN_1map_lowres(self, map, samp_group)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: map
-    integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b)  :: nmaps_band, nmaps_inp
-  end subroutine matmulInvN_1map_lowres
-
-  ! Return map_out = N * map
-  subroutine matmulN_1map(self, map, samp_group)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: map
-    integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b)  :: nmaps_band, nmaps_inp
-  end subroutine matmulN_1map
-  
-  ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_1map(self, map, samp_group)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: map
-    integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
-  end subroutine matmulSqrtInvN_1map
 
 
-  ! Return RMS map
-  subroutine returnRMS_rms(self, res, samp_group)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: res
-    integer(i4b),      intent(in),   optional  :: samp_group
-  end subroutine returnRMS_rms
-  
-  ! Return rms for single pixel
-  function returnRMS_rms_pix(self, pix, pol, samp_group, ret_invN)
-    implicit none
-    class(comm_N_rms),   intent(in)              :: self
-    integer(i4b),        intent(in)              :: pix, pol
-    real(dp)                                     :: returnRMS_rms_pix
-    integer(i4b),        intent(in),   optional  :: samp_group
-    logical(lgt),        intent(in),   optional  :: ret_invN
 
-    returnRMS_rms_pix = 0d0
-  end function returnRMS_rms_pix
 
 end module comm_N_rms_mod
