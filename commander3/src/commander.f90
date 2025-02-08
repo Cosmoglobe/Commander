@@ -5,7 +5,6 @@ program commander
 
   integer(i4b)        :: ierr, length
   type(comm_params)   :: cpar
-  type(planck_rng)    :: handle
    
   !----------------------------------------------------------------------------------
   ! Command line arguments
@@ -15,9 +14,6 @@ program commander
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg, length, ierr)
-    if (ierr .ne. 0) then
-      write(*,*) 'We have a command line argument problem'
-    end if
   end do comm3_args
   !----------------------------------------------------------------------------------
 
@@ -25,14 +21,10 @@ program commander
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call MPI_Init(ierr)
-  write(*,*) 'MPI_init ierr ', ierr
-
-  write(*,*) cpar%myid, 'uninitialized?'
 
   call read_comm_params(cpar)
-  write(*,*) cpar%myid, 'initialized?'
   
-  call initialize_mpi_struct(cpar, handle)
+  call initialize_mpi_struct(cpar)
 
   ! ************************************************
   ! *               Initialize modules             *

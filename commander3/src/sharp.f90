@@ -31,22 +31,6 @@ module sharp
 
   interface
 
-     ! alm_info
-     subroutine sharp_make_general_alm_info( &
-         lmax, nm, stride, mval, mvstart, flags, alm_info) bind(c)
-       use iso_c_binding
-       integer(c_int), value, intent(in)    :: lmax, nm, stride, flags
-       integer(c_int), intent(in)           :: mval(nm)
-       integer(c_intptr_t), intent(in)     :: mvstart(nm)
-       type(c_ptr), intent(out)             :: alm_info
-     end subroutine sharp_make_general_alm_info
-
-     subroutine sharp_make_triangular_alm_info( &
-         lmax, mmax, stride, alm_info) bind(c)
-       use iso_c_binding
-       integer(c_int), value, intent(in)    :: lmax, mmax, stride
-       type(c_ptr), intent(out)             :: alm_info
-     end subroutine sharp_make_triangular_alm_info
 
      subroutine c_sharp_make_mmajor_real_packed_alm_info( &
          lmax, stride, nm, ms, alm_info) bind(c, name='sharp_make_mmajor_real_packed_alm_info')
@@ -62,11 +46,6 @@ module sharp
        type(c_ptr), value, intent(in) :: alm_info
      end function c_sharp_alm_count
 
-     subroutine c_sharp_destroy_alm_info(alm_info) bind(c, name='sharp_destroy_alm_info')
-       use iso_c_binding
-       type(c_ptr), value                   :: alm_info
-     end subroutine c_sharp_destroy_alm_info
-
      ! geom_info
      subroutine sharp_make_subset_healpix_geom_info ( &
           nside, stride, nrings, rings, weight, geom_info) bind(c)
@@ -77,10 +56,6 @@ module sharp
        type(c_ptr), intent(out)             :: geom_info
      end subroutine sharp_make_subset_healpix_geom_info
 
-     subroutine c_sharp_destroy_geom_info(geom_info) bind(c, name='sharp_destroy_geom_info')
-       use iso_c_binding
-       type(c_ptr), value                   :: geom_info
-     end subroutine c_sharp_destroy_geom_info
 
      function c_sharp_map_size(info) bind(c, name='sharp_map_size')
        use iso_c_binding
@@ -140,13 +115,6 @@ contains
     alm_info%n_local = c_sharp_alm_count(alm_info%handle)
   end subroutine sharp_make_mmajor_real_packed_alm_info
 
-  subroutine sharp_destroy_alm_info(alm_info)
-    use iso_c_binding
-    type(sharp_alm_info), intent(inout) :: alm_info
-    call c_sharp_destroy_alm_info(alm_info%handle)
-    alm_info%handle = c_null_ptr
-  end subroutine sharp_destroy_alm_info
-
 
   ! geom info
   subroutine sharp_make_healpix_geom_info(nside, rings, weight, geom_info)
@@ -158,26 +126,17 @@ contains
     integer(c_int) :: nrings
     integer(c_int), allocatable :: rings_copy(:)
 
-    if (present(rings)) then
-       nrings = size(rings)
-       allocate(rings_copy(nrings))
-       rings_copy = rings
-       call sharp_make_subset_healpix_geom_info(nside, 1, nrings, rings_copy, &
-                                                weight, geom_info%handle)
-       deallocate(rings_copy)
-    else
-       call sharp_make_subset_healpix_geom_info(nside, 1, nrings=4 * nside - 1, &
-                                                weight=weight, geom_info=geom_info%handle)
-    end if
+    write(*,*) 'rings are present'
+    nrings = size(rings)
+    allocate(rings_copy(nrings))
+    rings_copy = rings
+    call sharp_make_subset_healpix_geom_info(nside, 1, nrings, rings_copy, &
+                                             weight, geom_info%handle)
+    deallocate(rings_copy)
     geom_info%n_local = c_sharp_map_size(geom_info%handle)
+
   end subroutine sharp_make_healpix_geom_info
 
-  subroutine sharp_destroy_geom_info(geom_info)
-    use iso_c_binding
-    type(sharp_geom_info), intent(inout) :: geom_info
-    call c_sharp_destroy_geom_info(geom_info%handle)
-    geom_info%handle = c_null_ptr
-  end subroutine sharp_destroy_geom_info
 
 
   ! Currently the only mode supported is stacked (not interleaved) maps.
@@ -237,6 +196,7 @@ contains
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
+      stop
     else
       call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &

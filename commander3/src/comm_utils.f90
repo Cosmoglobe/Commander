@@ -25,7 +25,6 @@ module comm_utils
   use comm_mpi_mod
   implicit none
 
-  !include "mpif.h"
   include 'fftw3.f'
 
 contains

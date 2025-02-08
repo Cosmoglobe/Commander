@@ -45,11 +45,6 @@ module comm_N_mod
 
 contains
 
-
-
-
-
-
   subroutine compute_invN_lm(invN_diag)
     implicit none
 

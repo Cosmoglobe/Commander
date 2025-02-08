@@ -49,10 +49,7 @@ module comm_param_mod
      integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
 
      ! Global parameters
-     character(len=24)  :: operation
-     logical(lgt)       :: resamp_CMB
-     integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
-     integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
+     integer(i4b)       :: base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, thinning, num_init_chains
      character(len=512) :: chain_status, init_chain_prefix
      real(dp)           :: T_CMB
@@ -96,16 +93,13 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir, ds_sourcemask, ds_procmask
+     character(len=512) :: datadir
 
-     character(len=512), allocatable, dimension(:)   :: ds_maskfile
      character(len=512), allocatable, dimension(:)   :: ds_noisefile
-     character(len=512), allocatable, dimension(:)   :: ds_instlabel
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
      integer(i4b),       allocatable, dimension(:)   :: ds_nside
      integer(i4b),       allocatable, dimension(:)   :: ds_lmax
-     character(len=512), allocatable, dimension(:)   :: ds_label
 
 
   end type comm_params
@@ -126,8 +120,6 @@ contains
     character(len=512), allocatable, dimension(:) :: paramfile_cache
 
     call getarg(1, paramfile)
-
-    write(*,*) cpar%myid, cpar%root, 'stuff is here'
 
     ! Read parameters into cache
     if (cpar%myid == cpar%root) then
@@ -165,12 +157,11 @@ contains
     call free_hash_tbl_sll(htable)
   end subroutine read_comm_params
 
-  subroutine initialize_mpi_struct(cpar, handle)
+  subroutine initialize_mpi_struct(cpar)
     implicit none
     type(comm_params), intent(inout) :: cpar
-    type(planck_rng),  intent(out)   :: handle
 
-    integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
+    integer(i4b) :: i, j, m, n, ierr
     integer(i4b), allocatable, dimension(:,:) :: ind
 
     ierr = 0
@@ -206,17 +197,6 @@ contains
 
     deallocate(ind)
 
-    ! Initialize random number generator
-    if (cpar%myid == cpar%root) then
-       call rand_init(handle, cpar%base_seed)
-       do i = 1, cpar%numprocs-1
-          j = nint(rand_uni(handle)*1000000.d0)
-          call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
-       end do
-    else 
-       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, mpistat, ierr)
-       call rand_init(handle, j)
-    end if
 
   end subroutine initialize_mpi_struct
 
@@ -259,9 +239,9 @@ contains
 
     n = cpar%numband
 
-    allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
-    allocate(cpar%ds_active(n), cpar%ds_label(n), cpar%ds_instlabel(n))
-    allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n))
+    allocate(cpar%ds_nside(n), cpar%ds_lmax(n))
+    allocate(cpar%ds_active(n))
+    allocate(cpar%ds_noisefile(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_active(i))

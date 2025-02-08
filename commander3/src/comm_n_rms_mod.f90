@@ -27,11 +27,8 @@ module comm_N_rms_mod
   
   type, extends (comm_N) :: comm_N_rms
      class(comm_map), pointer :: siN        => null()
-     class(comm_map), pointer :: siN_lowres => null()
      class(comm_map), pointer :: rms0       => null()
    contains
-     ! Data procedures
-
      procedure :: update_N    => update_N_rms
   end type comm_N_rms
 
@@ -42,42 +39,36 @@ module comm_N_rms_mod
   type comm_N_rms_ptr
      type(comm_N_rms), pointer :: p => null()
   end type comm_N_rms_ptr
-
   
 contains
 
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id_abs)
+  function constructor(info)
     implicit none
     class(comm_N_rms),                  pointer       :: constructor
-    type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
-    integer(i4b),                       intent(in)    :: id_abs
 
     ! General parameters
     allocate(constructor)
 
-    call constructor%update_N(info, noisefile=trim(cpar%ds_noisefile(id_abs)))
-
+    call constructor%update_N(info)
 
   end function constructor
 
-  subroutine update_N_rms(self, info, noisefile)
+  subroutine update_N_rms(self, info)
     implicit none
     class(comm_N_rms),                   intent(inout)          :: self
     class(comm_mapinfo),                 intent(in)             :: info
-    character(len=*),                    intent(in),   optional :: noisefile
 
-    self%rms0     => comm_map(info, noisefile)
+    self%rms0     => comm_map(info)
     self%siN     => comm_map(self%rms0)
 
-    ! Set up diagonal covariance matrix
     self%invN_diag => comm_map(info)
-    self%invN_diag%map = self%siN%map**2
+    self%invN_diag%map = 0d0
     call compute_invN_lm(self%invN_diag)
-
+    write(*,*) "Miracle"
 
   end subroutine update_N_rms
 
