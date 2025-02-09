@@ -25,22 +25,15 @@ module comm_N_mod
   type :: comm_N
      ! Data variables
      character(len=512)       :: type
-     integer(i4b)             :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
-     logical(lgt)             :: pol, pol_only
-     logical(lgt)             :: set_noise_to_mean
-     character(len=512)       :: cg_precond
-     real(dp)                 :: uni_fsky
-     real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
+     integer(i4b)             :: nside, nmaps, np, npix, comm
      class(comm_map),     pointer :: invN_diag => null()
      class(comm_map),     pointer :: rms_reg   => null()
      class(comm_mapinfo), pointer :: info      => null()
-     class(map_ptr), allocatable, dimension(:) :: samp_group_mask
   end type comm_N
 
   type comm_N_ptr
      class(comm_N), pointer :: p => null()
   end type comm_N_ptr
-  
 
 
 contains
@@ -50,15 +43,7 @@ contains
 
     class(comm_map),  intent(inout) :: invN_diag
 
-    real(dp)     :: npix
-    integer(i4b) :: twolmaxp2, lmax
-
-    lmax      = invN_diag%info%lmax
-    twolmaxp2 = 2*lmax+2
-    npix      = real(invN_diag%info%npix,dp)
-
     call invN_diag%YtW_scalar
-
     
   end subroutine compute_invN_lm
 

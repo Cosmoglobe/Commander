@@ -43,10 +43,9 @@ contains
 
     allocate(data(1))
 
-    data(1)%rmsinfo => comm_mapinfo(cpar%comm_chain, 256, 750, 1)
+    data(1)%rmsinfo  => comm_mapinfo(cpar%comm_chain, 256, 750, 1)
     data(1)%mask     => comm_map(data(1)%rmsinfo)
-
-    data(1)%N       => comm_N_rms(data(1)%rmsinfo)!, regnoise)
+    data(1)%N        => comm_N_rms(data(1)%rmsinfo)
 
   end subroutine initialize_data_mod
 

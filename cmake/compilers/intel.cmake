@@ -84,6 +84,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-debug" "all"
     "-check" "all,nouninit,bounds,pointer"
     "-warn" "all,noexternal"
+    "-fsanitize=undefined"
     "-fp-stack-check"
     "-fstack-protector-all"
 		"-traceback" 
@@ -127,7 +128,7 @@ if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "-lubsan")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")

@@ -34,10 +34,6 @@ module comm_map_mod
 
 
   type :: comm_mapinfo
-     ! Linked list variables
-     class(comm_mapinfo), pointer :: nextLink => null()
-     class(comm_mapinfo), pointer :: prevLink => null()
-
      ! Data variables
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
@@ -54,10 +50,6 @@ module comm_map_mod
   end type comm_mapinfo
 
   type :: comm_map
-     ! Linked list variables
-     class(comm_map), pointer :: nextLink => null()
-     class(comm_map), pointer :: prevLink => null()
-
      ! Data variables
      class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
@@ -82,8 +74,6 @@ module comm_map_mod
   end interface comm_map
 
 
-  ! Library of mapinfos; resident in memory during the analysis
-  class(comm_mapinfo), pointer, private :: mapinfos => null()
 
 contains
 
@@ -98,7 +88,7 @@ contains
     integer(i4b) :: myid, nprocs, ierr
     integer(i4b) :: l, m, i, j, k, np, ind
     integer(i4b), allocatable, dimension(:) :: pixlist
-    class(comm_mapinfo), pointer :: p => null(), p_new => null()
+    class(comm_mapinfo), pointer :: p_new => null()
 
     ! Set up new mapinfo object
     call mpi_comm_rank(comm, myid, ierr)
@@ -111,7 +101,6 @@ contains
     p_new%nside  = nside
     p_new%nmaps  = nmaps
     p_new%lmax   = lmax
-    p_new%npix   = 12*nside**2
 
 
     ! Select rings and pixels
@@ -169,14 +158,17 @@ contains
        p_new%mind(m) = ind
        if (m == 0) then
           do l = m, lmax
-             p_new%lm(:,ind) = [l,m]
+             p_new%lm(1,ind) = l
+             p_new%lm(2,ind) = m
              ind                           = ind+1
           end do
        else
           do l = m, lmax
-             p_new%lm(:,ind) = [l,+m]
+             p_new%lm(1,ind) = l
+             p_new%lm(2,ind) = m
              ind                           = ind+1
-             p_new%lm(:,ind) = [l,-m]
+             p_new%lm(1,ind) = l
+             p_new%lm(2,ind) = -m
              ind                           = ind+1
           end do
        end if
@@ -191,10 +183,6 @@ contains
     call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
          & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
 
-    ! Set up new object, and add to list
-    p => mapinfos
-    write(*,*) 'setting up'
-    mapinfos => p_new
 
     constructor_mapinfo => p_new
 
@@ -231,8 +219,6 @@ contains
     constructor_clone%alm = 0d0
     
   end function constructor_clone
-
-
   
   !**************************************************
   !             Spherical harmonic transforms
@@ -242,18 +228,11 @@ contains
     implicit none
 
     class(comm_map), intent(inout) :: self
-    integer(i4b) :: i
 
-    do i = 1, self%info%nmaps
-       call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
-    end do
+    call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+         & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
     
   end subroutine exec_sharp_YtW_scalar
-  
-  !**************************************************
-  !                   IO routines
-  !**************************************************
   
 
 end module comm_map_mod

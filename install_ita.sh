@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" #"gnu"
+toolchain="oneapi" 
 buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -162,6 +162,7 @@ then
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
     #module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
     module load intel/oneapi compiler/latest mpi/latest mkl/latest
+    module load gcc
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -173,8 +174,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load gcc/13.1
-    module load openmpi/gcc13/5.0.2
+    module load gcc/13.3.1
+    module load openmpi/gcc13/5.0.5
 		printf "\n"
 		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]

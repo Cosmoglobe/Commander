@@ -169,6 +169,11 @@ contains
     type(c_ptr), target    :: alm_ptr(nmaps)
     type(c_ptr), target    :: map_ptr(nmaps)
 
+
+
+    real(c_double)        :: time_
+    integer(c_long_long)  :: opcnt_
+
     mod_flags = SHARP_DP
     if (present(add)) then
       if (add) mod_flags = or(mod_flags, SHARP_ADD)
@@ -194,15 +199,19 @@ contains
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
           flags=mod_flags, &
-          time=time, &
-          opcnt=opcnt)
+          time=time_, &
+          opcnt=opcnt_)
     else
       call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
           flags=mod_flags, &
-          time=time, &
-          opcnt=opcnt)
+          time=time_, &
+          opcnt=opcnt_)
    end if
+
+
+   if (present(time)) time_ = time
+   if (present(opcnt)) opcnt_ = opcnt
   end subroutine sharp_execute_d
 end module

@@ -570,7 +570,7 @@ setSharpDefaults () {
     SHARP_LDFLAGS=""
     if [ "${OS}" = "Darwin" -a `isTrue ${USE_ATRPATH}` -eq 1 ]; then
 	#SHARP_LDFLAGS="-Wl,-install_name,@rpath/libsharp.0.dylib"
-	SHARP_LDFLAGS="-Wl,-install_name,@rpath/libsharp.1.dylib"
+	SHARP_LDFLAGS="-Wl,-install_name,@rpath/libsharp.1.dylib,-fsanitize=undefined,-lubsan"
 	#SHARP_LDFLAGS="-Wl,-install_name,@rpath/libsharp.1.dylib,-compatibility_version,1,-current_version,1"
 	# requires to add -Wl,-rpath,${HEALPIX}/lib to C++ flags ($CXXFLAGS)
     fi
