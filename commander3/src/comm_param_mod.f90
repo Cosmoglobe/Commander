@@ -1,27 +1,13 @@
-
 module comm_param_mod
   use comm_utils
   use hashtbl
   implicit none
 
-  ! Note: This module reads in the Commander parameter file as the first operation
-  !       in the program. This is primarily intended to avoid crashes after hours
-  !       of running because of user errors; catch these early, and report back
-  !       problems. Then, copy parameters over to module structures if convenient
-  !       at a later stage. 
-
-
   type comm_params
 
      ! MPI info
-     integer(i4b) :: myid, numprocs, root = 0
+     integer(i4b) :: myid, root = 0
      integer(i4b) :: myid_chain, comm_chain, mychain
-
-     ! Data parameters
-
-     integer(i4b),       allocatable, dimension(:)   :: ds_nside
-     integer(i4b),       allocatable, dimension(:)   :: ds_lmax
-
 
   end type comm_params
 
@@ -31,43 +17,6 @@ contains
   ! ********************************************************
   !                     Driver routines
   ! ********************************************************
-  subroutine read_comm_params(cpar)
-    implicit none
-    type(hash_tbl_sll) :: htable
-    type(comm_params), intent(inout) :: cpar
-
-    integer(i4b)       :: paramfile_len, ierr, i
-    character(len=512) :: paramfile
-    character(len=512), allocatable, dimension(:) :: paramfile_cache
-
-    call getarg(1, paramfile)
-
-    ! Read parameters into cache
-    if (cpar%myid == cpar%root) then
-       paramfile_len = 512
-       allocate(paramfile_cache(paramfile_len))
-       call read_paramfile_to_ascii(paramfile,paramfile_cache,paramfile_len)
-    end if
-    call mpi_bcast(paramfile_len, 1, MPI_INTEGER, cpar%root, MPI_COMM_WORLD, ierr)
-    if (cpar%myid /= cpar%root) then 
-       allocate(paramfile_cache(paramfile_len))
-    end if
-    do i=1,paramfile_len
-       call mpi_bcast(paramfile_cache(i), 512, MPI_CHAR, cpar%root, MPI_COMM_WORLD, ierr)
-    end do
-    call init_hash_tbl_sll(htable,tbl_len=10*paramfile_len)
-    call put_ascii_into_hashtable(paramfile_cache,htable)
-
-
-
-    ! Read parameters from the hash table
-    call read_data_params_hash(htable,cpar)
-
-    deallocate(paramfile_cache)
-
-    !Deallocate hash table
-    call free_hash_tbl_sll(htable)
-  end subroutine read_comm_params
 
   subroutine initialize_mpi_struct(cpar)
     implicit none
@@ -78,20 +27,22 @@ contains
 
     ierr = 0
 
-    allocate(ind(0:cpar%numprocs-1,2))
+    allocate(ind(0:0,2))
     n = 0
     do i = 1, 1
-       m = cpar%numprocs / 1
-       if ((cpar%numprocs-(cpar%numprocs/1)*1) >= i) m = m+1
-       ind(n:n+m-1,1) = i
-       do j = 0, m-1
-          ind(n+j,2) = j
+       m = 1
+       ind(0:0,1) = i
+       do j = 0, 0
+          ind(0+j,2) = j
        end do
        n = n+m
     end do
 
+    write(*,*) ind
+
     cpar%mychain    = ind(cpar%myid,1)
     cpar%myid_chain = ind(cpar%myid,2)
+
 
     call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
 
@@ -104,25 +55,6 @@ contains
   !              Specialized routines; one per module
   ! ********************************************************
 
-  subroutine read_data_params_hash(htbl, cpar)
-    implicit none
-
-    type(hash_tbl_sll), intent(in) :: htbl
-    type(comm_params),  intent(inout) :: cpar
-
-    integer(i4b)     :: len_itext
-    character(len=3) :: itext
-
-    call int2string(1, itext)
-    len_itext=len(trim(itext))
-
-    allocate(cpar%ds_nside(1), cpar%ds_lmax(1))
-
-    call get_parameter_hashtable(htbl, 'BAND_NSIDE'//itext, len_itext=len_itext, par_int=cpar%ds_nside(1))
-    call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(1))
-
-
-  end subroutine read_data_params_hash
 
 
   ! ********************************************************

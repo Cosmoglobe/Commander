@@ -43,8 +43,8 @@ if(COMPILE_HEALPIX)
 	#------------------------------------------------------------------------------
 	# Below flags used to configure Libsharp as part of HEALPix
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-    #set(healpix_sharp2_C_FLAGS "-static-intel -g -O2 -ggdb -fvar-tracking-assignments -fp-model=fast -fp-speculation=fast -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-    set(healpix_sharp2_C_FLAGS "-static-intel -g -O0 -ggdb -fvar-tracking-assignments -fp-model=fast -fp-speculation=fast -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+    set(healpix_sharp2_C_FLAGS "-static-intel -g -O2 -ggdb -fvar-tracking-assignments -fp-model=fast -fp-speculation=fast -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+    #set(healpix_sharp2_C_FLAGS "-static-intel -g -O0 -ggdb -fvar-tracking-assignments -fp-model=fast -fp-speculation=fast -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
