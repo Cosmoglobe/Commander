@@ -30,23 +30,21 @@ module comm_map_mod
   use comm_param_mod
   implicit none
 
-  public comm_map, comm_mapinfo, map_ptr
+  public comm_map, comm_mapinfo
 
 
   type :: comm_mapinfo
      ! Data variables
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
-     logical(lgt) :: pol, dist
      integer(i4b) :: comm, myid, nprocs
-     integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm, mmax
+     integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
      integer(c_int), allocatable, dimension(:)   :: mind
      integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
      real(c_double), allocatable, dimension(:,:) :: W
-     integer(i4b),   allocatable, dimension(:)   :: nalms
   end type comm_mapinfo
 
   type :: comm_map
@@ -61,10 +59,6 @@ module comm_map_mod
 
   end type comm_map
 
-  type map_ptr
-     class(comm_map), pointer :: p => null()
-  end type map_ptr
-  
   interface comm_mapinfo
      procedure constructor_mapinfo
   end interface comm_mapinfo
@@ -72,7 +66,6 @@ module comm_map_mod
   interface comm_map
      procedure constructor_map, constructor_clone
   end interface comm_map
-
 
 
 contains
@@ -85,16 +78,19 @@ contains
     integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
-    integer(i4b) :: myid, nprocs, ierr
+    integer(i4b) :: myid, nprocs, ierr, stat
     integer(i4b) :: l, m, i, j, k, np, ind
     integer(i4b), allocatable, dimension(:) :: pixlist
     class(comm_mapinfo), pointer :: p_new => null()
 
     ! Set up new mapinfo object
     call mpi_comm_rank(comm, myid, ierr)
+    if (ierr .ne. 0) write(*,*) 'mpi_comm_rank error'
     call mpi_comm_size(comm, nprocs, ierr)
+    if (ierr .ne. 0) write(*,*) 'mpi_comm_size error'
 
-    allocate(p_new)
+    allocate(p_new, stat=stat)
+    if (stat .ne. 0) write(*,*) 'p_new allocation error'
     p_new%comm   = comm
     p_new%myid   = myid
     p_new%nprocs = nprocs
@@ -104,7 +100,8 @@ contains
 
 
     ! Select rings and pixels
-    allocate(pixlist(0:4*nside-1))
+    allocate(pixlist(0:4*nside-1), stat=stat)
+    if (stat .ne. 0) write(*,*) 'pixlist allocation error'
     p_new%nring = 0
     p_new%np    = 0
     do i = 1+myid, 2*nside, nprocs
@@ -116,11 +113,16 @@ contains
           p_new%np    = p_new%np    + np
        end if
     end do
-    allocate(p_new%rings(p_new%nring))
-    allocate(p_new%pix(p_new%np))
+
+    allocate(p_new%rings(p_new%nring), stat=stat)
+    if (stat .ne. 0) write(*,*) 'rings allocation error'
+    allocate(p_new%pix(p_new%np), stat=stat)
+    if (stat .ne. 0) write(*,*) 'pix allocation error'
+
     j = 1
     k = 1
     do i = 1+myid, 2*nside, nprocs
+       if (k > ubound(p_new%rings,dim=1)) write(*,*) 'Out of bounds, buddy'
        call in_ring(nside, i, 0.d0, pi, pixlist, np)
        p_new%rings(k) = i
        p_new%pix(j:j+np-1) = pixlist(0:np-1)
@@ -128,6 +130,7 @@ contains
        j = j + np
        if (i < 2*nside) then ! Symmetric about equator
           call in_ring(nside, 4*nside-i, 0.d0, pi, pixlist, np)
+          if (j > ubound(p_new%pix,dim=1)) write(*,*) 'Out of bounds for pix'
           p_new%rings(k) = 4*nside-i
           p_new%pix(j:j+np-1) = pixlist(0:np-1)
           k = k + 1
@@ -147,9 +150,12 @@ contains
           p_new%nalm = p_new%nalm + 2*(lmax-m+1)
        end if
     end do
-    allocate(p_new%ms(p_new%nm))
-    allocate(p_new%mind(0:p_new%lmax))
-    allocate(p_new%lm(2,0:p_new%nalm-1))
+    allocate(p_new%ms(p_new%nm),stat=stat)
+    if (stat .ne. 0) write(*,*) 'ms allocation error'
+    allocate(p_new%mind(0:p_new%lmax), stat=stat)
+    if (stat .ne. 0) write(*,*) 'mind allocation error'
+    allocate(p_new%lm(2,0:p_new%nalm-1),stat=stat)
+    if (stat .ne. 0) write(*,*) 'lm allocation error'
     ind = 0
     p_new%mind = -1
     do i = 1, p_new%nm
@@ -178,7 +184,8 @@ contains
     call sharp_make_mmajor_real_packed_alm_info(lmax, ms=p_new%ms, &
          & alm_info=p_new%alm_info)
 
-    allocate(p_new%W(2*nside,1))
+    allocate(p_new%W(2*nside,1), stat=stat)
+    if (stat .ne. 0) write(*,*) 'W allocation error'
     p_new%W = 0d0 
     call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
          & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
@@ -195,14 +202,10 @@ contains
 
     allocate(constructor_map)
     constructor_map%info => info
-    allocate(constructor_map%map(0:info%np-1,info%nmaps))
-    allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
-    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))
+    allocate(constructor_map%map(0:info%np-1,info%nmaps), source=0d0)
+    allocate(constructor_map%alm(0:info%nalm-1,info%nmaps), source=0d0)
+    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps), source=0d0)
 
-    constructor_map%alm_buff = 0d0
-    if (info%np > 0) constructor_map%map = 0.d0
-    if (info%nalm > 0) constructor_map%alm = 0.d0
-    
   end function constructor_map
 
   
@@ -215,8 +218,8 @@ contains
     constructor_clone%info => map%info
     allocate(constructor_clone%map(0:map%info%np-1,map%info%nmaps))
     allocate(constructor_clone%alm(0:map%info%nalm-1,map%info%nmaps))
-    constructor_clone%map = 0d0
-    constructor_clone%alm = 0d0
+    constructor_clone%map = map%map
+    constructor_clone%alm = map%alm
     
   end function constructor_clone
   

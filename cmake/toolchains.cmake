@@ -124,186 +124,22 @@ set(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL ""
 	CACHE STRING
 	"List of linker flags for MinSizeRel version."
 	)
-# Commander also has one cpp file, so I add one flag
-# similarly to the ones specified in the config files
-set(COMMANDER3_CXX_COMPILER_FLAGS "-O3")
+set(COMMANDER3_CXX_COMPILER_FLAGS "-O0")
 
-#------------------------------------------------------------------------------
-# Specific flags for each subproject
-# According to installation guidelines, we need to 
-# specify slightly different flags for different compilers
-# For easier debugging, I have created compiler variables
-#------------------------------------------------------------------------------
 set(COMMANDER3_C_COMPILER "${MPI_C_COMPILER}")
 set(COMMANDER3_CXX_COMPILER "${MPI_CXX_COMPILER}")
 set(COMMANDER3_Fortran_COMPILER "${MPI_Fortran_COMPILER}")
 
-#------------------------------------------------------------------------------
-# To get rid of "C preprocessor fails sanity check" error
-# we need to link the CPP as follows for each subproject
-# Different OS requires different linking
-#------------------------------------------------------------------------------
 if(${CMAKE_SYSTEM_NAME} MATCHES Linux)
 	set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 elseif(${CMAKE_SYSTEM_NAME} MATCHES Darwin)
 	set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 endif()
 
-#------------------------------------------------------------------------------
-# Specifying flags per Fortran compiler
-# Intel
-# Note: from https://www.osc.edu/documentation/knowledge_base/compilation_guide
-# With the Intel compilers, use -xHost and -O2 or higher. 
-# With the gnu compilers, use -march=native and -O3. 
-# The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
-#------------------------------------------------------------------------------
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	include(intel)
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	include(gnu)
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVHPC)
 	include(nvhpc)
-#------------------------------------------------------------------------------
-# AOCC Flang
-#------------------------------------------------------------------------------
-#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-#			"-O0" 
-#			"-g" 
-#			#"-fno-strict-aliasing"
-#			#"-fopenmp" 
-#			#"-fbacktrace" 
-#			#"-fexternal-blas"
-#			#"-C" 
-#			#"-Wall" 
-#			#"-Wextra" 
-#			#"-Warray-temporaries"
-#			#"-Wconversion-extra" 
-#			#"-pedantic" 
-#			#"-fcheck=all" 
-#			#"-ffpe-trap=invalid,zero,overflow,underflow" 
-#			#"-ffunction-sections" 
-#			#"-pipe"
-#			#"-ffpe-trap=zero"
-#			#"-fPIC"
-#			)
-#	endif()
-#------------------------------------------------------------------------------
-# PGI	
-# TODO: For some reason commander dependencies crashes on this one
-# so figure out how to make it work
-#elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
-#	# Compiler flags
-#	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-#			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
-#			"-DNDEBUG"
-#			"-fast" 
-#			"-mp=all"
-#			"-traceback" 
-#			"-Mconcur"
-#			"-fPIC"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-#			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-#			"-mp=all"
-#			"-gopt" 
-#			"-fast" 
-#			"-traceback" 
-#			"-Minfo" 
-#			"-Mconcur"
-#			"-C"
-#			"-fPIC"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-#			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-#			"-DNDEBUG"
-#			"-mp=all"
-#			"-gopt" 
-#			"-fast" 
-#			"-traceback" 
-#			"-Minfo" 
-#			"-Mconcur"
-#			"-C"
-#			"-fPIC"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-#			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
-#			"-mp=all"
-#			"-fast" 
-#			"-traceback" 
-#			"-Mconcur"
-#			"-C"
-#			"-fPIC"
-#			)
-#	endif()
-#
-#	# Linker flags
-#	# the same logic as with compiler flags
-#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
-#			"-mp=all"# -gopt -Mconcur"
-#			"-gopt" 
-#			"-Mconcur"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
-#			"-mp=all"# -gopt -Mconcur"
-#			"-gopt" 
-#			"-Mconcur"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
-#			"-mp=all"# -Mconcur"
-#			"-Mconcur"
-#			)
-#	endif()
-#	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
-#			"-mp=all"# -Mconcur"
-#			"-Mconcur"
-#			)
-#	endif()
-#------------------------------------------------------------------------------
-# Flang
-# TODO: need to figure out why healpix doesn't compile with flang
-# and then add support for flang
-#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-#	# Compiler flags
-#	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL "")
-#	# Linker flags
-#	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
-#------------------------------------------------------------------------------
-# Flang
-# TODO: need to figure out why healpix doesn't compile with flang
-# and then add support for flang
-#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-#	# Compiler flags
-#	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO "")
-#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL "")
-#	# Linker flags
-#	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
-#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 endif()
