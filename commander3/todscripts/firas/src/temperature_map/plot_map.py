@@ -220,7 +220,7 @@ for channel in channels.keys():
                     unit="MJy/sr",
                     # norm="hist",
                     min=0,
-                    max=50,
+                    max=200,
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
@@ -296,7 +296,7 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
         unit="MJy/sr",
         # norm="hist",
         min=0,
-        max=50,
+        max=200,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png")

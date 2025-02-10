@@ -198,6 +198,11 @@ merge_by = [
     "sun_angle",
     "earth_limb",
     "moon_angle",
+    "mtm_length",
+    "mtm_speed",
+    "fake",
+    "upmode",
+    "xcal_pos",
 ]
 
 for channel in channels:
@@ -309,29 +314,13 @@ print(merged_df.shape)
 # CLEANING XCAL_POS AND CONSTRAINING FOR ONLY 1 AND 2
 # making sure xcal_pos is the same within each record
 before = len(merged_df)
-merged_df["xcal_pos"] = merged_df.apply(clean_variable, axis=1, args=("xcal_pos",))
-merged_df = merged_df.drop(
-    columns=["xcal_pos_lh", "xcal_pos_ll", "xcal_pos_rh", "xcal_pos_rl"]
-)
 merged_df = merged_df[merged_df["xcal_pos"] != np.nan]
-print(f"Number of rows removed due to xcal_pos: {before - len(merged_df)}")
 merged_df = merged_df[(merged_df["xcal_pos"] == 1) | (merged_df["xcal_pos"] == 2)]
 print(f"Size after cleaning xcal_pos:")
 print(merged_df.shape)
 
 # same thing but for mtm length and speed
 before = len(merged_df)
-merged_df["mtm_length"] = merged_df.apply(clean_variable, axis=1, args=("mtm_length",))
-print(f"Number of rows removed due to mtm_length: {before - len(merged_df)}")
-before = len(merged_df)
-merged_df["mtm_speed"] = merged_df.apply(clean_variable, axis=1, args=("mtm_speed",))
-print(f"Number of rows removed due to mtm_speed: {before - len(merged_df)}")
-merged_df = merged_df.drop(
-    columns=["mtm_length_lh", "mtm_length_ll", "mtm_length_rh", "mtm_length_rl"]
-)
-merged_df = merged_df.drop(
-    columns=["mtm_speed_lh", "mtm_speed_ll", "mtm_speed_rh", "mtm_speed_rl"]
-)
 merged_df = merged_df[
     (merged_df["mtm_length"] == 0) | (merged_df["mtm_length"] == 1)
 ]  # only 0 and 1 for mtm_length
@@ -342,20 +331,11 @@ merged_df = merged_df[
 print(f"Size after cleaning mtm_length and mtm_speed:")
 print(merged_df.shape)
 
-# same thing for fake it flag
-before = len(merged_df)
-merged_df["fake"] = merged_df.apply(clean_variable, axis=1, args=("fake",))
-print(f"Number of rows removed due to fake: {before - len(merged_df)}")
 # fake-it mode on is 1, so i am guessing that 0 is when it is off
 merged_df = merged_df[(merged_df["fake"] == 0)]
-merged_df = merged_df.drop(columns=["fake", "fake_lh", "fake_ll", "fake_rh", "fake_rl"])
 
 print(f"Size after cleaning fake:")
 print(merged_df.shape)
-
-# upmode making all channels the same
-merged_df["upmode"] = merged_df.apply(clean_variable, axis=1, args=("upmode",))
-merged_df = merged_df.drop(columns=["upmode_lh", "upmode_ll", "upmode_rh", "upmode_rl"])
 
 print(f"Size after cleaning upmode:")
 print(merged_df.shape)
