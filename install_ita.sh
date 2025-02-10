@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" 
+toolchain="gnu" 
 buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
