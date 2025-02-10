@@ -7,17 +7,10 @@ module sharp
   ! sharp job types
   enum, bind(c)
       enumerator :: SHARP_YtW = 0
-      enumerator :: SHARP_Y = 1
-      enumerator :: SHARP_Yt = 2
-      enumerator :: SHARP_WY = 3
-      enumerator :: SHARP_ALM2MAP_DERIV1 = 4
    end enum
 
   ! sharp job flags
   integer, parameter :: SHARP_DP             = ISHFT(1, 4)
-  integer, parameter :: SHARP_ADD            = ISHFT(1, 5)
-  integer, parameter :: SHARP_REAL_HARMONICS = ISHFT(1, 6)
-  integer, parameter :: SHARP_NO_FFT         = ISHFT(1, 7)
 
   type sharp_geom_info
      type(c_ptr) :: handle
@@ -30,7 +23,6 @@ module sharp
   end type sharp_alm_info
 
   interface
-
 
      subroutine c_sharp_make_mmajor_real_packed_alm_info( &
          lmax, stride, nm, ms, alm_info) bind(c, name='sharp_make_mmajor_real_packed_alm_info')
@@ -56,15 +48,12 @@ module sharp
        type(c_ptr), intent(out)             :: geom_info
      end subroutine sharp_make_subset_healpix_geom_info
 
-
      function c_sharp_map_size(info) bind(c, name='sharp_map_size')
        use iso_c_binding
        integer(c_intptr_t) :: c_sharp_map_size
        type(c_ptr), value   :: info
      end function c_sharp_map_size
 
-
-     ! execute
      subroutine c_sharp_execute(type, spin, alm, map, geom_info, alm_info, &
                                 flags, time, opcnt) bind(c, name='sharp_execute')
        use iso_c_binding
@@ -75,15 +64,6 @@ module sharp
        type(c_ptr), intent(in)                      :: alm(*), map(*)
      end subroutine c_sharp_execute
 
-     subroutine c_sharp_execute_mpi(comm, type, spin, alm, map, geom_info, alm_info, &
-                                    flags, time, opcnt) bind(c, name='sharp_execute_mpi_fortran')
-       use iso_c_binding
-       integer(c_int), value                        :: comm, type, spin, flags
-       type(c_ptr), value                           :: alm_info, geom_info
-       real(c_double), intent(out), optional        :: time
-       integer(c_long_long), intent(out), optional  :: opcnt
-       type(c_ptr), intent(in)                      :: alm(*), map(*)
-     end subroutine c_sharp_execute_mpi
   end interface
 
   interface sharp_execute
@@ -91,9 +71,6 @@ module sharp
   end interface
 
 contains
-  ! alm info
-
-  ! if ms is not passed, we default to using m=0..lmax.
   subroutine sharp_make_mmajor_real_packed_alm_info(lmax, ms, alm_info)
     use iso_c_binding
     integer(c_int), value, intent(in)    :: lmax
@@ -115,7 +92,6 @@ contains
     alm_info%n_local = c_sharp_alm_count(alm_info%handle)
   end subroutine sharp_make_mmajor_real_packed_alm_info
 
-
   ! geom info
   subroutine sharp_make_healpix_geom_info(nside, rings, weight, geom_info)
     integer(c_int), value                :: nside
@@ -126,7 +102,6 @@ contains
     integer(c_int) :: nrings
     integer(c_int), allocatable :: rings_copy(:)
 
-    write(*,*) 'rings are present'
     nrings = size(rings)
     allocate(rings_copy(nrings))
     rings_copy = rings
@@ -139,77 +114,41 @@ contains
 
 
 
-  ! Currently the only mode supported is stacked (not interleaved) maps.
-  !
-  ! Note that passing the exact dimension of alm/map is necessary, it
-  ! prevents the caller from doing too crazy slicing prior to pass array
-  ! in...
-  !
-  ! Usage:
-  !
-  ! The alm array must have shape exactly alm(alm_info%n_local, nmaps)
-  ! The maps array must have shape exactly map(map_info%n_local, nmaps).
-  subroutine sharp_execute_d(type, spin, nmaps, alm, alm_info, map, geom_info, &
-                             add, time, opcnt, comm)
+  subroutine sharp_execute_d(alm, alm_info, map, geom_info, &
+                             time, opcnt)
     use iso_c_binding
-    use mpi
     implicit none
-    integer(c_int), value                        :: type, spin, nmaps
-    integer(c_int), optional                     :: comm
-    logical, value, optional                     :: add  ! should add instead of replace out
 
     type(sharp_alm_info)                         :: alm_info
     type(sharp_geom_info)                        :: geom_info
     real(c_double), intent(out), optional        :: time
     integer(c_long_long), intent(out), optional  :: opcnt
-    real(c_double), target, intent(inout)        :: alm(0:alm_info%n_local - 1, 1:nmaps)
-    real(c_double), target, intent(inout)        :: map(0:geom_info%n_local - 1, 1:nmaps)
-    !--
-    integer(c_int)         :: mod_flags, ntrans, k
-    type(c_ptr), target    :: alm_ptr(nmaps)
-    type(c_ptr), target    :: map_ptr(nmaps)
+    real(c_double), target, intent(inout)        :: alm(0:alm_info%n_local - 1, 1:1)
+    real(c_double), target, intent(inout)        :: map(0:geom_info%n_local - 1, 1:1)
 
 
+    integer(c_int)         :: mod_flags
+    type(c_ptr), target    :: alm_ptr(1)
+    type(c_ptr), target    :: map_ptr(1)
 
     real(c_double)        :: time_
     integer(c_long_long)  :: opcnt_
 
     mod_flags = SHARP_DP
-    if (present(add)) then
-      if (add) mod_flags = or(mod_flags, SHARP_ADD)
-    end if
-
-    if (spin == 0) then
-       ntrans = nmaps
-    else
-       ntrans = nmaps / 2
-    end if
-    if (ntrans/=1) print *, "ERROR: ntrans /= 1"
 
     ! Set up pointer table to access maps
     alm_ptr(:) = c_null_ptr
     map_ptr(:) = c_null_ptr
-    do k = 1, nmaps
-       if (alm_info%n_local > 0) alm_ptr(k) = c_loc(alm(0, k))
-       if (geom_info%n_local > 0) map_ptr(k) = c_loc(map(0, k))
-    end do
+    alm_ptr(1) = c_loc(alm(0, 1))
+    map_ptr(1) = c_loc(map(0, 1))
 
-    if (present(comm)) then
-      call c_sharp_execute_mpi(comm, type, spin, alm_ptr, map_ptr, &
-          geom_info=geom_info%handle, &
-          alm_info=alm_info%handle, &
-          flags=mod_flags, &
-          time=time_, &
-          opcnt=opcnt_)
-    else
-      call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
-          geom_info=geom_info%handle, &
-          alm_info=alm_info%handle, &
-          flags=mod_flags, &
-          time=time_, &
-          opcnt=opcnt_)
-   end if
-
+    call c_sharp_execute(SHARP_YtW, 0, alm_ptr, map_ptr, &
+        geom_info=geom_info%handle, &
+        alm_info=alm_info%handle, &
+        flags=mod_flags, &
+        time=time_, &
+        opcnt=opcnt_)
+    write(*,*) "Passed the bug"
 
    if (present(time)) time_ = time
    if (present(opcnt)) opcnt_ = opcnt

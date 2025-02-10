@@ -48,7 +48,6 @@ install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_D
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
 set(sources
 	${COMMANDER3_SOURCE_DIR}/commander.f90
-	${COMMANDER3_SOURCE_DIR}/comm_data_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90

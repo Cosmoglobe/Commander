@@ -6,7 +6,6 @@ module comm_N_rms_mod
   public comm_N_rms, comm_N_rms_ptr
   
   type, extends (comm_N) :: comm_N_rms
-     class(comm_map), pointer :: siN        => null()
      class(comm_map), pointer :: rms0       => null()
    contains
      procedure :: update_N    => update_N_rms
@@ -41,12 +40,7 @@ contains
     class(comm_mapinfo),                 intent(in)             :: info
 
     self%rms0     => comm_map(info)
-    self%siN     => comm_map(self%rms0)
-
-    self%invN_diag => comm_map(info)
-    self%invN_diag%map = 0d0
-    call compute_invN_lm(self%invN_diag)
-    write(*,*) "Miracle"
+    call compute_invN_lm(self%rms0)
 
   end subroutine update_N_rms
 

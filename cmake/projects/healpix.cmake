@@ -46,8 +46,8 @@ if(COMPILE_HEALPIX)
     # -fno-strict-aliasing
     # -fp-speculation=safe/strict
     # -fp-model=strict
-    set(healpix_sharp2_C_FLAGS "-static-intel -fp-model=fast -fp-speculation=fast -fno-strict-aliasing -O3 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-    #set(healpix_sharp2_C_FLAGS "-static-intel -g -O0 -ggdb -fvar-tracking-assignments -fp-model=fast -fp-speculation=fast -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+    set(healpix_sharp2_C_FLAGS "-static-intel -fstrict-aliasing -O3 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+    #set(healpix_sharp2_C_FLAGS "-static-intel -fp-model=fast -fp-speculation=fast -fno-strict-aliasing -O3 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
       set(healpix_sharp2_C_FLAGS "-O0 -g -Wall -Wextra -Wpedantic -Wconversion -Wstrict-aliasing -Wuninitialized -Warray-bounds -Wnull-dereference -Wundef -Wshadow -Wcast-align -Wfloat-equal -Wduplicated-cond -fno-omit-frame-pointer -fstack-protector-all -ftrapv -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow -fno-strict-aliasing -fbacktrace -fno-inline -fno-unsafe-math-optimizations -fPIC -fexternal-blas -std=c99 -mavx2 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)

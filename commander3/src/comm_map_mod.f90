@@ -21,30 +21,17 @@
 module comm_map_mod
   use sharp
   use healpix_types
-  use fitstools
-  use pix_tools
-  use udgrade_nr
   use iso_c_binding, only : c_ptr, c_double
-  use head_fits
-  use extension
-  use comm_param_mod
   implicit none
 
   public comm_map, comm_mapinfo
 
-
   type :: comm_mapinfo
      ! Data variables
      type(sharp_alm_info)  :: alm_info
-     type(sharp_geom_info) :: geom_info_T, geom_info_P
-     integer(i4b) :: comm, myid, nprocs
-     integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
+     type(sharp_geom_info) :: geom_info_T
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
-     integer(c_int), allocatable, dimension(:)   :: mind
-     integer(c_int), allocatable, dimension(:,:) :: lm
-     integer(c_int), allocatable, dimension(:)   :: pix
-     real(c_double), allocatable, dimension(:,:) :: W
   end type comm_mapinfo
 
   type :: comm_map
@@ -52,7 +39,6 @@ module comm_map_mod
      class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
-     real(c_double), allocatable, dimension(:,:) :: alm_buff
    contains
      ! Data routines
      procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
@@ -64,132 +50,33 @@ module comm_map_mod
   end interface comm_mapinfo
 
   interface comm_map
-     procedure constructor_map, constructor_clone
+     procedure constructor_map
   end interface comm_map
-
 
 contains
 
   !**************************************************
   !             Constructors
   !**************************************************
-  function constructor_mapinfo(comm, nside, lmax, nmaps)
+  function constructor_mapinfo(nside, lmax)
     implicit none
-    integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
+    integer(i4b),                 intent(in) :: nside, lmax
     class(comm_mapinfo), pointer             :: constructor_mapinfo
-
-    integer(i4b) :: myid, nprocs, ierr, stat
-    integer(i4b) :: l, m, i, j, k, np, ind
-    integer(i4b), allocatable, dimension(:) :: pixlist
     class(comm_mapinfo), pointer :: p_new => null()
 
-    ! Set up new mapinfo object
-    call mpi_comm_rank(comm, myid, ierr)
-    if (ierr .ne. 0) write(*,*) 'mpi_comm_rank error'
-    call mpi_comm_size(comm, nprocs, ierr)
-    if (ierr .ne. 0) write(*,*) 'mpi_comm_size error'
+    allocate(p_new)
+    allocate(p_new%rings(3))
+    allocate(p_new%ms(4))
 
-    allocate(p_new, stat=stat)
-    if (stat .ne. 0) write(*,*) 'p_new allocation error'
-    p_new%comm   = comm
-    p_new%myid   = myid
-    p_new%nprocs = nprocs
-    p_new%nside  = nside
-    p_new%nmaps  = nmaps
-    p_new%lmax   = lmax
-
-
-    ! Select rings and pixels
-    allocate(pixlist(0:4*nside-1), stat=stat)
-    if (stat .ne. 0) write(*,*) 'pixlist allocation error'
-    p_new%nring = 0
-    p_new%np    = 0
-    do i = 1+myid, 2*nside, nprocs
-       call in_ring(nside, i, 0.d0, pi, pixlist, np)
-       p_new%nring = p_new%nring + 1
-       p_new%np    = p_new%np    + np
-       if (i < 2*nside) then ! Symmetric about equator
-          p_new%nring = p_new%nring + 1
-          p_new%np    = p_new%np    + np
-       end if
-    end do
-
-    allocate(p_new%rings(p_new%nring), stat=stat)
-    if (stat .ne. 0) write(*,*) 'rings allocation error'
-    allocate(p_new%pix(p_new%np), stat=stat)
-    if (stat .ne. 0) write(*,*) 'pix allocation error'
-
-    j = 1
-    k = 1
-    do i = 1+myid, 2*nside, nprocs
-       if (k > ubound(p_new%rings,dim=1)) write(*,*) 'Out of bounds, buddy'
-       call in_ring(nside, i, 0.d0, pi, pixlist, np)
-       p_new%rings(k) = i
-       p_new%pix(j:j+np-1) = pixlist(0:np-1)
-       k = k + 1
-       j = j + np
-       if (i < 2*nside) then ! Symmetric about equator
-          call in_ring(nside, 4*nside-i, 0.d0, pi, pixlist, np)
-          if (j > ubound(p_new%pix,dim=1)) write(*,*) 'Out of bounds for pix'
-          p_new%rings(k) = 4*nside-i
-          p_new%pix(j:j+np-1) = pixlist(0:np-1)
-          k = k + 1
-          j = j + np
-       end if
-    end do
-    deallocate(pixlist)
-
-    ! Select m's
-    p_new%nm   = 0
-    p_new%nalm = 0
-    do m = myid, lmax, nprocs
-       p_new%nm   = p_new%nm   + 1
-       if (m == 0) then
-          p_new%nalm = p_new%nalm + lmax+1
-       else
-          p_new%nalm = p_new%nalm + 2*(lmax-m+1)
-       end if
-    end do
-    allocate(p_new%ms(p_new%nm),stat=stat)
-    if (stat .ne. 0) write(*,*) 'ms allocation error'
-    allocate(p_new%mind(0:p_new%lmax), stat=stat)
-    if (stat .ne. 0) write(*,*) 'mind allocation error'
-    allocate(p_new%lm(2,0:p_new%nalm-1),stat=stat)
-    if (stat .ne. 0) write(*,*) 'lm allocation error'
-    ind = 0
-    p_new%mind = -1
-    do i = 1, p_new%nm
-       m                           = myid + (i-1)*nprocs
-       p_new%ms(i)   = m
-       p_new%mind(m) = ind
-       if (m == 0) then
-          do l = m, lmax
-             p_new%lm(1,ind) = l
-             p_new%lm(2,ind) = m
-             ind                           = ind+1
-          end do
-       else
-          do l = m, lmax
-             p_new%lm(1,ind) = l
-             p_new%lm(2,ind) = m
-             ind                           = ind+1
-             p_new%lm(1,ind) = l
-             p_new%lm(2,ind) = -m
-             ind                           = ind+1
-          end do
-       end if
-    end do
+    p_new%ms    = [0,1,2,3]
+    p_new%rings = [1,3,2]
     
     ! Read ring weights, and create SHARP info structures
     call sharp_make_mmajor_real_packed_alm_info(lmax, ms=p_new%ms, &
          & alm_info=p_new%alm_info)
 
-    allocate(p_new%W(2*nside,1), stat=stat)
-    if (stat .ne. 0) write(*,*) 'W allocation error'
-    p_new%W = 0d0 
     call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
-         & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
-
+         & geom_info=p_new%geom_info_T)
 
     constructor_mapinfo => p_new
 
@@ -202,26 +89,10 @@ contains
 
     allocate(constructor_map)
     constructor_map%info => info
-    allocate(constructor_map%map(0:info%np-1,info%nmaps), source=0d0)
-    allocate(constructor_map%alm(0:info%nalm-1,info%nmaps), source=0d0)
-    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps), source=0d0)
+    allocate(constructor_map%map(0:11,1), source=0d0)
+    allocate(constructor_map%alm(0:15,1), source=0d0)
 
   end function constructor_map
-
-  
-  function constructor_clone(map)
-    implicit none
-    class(comm_map),         intent(in)  :: map
-    class(comm_map), pointer             :: constructor_clone
-
-    allocate(constructor_clone)
-    constructor_clone%info => map%info
-    allocate(constructor_clone%map(0:map%info%np-1,map%info%nmaps))
-    allocate(constructor_clone%alm(0:map%info%nalm-1,map%info%nmaps))
-    constructor_clone%map = map%map
-    constructor_clone%alm = map%alm
-    
-  end function constructor_clone
   
   !**************************************************
   !             Spherical harmonic transforms
@@ -232,8 +103,8 @@ contains
 
     class(comm_map), intent(inout) :: self
 
-    call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-         & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
+    call sharp_execute(self%alm(:,1:1), self%info%alm_info, &
+         & self%map(:,1:1), self%info%geom_info_T)
     
   end subroutine exec_sharp_YtW_scalar
   
