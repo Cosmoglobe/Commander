@@ -522,6 +522,7 @@ contains
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
+       if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
@@ -534,6 +535,8 @@ contains
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
        end if
+    else
+      cpar%tod_freq = cpar%num_gibbs_iter + 1
     end if
 
     if (cpar%resamp_CMB) then
@@ -581,7 +584,8 @@ contains
     character(len=3) :: itext
     character(len=2) :: jtext
 
-    len_itext=len(trim(itext)) !! FIXME
+    call int2string(1, itext)
+    len_itext=len(trim(itext))
     call get_parameter_hashtable(htbl, 'NUMBAND',             par_int=cpar%numband)
     !call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask, path=.true.)
@@ -763,7 +767,8 @@ contains
     pol_labels(2)='POL'
     pol_labels(3)='POL3'
 
-    len_itext=len(trim(itext)) !FIXME!!
+    call int2string(1, itext)
+    len_itext=len(trim(itext)) 
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile, path=.true.)
     call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)

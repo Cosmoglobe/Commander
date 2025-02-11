@@ -3002,10 +3002,10 @@ contains
      integer(i4b),                      intent(in)    :: scan, det
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(2), intent(in)    :: rms_range
-     real(sp),            dimension(:), intent(inout) :: mask
+     real(sp),            dimension(:,:), intent(inout) :: mask
      
      logical(lgt) :: cut
-     integer(i4b) :: i, j, k, n, ntod, nmax
+     integer(i4b) :: i, n, ntod, nmax
      real(dp) :: box_width, rms, vec(3), elon
      integer(i4b), allocatable, dimension(:,:) :: bad, buffer
      !real(dp),     allocatable, dimension(:,:) :: mask_solar
@@ -3017,7 +3017,7 @@ contains
       rms = 0.d0
       n   = 0
       do i = 1, ntod
-         if (mask(i) /= 1.) cycle
+         if (mask(i,det) /= 1.) cycle
          rms = rms + res(i)**2
          n   = n   + 1
       end do
@@ -3043,7 +3043,7 @@ contains
       do i = 1, ntod
 
          ! Apply RMS selection criterium
-         if (mask(i) == 1) then
+         if (mask(i,det) == 1) then
             cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms
          else
             cut = .false.
@@ -3060,7 +3060,7 @@ contains
          if (cut) then
             ! Start new range if not already active
             if (bad(1,n+1) == -1) bad(1,n+1) = i
-            mask(i) = 0.
+            mask(i,det) = 0.
          else
             ! Close active range
             if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
