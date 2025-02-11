@@ -14,6 +14,18 @@ program commander
   call initialize_data_mod()
   write(*,*) 'Completed successfully'
 
+  !deallocate(data(1)%N%rms0)
+  !deallocate(data(1)%N%rms0%alm)
+
+
+  deallocate(data(1)%rmsinfo%ms)
+  deallocate(data(1)%rmsinfo%rings)
+  deallocate(data(1)%rmsinfo)
+
+
+
+  deallocate(data)
+
 contains
 
   subroutine initialize_data_mod()
@@ -24,7 +36,7 @@ contains
 
     allocate(data(1))
     !                           nside, lmax
-    data(1)%rmsinfo  => comm_mapinfo(1, 3)
+    data(1)%rmsinfo  => comm_mapinfo()
     data(1)%N        => comm_N_rms(data(1)%rmsinfo)
 
   end subroutine initialize_data_mod

@@ -68,7 +68,6 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
   "-pipe"
   "-finit-real=nan"  # initialize real values with NaN to catch uninitialized
   "-Wunreachable-code"  # catch unreachable code
-  #"-fsanitize=address"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")

@@ -58,9 +58,8 @@ contains
   !**************************************************
   !             Constructors
   !**************************************************
-  function constructor_mapinfo(nside, lmax)
+  function constructor_mapinfo()
     implicit none
-    integer(i4b),                 intent(in) :: nside, lmax
     class(comm_mapinfo), pointer             :: constructor_mapinfo
     class(comm_mapinfo), pointer :: p_new => null()
 
@@ -72,10 +71,10 @@ contains
     p_new%rings = [1,3,2]
     
     ! Read ring weights, and create SHARP info structures
-    call sharp_make_mmajor_real_packed_alm_info(lmax, ms=p_new%ms, &
+    call sharp_make_mmajor_real_packed_alm_info(3, ms=p_new%ms, &
          & alm_info=p_new%alm_info)
 
-    call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
+    call sharp_make_healpix_geom_info(1, rings=p_new%rings, &
          & geom_info=p_new%geom_info_T)
 
     constructor_mapinfo => p_new

@@ -24,7 +24,6 @@ module comm_N_mod
 
   type :: comm_N
      ! Data variables
-     integer(i4b)             :: nside, nmaps, np, npix, comm
      class(comm_map),     pointer :: invN_diag => null()
      class(comm_mapinfo), pointer :: info      => null()
   end type comm_N

@@ -3,7 +3,7 @@ module comm_N_rms_mod
   implicit none
 
   private
-  public comm_N_rms, comm_N_rms_ptr
+  public comm_N_rms
   
   type, extends (comm_N) :: comm_N_rms
      class(comm_map), pointer :: rms0       => null()
@@ -14,10 +14,6 @@ module comm_N_rms_mod
   interface comm_N_rms
      procedure constructor
   end interface comm_N_rms
-
-  type comm_N_rms_ptr
-     type(comm_N_rms), pointer :: p => null()
-  end type comm_N_rms_ptr
   
 contains
 

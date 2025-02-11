@@ -89,6 +89,13 @@ list(APPEND CMAKE_MODULE_PATH
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
 	)
 # Including custom cmake modules
+# Enable Undefined Behavior Sanitizer (UBSan)
+set(SANITIZER_FLAGS "-fsanitize=undefined" "-fno-omit-frame-pointer")
+
+# Apply to all targets globally
+add_compile_options(${SANITIZER_FLAGS})  # Compiler flags
+add_link_options(${SANITIZER_FLAGS})     # Linker flags
+
 include(main)
 # Adding commander3 source files
 # Note: I have added commander.cmake as an "independent" project 
