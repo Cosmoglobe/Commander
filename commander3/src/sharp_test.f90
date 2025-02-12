@@ -1,6 +1,5 @@
 program sharp_test
   use comm_map_mod 
-  use comm_param_mod
   use ARS_mod
   implicit none
 

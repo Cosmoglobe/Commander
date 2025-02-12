@@ -32,6 +32,8 @@ module comm_tod_HFI_mod
   !
   use comm_tod_driver_mod
   use comm_tod_cray_mod
+  use comm_conviqt_mod
+  use comm_tod_crosstalk_mod
   implicit none
 
   private
@@ -39,6 +41,7 @@ module comm_tod_HFI_mod
 
   type, extends(comm_tod) :: comm_HFI_tod
      integer(i4b), allocatable, dimension(:,:)   :: mod_phase
+     class(comm_crosstalk), pointer :: xtalk
    contains
      procedure     :: process_tod             => process_HFI_tod
      procedure     :: read_tod_inst           => read_tod_inst_HFI
@@ -86,8 +89,10 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_HFI_tod),     pointer    :: c
 
-    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
+
+    logical(lgt), dimension(:,:), allocatable :: correlations
 
     ! Allocate object
     allocate(c)
@@ -122,7 +127,11 @@ contains
     c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     c%nhorn           = 1
     c%compressed_tod  = .true.
-    c%correct_sl      = .false.
+    if(c%freq == '545' .or. c%freq == '857') then !currently no sidelobe models 
+      c%correct_sl    = .false.
+    else
+      c%correct_sl    = .true.
+    end if  
     c%correct_orb     = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .false.
@@ -132,10 +141,9 @@ contains
     c%ntime           = 1
     c%partner         = -1
 
-    nside_beam                  = 512
-    nmaps_beam                  = 3
-    pol_beam                    = .true.
-    c%nside_beam      = nside_beam
+    nmaps_beam        = 3
+    pol_beam          = .true.
+    c%nside_beam      = 512
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
@@ -150,7 +158,7 @@ contains
     call c%precompute_lookups()
 
     ! Load the instrument file
-    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
     !allocate(c%slconv(c%ndet), c%orb_dp)
@@ -168,7 +176,14 @@ contains
     ! Allocate modulation phase
     allocate(c%mod_phase(c%ndet,c%nscan))
     c%mod_phase = 1.d0
-    
+   
+    ! initialize crosstalk class
+    allocate(correlations(c%ndet, c%ndet))
+    correlations = .true.    
+
+  !  allocate(c%xtalk)
+    c%xtalk => comm_crosstalk(correlations)
+ 
   end function constructor_hfi
 
   !**************************************************
@@ -282,16 +297,16 @@ contains
 !    stop
 
     ! Precompute far sidelobe Conviqt structures
-    !if (self%correct_sl) then
-    !   if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-    !   do i = 1, self%ndet
+    if (self%correct_sl) then
+       if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
+       do i = 1, self%ndet
           !TODO: figure out why this is rotated
-    !      call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-    !      self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-    !           & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-    !           & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-    !   end do
-    !end if
+          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
+          self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+       end do
+    end if
 !    write(*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
 !!$    call mpi_finalize(ierr)
@@ -303,12 +318,22 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-    ! Fit low-level non-linearity parameters
-    do i = 1, self%nscan
-       
+
+    do i =1, self%nscan
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true.)
+    end do
+
+    ! estimate A/B detector crosstalk coeficients
+    call self%xtalk%estimate_crosstalk_matrix()
+
+    ! Fit per-chunk low-level non-linearity parameters
+    do i = 1, self%nscan
+        ! Subtract A/B detector crosstalk
+        ! Not implemented yet
+
+       call self%xtalk%remove_crosstalk_signal(sd, i)
 
        ! Estimate modulation baselines; separate for odd and even samples
        if (self%first_call) then
@@ -320,14 +345,38 @@ contains
        ! Fix modulation phase
        if (self%first_call) call set_modulation_phase(sd, self, i)
 
-       ! Estimate ADC corrections
-       !    Not implemented yet
-       
+       ! Fix dc level jumps 
+       ! Not implemented yet
+
+       ! Dark bolometer drift correction
+       ! Not implemented yet
+ 
        ! Clean up
        call sd%dealloc
     end do
-    
+
+    ! Fit global timestream contaminants 
+
+    ! Subtract cosmic ray contribution
+    ! Not implemented yet
+
+    ! Estimate ADC corrections
+    !    Not implemented yet
+
+    ! Fit 4k Line emission
+    ! Not implemented yet
+
+    ! Fit bolometer transfer function parameters?
+    !    Not implemented yet     
+
+
+
+
+    ! NOW Sample high level tod components that require cleaned data
+
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
+    ! TODO: Also sample non-linear gain response here?
+
     call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
     !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
     !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
@@ -360,48 +409,9 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
-
-!!$       ! Calling Simulation Routine
-!!$       if (self%enable_tod_simulations) then
-!!$          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-!!$          call sd%dealloc
-!!$          cycle
-!!$       end if
-
-       ! ************************************************************************************
-       !       Perform low-level TOD processing; raw modulated TOD -> clean demodulated TOD
-       ! ************************************************************************************
-
-       if (self%first_call) then
-          ! Search for jumps
-          !    Not implemented yet
-       end if
-
-       ! Apply jump corrections
-       !    Not implemented yet       
-
-       ! Fit and subtract dark bolometer signal; should this come before or after cosmic rays..?
-       !    Not implemented yet       
-
-       ! remove cosmic rays
-!!$       do j=1, sd%ndet
-!!$        call self%cray(j)%p%build_cray_templates()
-!!$        call self%cray(j)%p%fit_cray_amplitudes()
-!!$       end do
-
-       ! Fit and subtract 4K lines
-       !    Not implemented yet       
-
-       ! Fit and deconvolve bolometer transfer function
-       !    Not implemented yet       
-
-
-
-       ! ************************************************************************************
-       !       Perform high-level TOD processing; clean demodulated TOD -> maps
-       ! ************************************************************************************
-
+       
        ! Sample correlated noise
+
        !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        sd%n_corr = 0.d0
@@ -424,7 +434,6 @@ contains
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
-       
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -446,30 +455,14 @@ contains
     end do
 
 
-    ! calculate gain as a median of all scans 
-    !do j = 1, self%ndet
-    !   allocate(temp(self%nscan))
-
-    !   do i = 1, self%nscan
-    !      temp(i) = self%scans(i)%d(j)%gain
-    !   end do
-
-    !   gain_median = median(temp)
-
-    !   do i = 1, self%nscan
-    !      self%scans(i)%d(j)%gain = gain_median
-    !   end do
-
-    !   deallocate(temp)
-    !end do
-
-
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
+    ! TODO: update mapmaker to n+2 maps
+    ! TODO: handle bolometer transfer function in the mapmaking
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
