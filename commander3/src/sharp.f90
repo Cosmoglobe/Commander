@@ -2,15 +2,12 @@ module sharp
   use iso_c_binding
   implicit none
   ! alm_info flags
-  integer, parameter :: SHARP_PACKED = 1
 
   ! sharp job types
-  enum, bind(c)
-      enumerator :: SHARP_YtW = 0
-   end enum
+  integer(c_int) ::  SHARP_YtW = 0
 
   ! sharp job flags
-  integer, parameter :: SHARP_DP             = ISHFT(1, 4)
+  integer(c_int), parameter :: SHARP_DP             = ISHFT(1, 4)
 
   type sharp_geom_info
      type(c_ptr) :: handle
@@ -66,10 +63,6 @@ module sharp
 
   end interface
 
-  interface sharp_execute
-     module procedure sharp_execute_d
-  end interface
-
 contains
   subroutine sharp_make_mmajor_real_packed_alm_info(lmax, ms, alm_info)
     use iso_c_binding
@@ -114,7 +107,7 @@ contains
 
 
 
-  subroutine sharp_execute_d(alm, alm_info, map, geom_info, &
+  subroutine sharp_execute(alm, alm_info, map, geom_info, &
                              time, opcnt)
     use iso_c_binding
     implicit none
@@ -152,5 +145,5 @@ contains
 
    if (present(time)) time_ = time
    if (present(opcnt)) opcnt_ = opcnt
-  end subroutine sharp_execute_d
+  end subroutine sharp_execute
 end module
