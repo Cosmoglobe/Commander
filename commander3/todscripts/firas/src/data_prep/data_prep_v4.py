@@ -956,7 +956,7 @@ print(f"Saving calibration data")
 with tb.open_file("./../../data/cal_v4.3.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Calibration Data")
 
-    h5file.create_array(group, "gmt", gmt_str_sky)
+    h5file.create_array(group, "gmt", gmt_str_cal)
     h5file.create_array(group, "ifg_lh", np.stack(calibration_df["ifg_lh"].values))
     h5file.create_array(group, "ifg_ll", np.stack(calibration_df["ifg_ll"].values))
     h5file.create_array(group, "ifg_rh", np.stack(calibration_df["ifg_rh"].values))
