@@ -31,16 +31,16 @@ message(STATUS "---------------------------------------------------------------"
 # the files. However, with CMake it is possible to compile the
 # file into object, which will not create *.a files. We go with
 # this approach.
-add_library(comm_system_backend 
-	STATIC 
-	${COMMANDER3_SOURCE_DIR}/comm_system_backend.cpp
-	)
-target_compile_options(comm_system_backend
-	PRIVATE
-	${COMMANDER3_CXX_COMPILER_FLAGS}
-	)
-# Installing `comm_system_backend` as a library
-install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+#add_library(comm_system_backend 
+#	STATIC 
+#	${COMMANDER3_SOURCE_DIR}/comm_system_backend.cpp
+#	)
+#target_compile_options(comm_system_backend
+#	PRIVATE
+#	${COMMANDER3_CXX_COMPILER_FLAGS}
+#	)
+## Installing `comm_system_backend` as a library
+#install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 #	)
 
 # TODO: add all sources manually instead of this command, as 
@@ -49,8 +49,6 @@ install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_D
 set(sources
 	${COMMANDER3_SOURCE_DIR}/commander.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_n_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_param_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	)
 
@@ -111,50 +109,17 @@ target_link_options(${commander3}
 # => FFTW => comm_system_backend
 target_link_libraries(${commander3} 
 	PRIVATE
-	# linking MPI
 	MPI::MPI_Fortran
-	# linking OpenMP
 	OpenMP::OpenMP_Fortran
-	# including MKL
-	#-qopt-matmul
 	${BLAS_LINKER_FLAGS} 
 	${BLAS_LIBRARIES}
 	${LAPACK_LINKER_FLAGS} 
 	${LAPACK_LIBRARIES}
-	# including sharp2
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
-	#"${out_lib_dir}/libsharp2.a"
-	#${SHARP2_LIBRARIES}
-	# Including CAMB
-  #${CAMB_LIBRARIES}
-	# Including HEALPix
 	${HEALPIX_LIBRARIES}
-	# Including CFitsIO
 	${CFITSIO_LIBRARIES}
-	# to avoid error error dlclose@@GLIBC_2.2.5', so 
-	# we need to link Unix Math Library
-	#-lm
 	${LIBM_LIBRARY}
-	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
-	# Including HDF5 - first fortran and then general
-  #${HDF5_Fortran_LIBRARIES}
-	# hdf5 requires zlib (?), otherwise will get some stupid error
-	#"-lz"
-	#"/usr/lib64/libz.so"
-	#ZLIB::ZLIB
-	#zlib_lib
-	#${ZLIB_LIBRARIES}
-	# adding curl
-	#${CURL_LIBRARIES}
-	# these are sort of curl dependencies
-	#-lcrypto 
-	#-lssl
-	#CURL::libcurl
-	# Including FFTW3
-  #${FFTW_LIBRARIES}
-	# Linking commander *.cpp file(s)
-	comm_system_backend
+	#comm_system_backend
 	)
 
 # Installing Commander3 into appropriate folder

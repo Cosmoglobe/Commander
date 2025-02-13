@@ -1,6 +1,5 @@
 program commander
-  use comm_N_mod
-  !use comm_N_rms_mod
+  use comm_map_mod
   implicit none
 
   type comm_data_set

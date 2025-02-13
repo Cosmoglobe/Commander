@@ -45,6 +45,15 @@ module comm_map_mod
 
   end type comm_map
 
+  type :: comm_N
+     ! Data variables
+     class(comm_map),     pointer :: invN_diag => null()
+     class(comm_mapinfo), pointer :: info      => null()
+     class(comm_map),     pointer :: rms0      => null()
+   contains
+     procedure :: update_N
+  end type comm_N
+
   interface comm_mapinfo
      procedure constructor_mapinfo
   end interface comm_mapinfo
@@ -52,6 +61,14 @@ module comm_map_mod
   interface comm_map
      procedure constructor_map
   end interface comm_map
+
+  interface comm_N
+     procedure constructor
+  end interface comm_N
+
+  type comm_N_ptr
+     class(comm_N), pointer :: p => null()
+  end type comm_N_ptr
 
 contains
 
@@ -92,6 +109,26 @@ contains
     allocate(constructor_map%alm(0:15,1), source=0d0)
 
   end function constructor_map
+
+  function constructor(info)
+    implicit none
+    class(comm_N),                      pointer       :: constructor
+    type(comm_mapinfo), target,         intent(in)    :: info
+
+    allocate(constructor)
+    call constructor%update_N(info)
+
+  end function constructor
+
+  subroutine update_N(self, info)
+    implicit none
+    class(comm_N),                       intent(inout)          :: self
+    class(comm_mapinfo),                 intent(in)             :: info
+
+    self%rms0     => comm_map(info)
+    call self%rms0%YtW_scalar
+    
+  end subroutine update_N
   
   !**************************************************
   !             Spherical harmonic transforms
