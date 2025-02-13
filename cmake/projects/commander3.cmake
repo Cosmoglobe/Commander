@@ -50,7 +50,6 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/commander.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_param_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	)

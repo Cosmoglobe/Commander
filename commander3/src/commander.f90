@@ -1,6 +1,6 @@
 program commander
   use comm_N_mod
-  use comm_N_rms_mod
+  !use comm_N_rms_mod
   implicit none
 
   type comm_data_set
@@ -14,15 +14,14 @@ program commander
   call initialize_data_mod()
   write(*,*) 'Completed successfully'
 
-  !deallocate(data(1)%N%rms0)
-  !deallocate(data(1)%N%rms0%alm)
-
-
   deallocate(data(1)%rmsinfo%ms)
   deallocate(data(1)%rmsinfo%rings)
   deallocate(data(1)%rmsinfo)
 
-
+  deallocate(data(1)%N%rms0%map)
+  deallocate(data(1)%N%rms0%alm)
+  deallocate(data(1)%N%rms0)
+  deallocate(data(1)%N)
 
   deallocate(data)
 
@@ -37,7 +36,7 @@ contains
     allocate(data(1))
     !                           nside, lmax
     data(1)%rmsinfo  => comm_mapinfo()
-    data(1)%N        => comm_N_rms(data(1)%rmsinfo)
+    data(1)%N        => comm_N(data(1)%rmsinfo)
 
   end subroutine initialize_data_mod
 
