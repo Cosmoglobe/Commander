@@ -120,12 +120,19 @@ contains
     real(c_double), target, intent(inout)        :: map(0:geom_info%n_local - 1, 1:1)
 
 
+    real(c_double)        :: time_ = 0.0
+    integer(c_long_long)  :: opcnt_ = 0
     integer(c_int)         :: mod_flags
-    type(c_ptr), target    :: alm_ptr(1)
-    type(c_ptr), target    :: map_ptr(1)
+    type(c_ptr), allocatable :: alm_ptr(:)
+    type(c_ptr), allocatable :: map_ptr(:)
 
-    real(c_double)        :: time_
-    integer(c_long_long)  :: opcnt_
+    allocate(alm_ptr(1))
+    allocate(map_ptr(1))
+
+    alm_ptr(1) = c_loc(alm(0, 1))
+    map_ptr(1) = c_loc(map(0, 1))
+
+
 
     mod_flags = SHARP_DP
 
@@ -143,7 +150,7 @@ contains
         opcnt=opcnt_)
     write(*,*) "Passed the bug"
 
-   if (present(time)) time_ = time
-   if (present(opcnt)) opcnt_ = opcnt
+   if (present(time)) time = time_
+   if (present(opcnt)) opcnt = opcnt_
   end subroutine sharp_execute
 end module

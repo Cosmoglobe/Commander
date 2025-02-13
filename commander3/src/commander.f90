@@ -6,7 +6,7 @@ program commander
 
   real(c_double), allocatable, dimension(:,:) :: map
   real(c_double), allocatable, dimension(:,:) :: alm
-  integer(c_int), allocatable, dimension(:)   :: rings, rings_copy
+  integer(c_int), allocatable, dimension(:)   :: rings
   integer(c_int)                       :: nm
   integer(c_int)                       :: nrings
   integer(c_int)                       :: lmax
@@ -16,24 +16,18 @@ program commander
   type(sharp_geom_info) :: geom_info
 
   allocate(rings(3))
-
   rings = [1,3,2]
   
-  ! Read ring weights, and create SHARP info structures
   nm = 4
   lmax = 3
   call c_sharp_make_mmajor_real_packed_alm_info(lmax, 1, nm, alm_info=alm_info%handle)
   alm_info%n_local = c_sharp_alm_count(alm_info%handle)
 
-  nrings = size(rings)
-  allocate(rings_copy(nrings))
-  rings_copy = rings
+  nrings = 3
   nside = 1
-  allocate(weight(2*nside))
-  weight = 0d0
-  nside = 1
+  allocate(weight(2*nside), source=0d0)
 
-  call sharp_make_subset_healpix_geom_info(nside, 1, nrings, rings_copy, &
+  call sharp_make_subset_healpix_geom_info(nside, 1, nrings, rings, &
                                            weight, geom_info%handle)
   geom_info%n_local = c_sharp_map_size(geom_info%handle)
 
