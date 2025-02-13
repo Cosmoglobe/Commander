@@ -17,10 +17,8 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
-# TODO: CHANGE THE PATH ACCORDING
-
 sky_data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v2_60sec.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.3.h5",
     "r",
 )
 
@@ -37,21 +35,21 @@ variable_names = [
     "b_ical",
     "a_dihedral",
     "b_dihedral",
-    # "a_refhorn", TODO: PUT BACK
-    # "b_refhorn",
-    # "a_skyhorn",
-    # "b_skyhorn",
+    "a_refhorn",
+    "b_refhorn",
+    "a_skyhorn",
+    "b_skyhorn",
     "mtm_length",
     "mtm_speed",
     "pix_gal",
-    # "a_bol_assem_rh", TODO: PUT BACK
-    # "b_bol_assem_rh",
-    # "a_bol_assem_rl",
-    # "b_bol_assem_rl",
-    # "a_bol_assem_lh",
-    # "b_bol_assem_lh",
-    # "a_bol_assem_ll",
-    # "b_bol_assem_ll",
+    "a_bol_assem_rh",
+    "b_bol_assem_rh",
+    "a_bol_assem_rl",
+    "b_bol_assem_rl",
+    "a_bol_assem_lh",
+    "b_bol_assem_lh",
+    "a_bol_assem_ll",
+    "b_bol_assem_ll",
     "stat_word_5",
     "stat_word_9",
     "stat_word_13",
@@ -108,20 +106,20 @@ variables["ical"] = (
     / 2
 )
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
-# variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2 TODO: PUT BACK
-# variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
-# variables["bolometer_rh"] = (
-#     variables["a_bol_assem_rh"] + variables["b_bol_assem_rh"]
-# ) / 2
-# variables["bolometer_rl"] = (
-#     variables["a_bol_assem_rl"] + variables["b_bol_assem_rl"]
-# ) / 2
-# variables["bolometer_lh"] = (
-#     variables["a_bol_assem_lh"] + variables["b_bol_assem_lh"]
-# ) / 2
-# variables["bolometer_ll"] = (
-#     variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
-# ) / 2
+variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
+variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
+variables["bolometer_rh"] = (
+    variables["a_bol_assem_rh"] + variables["b_bol_assem_rh"]
+) / 2
+variables["bolometer_rl"] = (
+    variables["a_bol_assem_rl"] + variables["b_bol_assem_rl"]
+) / 2
+variables["bolometer_lh"] = (
+    variables["a_bol_assem_lh"] + variables["b_bol_assem_lh"]
+) / 2
+variables["bolometer_ll"] = (
+    variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
+) / 2
 
 start = "89-326-1130"
 start_dt = datetime.strptime(start, "%y-%j-%H%M")
@@ -445,55 +443,55 @@ for channel in channels.keys():
                 np.abs(dihedral_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            # bb_refhorn[f"{channel}_{mode}"] = planck( TODO: PUT BACK
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"refhorn_{mode}"],
-            # )
-            # refhorn_emiss[f"{channel}_{mode}"] = (
-            #     fits_data[f"{channel}_{mode}"][1].data["RREFHORN"][0]
-            #     + 1j * fits_data[f"{channel}_{mode}"][1].data["IREFHORN"][0]
-            # )
-            # refhorn_emiss[f"{channel}_{mode}"] = refhorn_emiss[f"{channel}_{mode}"][
-            #     np.abs(refhorn_emiss[f"{channel}_{mode}"]) > 0
-            # ]
+            bb_refhorn[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"refhorn_{mode}"],
+            )
+            refhorn_emiss[f"{channel}_{mode}"] = (
+                fits_data[f"{channel}_{mode}"][1].data["RREFHORN"][0]
+                + 1j * fits_data[f"{channel}_{mode}"][1].data["IREFHORN"][0]
+            )
+            refhorn_emiss[f"{channel}_{mode}"] = refhorn_emiss[f"{channel}_{mode}"][
+                np.abs(refhorn_emiss[f"{channel}_{mode}"]) > 0
+            ]
 
-            # # skyhorn spectrum
-            # bb_skyhorn[f"{channel}_{mode}"] = planck(
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"skyhorn_{mode}"],
-            # )
-            # skyhorn_emiss[f"{channel}_{mode}"] = (
-            #     fits_data[f"{channel}_{mode}"][1].data["RSKYHORN"][0]
-            #     + 1j * fits_data[f"{channel}_{mode}"][1].data["ISKYHORN"][0]
-            # )
-            # skyhorn_emiss[f"{channel}_{mode}"] = skyhorn_emiss[f"{channel}_{mode}"][
-            #     np.abs(skyhorn_emiss[f"{channel}_{mode}"]) > 0
-            # ]
+            # skyhorn spectrum
+            bb_skyhorn[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"skyhorn_{mode}"],
+            )
+            skyhorn_emiss[f"{channel}_{mode}"] = (
+                fits_data[f"{channel}_{mode}"][1].data["RSKYHORN"][0]
+                + 1j * fits_data[f"{channel}_{mode}"][1].data["ISKYHORN"][0]
+            )
+            skyhorn_emiss[f"{channel}_{mode}"] = skyhorn_emiss[f"{channel}_{mode}"][
+                np.abs(skyhorn_emiss[f"{channel}_{mode}"]) > 0
+            ]
 
-            # # bolometer spectrum
-            # bb_bolometer_rh[f"{channel}_{mode}"] = planck(
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"bolometer_rh_{mode}"],
-            # )
-            # bb_bolometer_rl[f"{channel}_{mode}"] = planck(
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"bolometer_rl_{mode}"],
-            # )
-            # bb_bolometer_lh[f"{channel}_{mode}"] = planck(
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"bolometer_lh_{mode}"],
-            # )
-            # bb_bolometer_ll[f"{channel}_{mode}"] = planck(
-            #     f_ghz[f"{channel}_{mode}"],
-            #     variablesm[f"bolometer_ll_{mode}"],
-            # )
-            # bolometer_emiss[f"{channel}_{mode}"] = (
-            #     fits_data[f"{channel}_{mode}"][1].data["RBOLOMET"][0]
-            #     + 1j * fits_data[f"{channel}_{mode}"][1].data["IBOLOMET"][0]
-            # )
-            # bolometer_emiss[f"{channel}_{mode}"] = bolometer_emiss[f"{channel}_{mode}"][
-            #     np.abs(bolometer_emiss[f"{channel}_{mode}"]) > 0
-            # ]
+            # bolometer spectrum
+            bb_bolometer_rh[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"bolometer_rh_{mode}"],
+            )
+            bb_bolometer_rl[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"bolometer_rl_{mode}"],
+            )
+            bb_bolometer_lh[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"bolometer_lh_{mode}"],
+            )
+            bb_bolometer_ll[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"bolometer_ll_{mode}"],
+            )
+            bolometer_emiss[f"{channel}_{mode}"] = (
+                fits_data[f"{channel}_{mode}"][1].data["RBOLOMET"][0]
+                + 1j * fits_data[f"{channel}_{mode}"][1].data["IBOLOMET"][0]
+            )
+            bolometer_emiss[f"{channel}_{mode}"] = bolometer_emiss[f"{channel}_{mode}"][
+                np.abs(bolometer_emiss[f"{channel}_{mode}"]) > 0
+            ]
 
 
 sky = {}
@@ -514,30 +512,30 @@ for channel in channels.keys():
                         bb_dihedral[f"{channel}_{mode}"]
                         * dihedral_emiss[f"{channel}_{mode}"]
                     )
-                    #     + ( TODO: PUT BACK
-                    #         bb_refhorn[f"{channel}_{mode}"]
-                    #         * refhorn_emiss[f"{channel}_{mode}"]
-                    #     )
-                    #     + (
-                    #         bb_skyhorn[f"{channel}_{mode}"]
-                    #         * skyhorn_emiss[f"{channel}_{mode}"]
-                    #     )
-                    #     + (
-                    #         bb_bolometer_rh[f"{channel}_{mode}"]
-                    #         * bolometer_emiss[f"{channel}_{mode}"]
-                    #     )
-                    #     + (
-                    #         bb_bolometer_rl[f"{channel}_{mode}"]
-                    #         * bolometer_emiss[f"{channel}_{mode}"]
-                    #     )
-                    #     + (
-                    #         bb_bolometer_lh[f"{channel}_{mode}"]
-                    #         * bolometer_emiss[f"{channel}_{mode}"]
-                    #     )
-                    #     + (
-                    #         bb_bolometer_ll[f"{channel}_{mode}"]
-                    #         * bolometer_emiss[f"{channel}_{mode}"]
-                    #     )
+                    + (
+                        bb_refhorn[f"{channel}_{mode}"]
+                        * refhorn_emiss[f"{channel}_{mode}"]
+                    )
+                    + (
+                        bb_skyhorn[f"{channel}_{mode}"]
+                        * skyhorn_emiss[f"{channel}_{mode}"]
+                    )
+                    + (
+                        bb_bolometer_rh[f"{channel}_{mode}"]
+                        * bolometer_emiss[f"{channel}_{mode}"]
+                    )
+                    + (
+                        bb_bolometer_rl[f"{channel}_{mode}"]
+                        * bolometer_emiss[f"{channel}_{mode}"]
+                    )
+                    + (
+                        bb_bolometer_lh[f"{channel}_{mode}"]
+                        * bolometer_emiss[f"{channel}_{mode}"]
+                    )
+                    + (
+                        bb_bolometer_ll[f"{channel}_{mode}"]
+                        * bolometer_emiss[f"{channel}_{mode}"]
+                    )
                 )
                 / otf[f"{channel}_{mode}"][np.newaxis, :]
             )
@@ -604,7 +602,7 @@ for variable in extra_variables:
 
 # save the sky
 np.savez(
-    "../../output/data/sky.npz",
+    "../../data/processed_sky.npz",
     **variablesm,
     **sky,
 )

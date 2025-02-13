@@ -223,11 +223,6 @@ def ifg_to_spec(
         spec / spec_norm
     )  # i will leave this for now but i think using the one in lambda doesn't need this and needs the other factor
 
-    # plot etf spec over time
-    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
-    plt.savefig("../../output/plots/etf_spec_over_time.png")
-    plt.clf()
-
     # fcc_spec_length = 321
     spec_len = len(ifg[0]) // 2 + 1
     dw = 2.0 * np.pi * fnyq_hz / spec_len

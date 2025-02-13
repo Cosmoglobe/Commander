@@ -2,19 +2,16 @@
 Script to take the previously generated sky spectra (sky.npy) and plot a map with them.
 """
 
-import h5py
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from my_utils import planck, residuals
-from scipy.optimize import minimize
-from utils.config import gen_nyquistl
+from my_utils import planck
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
-data = np.load("../../output/data/sky.npz")
+data = np.load("../../data/processed_sky.npz")
 
 # print(data.files)
 
@@ -161,7 +158,9 @@ for channel in channels.keys():
                 vmin=0,
             )
             plt.title(f"{channel}_{mode}")
-            plt.savefig(f"../../output/plots/sky_over_time/{f"{channel}_{mode}"}.png")
+            plt.savefig(
+                f"/mn/stornext/d16/www_cmb/aimartin/firas/plots/sky_over_time/{f"{channel}_{mode}"}.png"
+            )
             plt.clf()
 
 
@@ -224,7 +223,7 @@ for channel in channels.keys():
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"../../output/maps/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/my_maps/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
                 )
                 plt.close()
 
@@ -267,7 +266,9 @@ for freq in range(len(f_ghz["ll_lf"])):
         max=200,
     )
     # hp.graticule(coord="G")
-    plt.savefig(f"../../output/maps/joint/{int(f_ghz['ll_lf'][freq]):04d}.png")
+    plt.savefig(
+        f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/joint/{int(f_ghz['ll_lf'][freq]):04d}.png"
+    )
     plt.close()
 
 # high frequencies
@@ -299,7 +300,9 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
         max=200,
     )
     # hp.graticule(coord="G")
-    plt.savefig(f"../../output/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png")
+    plt.savefig(
+        f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png"
+    )
     plt.close()
 
 print("plotting up/down scan map")
@@ -342,7 +345,7 @@ for channel in channels.keys():
                     max=200,
                 )
                 plt.savefig(
-                    f"../../output/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
+                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
                 )
                 plt.close()
 
@@ -355,7 +358,7 @@ for channel in channels.keys():
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"../../output/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
+                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
                 )
                 plt.close()
 
