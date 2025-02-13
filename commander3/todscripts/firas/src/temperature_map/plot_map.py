@@ -6,13 +6,14 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from my_utils import planck
+import os
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
 data = np.load("../../data/processed_sky.npz")
-
+user = os.environ['USER']
 # print(data.files)
 
 sky = {}
@@ -159,7 +160,7 @@ for channel in channels.keys():
             )
             plt.title(f"{channel}_{mode}")
             plt.savefig(
-                f"/mn/stornext/d16/www_cmb/aimartin/firas/plots/sky_over_time/{f"{channel}_{mode}"}.png"
+                f"/mn/stornext/d16/www_cmb/{user}/firas/plots/sky_over_time/{f"{channel}_{mode}"}.png"
             )
             plt.clf()
 
@@ -215,7 +216,7 @@ for channel in channels.keys():
                 hp.mollview(
                     m[f"{channel}_{mode}"][:, freq],
                     # coord="G",
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                    #title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                     unit="MJy/sr",
                     # norm="hist",
                     min=0,
@@ -223,7 +224,7 @@ for channel in channels.keys():
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/my_maps/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"/mn/stornext/d16/www_cmb/{user}/firas/maps/my_maps/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
                 )
                 plt.close()
 
@@ -267,7 +268,7 @@ for freq in range(len(f_ghz["ll_lf"])):
     )
     # hp.graticule(coord="G")
     plt.savefig(
-        f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/joint/{int(f_ghz['ll_lf'][freq]):04d}.png"
+        f"/mn/stornext/d16/www_cmb/{user}/firas/maps/joint/{int(f_ghz['ll_lf'][freq]):04d}.png"
     )
     plt.close()
 
@@ -301,7 +302,7 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
     )
     # hp.graticule(coord="G")
     plt.savefig(
-        f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png"
+        f"/mn/stornext/d16/www_cmb/{user}/firas/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png"
     )
     plt.close()
 
@@ -339,26 +340,26 @@ for channel in channels.keys():
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
                 hp.mollview(
                     m_up[:, freq],
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
+                    #title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
                     unit="MJy/sr",
                     min=0,
                     max=200,
                 )
                 plt.savefig(
-                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
+                    f"/mn/stornext/d16/www_cmb/{user}/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
                 )
                 plt.close()
 
                 hp.mollview(
                     m_down[:, freq],
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
+                    #title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
                     unit="MJy/sr",
                     min=0,
                     max=200,
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"/mn/stornext/d16/www_cmb/aimartin/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
+                    f"/mn/stornext/d16/www_cmb/{user}/firas/maps/up_down_scan/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
                 )
                 plt.close()
 

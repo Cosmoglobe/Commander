@@ -17,12 +17,12 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
-sky_data = h5py.File(
-    "../../data/sky_v4.3.h5",
+cal_data = h5py.File(
+    "../../data/cal_v4.3.h5",
     "r",
 )
 
-# print(f"sky_data keys: {sky_data["df_data"].keys()}")
+#print(f"cal_data keys: {cal_data["df_data"].keys()}")
 # cal_data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
 #     "r",
@@ -41,7 +41,6 @@ variable_names = [
     "b_skyhorn",
     "mtm_length",
     "mtm_speed",
-    "pix_gal",
     "a_bol_assem_rh",
     "b_bol_assem_rh",
     "a_bol_assem_rl",
@@ -59,6 +58,8 @@ variable_names = [
     "adds_per_group",
     "gain",
     "sweeps",
+    "a_xcal",
+    "b_xcal",
 ]
 channel_dependent = [
     "ifg",
@@ -72,37 +73,21 @@ for channel in channels:
 
 variables = {}
 for variable_name in variable_names:
-    variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
+    variables[variable_name] = np.array(cal_data["df_data/" + variable_name][()])
 
-# print(f"variables keys: {variables.keys()}")
 
-# filter out bad data (selected "by eye")
-filter_bad = filter_crap(
-    variables["stat_word_5"],
-    variables["stat_word_9"],
-    variables["stat_word_13"],
-    variables["stat_word_16"],
-    variables["lvdt_stat_a"],
-    variables["lvdt_stat_b"],
-)
 
-for variable in variables.keys():
-    variables[variable] = variables[variable][filter_bad]
-
-variables["pix_gal"] = variables["pix_gal"].astype(int)
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-# sky_data.close()
-
-
-# constraining to the recs with ical temp at certain bins
 variables["ical"] = (
-    # variables["a_ical"] * 0.1 + variables["b_ical"] * 0.9
-    # )  # using their weights
     (variables["a_ical"] + variables["b_ical"])
+    / 2
+)
+variables["xcal"] = (
+    (variables["a_xcal"] + variables["b_xcal"])
     / 2
 )
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
@@ -169,37 +154,6 @@ for i in range(len(missions_periods_dt) - 1):
         variables["gmt"] > missions_periods_dt[i]
     )
 
-# get filter for ical temps to be +- 2 mK for each mission period depending on the ical temps
-ical_periods = np.empty((len(mission_periods), len(variables["ical"])), dtype=bool)
-
-for i in range(len(ical_temps)):
-    for j in range(len(ical_temps[i])):
-        if j == 0:
-            ical_periods[i] = (ical_temps[i][j] - 0.002 < variables["ical"]) & (
-                variables["ical"] < ical_temps[i][j] + 0.002
-            )
-        else:
-            ical_periods[i] = ical_periods[i] | (
-                ical_temps[i][j] - 0.002 < variables["ical"]
-            ) & (variables["ical"] < ical_temps[i][j] + 0.002)
-
-# full ical temp and mission filter has to be with and between the two
-ical_filter = (
-    (ical_periods[0] & period_filter[0])
-    | (ical_periods[1] & period_filter[1])
-    | (ical_periods[2] & period_filter[2])
-    | (ical_periods[3] & period_filter[3])
-    | (ical_periods[4] & period_filter[4])
-    | (ical_periods[5] & period_filter[5])
-    | (ical_periods[6] & period_filter[6])
-    | (ical_periods[7] & period_filter[7])
-    | (ical_periods[8] & period_filter[8])
-    | (ical_periods[9] & period_filter[9])
-    | (ical_periods[10] & period_filter[10])
-)
-
-for variable in variables.keys():
-    variables[variable] = variables[variable][ical_filter]
 
 # filtering the data based on the mode used
 short_filter = variables["mtm_length"] == 0
@@ -216,9 +170,9 @@ for variable in variables.keys():
     for mode in modes.keys():
         variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
 
-for channel in channels.keys():
-    for mode in modes.keys():
-        print(f"{channel}{mode}: {len(variablesm[f"ifg_{channel}_{mode}"])}")
+#for channel in channels.keys():
+#    for mode in modes.keys():
+#        print(f"{channel}{mode}: {len(variablesm[f"ifg_{channel}_{mode}"])}")
 
 fits_data = {}
 for channel in channels.keys():
@@ -399,8 +353,8 @@ for channel in channels.keys():
                 nf[f"{channel}_{mode}"],
             )
 
-# ical spectrum
 bb_ical = {}
+bb_xcal = {}
 ical_emiss = {}
 bb_dihedral = {}
 dihedral_emiss = {}
@@ -422,6 +376,15 @@ for channel in channels.keys():
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"ical_{mode}"],
             )
+            bb_xcal[f"{channel}_{mode}"] = planck(
+                f_ghz[f"{channel}_{mode}"],
+                variablesm[f"xcal_{mode}"],
+            )
+            #plt.figure()
+            #for i in range(5):
+            #    plt.plot(f_ghz[f"{channel}_{mode}"],
+            #            bb_xcal[f"{channel}_{mode}"][i*100])
+            #plt.show()
             ical_emiss[f"{channel}_{mode}"] = (
                 fits_data[f"{channel}_{mode}"][1].data["RICAL"][0]
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]
@@ -494,7 +457,7 @@ for channel in channels.keys():
             ]
 
 
-sky = {}
+cal = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if mode == "lf" and (channel == "lh" or channel == "rh"):
@@ -504,7 +467,7 @@ for channel in channels.keys():
             # print(
             #     f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
             # )
-            sky[f"{channel}_{mode}"] = (
+            cal[f"{channel}_{mode}"] = (
                 spec[f"{channel}_{mode}"]
                 - (
                     (bb_ical[f"{channel}_{mode}"] * ical_emiss[f"{channel}_{mode}"])
@@ -538,9 +501,10 @@ for channel in channels.keys():
                     )
                 )
                 / otf[f"{channel}_{mode}"][np.newaxis, :]
+                - bb_xcal[f"{channel}_{mode}"]
             )
 
-print("saving sky")
+print("saving cal")
 
 # other varibles that i just want to save in the same place
 extra_variables = [
@@ -587,22 +551,10 @@ extra_variables = [
     # "sky_hrn_temp_b",
     "scan",
 ]
-for variable in extra_variables:
-    for mode in modes.keys():
-        variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
-            filter_bad
-        ]
-        # variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
-        #     ical_filter
-        # ]
-        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][ical_filter]
-        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][
-            filters[mode]
-        ]
 
-# save the sky
+# save the calibration data
 np.savez(
-    "../../data/processed_sky.npz",
+    "../../data/processed_cal.npz",
     **variablesm,
-    **sky,
+    **cal,
 )
