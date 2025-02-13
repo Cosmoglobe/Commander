@@ -10,11 +10,12 @@ import numpy as np
 import pandas as pd
 import tables as tb
 from scipy import interpolate
-from utils.my_utils import (
+from utils.my_utils_debug import (
     clean_variable,
     convert_gain,
     get_temperature_hl,
     parse_date_string,
+    scan_up_down,
 )
 
 # check how much time the script takes to run
@@ -62,6 +63,7 @@ pix_gal = {}  # galactic coordinates
 pix_cel = {}  # celestial coordinates, probably J1950
 # Longitudes and latitudes are stored in radians*1e4
 fact = 180.0 / np.pi / 1e4
+scan = {}
 
 for channel in channels:
     eng_time[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/eng_time"][()]
@@ -89,6 +91,8 @@ for channel in channels:
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/terr_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/terr_latitude"][()] * fact
     pix_terr[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+    print(f"getting up/down for channel {channel}")
+    scan[channel] = scan_up_down(lat).astype(int)
 
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_latitude"][()] * fact
@@ -123,6 +127,7 @@ for channel in channels:
             "pix_ecl": list(pix_ecl[channel]),
             "pix_cel": list(pix_cel[channel]),
             "pix_terr": list(pix_terr[channel]),
+            "scan": list(scan[channel]),
             "sweeps": list(sweeps[channel]),
             "gain": list(gain[channel]),
             "sun_angle": list(sun_angle[channel]),
@@ -313,6 +318,10 @@ for channel in channels:
         | (merged_df[f"gain_{channel}"] == 1000)
         | (merged_df[f"gain_{channel}"] == 3000)
     ]
+
+# scan should be the same for all channels
+merged_df["scan"] = merged_df.apply(clean_variable, axis=1, args=("scan",))
+merged_df = merged_df.drop(columns=["scan_lh", "scan_ll", "scan_rh", "scan_rl"])
 
 merged_df = merged_df.reset_index(drop=True)
 
@@ -801,6 +810,7 @@ sky_variables = [
     "pix_ecl",
     "pix_cel",
     "pix_terr",
+    "scan",
     "adds_per_group_lh",
     "adds_per_group_ll",
     "adds_per_group_rh",

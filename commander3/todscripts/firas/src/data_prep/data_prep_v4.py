@@ -9,13 +9,8 @@ import healpy as hp
 import numpy as np
 import pandas as pd
 import tables as tb
-from utils.my_utils import (
-    clean_variable,
-    convert_gain,
-    get_temperature_hl,
-    parse_date_string,
-    scan_up_down,
-)
+from utils.my_utils import (clean_variable, convert_gain, get_temperature_hl,
+                            parse_date_string, scan_up_down)
 
 # check how much time the script takes to run
 start_time = time.time()
@@ -92,19 +87,19 @@ for channel in channels:
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/terr_latitude"][()] * fact
     print(f"getting up/down for channel {channel}")
     scan[channel] = scan_up_down(lat).astype(int)
-    pix_terr[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(int)
+    pix_terr[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_latitude"][()] * fact
-    pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(int)
+    pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_latitude"][()] * fact
-    pix_gal[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(int)
+    pix_gal[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ra"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/dec"][()] * fact
-    pix_cel[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(int)
+    pix_cel[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
 df = {}
 
@@ -186,30 +181,6 @@ non_duplicate_timestamps = (
 #     df[channel]["gmt"] = df[channel]["gmt"].astype(int)
 # tolerance = 16  # seconds
 
-merge_by = [
-    "pix_gal",
-    "pix_ecl",
-    "pix_cel",
-    "pix_terr",
-    "scan",
-    "adds_per_group",
-    "gain",
-    "sweeps",
-    "sun_angle",
-    "earth_limb",
-    "moon_angle",
-    "mtm_length",
-    "mtm_speed",
-    "fake",
-    "upmode",
-    "xcal_pos",
-]
-
-for channel in channels:
-    # df[channel]["gmt"] = pd.to_datetime(df[channel]["gmt"])
-    for merge_key in merge_by:
-        df[channel][merge_key] = df[channel][merge_key].astype(float)
-
 #     print(f"\nData types for df['{channel}']:")
 #     print(df[channel].dtypes)
 #     print(f"Datatypes for non_duplicate_timestamps:")
@@ -235,8 +206,6 @@ merged_df = pd.merge_asof(
 # # check which columns have nans or infs
 # print(f"Columns with nans in merged_df: {merged_df.columns[merged_df.isnull().any()]}")
 
-# for merge_key in merge_by:
-#     merged_df[merge_key] = merged_df[merge_key].astype(int)
 
 merged_df = pd.merge_asof(
     merged_df,
@@ -245,11 +214,8 @@ merged_df = pd.merge_asof(
     direction="nearest",
     suffixes=("_lh", "_ll"),
     tolerance=tolerance,
-    by=merge_by,
+    by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
 )
-
-# for merge_key in merge_by:
-#     merged_df[merge_key] = merged_df[merge_key].astype(int)
 
 merged_df = pd.merge_asof(
     merged_df,
@@ -258,11 +224,9 @@ merged_df = pd.merge_asof(
     direction="nearest",
     suffixes=("_ll", "_rh"),
     tolerance=tolerance,
-    by=merge_by,
+    by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
 )
 
-# for merge_key in merge_by:
-#     merged_df[merge_key] = merged_df[merge_key].astype(int)
 
 merged_df = pd.merge_asof(
     merged_df,
@@ -271,11 +235,9 @@ merged_df = pd.merge_asof(
     direction="nearest",
     suffixes=("_rh", "_rl"),
     tolerance=tolerance,
-    by=merge_by,
+    by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
 )
 
-# for merge_key in merge_by:
-#     merged_df[merge_key] = merged_df[merge_key].astype(int)
 
 # for channel in channels:
 #     df[channel]["gmt"] = pd.to_datetime(df[channel]["gmt"])
@@ -314,6 +276,10 @@ print(merged_df.shape)
 # CLEANING XCAL_POS AND CONSTRAINING FOR ONLY 1 AND 2
 # making sure xcal_pos is the same within each record
 before = len(merged_df)
+merged_df["xcal_pos"] = merged_df.apply(clean_variable, axis=1, args=("xcal_pos",))
+merged_df = merged_df.drop(
+    columns=["xcal_pos_lh", "xcal_pos_ll", "xcal_pos_rh", "xcal_pos_rl"]
+)
 merged_df = merged_df[merged_df["xcal_pos"] != np.nan]
 merged_df = merged_df[(merged_df["xcal_pos"] == 1) | (merged_df["xcal_pos"] == 2)]
 print(f"Size after cleaning xcal_pos:")
@@ -321,6 +287,20 @@ print(merged_df.shape)
 
 # same thing but for mtm length and speed
 before = len(merged_df)
+merged_df["mtm_length"] = merged_df.apply(clean_variable, axis=1, args=("mtm_length",))
+merged_df["mtm_speed"] = merged_df.apply(clean_variable, axis=1, args=("mtm_speed",))
+merged_df = merged_df.drop(
+    columns=[
+        "mtm_length_lh",
+        "mtm_length_ll",
+        "mtm_length_rh",
+        "mtm_length_rl",
+        "mtm_speed_lh",
+        "mtm_speed_ll",
+        "mtm_speed_rh",
+        "mtm_speed_rl",
+    ]
+)
 merged_df = merged_df[
     (merged_df["mtm_length"] == 0) | (merged_df["mtm_length"] == 1)
 ]  # only 0 and 1 for mtm_length
@@ -332,6 +312,8 @@ print(f"Size after cleaning mtm_length and mtm_speed:")
 print(merged_df.shape)
 
 # fake-it mode on is 1, so i am guessing that 0 is when it is off
+merged_df["fake"] = merged_df.apply(clean_variable, axis=1, args=("fake",))
+merged_df = merged_df.drop(columns=["fake_lh", "fake_ll", "fake_rh", "fake_rl"])
 merged_df = merged_df[(merged_df["fake"] == 0)]
 
 print(f"Size after cleaning fake:")
@@ -341,6 +323,17 @@ print(f"Size after cleaning upmode:")
 print(merged_df.shape)
 
 # adds per group
+merged_df["adds_per_group"] = merged_df.apply(
+    clean_variable, axis=1, args=("adds_per_group",)
+)
+merged_df = merged_df.drop(
+    columns=[
+        "adds_per_group_lh",
+        "adds_per_group_ll",
+        "adds_per_group_rh",
+        "adds_per_group_rl",
+    ]
+)
 merged_df = merged_df[
     (merged_df[f"adds_per_group"] == 1)
     | (merged_df[f"adds_per_group"] == 2)
@@ -360,6 +353,8 @@ print(f"Size after cleaning adds_per_group:")
 print(merged_df.shape)
 
 # gain
+merged_df["gain"] = merged_df.apply(clean_variable, axis=1, args=("gain",))
+merged_df = merged_df.drop(columns=["gain_lh", "gain_ll", "gain_rh", "gain_rl"])
 merged_df[f"gain"] = merged_df.apply(convert_gain, axis=1)
 merged_df = merged_df[
     (merged_df[f"gain"] == 1)
@@ -375,15 +370,19 @@ print(f"Size after cleaning gain:")
 print(merged_df.shape)
 
 # sweeps
+merged_df["sweeps"] = merged_df.apply(clean_variable, axis=1, args=("sweeps",))
+merged_df = merged_df.drop(columns=["sweeps_lh", "sweeps_ll", "sweeps_rh", "sweeps_rl"])
 merged_df = merged_df[(merged_df[f"sweeps"] == 4) | (merged_df[f"sweeps"] == 16)]
 
 print(f"Size after cleaning sweeps:")
 print(merged_df.shape)
 
-merged_df = merged_df.reset_index(drop=True)
+# scan
+# same thing for the scan variable
+merged_df["scan"] = merged_df.apply(clean_variable, axis=1, args=("scan",))
+merged_df = merged_df.drop(columns=["scan_lh", "scan_ll", "scan_rh", "scan_rl"])
 
-for merge_key in merge_by:
-    merged_df[merge_key] = merged_df[merge_key].astype(int)
+merged_df = merged_df.reset_index(drop=True)
 
 # ENGINEERING DATA - all except xcal which will be added only to the calibration data later
 
@@ -720,8 +719,16 @@ print(f"Calibration dataset after splitting: {calibration_df.tail()}")
 print(f"Sky dataset after splitting: {sky_df.tail()}")
 
 # clean up for upmode
+sky_df["upmode"] = sky_df.apply(clean_variable, axis=1, args=("upmode",))
+sky_df = sky_df.drop(columns=["upmode_lh", "upmode_ll", "upmode_rh", "upmode_rl"])
 sky_df = sky_df[(sky_df["upmode"] == 4)]
 sky_df = sky_df.drop(columns=["upmode"])
+calibration_df["upmode"] = calibration_df.apply(
+    clean_variable, axis=1, args=("upmode",)
+)
+calibration_df = calibration_df.drop(
+    columns=["upmode_lh", "upmode_ll", "upmode_rh", "upmode_rl"]
+)
 
 print(f"Sky size after cleaning upmode:")
 print(sky_df.shape)
@@ -729,29 +736,57 @@ print(sky_df.shape)
 # REJECTS
 # for channel in channels.keys():
 # sun angle must be greater than 91.2 degrees - removing if any of the channels have a sun angle less than 91.2
+sky_df["sun_angle"] = sky_df.apply(clean_variable, axis=1, args=("sun_angle",))
 sky_df = sky_df[sky_df[f"sun_angle"] * fact > 91.2]
 sky_df = sky_df.drop(columns=[f"sun_angle"])
 print(f"Sky size after cleaning sun angle:")
 print(sky_df.shape)
 
 # eart limb must be greater than 87 degrees - removing if any of the channels have an earth limb less than 87
+sky_df["earth_limb"] = sky_df.apply(clean_variable, axis=1, args=("earth_limb",))
 sky_df = sky_df[sky_df[f"earth_limb"] * fact > 87]
 sky_df = sky_df.drop(columns=[f"earth_limb"])
 print(f"Sky size after cleaning earth limb:")
 print(sky_df.shape)
 
 # moon angle must be greater than 22 degrees - removing if any of the channels have a moon angle less than 22
+sky_df["moon_angle"] = sky_df.apply(clean_variable, axis=1, args=("moon_angle",))
 sky_df = sky_df[sky_df[f"moon_angle"] * fact > 22]
 sky_df = sky_df.drop(columns=[f"moon_angle"])
 print(f"Sky size after cleaning moon angle:")
 print(sky_df.shape)
 
+sky_df = sky_df.drop(
+    columns=[
+        f"sun_angle_lh",
+        f"sun_angle_ll",
+        f"sun_angle_rh",
+        f"sun_angle_rl",
+        f"earth_limb_lh",
+        f"earth_limb_ll",
+        f"earth_limb_rh",
+        f"earth_limb_rl",
+        f"moon_angle_lh",
+        f"moon_angle_ll",
+        f"moon_angle_rh",
+        f"moon_angle_rl",
+    ]
+)
 # calibration dataset doesnt need any of these variables either
 calibration_df = calibration_df.drop(
     columns=[
-        f"sun_angle",
-        f"earth_limb",
-        f"moon_angle",
+        f"sun_angle_lh",
+        f"sun_angle_ll",
+        f"sun_angle_rh",
+        f"sun_angle_rl",
+        f"earth_limb_lh",
+        f"earth_limb_ll",
+        f"earth_limb_rh",
+        f"earth_limb_rl",
+        f"moon_angle_lh",
+        f"moon_angle_ll",
+        f"moon_angle_rh",
+        f"moon_angle_rl",
     ]
 )
 
