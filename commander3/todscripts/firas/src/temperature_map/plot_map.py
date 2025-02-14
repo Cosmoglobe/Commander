@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from my_utils import planck
 import os
+from pathlib import Path
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
@@ -211,6 +212,7 @@ for channel in channels.keys():
 
 for channel in channels.keys():
     for mode in modes.keys():
+        Path(f"/mn/stornext/d16/www_cmb/{user}/firas/maps/my_maps/{f"{channel}_{mode}"}").mkdir(parents=True, exist_ok=True)
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
                 hp.mollview(
@@ -256,6 +258,7 @@ m_joint[~joint_mask] = (
 )
 m_joint[joint_mask] = np.nan  # hp.UNSEEN
 
+Path(f"/mn/stornext/d16/www_cmb/{user}/firas/maps/joint").mkdir(parents=True, exist_ok=True)
 for freq in range(len(f_ghz["ll_lf"])):
     hp.mollview(
         m_joint[:, freq],
@@ -308,6 +311,7 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
 
 print("plotting up/down scan map")
 
+Path(f"/mn/stornext/d16/www_cmb/{user}/firas/maps/up_down_scan").mkdir(parents=True, exist_ok=True)
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):

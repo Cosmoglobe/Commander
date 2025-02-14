@@ -46,6 +46,65 @@ for channel in channels.keys():
 
 print("plotting cal")
 
+
+from pathlib import Path
+Path(f"/mn/stornext/d16/www_cmb/{user}/firas/plots/cal_over_diff").mkdir(parents=True, exist_ok=True)
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            # plot the cal
+            print(f"plotting {channel}_{mode}")
+            inds = np.argsort(cal[f"xcal_{mode}"] - cal[f"ical_{mode}"])
+            plt.imshow(
+                cal[f"{channel}_{mode}"][inds].T.real,
+                aspect="auto",
+                extent=[
+                    0,
+                    len(cal[f"{channel}_{mode}"]),
+                    0,
+                    len(cal[f"{channel}_{mode}"][0]),
+                ],
+                vmax=200,
+                vmin=-200,
+                cmap='RdBu_r',
+            )
+            plt.title(f"{channel}_{mode}")
+            plt.colorbar(label=r'$\mathrm{MJy/sr}$')
+            plt.savefig(
+                f"/mn/stornext/d16/www_cmb/{user}/firas/plots/cal_over_diff/{f"{channel}_{mode}"}_real.png"
+            )
+            plt.clf()
+
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            # plot the cal
+            print(f"plotting {channel}_{mode}")
+            inds = np.argsort(cal[f"xcal_{mode}"] - cal[f"ical_{mode}"])
+            plt.imshow(
+                cal[f"{channel}_{mode}"][inds].T.imag,
+                aspect="auto",
+                extent=[
+                    0,
+                    len(cal[f"{channel}_{mode}"]),
+                    0,
+                    len(cal[f"{channel}_{mode}"][0]),
+                ],
+                vmax=100,
+                vmin=-100,
+                cmap='RdBu_r',
+            )
+            plt.title(f"{channel}_{mode}")
+            plt.colorbar(label=r'$\mathrm{MJy/sr}$')
+            plt.savefig(
+                f"/mn/stornext/d16/www_cmb/{user}/firas/plots/cal_over_diff/{f"{channel}_{mode}"}_imag.png"
+            )
+            plt.clf()
+
 for channel in channels.keys():
     for mode in modes.keys():
         if mode == "lf" and (channel == "lh" or channel == "rh"):
@@ -227,5 +286,4 @@ for channel in channels.keys():
                 f"/mn/stornext/d16/www_cmb/{user}/firas/plots/cal_over_xcal/{f"{channel}_{mode}"}_imag.png"
             )
             plt.clf()
-
 

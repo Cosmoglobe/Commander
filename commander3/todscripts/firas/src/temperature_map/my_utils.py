@@ -122,14 +122,14 @@ def clean_ifg(
     sweeps,
     apod,
 ):
-    print("ifg shape before subtraction:", ifg.shape)
+    #print("ifg shape before subtraction:", ifg.shape)
 
     median_ifg = np.expand_dims(my_median(ifg), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg
 
-    print("ifg shape after subtraction:", ifg.shape)
+    #print("ifg shape after subtraction:", ifg.shape)
 
     # Ensure gain and sweeps are reshaped for broadcasting
     gain = np.expand_dims(gain, axis=-1)
@@ -137,34 +137,41 @@ def clean_ifg(
 
     ifg = ifg / gain / sweeps
 
-    print("ifg shape after division:", ifg.shape)
+    #print("ifg shape after division:", ifg.shape)
 
     # apodize
     sm = 2 * mtm_length + mtm_speed
 
-    # plt.plot(apod, label="lambda")
-
-    # use apodization function from the pipeline
-    # arecno = apod_recnuml(channel, sm, adds_per_group).astype(np.int32)
-    # apodl_all = apodl()
-    # apod = apodl_all[arecno, :]
-    # plt.plot(apod, label="pipeline")
-    # plt.legend()
-    # plt.savefig(f"../../output/plots/apod_{channel}.png")
-    # plt.clf()
-
     ifg = ifg * apod
 
-    print("ifg shape after apodization:", ifg.shape)
+    #print("ifg shape after apodization:", ifg.shape)
 
     # roll
     peak_pos = 360
     ifg = np.roll(ifg, -peak_pos)
 
-    print("ifg shape after roll:", ifg.shape)
+    #print("ifg shape after roll:", ifg.shape)
 
     return ifg
 
+def unclean_ifg(
+    ifg,
+    gain,
+    sweeps,
+    apod,
+):
+    gain = np.expand_dims(gain, axis=-1)
+    sweeps = np.expand_dims(sweeps, axis=-1)
+
+    ifg = ifg * gain * sweeps
+
+    peak_pos = 360
+    ifg = np.roll(ifg, peak_pos)
+
+    ifg = ifg/apod
+    ifg[:,apod < 0.1] = np.nan
+
+    return ifg
 
 # @njit(parallel=True) - can't use it because of rfft
 def ifg_to_spec(
@@ -187,55 +194,39 @@ def ifg_to_spec(
     G1,
     C3,
     C1,
-    # tau,
-    # etf,
-    # S0,
-    # norm,
+    mtm_length,
+    gain,
+    sweeps,
+    apod,
 ):
 
-    print("ifg", ifg)
-    # fft
+
+    ifg = clean_ifg(ifg, mtm_length, mtm_speed, gain, sweeps, apod)
+
     spec = np.fft.rfft(ifg)
 
-    print("spec after rfft:", spec)
+    #print("spec after rfft:", spec)
 
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-    # print("etf:", etf)
+    #           # print("etf:", etf)
 
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    if mtm_speed == 0:
-        cutoff = 5
-    else:
-        cutoff = 7
 
+    #print('etf: forward')
     spec = spec / etf
-    print(f"spec after etf: {spec}")
-    # spec = spec[:, cutoff : (len(etf) + cutoff)] / etf  # kills 0 frequency
-    # print("spec after etf:", spec)
-    spec = (
-        spec / spec_norm
-    )  # i will leave this for now but i think using the one in lambda doesn't need this and needs the other factor
+    #print(etf, spec)
+    spec = spec / spec_norm
 
-    # fcc_spec_length = 321
     spec_len = len(ifg[0]) // 2 + 1
     dw = 2.0 * np.pi * fnyq_hz / spec_len
-    # afreq = (
-    #     np.arange(fcc_spec_length) * dw
-    # )  # had to change because i'm not padding for now
     afreq = np.arange(spec_len) * dw
-    # using from lambda:
-    # a0 = 11.149872  # rad/s
-    # da = 2.2299744
-    # afreq = a0 + da * np.arange(len(spec[0]))
-
-    # print("afreq:", afreq)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,
@@ -265,24 +256,17 @@ def ifg_to_spec(
     )
 
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-    # print(f"B: {B}")
 
-    print("B:", B)
-    print("S0:", S0)
+    spec = spec / S0[:, np.newaxis] * B
 
-    spec = B * spec / S0[:, np.newaxis]  # * norm
-    print(f"shape of spec after B multiplication: {spec.shape}")
+    if mtm_speed == 0:
+        cutoff = 5
+    else:
+        cutoff = 7
 
-    print(f"spec before cutoff: {spec}")
-
-    spec = spec[:, cutoff : (len(otf) + cutoff)]
-
-    print(f"shape of spec after cutoff: {spec.shape}")
-
-    # optical transfer function
-    spec = spec / otf
-
-    print(f"spec after otf: {spec}")
+    spec[:, cutoff : (len(otf) + cutoff)] = spec[:, cutoff : (len(otf) + cutoff)] / otf
+    spec[:, :cutoff] = 0
+    spec[:, (len(otf)+cutoff):] = 0
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
@@ -290,6 +274,101 @@ def ifg_to_spec(
     spec = spec * fac_erg_to_mjy
 
     return spec
+
+def spec_to_ifg(
+    spec,
+    mtm_speed,
+    channel,
+    adds_per_group,
+    bol_cmd_bias,
+    bol_volt,
+    fnyq_icm,
+    fnyq_hz,
+    otf,
+    Jo,
+    Jg,
+    Tbol,
+    rho,
+    R0,
+    T0,
+    beta,
+    G1,
+    C3,
+    C1,
+    gain,
+    sweeps,
+    apod,
+    ):
+    if mtm_speed == 0:
+        cutoff = 5
+    else:
+        cutoff = 7
+
+    spec_r = np.copy(spec)
+
+    # Defining constants, getting data model
+
+    fac_icm_ghz = 29.9792458
+    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
+
+    fac_etendu = 1.5  # nathan's pipeline
+    fac_adc_scale = 204.75  # nathan's pipeline
+    spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
+
+
+    spec_len = len(spec[0])
+    dw = 2.0 * np.pi * fnyq_hz / spec_len
+    afreq = np.arange(spec_len) * dw
+
+    S0 = calculate_dc_response(
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        Tbol=Tbol,
+        rho=rho,
+        R0=R0,
+        T0=T0,
+        beta=beta,
+        G1=G1,
+    )
+
+    tau = calculate_time_constant(
+        C3=C3,
+        Tbol=Tbol,
+        C1=C1,
+        G1=G1,
+        beta=beta,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        bol_cmd_bias=bol_cmd_bias,
+        rho=rho,
+        T0=T0,
+    )
+    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
+    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
+    etf = etfl_all[erecno, :]
+
+
+    B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
+
+
+    spec_r = spec_r / fac_erg_to_mjy
+
+    spec_r[:, cutoff : (len(otf) + cutoff)] = spec_r[:, cutoff : (len(otf) + cutoff)]*otf
+
+    spec_r = S0[:, np.newaxis] * spec_r / B
+
+    spec_r = spec_r * spec_norm
+
+    spec_r = spec_r * etf
+
+    ifg = np.fft.irfft(spec_r)
+
+    ifg = unclean_ifg(ifg, gain, sweeps, apod)
+
+    return ifg
 
 
 # @njit(parallel=True)
