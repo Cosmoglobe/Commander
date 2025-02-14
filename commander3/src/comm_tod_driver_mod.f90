@@ -18,6 +18,18 @@ module comm_tod_driver_mod
   use omp_lib
   implicit none
 
+  ! Class for uncompressed data of a single detector over the full flight
+  type :: comm_detdata
+
+    integer(i4b) :: nscan
+    integer(i4b), allocatable, dimension(:) :: ntod, scans
+    real(sp), allocatable, dimension(:,:) :: tod
+  contains
+    procedure init_singlehorn => init_det_data_singlehorn
+    procedure dealloc         => dealloc_det_data
+
+  end type comm_detdata
+
   ! Class for uncompressed data for a given scan
   type :: comm_scandata
      integer(i4b) :: ntod, ndet, nhorn, ndelta
@@ -51,6 +63,7 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
      integer(i4b) :: band                                           ! Band ID
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
@@ -66,7 +79,7 @@ contains
   !  Scan data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_scan_data_singlehorn(sd, tod, scan, map_sky, map_gain, procmask, procmask2, procmask_zodi, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, darkdata)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -80,9 +93,10 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
     logical(lgt),                              intent(in),   optional :: skip_nonlin
+    logical(lgt),                              intent(in),   optional :: darkdata
 
     integer(i4b) :: i, j, k, ndelta
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -95,7 +109,9 @@ contains
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
-    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin 
+    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
+ 
     init_s_bp_prop_ = .false.
     if (present(init_s_bp_prop)) then
        init_s_bp_prop_  = init_s_bp_prop
@@ -126,6 +142,11 @@ contains
     if (init_s_sky_prop_)    allocate(sd%mask2(sd%ntod, sd%ndet))
     if (tod%sample_mono)     allocate(sd%s_mono(sd%ntod, sd%ndet))
     if (tod%apply_inst_corr) allocate(sd%s_inst(sd%ntod, sd%ndet))
+
+    if (darkdata_) then
+        allocate(sd%dark(sd%ntod, tod%ndark))
+    end if
+
     if (tod%subtract_zodi) then
       call tod%clear_zodi_cache()
       allocate(sd%s_zodi(sd%ntod, sd%ndet))
@@ -145,6 +166,12 @@ contains
        call tod%decompress_pointing_and_flags(scan, j, sd%pix(:,j,:), &
             & sd%psi(:,j,:), sd%flag(:,j))
     end do
+
+    if(darkdata_) then
+      do j=1, tod%ndark
+        call tod%decompress_dark_data(scan, j, sd%dark(:,j))
+      end do
+    end if
     
     call timer%stop(TOD_DECOMP, tod%band)
     !call update_status(status, "todinit_decomp")
@@ -611,6 +638,49 @@ contains
     if (allocated(sd%s_gainB))       deallocate(sd%s_gainB)
 
   end subroutine dealloc_scan_data
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! detdata routines
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  ! deallocates a det_data struture
+  subroutine dealloc_det_data(dd)
+    implicit none
+    class(comm_detdata), intent(inout) :: dd
+
+    dd%nscan = -1
+    deallocate(dd%scans)
+    deallocate(dd%ntod)
+    deallocate(dd%tod)
+
+  end subroutine dealloc_det_data
+
+  ! initializes a det_data structure for a single detector over the entire flight
+  ! for a singlehorn experiment like planck
+  subroutine init_det_data_singlehorn(dd, tod, det)
+    implicit none
+    class(comm_detdata),                       intent(inout)          :: dd
+    class(comm_tod),                           intent(inout)          :: tod
+    integer(i4b),                              intent(in)             :: det
+
+
+
+  end subroutine init_det_data_singlehorn
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Scandata 2 detdata
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine populate_sd_from_dd(sd, dd, scan, det)
+    implicit none
+    class(comm_scandata),                      intent(inout)          :: sd
+    class(comm_detdata),                       intent(inout)          :: dd
+    integer(i4b),                              intent(in)             :: scan
+    integer(i4b),                              intent(in)             :: det
+
+
+  end subroutine populate_sd_from_dd
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

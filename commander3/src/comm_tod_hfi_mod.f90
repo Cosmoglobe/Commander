@@ -50,6 +50,10 @@ module comm_tod_HFI_mod
      procedure     :: dumpToHDF_inst          => dumpToHDF_HFI
      procedure     :: construct_corrtemp_inst => construct_corrtemp_hfi
      procedure     :: apply_nonlin_corr_inst  => apply_nonlin_corr_hfi
+
+     procedure, private     :: stitch_hfi_dc_level
+     procedure, private     :: hfi_dark_correction
+     procedure, private     :: estimate_hfi_4k_lines
   end type comm_HFI_tod
 
   interface comm_HFI_tod
@@ -140,6 +144,8 @@ contains
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
     c%partner         = -1
+    !TODO: set the number of dark bolometers to be correct
+    c%ndark           = 1
 
     nmaps_beam        = 3
     pol_beam          = .true.
@@ -183,6 +189,7 @@ contains
 
   !  allocate(c%xtalk)
     c%xtalk => comm_crosstalk(correlations)
+
  
   end function constructor_hfi
 
@@ -242,6 +249,7 @@ contains
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
+    type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
@@ -318,18 +326,15 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-
-    do i =1, self%nscan
-       ! Skip scan if no accepted data
-       if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true.)
-    end do
-
     ! estimate A/B detector crosstalk coeficients
     call self%xtalk%estimate_crosstalk_matrix()
 
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan
+        ! Skip scan if no accepted data
+        if (.not. any(self%scans(i)%d%accept)) cycle
+        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true., darkdata=.true.)
+
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
@@ -346,10 +351,14 @@ contains
        if (self%first_call) call set_modulation_phase(sd, self, i)
 
        ! Fix dc level jumps 
-       ! Not implemented yet
+       call self%stitch_hfi_dc_level(i, sd)
 
        ! Dark bolometer drift correction
-       ! Not implemented yet
+       call self%hfi_dark_correction(i, sd)       
+
+       ! 4k Line corrections
+       call self%estimate_hfi_4k_lines(i, sd)
+
  
        ! Clean up
        call sd%dealloc
@@ -358,18 +367,28 @@ contains
     ! Fit global timestream contaminants 
 
     ! Subtract cosmic ray contribution
-    ! Not implemented yet
+    do j=1, self%ndet
+
+      call init_det_data_singlehorn(dd, self, j)
+
+      call self%cray(j)%p%build_cray_templates()
+
+      do i=1, self%nscan
+        call populate_sd_from_dd(sd, dd, i, j)
+
+        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
+
+        call sd%dealloc
+      end do
+
+      call dd%dealloc
+    end do
 
     ! Estimate ADC corrections
     !    Not implemented yet
 
-    ! Fit 4k Line emission
-    ! Not implemented yet
-
     ! Fit bolometer transfer function parameters?
     !    Not implemented yet     
-
-
 
 
     ! NOW Sample high level tod components that require cleaned data
@@ -466,9 +485,9 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+         call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
        else
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2, correct_transfer=.true.)
        end if
     else
        if(self%nmaps > 1) then
@@ -834,10 +853,9 @@ contains
     !
     !  scan: int
     !       scan number
-    !  pix: int
-    !       index for pixel
-    !  psi: int
-    !       integer label for polarization angle
+    !
+    !  sd: comm_scandata
+    !       structure holding the scan data
     !
     !  Returns:
     !  --------
@@ -855,5 +873,71 @@ contains
     call demodulate_tod(sd, self, scan)
     
   end subroutine apply_nonlin_corr_hfi
+
+  subroutine stitch_hfi_dc_level(self, scan, sd)
+    !  Construct and apply HFI instrument-specific non-linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+
+    !estimate dc levels between jumps and then update sd%tod to be flat
+
+  end subroutine stitch_hfi_dc_level
+
+  subroutine hfi_dark_correction(self, scan, sd)
+    !  Construct and apply HFI instrument-specific corrections
+    !  from dark bolometer timestreams
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+
+    !estimate dark correction then update sd%tod to be flat
+
+  end subroutine hfi_dark_correction
+
+  subroutine estimate_hfi_4k_lines(self, scan, sd)
+    !  Construct and apply HFI instrument-specific corrections
+    !  from 4k lines
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+
+    !estimate 4k line signal
+
+  end subroutine estimate_hfi_4k_lines
+
 
 end module comm_tod_HFI_mod

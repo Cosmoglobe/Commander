@@ -132,6 +132,7 @@ module comm_tod_mod
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
+     integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
      real(dp)     :: central_freq                                 !Central frequency
@@ -271,6 +272,7 @@ module comm_tod_mod
      procedure                           :: decompress_pointing_and_flags
      procedure                           :: decompress_tod
      procedure                           :: decompress_diodes
+     procedure                           :: decompress_dark_data
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
      procedure                           :: load_instrument_inst
@@ -2466,6 +2468,33 @@ contains
     end if
 
   end subroutine decompress_pointing_and_flags
+
+  subroutine decompress_dark_data(self, scan, det, dark)
+    ! Decompress dark tods
+    ! 
+    ! Inputs:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     dark detector number
+    !
+    ! Returns:
+    ! ----------
+    ! dark : real(sp) (ntod, ndark)
+    !   dark bolometer data
+
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    real(sp),          dimension(:),    intent(out) :: dark
+
+    dark = 0.0
+    !TODO: this
+
+  end subroutine decompress_dark_data
 
   subroutine decompress_diodes(self, scan, det, diodes, flag, pix, psi)
     ! Decompress per-diode tod information
