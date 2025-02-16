@@ -737,7 +737,7 @@ contains
                   tod = data(i)%tod%scans(scan)%d(j)%tod
                end if
                call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_static, pix_static=data(i)%tod%scans(scan)%d(j)%pix_sol)
-               tod = tod - s_static
+               tod = tod - data(i)%tod%scans(scan)%d(j)%gain * s_static
 
                do k = 1, data(i)%tod%scans(scan)%ntod
                   mask(k) = procmask_zodi(pix(k, 1))
@@ -1068,7 +1068,7 @@ contains
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
                ! Search for strong outliers
-               res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+               res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%gain * (data(i)%tod%scans(scan)%d(j)%downsamp_sky + data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
                rms = sqrt(mean(real(res**2, dp)))
                data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 10. * real(rms, sp)
                frac = count(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)/real(size(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask),dp)

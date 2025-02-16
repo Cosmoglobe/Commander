@@ -161,7 +161,7 @@ contains
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
       !end do
-      
+
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_dirbe
 
@@ -249,7 +249,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, apply_dynamic_mask
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -261,7 +261,7 @@ contains
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
-      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf, freqmap
       real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
       real(dp), allocatable, dimension(:)       :: AY, AY_reduced, X
       real(dp), allocatable, dimension(:, :, :) :: s_therm_tot, s_scat_tot ! (n_tod_tot, ncomps, ndet)
@@ -284,7 +284,7 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .true.                         ! Gain sampling, LB TOD sims have perfect gain
+      !sample_gain           = .true. !iter > 1                         ! Gain sampling, LB TOD sims have perfect gain
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
@@ -294,7 +294,18 @@ contains
       else
          sample_ncorr = .false.
       end if
-         
+
+      if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
+        & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
+        & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+         sample_gain        = .true.
+         apply_dynamic_mask = .true.
+      else
+         sample_gain        = .false.
+         apply_dynamic_mask = .false.
+      end if
+      !sample_gain = .false.
+
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -347,13 +358,13 @@ contains
       !------------------------------------
 
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-      if (iter > 1 .and. sample_gain) then
+      if (sample_gain) then
          ! 'abscal': the global constant gain factor
          !call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask2, procmask2, smooth=.true.)
+         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask2, procmask2, smooth=.true., mask_threshold=0.1d0)
       end if
 
       ! Prepare intermediate data structures
@@ -377,10 +388,11 @@ contains
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
-         if (self%first_call) then
+         if (self%first_call .and. apply_dynamic_mask) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
+               call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j))
             end do
             call sd%dealloc
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -410,7 +422,7 @@ contains
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-         
+
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
@@ -418,7 +430,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
-         if (.true.) then
+         if (.false.) then
             ! scan id appears to be the worst chi2
             if (self%scanid(i) < 10000) then 
                !print *, self%scanid(i)
@@ -447,6 +459,10 @@ contains
 
          ! Bin TOD
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+!!$         do j = 1, binmap%nobs
+!!$            if (binmap%A_map(1,j) > 0.) write(*,*) j, real(binmap%b_map(1,1,j),sp), real(binmap%A_map(1,j),sp), real(binmap%b_map(1,1,j)/binmap%A_map(1,j),sp)
+!!$         end do
 
          ! Update scan list
          call wall_time(t2)

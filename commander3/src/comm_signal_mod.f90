@@ -418,7 +418,7 @@ contains
     integer(i4b)              :: i, j, ext(2), initsamp, initsamp2
     character(len=4)          :: ctext
     character(len=6)          :: itext, itext2
-    character(len=512)        :: chainfile, hdfpath
+    character(len=2048)       :: chainfile, hdfpath
     class(comm_comp), pointer :: c => null()
     type(hdf_file) :: file, file2
     class(comm_N),      pointer :: N => null() 

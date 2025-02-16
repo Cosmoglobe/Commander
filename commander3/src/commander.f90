@@ -382,7 +382,9 @@ program commander
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_map(cpar, handle)
+      if (.false.) then
+         call sample_static_zodi_map(cpar, handle)
+      end if
       !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then

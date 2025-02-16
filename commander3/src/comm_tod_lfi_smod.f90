@@ -65,7 +65,7 @@ contains
     logical(lgt) :: pol_beam
     character(len=50)  :: name
     character(len=6)   :: itext
-    character(len=512) :: chainfile, path
+    character(len=2048) :: chainfile, path
     type(hdf_file)     :: init_file
 
     real(dp), dimension(:),   allocatable :: nus

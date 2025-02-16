@@ -51,7 +51,7 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
-     integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
+     integer(i4b)       :: nside, nside_febecop, nsrc, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps, recompute_ptsrc_precond
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (nsrc,nmaps)
      real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (nsrc,nmaps)
@@ -82,13 +82,11 @@ module comm_ptsrc_comp_mod
      class(comm_ptsrc_comp), pointer :: p => null()
   end type ptsrc_ptr
   
-  integer(i4b) :: ncomp_pre               =   0
-  integer(i4b) :: npre                    =   0
-  integer(i4b) :: nmaps_pre               =  -1
+  integer(i4b), allocatable, dimension(:) :: npre, nmaps_pre
   integer(i4b) :: comm_pre                =  -1
   integer(i4b) :: myid_pre                =  -1
   integer(i4b) :: numprocs_pre            =  -1
-  logical(lgt) :: apply_ptsrc_precond     = .true.
+  logical(lgt) :: apply_ptsrc_precond     = .false.
 
   character(len=24), private :: operation
 
@@ -112,6 +110,7 @@ contains
     call update_status(status, "init_ptsrc1")
     
     ! General parameters
+    apply_ptsrc_precond     = .true.
     allocate(c)
 
     ! Initialize general parameters
@@ -136,7 +135,6 @@ contains
     c%comm            = cpar%comm_chain
     c%numprocs        = cpar%numprocs_chain
     c%init_from_HDF   = cpar%cs_initHDF(id_abs)
-    ncomp_pre                   = ncomp_pre + 1
     operation                   = cpar%operation
     c%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
     c%burn_in         = cpar%cs_burn_in(id_abs)
@@ -252,19 +250,6 @@ contains
        call report_error("Unknown point source model: " // trim(c%type))
     end select
 
-    ! Read and allocate source structures
-    call update_status(status, "init_ptsrc2")
-    if( trim(c%type) == 'stars') then
-      ! stars uses an hdf catalogue instead of a txt file
-      call read_star_catalogue(c, cpar, id, id_abs)
-    else 
-      call read_sources(c, cpar, id, id_abs)
-    end if 
-
-    ! Update mixing matrix
-    call update_status(status, "init_ptsrc3")
-    call c%updateMixmat
-
     ! Set up CG sampling groups
     allocate(c%active_samp_group(cpar%cg_num_samp_groups))
     c%active_samp_group = .false.
@@ -281,6 +266,19 @@ contains
 
     ! Disable CG search when asking for positivity prior
     if (c%apply_pos_prior)  c%active_samp_group = .false.
+    
+    ! Read and allocate source structures
+    call update_status(status, "init_ptsrc2")
+    if( trim(c%type) == 'stars') then
+      ! stars uses an hdf catalogue instead of a txt file
+      call read_star_catalogue(c, cpar, id, id_abs)
+    else 
+      call read_sources(c, cpar, id, id_abs)
+    end if 
+
+    ! Update mixing matrix
+    call update_status(status, "init_ptsrc3")
+    call c%updateMixmat
 
     call update_status(status, "init_ptsrc4")
     
@@ -727,7 +725,12 @@ contains
     open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     self%nsrc    = 0
     self%ncr     = 0
-    self%ncr_tot = 0
+    if (.not. allocated(npre)) then
+       allocate(npre(cpar%cg_num_samp_groups))
+       allocate(nmaps_pre(cpar%cg_num_samp_groups))
+       npre      = 0
+       nmaps_pre = 1
+    end if
     do while (.true.)
        read(unit,'(a)',end=1) line
        line = trim(adjustl(line))
@@ -735,10 +738,13 @@ contains
           cycle
        else
           self%nsrc    = self%nsrc + 1
-          npre         = npre + 1
-          nmaps_pre    = max(nmaps_pre, nmaps)
-          self%ncr_tot = self%ncr_tot  + nmaps
           if (cpar%myid_chain == 0) self%ncr  = self%ncr  + nmaps
+          do i = 1, cpar%cg_num_samp_groups
+             if (self%active_samp_group(i)) then
+                npre(i)      = npre(i) + 1
+                nmaps_pre(i) = max(nmaps_pre(i), nmaps)
+             end if
+          end do
        end if
     end do 
 1   close(unit)
@@ -776,10 +782,12 @@ contains
        end if
        if (skip_src) then
           self%nsrc    = self%nsrc-1
-          npre         = npre - 1
-          nmaps_pre    = max(nmaps_pre, nmaps)
-          self%ncr_tot = self%ncr_tot  - nmaps
           if (cpar%myid_chain == 0) self%ncr  = self%ncr  - nmaps
+          do j = 1, cpar%cg_num_samp_groups
+             if (self%active_samp_group(j)) then
+                npre(j)         = npre(j) - 1
+             end if
+          end do
        else
           i                    = i+1
           allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(nactive))
@@ -1000,7 +1008,6 @@ contains
 
     !store each pointsource in a source object
     self%ncr     = 0
-    self%ncr_tot = 0
     ii           = 0
     do i=1, self%nsrc
        if (myid_pre == 0) then
@@ -1032,10 +1039,13 @@ contains
        end if
 
        allocate(self%src(ii)%amp_precomp(self%nactive))
-       allocate(self%src(ii)%T(self%nactive)) 
-       npre         = npre + 1
-       nmaps_pre    = max(nmaps_pre, self%nmaps)
-       self%ncr_tot = self%ncr_tot  + self%nmaps
+       allocate(self%src(ii)%T(self%nactive))
+       do j = 1, cpar%cg_num_samp_groups
+          if (self%active_samp_group(j)) then
+             npre(j)      = npre(j) + 1
+             nmaps_pre(j) = max(nmaps_pre(j), self%nmaps)
+          end if
+       end do
        if (cpar%myid_chain == 0) self%ncr  = self%ncr  + self%nmaps
 
        ! Normalize to first frequency
@@ -1538,9 +1548,8 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
     type(ptsrc_ptr), dimension(5) :: pc
     
-    if (npre == 0) return
-    if (ncomp_pre == 0) return
     if (.not. apply_ptsrc_precond) return
+    if (npre(samp_group) == 0) return
 
     ! Make a list of active components, and check that at least one wants update
     nactive = 0
@@ -1564,10 +1573,10 @@ contains
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
     if (.not. allocated(P_cr(samp_group)%invM_src)) then
-       allocate(P_cr(samp_group)%invM_src(1,nmaps_pre))
+       allocate(P_cr(samp_group)%invM_src(1,nmaps_pre(samp_group)))
     end if
     !allocate(mat(npre,npre), mat2(npre,npre))
-    do j = 1, nmaps_pre
+    do j = 1, nmaps_pre(samp_group)
 
        ! Find number of matrix elements
        if (.not. associated(P_cr(samp_group)%invM_src(1,j)%M)) then
@@ -1595,7 +1604,7 @@ contains
           call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
           if (myid_pre == 0) write(*,*) 'Number of matrix elements = ', n
           ! Allocate sparse matrix
-          P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre, n)
+          P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre(samp_group), n)
        end if
 
        if (P_cr(samp_group)%invM_src(1,j)%M%ni == 0) then
@@ -1788,7 +1797,7 @@ contains
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
                 i1         = i1+1
-                call P_cr(samp_group)%invM_src(1,j)%M%add_diag(0.01d0, i1)
+                call P_cr(samp_group)%invM_src(1,j)%M%add_diag(0.0d0, i1)
              end do
           end do
           ! Invert matrix to finalize preconditioner
@@ -1800,7 +1809,7 @@ contains
     end do
     call wall_time(t2)
     if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
-
+    
     do i = 1, nactive
        pc(i)%p%recompute_ptsrc_precond = .false.
     end do
@@ -1828,10 +1837,11 @@ contains
     class(comm_comp),       pointer :: c => null()
     class(comm_ptsrc_comp), pointer :: pt => null()
 
-    if (npre == 0 .or. myid_pre /= 0 .or. .not. apply_ptsrc_precond) return
+    if (.not. apply_ptsrc_precond) return
+    if (npre(samp_group) == 0 .or. myid_pre /= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
-    allocate(y(npre,nmaps_pre))
+    allocate(y(npre(samp_group),nmaps_pre(samp_group)))
     y = 0.d0
     l = 1
     c => compList
@@ -1839,8 +1849,10 @@ contains
        skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
-          pt => c
-          skip = .false.
+          if (c%active_samp_group(samp_group)) then
+             pt => c
+             skip = .false.
+          end if
        end select
        if (skip) then
           c => c%nextComp()
@@ -1856,7 +1868,7 @@ contains
     end do
 
     ! Multiply with preconditioner
-    do j = 1, nmaps_pre
+    do j = 1, nmaps_pre(samp_group)
        !y(:,j) = matmul(P_cr(samp_group)%invM_src(1,j)%M, y(:,j))
        call P_cr(samp_group)%invM_src(1,j)%M%set_rhs(y(:,j))
        call P_cr(samp_group)%invM_src(1,j)%M%solve(y(:,j))
@@ -1869,8 +1881,10 @@ contains
        skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
-          pt => c
-          skip = .false.
+          if (c%active_samp_group(samp_group)) then
+             pt => c
+             skip = .false.
+          end if
        end select
        if (skip) then
           c => c%nextComp()
@@ -2178,7 +2192,7 @@ contains
                    x(1)                   = self%x(k,p)
                    if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
                    x(2:1+self%npar)       = self%src(k)%theta(:,p)
-                   call powell(x, lnL_ptsrc_multi, ierr) !!!!!
+                   call powell(x, lnL_ptsrc_multi, ierr, tolerance=1d-5) !!!!!
                    a                      = x(1)
                    theta                  = x(2:1+self%npar)
                    do l = 1, c_lnL%npar
