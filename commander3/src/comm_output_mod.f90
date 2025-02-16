@@ -145,7 +145,7 @@ contains
        call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
-
+    
     !Prepare mean foregrounds values print to file
     if (cpar%myid_chain == 0) then
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
@@ -512,6 +512,7 @@ contains
       n = size(cpar%cs_label)
 
       do i = 1, n
+         !write(*,*) i, trim(adjustl(cpar%cs_label(i)))
          hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
          call create_hdf_group(chainfile, trim(hdf_path))
 

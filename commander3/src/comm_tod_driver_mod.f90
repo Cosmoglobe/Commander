@@ -647,7 +647,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, map_gain, procmask, procmask2, &
-      & polang, smooth)
+      & polang, smooth, mask_threshold)
     !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
@@ -677,8 +677,10 @@ contains
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
     real(dp),                                  intent(in),   optional :: polang
     logical(lgt),                              intent(in),   optional :: smooth
+    real(dp),                                  intent(in),   optional :: mask_threshold
 
     integer(i4b) :: i, j, ext(2), ierr, timer_id
+    real(sp)     :: threshold
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
     real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
@@ -688,6 +690,7 @@ contains
 
 
     smooth_ = .true.
+    threshold = 0.9; if (present(mask_threshold)) threshold=mask_threshold
     if (present(smooth))  smooth_=smooth
 
     if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
@@ -739,7 +742,8 @@ contains
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
-          call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=0.9)
+          call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
+          !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
              if (trim(tod%abscal_comps) == 'orbital') then
                call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))

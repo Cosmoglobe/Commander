@@ -151,7 +151,7 @@ contains
 
     ! Symbolic factorization
     phase          = 11     ! only reordering and symbolic factorization
-    self%iparm(33) = 1      ! compute determinant 
+    self%iparm(33) = 1      ! compute determinant
     call pardiso(self%pt, self%maxfct, self%mnum, self%mtype, phase, self%n, &
          & self%a(1:self%nj), self%ia(1:self%ni+1), self%ja(1:self%nj), &
          & self%idum, self%nrhs, self%iparm, self%msglvl, self%ddum, self%ddum, error)

@@ -33,6 +33,10 @@ module math_tools
 
   interface convert_fract2sigma
      module procedure convert_fract2sigma_sp, convert_fract2sigma_dp
+  end interface convert_fract2sigma
+
+  interface compute_running_variance
+     module procedure compute_running_variance_sp, compute_running_variance_dp
   end interface
 
 contains
@@ -1694,6 +1698,167 @@ contains
     end if
 
   end function calc_linear_regression
+
+  subroutine compute_running_variance_sp(x, mask, window, variance, var_mean)
+    implicit none
+    real(sp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(sp),     dimension(:), intent(out) :: variance
+    real(sp),                   intent(out), optional :: var_mean
+
+    integer(i4b) :: i, j, k, l, n, m
+    real(sp)     :: mu
+    !integer(i4b), allocatable, dimension(:) :: m
+
+    n = size(x)
+
+    do i = 1, n
+       j = max(i-window,1)
+       k = min(i+window,n)
+       variance(i) = 0.
+       mu = 0.
+       m  = 0
+       do l = j, k
+          if (mask(l) == 1.) then
+             mu = mu + x(l)
+             m  = m  + 1
+          end if
+       end do
+       if (m < 3) then
+          variance(i) = 0.
+       else
+          mu = mu / m
+          do l = j, k
+             if (mask(l) == 1.) then
+                variance(i) = variance(i) + (x(l) - mu)**2
+             end if
+          end do
+          variance(i) = variance(i) / (m-1)
+       end if
+    end do
+    
+!!$    allocate(m(n))
+!!$    variance(1) = 0.d0
+!!$    m           = 0
+!!$    do j = 1, window
+!!$       if (mask(j) == 1.d0) then
+!!$          variance(1) = variance(1) + x(j)**2
+!!$          m(1)        = m(1)        + 1
+!!$       end if
+!!$    end do
+!!$    
+!!$    ! Compute running mean variance
+!!$    do i = 2, n
+!!$       variance(i) = variance(i-1)
+!!$       m(i)        = m(i-1)
+!!$       k = i-window
+!!$       if (k > 0) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) - x(k)**2
+!!$             m(i)        = m(i) - 1
+!!$          end if
+!!$       end if
+!!$       k = i+window
+!!$       if (k <= n) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) + x(k)**2
+!!$             m(i)        = m(i) + 1
+!!$          end if
+!!$       end if
+!!$    end do
+!!$    do i = 1, n
+!!$       if (m(i) > 2) then
+!!$          variance(i) = variance(i) / (m(i) - 1.d0)
+!!$       else
+!!$          variance(i) = 0.d0
+!!$       end if
+!!$    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0 .and. variance(i) > 0.) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+             !write(*,*) i, var_mean, j, var_mean/j
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    !deallocate(m)
+    
+  end subroutine compute_running_variance_sp
+
+  
+
+  subroutine compute_running_variance_dp(x, mask, window, variance, var_mean)
+    implicit none
+    real(dp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(dp),     dimension(:), intent(out) :: variance
+    real(dp),                   intent(out), optional :: var_mean
+
+    integer(i4b) :: i, j, k, n
+    integer(i4b), allocatable, dimension(:) :: m
+
+    n = size(x)
+    
+    allocate(m(n))
+    variance(1) = 0.d0
+    m           = 0
+    do j = 1, window
+       if (mask(j) == 1.d0) then
+          variance(1) = variance(1) + x(j)**2
+          m(1)        = m(1)        + 1
+       end if
+    end do
+    
+    ! Compute running mean variance
+    do i = 2, n
+       variance(i) = variance(i-1)
+       m(i)        = m(i-1)
+       k = i-window
+       if (k > 0) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) - x(k)**2
+             m(i)        = m(i) - 1
+          end if
+       end if
+       k = i+window
+       if (k <= n) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) + x(k)**2
+             m(i)        = m(i) + 1
+          end if
+       end if
+    end do
+    do i = 1, n
+       if (m(i) > 2) then
+          variance(i) = variance(i) / (m(i) - 1.d0)
+       else
+          variance(i) = 0.d0
+       end if
+    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    deallocate(m)
+    
+  end subroutine compute_running_variance_dp
 
 
 end module math_tools
