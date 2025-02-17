@@ -273,7 +273,7 @@ def ifg_to_spec(
 
     spec = spec * fac_erg_to_mjy
 
-    return spec
+    return afreq, spec
 
 def spec_to_ifg(
     spec,
@@ -357,6 +357,7 @@ def spec_to_ifg(
     spec_r = spec_r / fac_erg_to_mjy
 
     spec_r[:, cutoff : (len(otf) + cutoff)] = spec_r[:, cutoff : (len(otf) + cutoff)]*otf
+    spec_r[:, : cutoff] = 0
 
     spec_r = S0[:, np.newaxis] * spec_r / B
 
