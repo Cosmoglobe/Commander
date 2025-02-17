@@ -43,6 +43,11 @@ lens_grt =  [
                   1,1,1,1,1,
                   4,1,4,1,1]
 
+# From Appendix H NFS_HKP record (iNgest FIRAS Stripper Housekeeping)
+# There are 4 of:
+# ex_cal, skyhorn, refhorn, ical, dihedral, bol_assembloy (4),
+# mirror, cal_resist (4), xcal, collimator
+
 names_en_analog_grt = [
                    # grts
                    # 'a_lo_grt', 'a_hi_grt', 'b_lo_grt', 'b_hi_grt',
@@ -53,8 +58,10 @@ names_en_analog_grt = [
                    'b_lo_xcal_tip', 'b_lo_skyhorn', 'b_lo_refhorn', 'b_lo_ical', 'b_lo_dihedral',
                    'b_lo_bol_assem', 'b_lo_mirror', 'b_lo_cal_resistors', 'b_lo_xcal_cone', 'b_lo_collimator',
                    'b_hi_xcal_tip', 'b_hi_skyhorn', 'b_hi_refhorn', 'b_hi_ical', 'b_hi_dihedral',
-                   'b_hi_bol_assem', 'b_hi_mirror', 'b_hi_cal_resistors',
-                   'b_hi_xcal_cone', 'b_hi_collimator']
+                   'b_hi_bol_assem', 'b_hi_mirror', 'b_hi_cal_resistors', 'b_hi_xcal_cone', 'b_hi_collimator']
+
+
+
 
 
 data = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng.h5')
@@ -65,9 +72,11 @@ grts = {}
 offsets = {}
 
 # "Binary time"
-bin_time = data['fdq_eng']['ct_head']['time']
+# ADT Time, in units of 100ns since 1858-11-17
+bin_time = data['fdq_eng']['ct_head']['time']*(100*u.ns)
 
-# "Binary time"
+'''
+# GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
 times = []
 from tqdm import tqdm
@@ -83,12 +92,14 @@ for i in tqdm(range(len(gmt_time))):
     t = f'{yr}:{day}:{hr}:{mi}:{sec}.{dec}'
     times.append(t)
 time = Time(times, format='yday')
+'''
+
 ind0 = 0
 for i in range(len(names_en_analog_grt)):
-    if 'xcal_cone' in names_en_analog_grt[i]:
-        grts[names_en_analog_grt[i]] = data['fdq_eng']['en_analog']['grt'][:,ind0:ind0+lens_grt[i]].flatten()
-        offsets[names_en_analog_grt[i]] = ind0
+    grts[names_en_analog_grt[i]] = data['fdq_eng']['en_analog']['grt'][:,ind0:ind0+lens_grt[i]].flatten()
+    offsets[names_en_analog_grt[i]] = ind0
     ind0 += lens_grt[i]
+time = bin_time
 
 
 
@@ -99,64 +110,55 @@ dt = 1*u.s
 inds = (np.arange(len(time)) > 527_240) & (np.arange(len(time)) < 527_340)
 #inds = (np.arange(len(time)) > 527_000) & (np.arange(len(time)) < 550_000)
 
+inds = (np.arange(len(time)) > 550_000) & (np.arange(len(time)) < 600_000)
+
+'''
 plt.figure()
 plt.plot(time[inds] - dt*offsets['b_lo_xcal_cone'], grts['b_lo_xcal_cone'][inds], '.')
 plt.plot(time[inds] - dt*offsets['b_hi_xcal_cone'], grts['b_hi_xcal_cone'][inds], '.')
+'''
 
-
-t_lo = (time[inds] - dt*offsets['b_lo_xcal_cone']).mjd
-t_hi = (time[inds] - dt*offsets['b_hi_xcal_cone']).mjd
-
-
-T_lo = grts['b_lo_xcal_cone'][inds]
-T_hi = grts['b_hi_xcal_cone'][inds]
-
-
-
+grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
+        'mirror', 'xcal_cone', 'collimator']
 from scipy.interpolate import interp1d
-
-plt.figure()
-print(t_lo.shape, T_lo.shape)
-f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
-print(t_hi.shape, T_hi.shape)
-f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
-
-times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
-        100*len(t_lo))
-print(times, f1(times))
-plt.plot(t_lo, T_lo, 'C0.')
-plt.plot(t_hi, T_hi, 'C1.')
-plt.plot(times, f1(times), 'C3')
-plt.plot(times, f2(times), 'C4')
-
-plt.figure()
-plt.plot(T_lo, T_hi - T_lo)
-plt.plot(f1(times), f2(times) - f1(times))
-plt.figure()
-plt.plot(f1(times), f2(times) - f1(times))
-
-
-plt.figure()
-
-t_min = 0.8
-t_max = 1.2
-
-#for i in range(0, t_max, delta_i):
-for i in np.linspace(t_min, t_max, 10):
-    dt = i*u.s
-    t_lo = (time[inds] - dt*offsets['b_lo_xcal_cone']).mjd
-    t_hi = (time[inds] - dt*offsets['b_hi_xcal_cone']).mjd
+for _, j in enumerate(np.arange(0, 32, 1)):
+    fig, axes = plt.subplots(2, 4, sharex=False, sharey=False)
+    axs = axes.flatten()
+    for side in ['a', 'b']:
+        for i, grt in enumerate(grt_names):
     
-    
-    T_lo = grts['b_lo_xcal_cone'][inds]
-    T_hi = grts['b_hi_xcal_cone'][inds]
-    
-    
-    f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
-    f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
-    
-    times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()), 10000)
-    plt.plot(f1(times), f2(times) - f1(times),
-            color=plt.cm.coolwarm((i-t_min)/(t_max-t_min)))
-    
+            #t_lo = (time[inds] + j*dt*offsets[f'{side}_lo_{grt}'])
+            #t_hi = (time[inds] + j*dt*offsets[f'{side}_hi_{grt}'])
+
+            if grt == 'xcal_cone':            
+                t_lo = (time[inds])
+                t_hi = (time[inds] - j*dt)
+            else:
+                t_lo = (time[inds])
+                t_hi = (time[inds] + j*dt)
+           
+            print(side, grt)
+            T_lo = grts[f'{side}_lo_{grt}'][inds]
+            T_hi = grts[f'{side}_hi_{grt}'][inds]
+
+            T_lo[T_lo < 0] = np.nan
+            T_hi[T_hi < 0] = np.nan
+            
+            
+            
+            
+            f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
+            f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
+            
+            times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
+                    100*len(t_lo))
+            inds_ = (f1(times) > 0)
+            axs[i].plot(f1(times)[inds_], f2(times)[inds_] - f1(times)[inds_])
+            axs[i].set_title(f"{grt}")
+            if (grt == 'xcal_tip') or (grt == 'xcal_cone') or (grt == 'skyhorn'):
+                axs[i].set_xlim([2, 5])
+                axs[i].set_ylim([-0.25,0.25])
+    plt.suptitle(f'{j}')
+    plt.savefig(f'offsets_{_:03}.png')
+    plt.close()
 plt.show()
