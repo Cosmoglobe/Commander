@@ -18,11 +18,11 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/debugging/Commander/commander3/todscripts/firas/data/sky_v4.3.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.3.h5",
     "r",
 )
 
-# print(f"sky_data keys: {sky_data["df_data"].keys()}")
+print(f"sky_data keys: {sky_data["df_data"].keys()}")
 # cal_data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
 #     "r",
@@ -56,6 +56,7 @@ variable_names = [
     "stat_word_16",
     "lvdt_stat_a",
     "lvdt_stat_b",
+    "scan",
 ]
 channel_dependent = [
     "ifg",

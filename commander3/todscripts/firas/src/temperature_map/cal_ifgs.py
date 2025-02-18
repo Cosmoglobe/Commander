@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_crap, ifg_to_spec, spec_to_ifg, planck
+from my_utils import clean_ifg, filter_crap, ifg_to_spec, planck, spec_to_ifg
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
@@ -22,7 +22,7 @@ cal_data = h5py.File(
     "r",
 )
 
-#print(f"cal_data keys: {cal_data["df_data"].keys()}")
+# print(f"cal_data keys: {cal_data["df_data"].keys()}")
 # cal_data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
 #     "r",
@@ -91,20 +91,13 @@ for variable_name in variable_names:
     variables[variable_name] = np.array(cal_data["df_data/" + variable_name][()])
 
 
-
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-variables["ical"] = (
-    (variables["a_ical"] + variables["b_ical"])
-    / 2
-)
-variables["xcal"] = (
-    (variables["a_xcal"] + variables["b_xcal"])
-    / 2
-)
+variables["ical"] = (variables["a_ical"] + variables["b_ical"]) / 2
+variables["xcal"] = (variables["a_xcal"] + variables["b_xcal"]) / 2
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
 variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
 variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
@@ -292,7 +285,7 @@ for channel in channels.keys():
                 "BOLPARM6"
             ][0]
 
-'''
+"""
 print("cleaning interferograms")
 for channel, channel_value in channels.items():
     for mode in modes.keys():
@@ -307,7 +300,7 @@ for channel, channel_value in channels.items():
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
-'''
+"""
 
 print("converting interferograms to spectra")
 
@@ -328,12 +321,11 @@ for channel, channel_value in channels.items():
                 if np.all(np.isfinite(ifg)) & (np.any(ifg != ifg[0])):
                     print(n)
                     break
-            #n = 38144
-            #n = 37338
+            # n = 38144
+            # n = 37338
             n = 4757
             fig, axes = plt.subplots(sharex=True, sharey=False, nrows=2)
             axes[0].plot(variablesm[f"ifg_{channel}_{mode}"][n])
-
 
             print(f"ifg to spec of {channel}_{mode}")
             f, spec[f"{channel}_{mode}"] = ifg_to_spec(
@@ -362,13 +354,14 @@ for channel, channel_value in channels.items():
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
-            #print(bb_ical[f"{channel}_{mode}"].shape)
+            # print(bb_ical[f"{channel}_{mode}"].shape)
             print(spec[f"{channel}_{mode}"].shape)
-            print(planck(f, variablesm[f"xcal_{mode}"]).shape)
+            print(planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"]).shape)
             bla = spec_to_ifg(
-                #spec=spec[f"{channel}_{mode}"],
-                #spec=bb_ical[f"{channel}_{mode}"],
-                spec=planck(f, variablesm[f"xcal_{mode}"]) - 0.95*planck(f, variablesm[f"ical_{mode}"]),
+                # spec=spec[f"{channel}_{mode}"],
+                # spec=bb_ical[f"{channel}_{mode}"],
+                spec=planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"])
+                - 0.95 * planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"]),
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
@@ -393,23 +386,42 @@ for channel, channel_value in channels.items():
                 apod=apod[f"{channel}_{mode}"],
             )
             axes[1].plot(bla[n])
-            axes[1].set_xlabel('Distance')
-            axes[0].set_ylabel('Input IFG')
-            axes[1].set_ylabel('Simulated IFG')
+            axes[1].set_xlabel("Distance")
+            axes[0].set_ylabel("Input IFG")
+            axes[1].set_ylabel("Simulated IFG")
             plt.figure()
-            plt.plot(f, spec[f"{channel}_{mode}"][n], label='Processed Spectrum')
-            plt.plot(f, planck(f, variablesm[f"xcal_{mode}"][n]) - planck(f,
-                variablesm[f"ical_{mode}"][n]), label='XCAL - ICAL')
-            plt.plot(f, planck(f, variablesm[f"xcal_{mode}"][n]), label=f'Xcal = {variablesm[f"xcal_{mode}"][n]}')
-            plt.plot(f, planck(f, variablesm[f"ical_{mode}"][n]), label=f'Xcal = {variablesm[f"ical_{mode}"][n]}')
-            plt.legend(loc='best')
-            ical_emiss=  fits_data[f"{channel}_{mode}"][1].data["RICAL"][0] + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]
-            #print(ical_emiss)
-            #print(ical_emiss.shape)
-            #print(f)
-            #print(f_ghz[f"{channel}_{mode}"])
-            plt.xlabel(r'GHz')
-            plt.ylabel(r'MJy/sr')
+            plt.plot(
+                f_ghz["rh_ss"],
+                np.abs(spec[f"{channel}_{mode}"][n])[5 : len(f_ghz["rh_ss"]) + 5],
+                label="Processed Spectrum",
+            )
+            plt.plot(
+                f_ghz["rh_ss"],
+                planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n])
+                - planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
+                label="XCAL - ICAL",
+            )
+            plt.plot(
+                f_ghz["rh_ss"],
+                planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n]),
+                label=f'Xcal = {variablesm[f"xcal_{mode}"][n]}',
+            )
+            plt.plot(
+                f_ghz["rh_ss"],
+                planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
+                label=f'Xcal = {variablesm[f"ical_{mode}"][n]}',
+            )
+            plt.legend(loc="best")
+            ical_emiss = (
+                fits_data[f"{channel}_{mode}"][1].data["RICAL"][0]
+                + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]
+            )
+            # print(ical_emiss)
+            # print(ical_emiss.shape)
+            # print(f)
+            # print(f_ghz[f"{channel}_{mode}"])
+            plt.xlabel(r"GHz")
+            plt.ylabel(r"MJy/sr")
             plt.show()
             asdf
             # print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
@@ -444,11 +456,11 @@ for channel in channels.keys():
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"xcal_{mode}"],
             )
-            #plt.figure()
-            #for i in range(5):
+            # plt.figure()
+            # for i in range(5):
             #    plt.plot(f_ghz[f"{channel}_{mode}"],
             #            bb_xcal[f"{channel}_{mode}"][i*100])
-            #plt.show()
+            # plt.show()
             ical_emiss[f"{channel}_{mode}"] = (
                 fits_data[f"{channel}_{mode}"][1].data["RICAL"][0]
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]

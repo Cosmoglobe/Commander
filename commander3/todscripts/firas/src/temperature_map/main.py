@@ -324,23 +324,23 @@ for channel in channels.keys():
                 "BOLPARM6"
             ][0]
 
-print("cleaning interferograms")
+# print("cleaning interferograms")
 
-for channel, channel_value in channels.items():
-    for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            variablesm[f"ifg_{channel}_{mode}"] = clean_ifg(
-                ifg=variablesm[f"ifg_{channel}_{mode}"],
-                mtm_length=0 if mode[0] == "s" else 1,
-                mtm_speed=0 if mode[1] == "s" else 1,
-                # channel=channel_value,
-                # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
-                gain=variablesm[f"gain_{mode}"],
-                sweeps=variablesm[f"sweeps_{mode}"],
-                apod=apod[f"{channel}_{mode}"],
-            )
+# for channel, channel_value in channels.items():
+#     for mode in modes.keys():
+#         if mode == "lf" and (channel == "lh" or channel == "rh"):
+#             continue
+#         else:
+#             variablesm[f"ifg_{channel}_{mode}"] = clean_ifg(
+#                 ifg=variablesm[f"ifg_{channel}_{mode}"],
+#                 mtm_length=0 if mode[0] == "s" else 1,
+#                 mtm_speed=0 if mode[1] == "s" else 1,
+#                 # channel=channel_value,
+#                 # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
+#                 gain=variablesm[f"gain_{mode}"],
+#                 sweeps=variablesm[f"sweeps_{mode}"],
+#                 apod=apod[f"{channel}_{mode}"],
+#             )
 
 print("converting interferograms to spectra")
 
@@ -352,7 +352,7 @@ for channel, channel_value in channels.items():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             print(f"ifg to spec of {channel}_{mode}")
-            spec[f"{channel}_{mode}"] = ifg_to_spec(
+            afreq, spec[f"{channel}_{mode}"] = ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
@@ -377,6 +377,10 @@ for channel, channel_value in channels.items():
                 # etf=etf[f"{channel}_{mode}"],
                 # S0=S0[f"{channel}_{mode}"],
                 # norm=norm[mode],
+                mtm_length=0 if mode[0] == "s" else 1,
+                gain=variablesm[f"gain_{mode}"],
+                sweeps=variablesm[f"sweeps_{mode}"],
+                apod=apod[f"{channel}_{mode}"],
             )
             # print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
 

@@ -122,14 +122,14 @@ def clean_ifg(
     sweeps,
     apod,
 ):
-    #print("ifg shape before subtraction:", ifg.shape)
+    # print("ifg shape before subtraction:", ifg.shape)
 
     median_ifg = np.expand_dims(my_median(ifg), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg
 
-    #print("ifg shape after subtraction:", ifg.shape)
+    # print("ifg shape after subtraction:", ifg.shape)
 
     # Ensure gain and sweeps are reshaped for broadcasting
     gain = np.expand_dims(gain, axis=-1)
@@ -137,22 +137,23 @@ def clean_ifg(
 
     ifg = ifg / gain / sweeps
 
-    #print("ifg shape after division:", ifg.shape)
+    # print("ifg shape after division:", ifg.shape)
 
     # apodize
     sm = 2 * mtm_length + mtm_speed
 
     ifg = ifg * apod
 
-    #print("ifg shape after apodization:", ifg.shape)
+    # print("ifg shape after apodization:", ifg.shape)
 
     # roll
     peak_pos = 360
     ifg = np.roll(ifg, -peak_pos)
 
-    #print("ifg shape after roll:", ifg.shape)
+    # print("ifg shape after roll:", ifg.shape)
 
     return ifg
+
 
 def unclean_ifg(
     ifg,
@@ -168,10 +169,11 @@ def unclean_ifg(
     peak_pos = 360
     ifg = np.roll(ifg, peak_pos)
 
-    ifg = ifg/apod
-    ifg[:,apod < 0.1] = np.nan
+    ifg = ifg / apod
+    ifg[:, apod < 0.1] = np.nan
 
     return ifg
+
 
 # @njit(parallel=True) - can't use it because of rfft
 def ifg_to_spec(
@@ -200,12 +202,11 @@ def ifg_to_spec(
     apod,
 ):
 
-
     ifg = clean_ifg(ifg, mtm_length, mtm_speed, gain, sweeps, apod)
 
     spec = np.fft.rfft(ifg)
 
-    #print("spec after rfft:", spec)
+    # print("spec after rfft:", spec)
 
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
@@ -218,10 +219,9 @@ def ifg_to_spec(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-
-    #print('etf: forward')
+    # print('etf: forward')
     spec = spec / etf
-    #print(etf, spec)
+    # print(etf, spec)
     spec = spec / spec_norm
 
     spec_len = len(ifg[0]) // 2 + 1
@@ -266,7 +266,7 @@ def ifg_to_spec(
 
     spec[:, cutoff : (len(otf) + cutoff)] = spec[:, cutoff : (len(otf) + cutoff)] / otf
     spec[:, :cutoff] = 0
-    spec[:, (len(otf)+cutoff):] = 0
+    spec[:, (len(otf) + cutoff) :] = 0
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
@@ -274,6 +274,7 @@ def ifg_to_spec(
     spec = spec * fac_erg_to_mjy
 
     return afreq, spec
+
 
 def spec_to_ifg(
     spec,
@@ -298,13 +299,14 @@ def spec_to_ifg(
     gain,
     sweeps,
     apod,
-    ):
+):
     if mtm_speed == 0:
         cutoff = 5
     else:
         cutoff = 7
 
-    spec_r = np.copy(spec)
+    spec_r = np.zeros((len(spec), 257))
+    spec_r[:, cutoff : (len(otf) + cutoff)] = spec
 
     # Defining constants, getting data model
 
@@ -315,8 +317,7 @@ def spec_to_ifg(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-
-    spec_len = len(spec[0])
+    spec_len = len(spec_r[0])
     dw = 2.0 * np.pi * fnyq_hz / spec_len
     afreq = np.arange(spec_len) * dw
 
@@ -346,18 +347,15 @@ def spec_to_ifg(
         rho=rho,
         T0=T0,
     )
-    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
+    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec_r[0]))
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-
 
     spec_r = spec_r / fac_erg_to_mjy
 
-    spec_r[:, cutoff : (len(otf) + cutoff)] = spec_r[:, cutoff : (len(otf) + cutoff)]*otf
-    spec_r[:, : cutoff] = 0
+    spec_r[:, cutoff : len(otf) + cutoff] = spec_r[:, cutoff : len(otf) + cutoff] * otf
 
     spec_r = S0[:, np.newaxis] * spec_r / B
 

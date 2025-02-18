@@ -14,7 +14,7 @@ T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
-data = np.load("../../data/processed_sky.npz")
+data = np.load("../../data/processed_sky.npz", allow_pickle=True)
 
 # print(data.files)
 
