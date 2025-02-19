@@ -209,6 +209,7 @@ def ifg_to_spec(
     # print("spec after rfft:", spec)
 
     # etf from the pipeline
+    print("size of spec:", spec.shape)
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
@@ -399,7 +400,7 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
     return res
 
 
-def filter_crap(
+def filter_junk(
     stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
 ):
     filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217)
