@@ -452,6 +452,7 @@ contains
 
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
+       d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
        ! Bin TOD
