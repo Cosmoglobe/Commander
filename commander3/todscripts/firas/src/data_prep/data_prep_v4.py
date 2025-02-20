@@ -61,6 +61,8 @@ NSIDE = 32
 pix_terr = {}  # earth coordinates
 pix_ecl = {}  # ecliptic coordinates
 pix_gal = {}  # galactic coordinates
+gal_lat = {}
+gal_lon = {}
 pix_cel = {}  # celestial coordinates, probably J1950
 # Longitudes and latitudes are stored in radians*1e4
 fact = 180.0 / np.pi / 1e4
@@ -103,6 +105,8 @@ for channel in channels:
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_latitude"][()] * fact
     pix_gal[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+    gal_lat[channel] = lat
+    gal_lon[channel] = lon
 
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ra"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/dec"][()] * fact
@@ -126,6 +130,8 @@ for channel in channels:
             "upmode": list(upmode[channel]),
             "adds_per_group": list(adds_per_group[channel]),
             "pix_gal": list(pix_gal[channel]),
+            "gal_lat": list(gal_lat[channel]),
+            "gal_lon": list(gal_lon[channel]),
             "pix_ecl": list(pix_ecl[channel]),
             "pix_cel": list(pix_cel[channel]),
             "pix_terr": list(pix_terr[channel]),
@@ -380,6 +386,24 @@ for channel in channels:
 merged_df["scan"] = merged_df.apply(clean_variable, axis=1, args=("scan",))
 merged_df = merged_df.drop(columns=["scan_lh", "scan_ll", "scan_rh", "scan_rl"])
 merged_df = merged_df[(merged_df["scan"] == 0) | (merged_df["scan"] == 1)]
+
+# galactic latitude and longitude
+merged_df["gal_lat"] = merged_df.apply(clean_variable, axis=1, args=("gal_lat",))
+merged_df["gal_lon"] = merged_df.apply(clean_variable, axis=1, args=("gal_lon",))
+merged_df = merged_df[(merged_df["gal_lat"] != np.nan)]
+merged_df = merged_df[(merged_df["gal_lon"] != np.nan)]
+merged_df = merged_df.drop(
+    columns=[
+        "gal_lat_lh",
+        "gal_lat_ll",
+        "gal_lat_rh",
+        "gal_lat_rl",
+        "gal_lon_lh",
+        "gal_lon_ll",
+        "gal_lon_rh",
+        "gal_lon_rl",
+    ]
+)
 
 merged_df = merged_df.reset_index(drop=True)
 
@@ -865,6 +889,8 @@ sky_variables = [
     "mtm_length",
     "mtm_speed",
     "pix_gal",
+    "gal_lat",
+    "gal_lon",
     "pix_ecl",
     "pix_cel",
     "pix_terr",

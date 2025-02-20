@@ -15,21 +15,28 @@ save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
 
 COORDINATES = "G"
 
+OFFSET = 0.5
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
-data = np.load("../../data/processed_sky.npz")
+data = np.load(f"../../data/processed_sky_offset_{OFFSET}.npz")
 # print(data.files)
 
 sky = {}
 scan = {}
 if COORDINATES == "G":
     pix_gal = {}
-    folder = "galactic"
+    if OFFSET == 0:
+        folder = "galactic"
+    else:
+        folder = f"galactic_offset_{OFFSET}"
 elif COORDINATES == "E":
     pix_ecl = {}
-    folder = "ecliptic"
+    if OFFSET == 0:
+        folder = "ecliptic"
+    else:
+        folder = f"ecliptic_offset_{OFFSET}"
 
 for channel in channels.keys():
     for mode in modes.keys():
@@ -111,6 +118,19 @@ for channel in channels.keys():
                         sky[f"{channel}_{mode}"][i]
                     )
                     data_density[f"{channel}_{mode}"][pix_ecl[mode][i]] += 1
+
+            # plot hit map
+            hp.mollview(
+                data_density[f"{channel}_{mode}"],
+                title=f"Hit map for {channel.upper()}{mode.upper()}",
+                unit="hits",
+                norm="hist",
+            )
+            Path.mkdir(
+                Path(f"{save_path}maps/hit_maps/{folder}"), parents=True, exist_ok=True
+            )
+            plt.savefig(f"{save_path}maps/hit_maps/{folder}/{f"{channel}_{mode}"}.png")
+            plt.close()
 # for i in range(len(pix_terr)):
 #     hpxmap[pix_terr[i]] += np.abs(sky[i])
 #     data_density[pix_terr[i]] += 1

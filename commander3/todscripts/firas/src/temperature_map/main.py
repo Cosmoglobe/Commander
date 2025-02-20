@@ -5,14 +5,17 @@ This script takes the interferograms into spectra.
 from datetime import datetime
 
 import h5py
+import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck
+from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
+NSIDE = 32
+OFFSET = 0.5
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
@@ -59,25 +62,15 @@ variable_names = [
     "lvdt_stat_a",
     "lvdt_stat_b",
     "adds_per_group",
-    # "adds_per_group_rh",
-    # "adds_per_group_rl",
-    # "adds_per_group_lh",
-    # "adds_per_group_ll",
-    # "gain",
-    "gain_rh",
-    "gain_rl",
-    "gain_lh",
-    "gain_ll",
     "sweeps",
-    # "sweeps_rh",
-    # "sweeps_rl",
-    # "sweeps_lh",
-    # "sweeps_ll",
+    "gal_lat",
+    "gal_lon",
 ]
 channel_dependent = [
     "ifg",
     "bol_cmd_bias",
     "bol_volt",
+    "gain",
 ]
 
 for channel in channels:
@@ -88,7 +81,34 @@ variables = {}
 for variable_name in variable_names:
     variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
 
-# print(f"variables keys: {variables.keys()}")
+# get the galactic longitude and latitude into a vector in order to interpolate
+
+print(
+    f"min gal_lon: {np.min(variables['gal_lon'])}, max gal_lon: {np.max(variables['gal_lon'])}"
+)
+print(
+    f"min gal_lat: {np.min(variables['gal_lat'])}, max gal_lat: {np.max(variables['gal_lat'])}"
+)
+
+gal_vec = tune_pointing(
+    gal_lon=variables["gal_lon"],
+    gal_lat=variables["gal_lat"],
+    gmt=variables["gmt"],
+    mtm_length=variables["mtm_length"],
+    mtm_speed=variables["mtm_speed"],
+    offset=OFFSET,
+)
+
+# filter out nans that come from gal_vec into all variables
+valid_indices = ~np.isnan(gal_vec).any(axis=1)
+for variable in variables.keys():
+    variables[variable] = variables[variable][valid_indices]
+gal_vec = gal_vec[valid_indices]
+
+variables["gal_lon"], variables["gal_lat"] = hp.vec2ang(gal_vec, lonlat=True)
+variables["pix_gal"] = hp.ang2pix(
+    NSIDE, variables["gal_lon"], variables["gal_lat"], lonlat=True
+).astype(int)
 
 # print sizes of the ifgs
 print("sizes of the ifgs")
@@ -620,8 +640,10 @@ extra_variables = [
 for variable in extra_variables:
     for mode in modes.keys():
         variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
-            filter_bad
+            valid_indices
         ]
+
+        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][filter_bad]
         # variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
         #     ical_filter
         # ]
@@ -631,8 +653,12 @@ for variable in extra_variables:
         ]
 
 # save the sky
+if OFFSET == 0:
+    save_name = "../../data/processed_sky.npz"
+else:
+    save_name = f"../../data/processed_sky_offset_{OFFSET}.npz"
 np.savez(
-    "../../data/processed_sky.npz",
+    save_name,
     **variablesm,
     **sky,
 )
