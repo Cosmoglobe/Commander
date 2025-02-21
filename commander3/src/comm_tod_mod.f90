@@ -86,6 +86,7 @@ module comm_tod_mod
      real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
      real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
      real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end of chunk
+     real(dp)       :: xarr_moon(11,3)                             ! 11 moon positions (x,y,z) for chunk
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -1004,6 +1005,7 @@ contains
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
+    call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
