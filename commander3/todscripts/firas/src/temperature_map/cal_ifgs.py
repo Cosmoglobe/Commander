@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_crap, ifg_to_spec, planck, spec_to_ifg
+from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, spec_to_ifg
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009

@@ -5,20 +5,23 @@ This script takes the interferograms into spectra.
 from datetime import datetime
 
 import h5py
+import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_crap, ifg_to_spec, planck
+from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
+NSIDE = 32
+OFFSET = 0.5
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
-    "../../data/sky_v4.3.h5",
+    "../../data/sky_v4.3_debug.h5",
     "r",
 )
 
@@ -42,6 +45,8 @@ variable_names = [
     "mtm_length",
     "mtm_speed",
     "pix_gal",
+    "pix_terr",
+    "pix_ecl",
     "a_bol_assem_rh",
     "b_bol_assem_rh",
     "a_bol_assem_rl",
@@ -57,13 +62,15 @@ variable_names = [
     "lvdt_stat_a",
     "lvdt_stat_b",
     "adds_per_group",
-    "gain",
     "sweeps",
+    "gal_lat",
+    "gal_lon",
 ]
 channel_dependent = [
     "ifg",
     "bol_cmd_bias",
     "bol_volt",
+    "gain",
 ]
 
 for channel in channels:
@@ -74,10 +81,42 @@ variables = {}
 for variable_name in variable_names:
     variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
 
-# print(f"variables keys: {variables.keys()}")
+# get the galactic longitude and latitude into a vector in order to interpolate
+
+print(
+    f"min gal_lon: {np.min(variables['gal_lon'])}, max gal_lon: {np.max(variables['gal_lon'])}"
+)
+print(
+    f"min gal_lat: {np.min(variables['gal_lat'])}, max gal_lat: {np.max(variables['gal_lat'])}"
+)
+
+gal_vec = tune_pointing(
+    gal_lon=variables["gal_lon"],
+    gal_lat=variables["gal_lat"],
+    gmt=variables["gmt"],
+    mtm_length=variables["mtm_length"],
+    mtm_speed=variables["mtm_speed"],
+    offset=OFFSET,
+)
+
+# filter out nans that come from gal_vec into all variables
+valid_indices = ~np.isnan(gal_vec).any(axis=1)
+for variable in variables.keys():
+    variables[variable] = variables[variable][valid_indices]
+gal_vec = gal_vec[valid_indices]
+
+variables["gal_lon"], variables["gal_lat"] = hp.vec2ang(gal_vec, lonlat=True)
+variables["pix_gal"] = hp.ang2pix(
+    NSIDE, variables["gal_lon"], variables["gal_lat"], lonlat=True
+).astype(int)
+
+# print sizes of the ifgs
+print("sizes of the ifgs")
+for channel in channels.keys():
+    print(f"{channel}: {len(variables[f'ifg_{channel}'])}")
 
 # filter out bad data (selected "by eye")
-filter_bad = filter_crap(
+filter_bad = filter_junk(
     variables["stat_word_5"],
     variables["stat_word_9"],
     variables["stat_word_13"],
@@ -90,6 +129,8 @@ for variable in variables.keys():
     variables[variable] = variables[variable][filter_bad]
 
 variables["pix_gal"] = variables["pix_gal"].astype(int)
+variables["pix_terr"] = variables["pix_terr"].astype(int)
+variables["pix_ecl"] = variables["pix_ecl"].astype(int)
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
@@ -357,6 +398,7 @@ for channel, channel_value in channels.items():
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
+                # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
                 bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
@@ -378,8 +420,10 @@ for channel, channel_value in channels.items():
                 # S0=S0[f"{channel}_{mode}"],
                 # norm=norm[mode],
                 mtm_length=0 if mode[0] == "s" else 1,
-                gain=variablesm[f"gain_{mode}"],
+                # gain=variablesm[f"gain_{mode}"],
+                gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
+                # sweeps=variablesm[f"sweeps_{channel}_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
             # print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
@@ -499,15 +543,19 @@ for channel in channels.keys():
 sky = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            # print(f"channel: {channel}, mode: {mode}")
-            # print(
-            #     f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
-            # )
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            if mode[1] == "s":
+                cutoff = 5
+            else:
+                cutoff = 7
+            print(f"channel: {channel}, mode: {mode}")
+            print(
+                f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
+            )
             sky[f"{channel}_{mode}"] = (
-                spec[f"{channel}_{mode}"]
+                spec[f"{channel}_{mode}"][
+                    :, cutoff : (len(otf[f"{channel}_{mode}"]) + cutoff)
+                ]
                 - (
                     (bb_ical[f"{channel}_{mode}"] * ical_emiss[f"{channel}_{mode}"])
                     + (
@@ -592,8 +640,10 @@ extra_variables = [
 for variable in extra_variables:
     for mode in modes.keys():
         variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
-            filter_bad
+            valid_indices
         ]
+
+        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][filter_bad]
         # variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
         #     ical_filter
         # ]
@@ -603,8 +653,12 @@ for variable in extra_variables:
         ]
 
 # save the sky
+if OFFSET == 0:
+    save_name = "../../data/processed_sky.npz"
+else:
+    save_name = f"../../data/processed_sky_offset_{OFFSET}.npz"
 np.savez(
-    "../../data/processed_sky.npz",
+    save_name,
     **variablesm,
     **sky,
 )

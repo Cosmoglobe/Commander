@@ -1,8 +1,10 @@
-import matplotlib.pyplot as plt
+import healpy as hp
 import numpy as np
-from numba import jit, njit, prange
-from utils.frd import apodl, elex_transfcnl
-from utils.fut import apod_recnuml, get_recnum
+from numba import prange
+from scipy import interpolate
+from scipy.interpolate import RegularGridInterpolator
+from utils.frd import elex_transfcnl
+from utils.fut import get_recnum
 
 
 # @njit(parallel=True)
@@ -209,6 +211,7 @@ def ifg_to_spec(
     # print("spec after rfft:", spec)
 
     # etf from the pipeline
+    print("size of spec:", spec.shape)
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
@@ -400,7 +403,7 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
     return res
 
 
-def filter_crap(
+def filter_junk(
     stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
 ):
     filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217)
@@ -478,3 +481,47 @@ def filter_crap(
     print("filter6:", np.count_nonzero(filter6))
 
     return filter1 & filter2 & filter3 & filter4 & filter5 & filter6
+
+
+def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
+    """
+    Interpolate the pointing to different offsets depending on the operating mode.
+    Doing this on the main script for now because it is mostly an experiment and doesn't need a lot of precision.
+    """
+    if offset == 0:
+        return gal_lon, gal_lat
+
+    times = {"00": 55.36, "10": 44.92, "01": 39.36, "11": 31.76}
+
+    gal_vec = hp.pixelfunc.ang2vec(gal_lon, gal_lat, lonlat=True)
+    new_gal_vec = np.empty_like(gal_vec)
+    # gmt = np.array(gmt).timestamp().values
+
+    gmt = np.array(gmt, dtype="datetime64[s]")
+    gmt = (gmt - np.datetime64("1970-01-01T00:00:00Z")) / np.timedelta64(1, "s")
+
+    for i in range(len(gmt)):
+        target_time = (
+            gmt[i] + offset * times[f"{int(mtm_length[i])}{int(mtm_speed[i])}"]
+        )
+        # print(f"target_time: {target_time}")
+
+        # using two minutes around the target time
+        lower_bound = target_time - 120
+        upper_bound = target_time + 120
+
+        start_id = np.searchsorted(gmt, lower_bound, side="left")
+        end_id = np.searchsorted(gmt, upper_bound, side="right")
+        idx = np.arange(start_id, end_id)
+
+        # print(f"idx: {idx}")
+
+        if len(idx) > 1 and gmt[start_id] <= target_time <= gmt[end_id - 1]:
+            new_gal_vec[i] = interpolate.interp1d(
+                gmt[idx], gal_vec[idx], axis=0, kind="linear"
+            )(target_time)
+        else:
+            # print(f"no interpolation for {i}")
+            new_gal_vec[i] = np.nan
+
+    return new_gal_vec

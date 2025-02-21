@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_crap, ifg_to_spec, planck
+from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
@@ -22,7 +22,7 @@ cal_data = h5py.File(
     "r",
 )
 
-#print(f"cal_data keys: {cal_data["df_data"].keys()}")
+# print(f"cal_data keys: {cal_data["df_data"].keys()}")
 # cal_data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
 #     "r",
@@ -76,20 +76,13 @@ for variable_name in variable_names:
     variables[variable_name] = np.array(cal_data["df_data/" + variable_name][()])
 
 
-
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-variables["ical"] = (
-    (variables["a_ical"] + variables["b_ical"])
-    / 2
-)
-variables["xcal"] = (
-    (variables["a_xcal"] + variables["b_xcal"])
-    / 2
-)
+variables["ical"] = (variables["a_ical"] + variables["b_ical"]) / 2
+variables["xcal"] = (variables["a_xcal"] + variables["b_xcal"]) / 2
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
 variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
 variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
@@ -170,7 +163,7 @@ for variable in variables.keys():
     for mode in modes.keys():
         variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
 
-#for channel in channels.keys():
+# for channel in channels.keys():
 #    for mode in modes.keys():
 #        print(f"{channel}{mode}: {len(variablesm[f"ifg_{channel}_{mode}"])}")
 
@@ -380,11 +373,11 @@ for channel in channels.keys():
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"xcal_{mode}"],
             )
-            #plt.figure()
-            #for i in range(5):
+            # plt.figure()
+            # for i in range(5):
             #    plt.plot(f_ghz[f"{channel}_{mode}"],
             #            bb_xcal[f"{channel}_{mode}"][i*100])
-            #plt.show()
+            # plt.show()
             ical_emiss[f"{channel}_{mode}"] = (
                 fits_data[f"{channel}_{mode}"][1].data["RICAL"][0]
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["IICAL"][0]

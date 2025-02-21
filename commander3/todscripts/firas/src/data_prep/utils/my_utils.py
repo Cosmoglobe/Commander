@@ -114,31 +114,22 @@ def get_temperature_hl(row, element, side, name_search=None):
     return temp
 
 
-def convert_gain(row):
-     if (
-         row[f"gain"] == 0
-         or row[f"gain"] == 1
-         or row[f"gain"] == 2
-         or row[f"gain"] == 3
-         or row[f"gain"] == 4
-         or row["gain"] == 5
-         or row["gain"] == 6
-         or row["gain"] == 7
-     ):
-         conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
+def convert_gain(row, channel):
+    if (
+        row[f"gain_{channel}"] == 0
+        or row[f"gain_{channel}"] == 1
+        or row[f"gain_{channel}"] == 2
+        or row[f"gain_{channel}"] == 3
+        or row[f"gain_{channel}"] == 4
+        or row[f"gain_{channel}"] == 5
+        or row[f"gain_{channel}"] == 6
+        or row[f"gain_{channel}"] == 7
+    ):
+        conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
 
-         return conv[row[f"gain"]]
-     else:
-         return np.nan
-
-
-#def convert_gain(row, channel):
-#    if row[f"gain_{channel}"] == -1:
-#        return np.nan
-#    else:
-#        conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
-#
-#        return conv[row[f"gain_{channel}"]]
+        return conv[row[f"gain_{channel}"]]
+    else:
+        return np.nan
 
 
 def scan_up_down(lat):
