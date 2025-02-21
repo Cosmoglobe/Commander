@@ -86,7 +86,8 @@ module comm_tod_mod
      real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
      real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
      real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end of chunk
-     real(dp)       :: xarr_moon(11,3)                             ! 11 moon positions (x,y,z) for chunk
+     real(dp)       :: xarr_moon(11,3)                             ! 11 evenly spaced moon positions (x,y,z) 
+                                                                   ! including first and last point
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
