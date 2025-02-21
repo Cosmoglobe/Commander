@@ -37,7 +37,7 @@ from astropy.time import Time, TimeDelta
 from cosmoglobe.tod_tools import TODLoader
 
 # Path objects
-DIRBE_DATA_PATH = Path("/mn/stornext/d5//data/duncanwa/DIRBE/hdf_files/")
+DIRBE_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/DIRBE/hdf_files/")
 BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
 
@@ -49,12 +49,15 @@ ROTATOR = hp.Rotator(coord=["E", "G"])
 YDAYS = np.concatenate([np.arange(89345, 89366), np.arange(90001, 90265)])
 START_TIME = Time("1981-01-01", format="isot", scale="utc")
 
+# For debugging purposes, reduce N_CIO_FILES
 # CIO constants
 N_CIO_FILES = 285
 BAD_DATA_SENTINEL = -16375
 TSCAL = 2e-15
 SAMP_RATE = 1 / 8
 SAMP_RATE_DAYS = SAMP_RATE / (24 * 3600)
+
+N_MOON_INTERP = 11
 
 BEAM_DATA = dirbe_utils.get_beam_data()
 
@@ -114,6 +117,7 @@ class YdayData:
     sat_pos_stop: np.ndarray
     earth_pos_start: np.ndarray
     earth_pos_stop: np.ndarray
+    moon_positions: np.ndarray
 
 
 @dataclass
@@ -128,6 +132,7 @@ class CIO:
     sat_pos_stop: list[np.ndarray]
     earth_pos_start: list[np.ndarray]
     earth_pos_stop: list[np.ndarray]
+    moon_positions: list[np.ndarray]
 
 
 def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
@@ -143,6 +148,7 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
             sat_pos_stop=[yday.sat_pos_stop for yday in yday_data],
             earth_pos_start=[yday.earth_pos_start for yday in yday_data],
             earth_pos_stop=[yday.earth_pos_stop for yday in yday_data],
+            moon_positions=[yday.moon_positions for yday in yday_data],
         )
         for band in dirbe_utils.BANDS
     }
@@ -196,6 +202,7 @@ def get_yday_cio_data(
     time = (START_TIME + TimeDelta(time, format="sec", scale="tai")).mjd
     sat_pos_start, earth_pos_start= dirbe_utils.get_sat_and_earth_pos(yday, time[0])
     sat_pos_stop, earth_pos_stop = dirbe_utils.get_sat_and_earth_pos(yday, time[-1])
+    moon_positions = dirbe_utils.get_moon_pos(yday, np.linspace(time[0], time[-1], N_MOON_INTERP))
 
     # Gap filling
     # Get indexes where time difference is larger than 2 sampling rates and split time array
@@ -433,6 +440,7 @@ def get_yday_cio_data(
         sat_pos_stop=sat_pos_stop, 
         earth_pos_start=earth_pos_start,
         earth_pos_stop=earth_pos_stop,
+        moon_positions=moon_positions,
     )
 
 
@@ -526,6 +534,8 @@ def write_band(
 
         comm_tod.add_field(pid_common_group + "/earthpos", cio.earth_pos_start[pid])
         comm_tod.add_field(pid_common_group + "/earthpos_end", cio.earth_pos_stop[pid])
+
+        comm_tod.add_field(pid_common_group + "/moonpos_arr", cio.moon_positions[pid])
 
         comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(
@@ -627,7 +637,7 @@ def main() -> None:
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 21
+    version = 22
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")

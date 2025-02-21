@@ -471,6 +471,15 @@ def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarra
 
     return ecl_sat_pos.value, earth_pos.value
 
+def get_moon_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:
+    """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
+
+    moon_pos = get_body("moon", Time(time, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+    moon_pos = moon_pos.cartesian.xyz.to(u.AU).transpose()
+
+    return moon_pos.value
 
 @cache
 def get_const_scalars(band: int) -> NDArray[np.floating]:
