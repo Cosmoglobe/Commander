@@ -616,9 +616,16 @@ contains
     sd%ntod = -1; sd%ndet = -1; sd%nhorn = -1
 
     ! Deallocate data structures
-    deallocate(sd%tod, sd%n_corr, sd%s_sl, sd%s_sky)
-    deallocate(sd%s_orb, sd%s_tot, sd%mask)
-    deallocate(sd%pix, sd%psi, sd%flag)
+    if (allocated(sd%tod))           deallocate(sd%tod)
+    if (allocated(sd%n_corr))        deallocate(sd%n_corr)
+    if (allocated(sd%s_sl))          deallocate(sd%s_sl)
+    if (allocated(sd%s_sky))         deallocate(sd%s_sky)
+    if (allocated(sd%s_orb))         deallocate(sd%s_orb)
+    if (allocated(sd%s_tot))         deallocate(sd%s_tot)
+    if (allocated(sd%mask))          deallocate(sd%mask)
+    if (allocated(sd%pix))           deallocate(sd%pix)
+    if (allocated(sd%psi))           deallocate(sd%psi)
+    if (allocated(sd%flag))          deallocate(sd%flag)
     if (allocated(sd%s_sky_prop))    deallocate(sd%s_sky_prop)
     if (allocated(sd%s_bp_prop))     deallocate(sd%s_bp_prop)
     if (allocated(sd%s_bp))          deallocate(sd%s_bp)
@@ -636,7 +643,7 @@ contains
     if (allocated(sd%s_gain))        deallocate(sd%s_gain)
     if (allocated(sd%s_gainA))       deallocate(sd%s_gainA)
     if (allocated(sd%s_gainB))       deallocate(sd%s_gainB)
-
+    if (allocated(sd%dark))          deallocate(sd%dark)
   end subroutine dealloc_scan_data
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -649,9 +656,9 @@ contains
     class(comm_detdata), intent(inout) :: dd
 
     dd%nscan = -1
-    deallocate(dd%scans)
-    deallocate(dd%ntod)
-    deallocate(dd%tod)
+    if (allocated(dd%scans)) deallocate(dd%scans)
+    if (allocated(dd%ntod))  deallocate(dd%ntod) 
+    if (allocated(dd%tod))   deallocate(dd%tod)
 
   end subroutine dealloc_det_data
 
@@ -1074,6 +1081,7 @@ contains
        end do
 
     end do
+
     call timer%stop(TOD_MAPBIN, tod%band)
 
   end subroutine compute_calibrated_data
