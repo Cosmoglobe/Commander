@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Sequence
 
 from functools import cache
@@ -10,34 +11,42 @@ from datetime import datetime
 import numpy as np
 from numpy.typing import NDArray
 import re
-
+from scipy.interpolate import interp1d
 import healpy as hp
-from astropy.coordinates import get_body, HeliocentricMeanEcliptic
-from scipy import interpolate 
-
+from astropy.coordinates import (
+    solar_system_ephemeris,
+    get_body,
+    HeliocentricMeanEcliptic,
+)
+from astroquery.mpc import MPC
 
 DIRBE_SKYMAP_INFO = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/DIRBE_SKYMAP_INFO.FITS"
 DIRBE_BANDPASSES = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/bandpass/DIRBE_SYSTEM_SPECTRAL_RESPONSE_TABLE.ASC"
-DIRBE_BEAM = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/beams/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
+DIRBE_BEAM = (
+    "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/beams/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
+)
 DIRBE_POS_PATH = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/position/"
-DIRBE_POS_FILES = [
-        "dmr_anc_spcl_89328_89356.txt",
-        "dmr_anc_89356_90021.txt", 
-        "dmr_anc_90021_90051.txt",  
-        "dmr_anc_90081_90111.txt",  
-        "dmr_anc_90111_90141.txt",  
-        "dmr_anc_90171_90206.txt",  
-        "dmr_anc_90206_90236.txt",  
-        "dmr_anc_90266_90296.txt",  
-        "dmr_anc_90296_90326.txt",  
-        "dmr_anc_90356_91021.txt",
-        "dmr_anc_90051_90081.txt", 
-        "dmr_anc_90141_90171.txt",  
-        "dmr_anc_90236_90266.txt",  
-        "dmr_anc_90326_90356.txt",
-    ]
+BEAM_FILE = "/mn/stornext/d16/cmbco/ola/dirbe/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
+BANDPASS_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
 
-BANDS = range(1,11)
+DIRBE_POS_FILES = [
+    "dmr_anc_spcl_89328_89356.txt",
+    "dmr_anc_89356_90021.txt",
+    "dmr_anc_90021_90051.txt",
+    "dmr_anc_90081_90111.txt",
+    "dmr_anc_90111_90141.txt",
+    "dmr_anc_90171_90206.txt",
+    "dmr_anc_90206_90236.txt",
+    "dmr_anc_90266_90296.txt",
+    "dmr_anc_90296_90326.txt",
+    "dmr_anc_90356_91021.txt",
+    "dmr_anc_90051_90081.txt",
+    "dmr_anc_90141_90171.txt",
+    "dmr_anc_90236_90266.txt",
+    "dmr_anc_90326_90356.txt",
+]
+
+BANDS = range(1, 11)
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
 WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
@@ -73,20 +82,153 @@ BAND_TO_WAVELENGTH: dict[int, float] = {
     10: 240,
 }
 
-BODIES = {
+ROWS_IN_BEAM_FILE_TO_SKIP = 19
+
+PLANET_RADII = {
     "moon": 10,
     "mercury": 1,
-    "venus": 2,
-    "mars": 2,
-    "jupiter": 2,
+    "venus": 1,
+    "mars": 1,
+    "jupiter": 1.5,
     "saturn": 1,
     "uranus": 1,
     "neptune": 1,
 }
 
+# Note that Ceres, Pallas, and Vesta were flagged in the original analysis, all
+# other asteroids were discovered later on. All comets except C/1989 T1 were
+# discovered by Lisse
+COMET_RADII = {
+        '73P/Schwassmann–Wachmann 3':2,
+        'C/1989 Q1':2,
+        'C/1989 T1':2,
+        'C/1989 X1':15,
+        'C/1990 K1':5
+        }
+ASTEROID_RADII = {
+        '1 Ceres':1,
+        '2 Pallas':1,
+        '4 Vesta':1,
+        '15 Eunomia':1,
+        '31 Euphrosyne':1,
+        '41 Daphne':1,
+        '42 Isis':1,
+        '85 Io':1,
+        '185 Eunike':1,
+        '194 Prokne':1,
+        '372 Palma':1,
+        '405 Thia':1,
+        '511 Davida':1,
+        '704 Interamnia':1,
+        '747 Winchester':1,
+        '1021 Flammario':1,
+        }
 
-def get_flag_sum(*flag_bits: int) -> int:
-    return sum([2**bit for bit in flag_bits])
+SIGMA_0 = {
+    1: 0.1820848274487808,
+    2: 0.1785923183102134,
+    3: 0.12869298902093768,
+    4: 0.09362580480386565,
+    5: 0.14110078941487805,
+    6: 0.19622963644711278,
+    7: 0.358702745030365,
+    8: 0.4273920139329039,
+    9: 1.9890065503932703,
+    10: 2.012305834012275,
+}
+
+
+def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
+    times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
+        datetime
+    )
+    astropy_times = Time(times, format="datetime", scale="utc")
+    interpolaters = {}
+    rotator = hp.Rotator(coord=["E", "G"])
+    with solar_system_ephemeris.set("de432s"):
+        for body_name in PLANET_RADII:
+            interpolaters[body_name] = {}
+            body = get_body(body_name, astropy_times).transform_to(
+                "geocentricmeanecliptic"
+            )
+            lon, lat = rotator(body.lon.value, body.lat.value, lonlat=True)
+            interpolaters[body_name]["lon"] = interp1d(astropy_times.mjd, lon)
+            interpolaters[body_name]["lat"] = interp1d(astropy_times.mjd, lat)
+
+    return interpolaters
+
+def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
+    times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
+        datetime
+    )
+
+    astropy_times = Time(times, format="datetime", scale="utc")
+    interpolaters_comet = {}
+    interpolaters_asteroids = {}
+    rotator = hp.Rotator(coord=["C", "G"])
+    with solar_system_ephemeris.set('de432s'):
+        for ci, c in enumerate(COMET_RADII):
+            interpolaters_comet[c] = {}
+            lons = []
+            lats = []
+            dists = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
+                dist = eph['r']
+                lons += lon.tolist()
+                lats += lat.tolist()
+                dists += dist.tolist()
+            lons = np.array(lons)
+            lats = np.array(lats)
+            dists = np.array(dists)
+            x, y, z = hp.dir2vec(lons, lats, lonlat=True)
+
+            interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
+            interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
+            interpolaters_comet[c]['x'] = interp1d(astropy_times.mjd, x)
+            interpolaters_comet[c]['y'] = interp1d(astropy_times.mjd, y)
+            interpolaters_comet[c]['z'] = interp1d(astropy_times.mjd, z)
+
+        for a in ASTEROID_RADII:
+            interpolaters_asteroids[a] = {}
+            lons = []
+            lats = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
+                lons += lon.tolist()
+                lats += lat.tolist()
+            lons = np.array(lons)
+            lats = np.array(lats)
+            x, y, z = hp.dir2vec(lons, lats, lonlat=True)
+            interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
+            interpolaters_asteroids[a]['x'] = interp1d(astropy_times.mjd, x)
+            interpolaters_asteroids[a]['y'] = interp1d(astropy_times.mjd, y)
+            interpolaters_asteroids[a]['z'] = interp1d(astropy_times.mjd, z)
+    return interpolaters_comet, interpolaters_asteroids
+
+@cache
+def band_to_bit(band: int) -> int:
+    """Returns the bit corresponding to the band."""
+    return {
+        1: 0,
+        2: 3,
+        3: 6,
+        4: 9,
+        5: 10,
+        6: 11,
+        7: 12,
+        8: 13,
+        9: 14,
+        10: 15,
+    }[band]
 
 
 def pix_to_lonlat(
@@ -103,26 +245,6 @@ def pix_to_lonlat(
 
     return np.column_stack((latitudes, longitudes))
 
-def normalize_dirbe_bandpasses(
-    bandpasses: NDArray[np.floating],
-) -> NDArray[np.floating]:
-    """Normalizes the dirbe_bandpasses so that the sum of the weights is 1."""
-
-    return bandpasses / np.expand_dims(bandpasses.sum(axis=1), axis=1)
-
-@cache
-def get_dirbe_bandpass(normalized: bool = True) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
-    """Returns the DIRBE bandpasses."""
-
-    wavelengths, *bandpasses = np.loadtxt(DIRBE_BANDPASSES, skiprows=15, unpack=True)
-
-    wavelengths = np.asarray(wavelengths)
-    bandpasses = np.asarray(bandpasses)
-
-    if normalized:
-        return wavelengths, normalize_dirbe_bandpasses(bandpasses)
-
-    return wavelengths, bandpasses
 
 @cache
 def get_dirbe_fwhm() -> dict[str, float]:
@@ -136,13 +258,16 @@ def get_dirbe_fwhm() -> dict[str, float]:
         for line in file.readlines()[ROWS_TO_SKIP:]:
             cols = line.split()
             detector, band = re.match(r"(\d+)([A-C]?)", cols[0], re.I).groups()
-            band_label = f"{int(detector):02}_{band}" if band else f"{int(detector):02}_A"
-            if len(cols) > FWHM_COL: 
+            band_label = (
+                f"{int(detector):02}_{band}" if band else f"{int(detector):02}_A"
+            )
+            if len(cols) > FWHM_COL:
                 fwhm = np.sqrt(float(cols[FWHM_COL])) * u.rad
                 fwhm_arcmin = fwhm.to(u.arcmin).value
                 fwhms[band_label] = np.round(fwhm_arcmin, 2)
 
     return fwhms
+
 
 @cache
 def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
@@ -152,11 +277,11 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
     """
     NSIDE = 128
     LMAX = 3 * NSIDE
-    N_ALMS = LMAX**2 + 2*LMAX +1
-    DEFAULT_BEAM = np.zeros((3, N_ALMS)) # Update this with actual beams
+    N_ALMS = LMAX**2 + 2 * LMAX + 1
+    DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
 
     beams: dict[str, NDArray[np.floating]] = {}
-    for detector in range(1,11):
+    for detector in range(1, 11):
         if detector <= 3:
             for band in DETECTOR_LABELS:
                 beams[f"{detector:02}_{band}"] = DEFAULT_BEAM
@@ -164,6 +289,7 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
             beams[f"{detector:02}_A"] = DEFAULT_BEAM
 
     return beams
+
 
 @cache
 def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
@@ -173,11 +299,11 @@ def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
     """
     NSIDE = 128
     LMAX = 3 * NSIDE
-    N_ALMS = LMAX**2 + 2*LMAX +1
-    DEFAULT_SIDELOBES = np.zeros((3,N_ALMS)) # Update this with actual sidelobes
+    N_ALMS = LMAX**2 + 2 * LMAX + 1
+    DEFAULT_SIDELOBES = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
 
     sidelobes: dict[str, NDArray[np.floating]] = {}
-    for detector in range(1,11):
+    for detector in range(1, 11):
         if detector <= 3:
             for band in DETECTOR_LABELS:
                 sidelobes[f"{detector:02}_{band}"] = DEFAULT_SIDELOBES
@@ -186,26 +312,29 @@ def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
 
     return sidelobes
 
+
 @cache
 def get_dmrfile_mjd_times(filename: str) -> NDArray[np.floating]:
     """Duncans script dont really know what goes on here."""
 
     data = np.loadtxt(DIRBE_POS_PATH + filename)
-    adt = data[:,:2]
+    adt = data[:, :2]
     i4max = 4.294967296e9
-    t_adt = np.zeros_like(adt[:,0])
-    ind = adt[:,0] >= 0
-    t_adt[ind] = adt[ind,0] + i4max*adt[ind,1]
-    ind = adt[:,0] < 0
-    t_adt[ind] = i4max + adt[ind,0] + i4max*adt[ind,1]
-    t_adt = t_adt*(100*u.ns)
-    t_adt_d = t_adt.to('day').value # in MJD
+    t_adt = np.zeros_like(adt[:, 0])
+    ind = adt[:, 0] >= 0
+    t_adt[ind] = adt[ind, 0] + i4max * adt[ind, 1]
+    ind = adt[:, 0] < 0
+    t_adt[ind] = i4max + adt[ind, 0] + i4max * adt[ind, 1]
+    t_adt = t_adt * (100 * u.ns)
+    t_adt_d = t_adt.to("day").value  # in MJD
 
     return t_adt_d
 
+
 @cache
 def get_dmrfile_positions(filename: str) -> NDArray[np.floating]:
-    return np.loadtxt(DIRBE_POS_PATH + filename, usecols=[5,6,7])
+    return np.loadtxt(DIRBE_POS_PATH + filename, usecols=[5, 6, 7])
+
 
 @cache
 def dirbe_day_to_dmr_day(days: int) -> datetime:
@@ -214,9 +343,10 @@ def dirbe_day_to_dmr_day(days: int) -> datetime:
     dirbe_date = DIRBE_START_DATE + TimeDelta(days - 1, format="jd")
 
     # datetime doesnt support leap seconds so we need to do some tricks
-    dirbe_date_iso = dirbe_date.to_value(format="iso",subfmt="date_hm")
+    dirbe_date_iso = dirbe_date.to_value(format="iso", subfmt="date_hm")
 
     return datetime.strptime(dirbe_date_iso, "%Y-%m-%d %H:%M")
+
 
 @cache
 def get_dmrfile_datetimes(filename: str) -> tuple[datetime, datetime]:
@@ -225,51 +355,114 @@ def get_dmrfile_datetimes(filename: str) -> tuple[datetime, datetime]:
     regex_groups = re.search(r"(\d{2})(\d+)_(\d{2})(\d+)", filename).groups()
     year_one, yday_one, year_two, yday_two = regex_groups
 
-    start_date = datetime.strptime(f'19{year_one} {yday_one}', '%Y %j')
-    stop_date = datetime.strptime(f'19{year_two} {yday_two}', '%Y %j')
-    
+    start_date = datetime.strptime(f"19{year_one} {yday_one}", "%Y %j")
+    stop_date = datetime.strptime(f"19{year_two} {yday_two}", "%Y %j")
+
     return start_date, stop_date
 
-def get_sat_and_earth_pos(
-    day: int, dirbe_time: float
-) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+
+def test_naming() -> None:
+    import h5py
+
+    with h5py.File("test.h5", "w") as file:
+        for detector in BANDS:
+            file.create_group(f"{detector:02}_{WAVELENGHTS[detector - 1]}um")
+            for band in DETECTOR_LABELS:
+                file.create_group(f"{detector:02}_{band}")
+                if detector > 3:
+                    break
+
+
+@dataclass
+class DetectorBeamData:
+    solid_angle: float
+    solid_angle_error: float
+    beam: dict[range, tuple[float, float]]
+
+
+@cache
+def get_beam_data() -> dict[str, DetectorBeamData]:
+    data: dict[str, DetectorBeamData] = {}
+    visited = set()
+    current_det_data = {}
+    with open(BEAM_FILE, "r") as f:
+        lines = iter(f.readlines()[ROWS_IN_BEAM_FILE_TO_SKIP:])
+        while True:
+            try:
+                line = next(lines)
+            except StopIteration:
+                data[split[0]] = DetectorBeamData(**current_det_data)
+                break
+            split = line.split()
+            current_det = split[0]
+            if current_det not in visited:
+                visited.add(current_det)
+                current_det_data = {
+                    "solid_angle": float(split[4]),
+                    "solid_angle_error": float(split[5]),
+                    "beam": {},
+                }
+                if visited != set():
+                    data[split[0]] = DetectorBeamData(**current_det_data)
+            if current_det in visited:
+                start, stop = split[1].split("-")
+                if current_det in {"9", "10"}:
+                    start, stop = "89345", "90260"
+                # Hack to invlude final 5 days fo data...
+                if stop == "90260":
+                    stop = "90266"
+                current_det_data["beam"][range(int(start), int(stop))] = (
+                    u.Quantity(float(split[2]), u.arcmin).to_value(u.rad),
+                    u.Quantity(float(split[3]), u.arcmin).to_value(u.rad),
+                )
+
+    return data
+
+
+BEAM_DATA = get_beam_data()
+
+
+def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:
     """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
 
-    dmr_day = dirbe_day_to_dmr_day(day)
-
-    for file in DIRBE_POS_FILES:
-        start_date, stop_date = get_dmrfile_datetimes(file)
-        if start_date <= dmr_day <= stop_date:
-            dmr_file = file
+    ranges_times = [re.findall(r"\d+", file) for file in DIRBE_POS_FILES]
+    ranges = [range(*[int(time) for time in times]) for times in ranges_times]
+    for idx, r in enumerate(ranges):
+        if yday in r:
+            dmr_file = DIRBE_POS_FILES[idx]
             break
     else:
-        raise FileNotFoundError(
-            f"could not find file containing sat pos for {dmr_day=}"
-        )
+        raise FileNotFoundError(f"could not find file containing sat pos for {yday=}")
 
     dmr_times = get_dmrfile_mjd_times(dmr_file)
     dmr_positions = get_dmrfile_positions(dmr_file)
 
-    interpolator_sat_x = interpolate.interp1d(
-        dmr_times, dmr_positions[:, 0], fill_value="extrapolate"
+    interpolator_sat_x = interp1d(
+        dmr_times,
+        dmr_positions[:, 0],
+        fill_value="extrapolate",
     )
-    interpolator_sat_y = interpolate.interp1d(
-        dmr_times, dmr_positions[:, 1], fill_value="extrapolate"
+    interpolator_sat_y = interp1d(
+        dmr_times,
+        dmr_positions[:, 1],
+        fill_value="extrapolate",
     )
-    interpolator_sat_z = interpolate.interp1d(
-        dmr_times, dmr_positions[:, 2], fill_value="extrapolate"
+    interpolator_sat_z = interp1d(
+        dmr_times,
+        dmr_positions[:, 2],
+        fill_value="extrapolate",
     )
 
-    pos_x = interpolator_sat_x(dirbe_time)
-    pos_y = interpolator_sat_y(dirbe_time)
-    pos_z = interpolator_sat_z(dirbe_time)
+    pos_x = interpolator_sat_x(time)
+    pos_y = interpolator_sat_y(time)
+    pos_z = interpolator_sat_z(time)
 
     celestial_sat_pos = u.Quantity([pos_x, pos_y, pos_z], u.m).to(u.AU).value
 
     rotator = hp.Rotator(coord=["C", "E"])
     geocentric_ecl_sat_pos = u.Quantity(rotator(celestial_sat_pos), u.AU).transpose()
 
-    earth_pos = get_body("earth", Time(dirbe_time, format="mjd")).transform_to(
+    earth_pos = get_body("earth", Time(time, format="mjd")).transform_to(
         HeliocentricMeanEcliptic
     )
     earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
@@ -278,9 +471,28 @@ def get_sat_and_earth_pos(
 
     return ecl_sat_pos.value, earth_pos.value
 
+
+@cache
+def get_const_scalars(band: int) -> NDArray[np.floating]:
+    """Used in V14 -> and out"""
+    # SIGMA0 = u.Quantity(
+    #     [2.4, 1.6, 0.9, 0.8, 0.9, 0.9, 0.9, 0.5, 32.8, 10.7], "nW/(m^2 sr)"
+    # )
+    # SIGMA0 *= 20
+    # SIGMA0 /= u.Quantity(
+    #     [59.5, 22.4, 22.0, 8.19, 13.3, 4.13, 2.32, 0.974, 0.605, 0.495], "THz"
+    # )
+    # SIGMA0 = SIGMA0.to_value("MJy/sr")
+
+    TEMP_GAIN = 1
+    TEMP_ALPHA = -1
+    fknee = 1 / (10 * 60)
+
+    return np.array([TEMP_GAIN, SIGMA_0[band], fknee, TEMP_ALPHA]).flatten()
+
 @cache
 def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
-    bandpass_file = BANDPASS_PATH / f"DIRBE_{band:02}_bandpass.dat"
+    bandpass_file = BANDPASS_PATH + f"/DIRBE_{band:02}_bandpass.dat"
     bandpass = np.loadtxt(bandpass_file, unpack=True)
 
     non_zero = np.nonzero(bandpass[1])
@@ -305,15 +517,6 @@ def get_iras_factor(band: int) -> float:
     )
 
 
-def test_naming() -> None:
-    import h5py
-    with h5py.File("test.h5", "w") as file:
-        for detector in BANDS:
-            file.create_group(f"{detector:02}_{WAVELENGHTS[detector - 1]}um")
-            for band in DETECTOR_LABELS:
-                file.create_group(f"{detector:02}_{band}")
-                if detector > 3:
-                    break
-
 if __name__ == "__main__":
-    ...
+    print([get_iras_factor(i) for i in range(1,11)])
+
