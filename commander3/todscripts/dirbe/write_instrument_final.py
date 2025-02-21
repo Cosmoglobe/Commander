@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ....python.commander_tools.tod_tools.commander_instrument import commander_instrument
 
-sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
+sys.path.insert(0, "../../python")
 from commander_tools.tod_tools.commander_instrument import commander_instrument
 from numpy.typing import NDArray
 import astropy.units as u
 import dirbe_utils
 
-TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/metins/dirbe/data"
+TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/DIRBE/data"
 NSIDE = 128
 
 # temporary values that needs to be updated

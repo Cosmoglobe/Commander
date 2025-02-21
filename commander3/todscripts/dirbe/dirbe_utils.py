@@ -27,7 +27,7 @@ DIRBE_BEAM = (
 )
 DIRBE_POS_PATH = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/position/"
 BEAM_FILE = "/mn/stornext/d16/cmbco/ola/dirbe/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
-BANDPASS_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
+BANDPASS_PATH = "/mn/stornext/d23/cmbco/cg/dirbe/data/"
 
 DIRBE_POS_FILES = [
     "dmr_anc_spcl_89328_89356.txt",
