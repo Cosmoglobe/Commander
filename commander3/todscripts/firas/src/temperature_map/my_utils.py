@@ -305,8 +305,9 @@ def spec_to_ifg(
     else:
         cutoff = 7
 
-    spec_r = np.zeros((len(spec), 257))
-    spec_r[:, cutoff : (len(otf) + cutoff)] = spec
+    #spec_r = np.zeros((len(spec), 257))
+    #spec_r[:, cutoff : (len(otf) + cutoff)] = spec
+    spec_r = spec
 
     # Defining constants, getting data model
 
