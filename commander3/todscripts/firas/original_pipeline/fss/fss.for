@@ -106,7 +106,7 @@ C       SPR 12197 - Modifications to implement /DBINS qualifier in place
 C                   of /MAX_DIHED,  K.Jensen, HSTX, 23-May-1995
 C
 c-----------------------------------------------------------------------------
-
+
       implicit none
 c*
 c* Include Files:
@@ -263,7 +263,7 @@ c*
 
       record /fex_grtrawwt/  grtwt         ! grt weights
       record /fex_grttrans/  grttrans      ! grt transition temps
-
+
 c*
 c****   BEGIN CODE  **************************************************
 c*
