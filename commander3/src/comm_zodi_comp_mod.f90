@@ -231,7 +231,8 @@ contains
       scale(start_ind+1,:) = [1.d0, 0.03d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2,:) = [1.d0, 0.3d0]
-      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
+      !prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.04d0, 0.04d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3,:) = [1.d0, 1d-3]
       prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4,:) = [1.d0, 0.8d-3]
@@ -273,9 +274,11 @@ contains
       scale(start_ind+6,:) = [1.d0, 0.14d0]
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
       scale(start_ind+7,:) = [1.d0, 0.005d0]
-      prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
+      !prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
+      prior(:,start_ind+8) = [0.01d0, 3.d0, 0.942d0, -1.d0] ! v
       scale(start_ind+8,:) = [1.d0, 0.1d0]      
-      prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
+      !prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
+      prior(:,start_ind+9) = [2.d0, 6.d0, 0.189d0, -1.d0] ! p
       scale(start_ind+9,:) = [1.d0, 1d-6]      
     end subroutine init_band_priors_and_scales
 

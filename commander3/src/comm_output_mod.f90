@@ -145,7 +145,7 @@ contains
        call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
-
+    
     !Prepare mean foregrounds values print to file
     if (cpar%myid_chain == 0) then
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
@@ -453,6 +453,14 @@ contains
           do i = 1, numband
              if (trim(data(i)%tod_type) == 'none') cycle
              if (data(i)%tod%map_solar_allocated) call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_solar_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_solar)
+             if (data(i)%tod%map_moon_allocated)  call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_moon_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_moon)
+             if (data(i)%tod%map_earth_allocated) then
+                open(58,file=trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_earth_c'//ctext//'_k' // itext // '.dat')
+                do j = 1, NBIN_EARTH_ELON
+                   write(58,*) real(j+0.5,sp)*180./NBIN_EARTH_ELON, data(i)%tod%map_earth(j)
+                end do
+                close(58)
+             end if
           end do
        end if
     end if
@@ -511,6 +519,7 @@ contains
       call create_hdf_group(chainfile, 'parameters')
       n = size(cpar%cs_label)
       do i = 1, n
+         !write(*,*) i, trim(adjustl(cpar%cs_label(i)))
          hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
          call create_hdf_group(chainfile, trim(hdf_path))
 

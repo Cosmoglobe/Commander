@@ -755,7 +755,7 @@ contains
       type(hdf_file) :: file
 
       character(len=32), allocatable :: param_labels(:)
-      character(len=512) :: chainfile, group_name
+      character(len=2048) :: chainfile, group_name
 
       if (cpar%myid == cpar%root) then
          if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
@@ -939,7 +939,7 @@ contains
      integer(i4b),     dimension(:), intent(inout) :: stat
 
      integer(i4b) :: i, c, j, k, first, last, n_params, n, m, ind, em_global, al_global, c_to, c_from, band
-     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2)
+     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2), al_from(2), al_to(2)
      character(len=2048) :: str
      
      ! Default: Fix everything at input
@@ -1098,6 +1098,26 @@ contains
               if (.not. active(j) .or. .not. active(k)) cycle
               c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_string=em_from(2))
               c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_string=em_to(2))
+              stat(c_from) = c_to
+           end if
+        else if (trim(wire_from(2)(1:2)) == 'al') then
+           call get_tokens(wire_from(2), '@', al_from, num=n)
+           call get_tokens(wire_to(2), '@', al_to, num=n)
+           if (n == 1) then
+              ! Attach all bands
+              do c = 1, numband
+                 if (.not. active(c)) cycle
+                 c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_band=c)
+                 c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_band=c)
+                 stat(c_from) = c_to
+              end do
+           else
+              ! Attach specified band
+              j = get_string_index(band_labels, al_from(2))
+              k = get_string_index(band_labels, al_to(2))
+              if (.not. active(j) .or. .not. active(k)) cycle
+              c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_string=al_from(2))
+              c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_string=al_to(2))
               stat(c_from) = c_to
            end if
         else
@@ -1635,7 +1655,7 @@ contains
       type(hdf_file) :: file
       real(dp) :: lambda, lambda_min, lambda_max
       real(dp), allocatable :: emissivity(:), albedo(:)
-      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
+      character(len=2048) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
 
       !allocate(tod%zodi_emissivity(tod%zodi_n_comps))
       !allocate(tod%zodi_albedo(tod%zodi_n_comps))
@@ -1691,14 +1711,15 @@ contains
    end subroutine read_tod_zodi_params
 
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, pix_static, s_therm, s_scat)
+   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, s_therm, s_scat, exclude_static)
       implicit none
       class(ZodiModel),                 intent(in)               :: zodi_model
       class(comm_tod),                  intent(inout)            :: tod
       integer(i4b),                     intent(in)               :: det, scan
       real(sp),         dimension(:),   intent(out)              :: s
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic,  pix_static
+      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
       real(sp),         dimension(:,:), intent(out),    optional :: s_therm, s_scat
+      character(len=*),                 intent(in),     optional :: exclude_static
       
       integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
       real(sp)     :: w
@@ -1729,16 +1750,40 @@ contains
          deallocate(s_scat_, s_therm_, s_zodi)
       end if
 
-      ! Add static zodi component by Healpix map lookup
-      if (present(pix_static) .and. associated(tod%map_solar)) then
-         nhorn = size(pix_static,2)      
-         do h = 1, nhorn
+      ! Add solar component by Healpix map lookup
+      if (trim(exclude_static) /= 'solar') then
+         do h = 1, tod%nhorn 
             do i = 1, ntod
-               j    = pix_static(i,h)
+               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
                if (tod%map_solar(j,1) > -1.d30) then
                   w    = 1.d0; if (h > 1) w = -1.d0
-                  !s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
                   s(i) = s(i) + w * tod%map_solar(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Moon component by Healpix map lookup
+      if (trim(exclude_static) /= 'moon') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
+               if (tod%map_moon(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_moon(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Earth component by Healpix map lookup
+      if (trim(exclude_static) /= 'earth') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%earth_elon(i,h)
+               if (tod%map_earth(j) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_earth(j)
                end if
             end do
          end do

@@ -57,7 +57,8 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)     :: baseline       ! Polynomial coefficients for baseline function
      integer(i4b),       allocatable, dimension(:,:)   :: pix_sol        ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
-     integer(i4b),       allocatable, dimension(:,:)   :: psi_sol        ! Discretized polarization angle in solar centric coordinates, for zodi and sidelobe mapping
+     integer(i4b),       allocatable, dimension(:,:)   :: pix_moon       ! Discretized pointing in Moon centric coordinates, for zodi and sidelobe mapping
+     real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
@@ -176,6 +177,8 @@ module comm_tod_mod
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: output_zodi_comps                            ! Output zodi components
      logical(lgt) :: use_solar_point                              ! Compute solar centric pointing, for zodi or sidelobe mapping
+     logical(lgt) :: use_moon_point                               ! Compute Moon centric pointing, for zodi or sidelobe mapping
+     logical(lgt) :: use_earth_elon                               ! Compute Earth elongation
      real(sp)     :: sol_elong_range(2)                           ! Acceptable solar elongation range
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
@@ -205,7 +208,11 @@ module comm_tod_mod
      !class(comm_map), pointer                          :: mask_solar => null() ! Solar centric/sidelobe mask
      real(dp),           allocatable, dimension(:,:)   :: mask_solar           ! Solar centric/sidelobe mask
      logical(lgt)                                      :: map_solar_allocated
+     logical(lgt)                                      :: map_moon_allocated
+     logical(lgt)                                      :: map_earth_allocated
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
+     real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
+     real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
@@ -399,6 +406,7 @@ contains
     self%sample_abs_bp   = .false.
     self%zodiband        = -1
     self%sol_elong_range = [0., 180.]
+    self%sample_mono     = .false.
     
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
@@ -406,6 +414,8 @@ contains
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
    end if
    self%use_solar_point = self%subtract_zodi
+   self%use_moon_point  = .false.
+   self%use_earth_elon  = .false.
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -556,28 +566,33 @@ contains
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     integer(i4b) :: i, j, k, l, ierr
-    integer(i4b), allocatable, dimension(:) :: pix
+    integer(i4b), allocatable, dimension(:) :: pix, psi
 
     ! Construct observed pixel array
     allocate(self%pix2ind(0:12*self%nside**2-1))
     self%pix2ind = -2
     do i = 1, self%nscan
-       allocate(pix(self%scans(i)%ntod))
+       allocate(pix(self%scans(i)%ntod), psi(self%scans(i)%ntod))
        if (self%nhorn == 2) then
-          if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(1)%psi_sol(self%scans(i)%ntod,self%nhorn))
+          if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn))
+          if (self%use_moon_point)  allocate(self%scans(i)%d(1)%pix_moon(self%scans(i)%ntod,self%nhorn))
+          if (self%use_earth_elon)  allocate(self%scans(i)%d(1)%earth_elon(self%scans(i)%ntod,self%nhorn))
           do l = 1, self%nhorn
              call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
              self%pix2ind(pix(1)) = -1
              do k = 2, self%scans(i)%ntod
                 self%pix2ind(pix(k)) = -1
              end do
-             if (self%use_solar_point) then
-                call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+             if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
+             if (self%use_moon_point)  then
+                call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
+                call compute_moon_centered_pointing(self, i, 1, pix, psi, self%scans(i)%d(1)%pix_moon(:,l))
              end if
+             if (self%use_earth_elon) call compute_earth_elongation(self, i, 1, pix, self%scans(i)%d(1)%earth_elon(:,l))
           end do
        else
           do j = 1, self%ndet
-             if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(j)%psi_sol(self%scans(i)%ntod,self%nhorn))
+             if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 self%pix2ind(pix(1)) = -1
@@ -589,9 +604,12 @@ contains
                    end if
                    self%pix2ind(pix(k)) = -1
                 end do
-                if (self%use_solar_point) then
-                   call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+                if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
+                if (self%use_moon_point)  then
+                   call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%psi(l)%p, psi)
+                   call compute_moon_centered_pointing(self, i, j, pix, psi, self%scans(i)%d(j)%pix_moon(:,l))
                 end if
+                if (self%use_earth_elon) call compute_earth_elongation(self, i, j, pix, self%scans(i)%d(j)%earth_elon(:,l))
              end do
          end do
       end if
@@ -1694,7 +1712,21 @@ contains
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
-       end if
+      end if
+      if (self%map_moon_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
+            call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
+         else
+            write(*,*) 'Moon map field not in existing chain, keeping default'
+         end if
+      end if
+      if (self%map_earth_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
+            call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
+         else
+            write(*,*) 'Earth map field not in existing chain, keeping default'
+         end if
+      end if
     end if
 
 
@@ -2627,12 +2659,12 @@ contains
 
   end subroutine decompress_tod
   
-  subroutine compute_solar_centered_pointing(tod, scan, det, pix, psi, pix_sol, psi_sol)
+  subroutine compute_solar_centered_pointing(tod, scan, det, pix, pix_sol)
     implicit none
     class(comm_tod),                  intent(in)  :: tod
     integer(i4b),                     intent(in)  :: scan, det
-    integer(i4b),        dimension(:),intent(in)  :: pix, psi
-    integer(i4b),        dimension(:),intent(out) :: pix_sol, psi_sol
+    integer(i4b),        dimension(:),intent(in)  :: pix
+    integer(i4b),        dimension(:),intent(out) :: pix_sol
 
     integer(i4b) :: i, j
     real(dp)     :: alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
@@ -2652,9 +2684,69 @@ contains
        vec0 = matmul(M_sun, vec0)                   ! Solar-centered coordinates
        call vec2pix_ring(tod%nside, vec0, pix_sol(j))
     end do
-    psi_sol = 0 ! Not computed yet
     
   end subroutine compute_solar_centered_pointing
+
+  subroutine compute_moon_centered_pointing(tod, scan, det, pix, psi, pix_moon)
+    implicit none
+    class(comm_tod),                  intent(in)  :: tod
+    integer(i4b),                     intent(in)  :: scan, det
+    integer(i4b),        dimension(:),intent(in)  :: pix, psi
+    integer(i4b),        dimension(:),intent(out) :: pix_moon
+
+    integer(i4b) :: i, j
+    real(dp)     :: psi0
+    real(dp)     :: x_moon(3), x_obs(3), x_obs2moon(3), theta0, phi0, alpha, vec(3), vec0(3), M(3,3), M_ecl2gal(3,3)
+
+    call ecl_to_gal_rot_mat(M_ecl2gal)
+    
+    do j = 1, tod%scans(scan)%ntod
+       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       alpha   = 0.d0
+       !x_moon  = (1.d0-alpha) * tod%scans(scan)%x0_moon + alpha * tod%scans(scan)%x1_moon   ! Moon position at time t in heliocentric/Ecliptic coordinates
+       
+       x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
+       x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
+       x_obs2moon = matmul(M_ecl2gal, x_obs2moon)         ! Moon position in Galactic coordinates
+
+       ! Compute pointing in Moon centered coordinates
+       psi0 = psi(j) * 2.d0*pi/4096.d0 ! Fix this
+       call pix2ang_ring(tod%nside, pix(j), theta0, phi0) ! Galactic coordinates
+       call compute_euler_matrix_zyz(-psi0, -theta0, -phi0, M)
+       vec = matmul(M, x_obs2moon)
+       call vec2pix_ring(tod%nside, vec, pix_moon(j))
+    end do
+    
+  end subroutine compute_moon_centered_pointing
+
+  subroutine compute_earth_elongation(tod, scan, det, pix, earth_elon)
+    implicit none
+    class(comm_tod),                  intent(in)  :: tod
+    integer(i4b),                     intent(in)  :: scan, det
+    integer(i4b),        dimension(:),intent(in)  :: pix
+    real(sp),            dimension(:),intent(out) :: earth_elon
+
+    integer(i4b) :: i, j
+    real(dp)     :: x_obs2earth(3), x_obs(3), x_earth(3), alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
+
+    call ecl_to_gal_rot_mat(M_ecl2gal)
+    do j = 1, tod%scans(scan)%ntod
+       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       alpha   = 0.d0
+       x_earth = (1.d0-alpha) * tod%scans(scan)%x0_earth + alpha * tod%scans(scan)%x1_earth ! Earth position at time t in heliocentric/Ecliptic coordinates
+       
+       x_obs2earth = x_earth - x_obs ! Earth position relative to observatory in Ecliptic coordinates
+       x_obs2earth = x_obs2earth / sqrt(sum(x_obs2earth**2)) ! Unit vector
+
+       call pix2vec_ring(tod%nside, pix(j), vec0)   ! Satellite pointing in Galactic coordinates
+       vec0 = matmul(transpose(M_ecl2gal), vec0)    ! Satellite pointing in Ecliptic coordinates
+
+       earth_elon(j) = acos(max(min(sum(vec0 * x_obs2earth),1.d0),-1.d0))
+    end do
+    
+  end subroutine compute_earth_elongation
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3042,7 +3134,346 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask)
+   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask)
+     implicit none
+     class(comm_tod),                   intent(inout) :: self
+     integer(i4b),                      intent(in)    :: scan, det
+     real(sp),            dimension(:), intent(in)    :: res
+     real(sp),            dimension(2), intent(in)    :: rms_range
+     real(sp),            dimension(:), intent(inout) :: mask
+     integer(i4b),        dimension(:), intent(inout) :: flag
+     logical(lgt),                      intent(in)    :: only_solar_mask
+     
+     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut
+     real(dp) :: rms0
+     real(sp) :: var0, threshold, gain
+     logical(lgt), dimension(8) :: apply_cut
+     logical(lgt), allocatable, dimension(:)   :: cut
+     integer(i4b), allocatable, dimension(:,:) :: bad, buffer
+     real(sp),     allocatable, dimension(:)   :: mask_dyn, var_window
+
+     if (sum(mask) == 0) return 
+
+     apply_cut(1) = .true. ! Extreme outliers
+     apply_cut(2) = .true. ! Single sample outliers
+     apply_cut(3) = .true. ! Excess variance in windows of   5 samples
+     apply_cut(4) = .true. ! Excess variance in windows of  50 samples
+     apply_cut(5) = .true. ! Excess variance in windows of 500 samples
+     apply_cut(6) = .true. ! Isolated samples
+     apply_cut(7) = .true. ! Long chunks with many masked samples
+     apply_cut(8) = .true. ! Solar mask
+     if (only_solar_mask) apply_cut(1:7) = .false.
+     
+     
+     ntod = size(res)
+     ntot = count(iand(flag,self%flag0) .eq. 0)
+     nmax = 1000
+     gain = self%scans(scan)%d(det)%gain
+
+     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flagging     -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
+     
+     ! Generate dynamic mask
+     allocate(mask_dyn(ntod))
+     mask_dyn = 1.0
+
+!!$     open(58, file='var0.dat')
+!!$     do i = 1, ntod
+!!$        if (mask(i) == 1.) write(58,*) i, res(i)
+!!$     end do
+!!$     close(58)
+
+     if (apply_cut(1)) then
+        ! Extreme outliers
+        threshold = 20. ! White noise sigma
+        ncut = 0
+        do i = 1, ntod
+           if (mask(i) == 1. .and. abs(res(i)) > threshold) then
+              mask_dyn(i) = 0.
+              mask(i)     = 0.
+              flag(i)     = huge(flag(i))
+              ncut        = ncut + 1
+           end if
+        end do
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     ! Single sample outlier cut; potentially iterate in order to adjust the threshold rms
+     if (apply_cut(2)) then
+        allocate(cut(ntod))
+        ncut = 0
+        !     open(58, file='var1.dat')
+        do iter = 1, 1
+           ! Compute full-scan, masked rms0
+           rms0 = 0.d0
+           n   = 0
+           do i = 1, ntod
+              if (mask(i) == 1.) then
+                 rms0 = rms0 + res(i)**2
+                 n   = n   + 1
+              end if
+           end do
+           rms0 = sqrt(rms0/(n-1))
+           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
+           
+           do i = 1, ntod
+              cut(i) = (mask(i) == 1. .and. (res(i) < rms_range(1)*rms0 .or. res(i) > rms_range(2)*rms0))
+              !if (mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
+           end do
+           
+           ! Apply RMS selection criterium
+           if (cut(1) .and. (.not. cut(2) .or. mask(2) == 0.)) then
+              mask_dyn(1) = 0.
+              mask(1)     = 0.
+              flag(1)     = huge(flag(1))
+              ncut        = ncut + 1
+           end if
+           do i = 2, ntod-1
+              if (cut(i) .and. (.not. cut(i-1) .or. mask(i-1) == 0.) .and. (.not. cut(i+1) .or. mask(i+1) == 0.)) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut + 1
+              end if
+           end do
+           if (cut(ntod) .and. (.not. cut(ntod-1) .or. mask(ntod-1) == 0.)) then
+              mask_dyn(ntod) = 0.
+              mask(ntod)     = 0.
+              flag(ntod)     = huge(flag(ntod))
+              ncut           = ncut + 1
+           end if
+        end do
+        !close(58)
+        deallocate(cut)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, rms cut      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(3)) then
+        ! Look for excess variance excess in small windows; typically cosmic rays and other short glitches
+        allocate(var_window(ntod))
+        window = 5; threshold = 3.
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        var_window = sqrt(var_window)
+        var0       = sqrt(var0)     
+        ncut       = 0
+        !open(58, file='var2.dat')
+        do i = 1, ntod
+           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0), threshold*var0
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 !if (mask(k) == 1) then
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(4)) then
+        ! Look for excess variance excess in intermediate windows
+        allocate(var_window(ntod))
+        window = 50; threshold = 2.0
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        var_window = sqrt(var_window)
+        ncut       = 0
+        !open(58, file='var3.dat')
+        do i = 1, ntod
+           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    !if (mask(k) == 1) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(5)) then
+        ! Look for excess variance excess in large windows
+        allocate(var_window(ntod))
+        window = 500; threshold = 1.5
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        var_window = sqrt(var_window)
+        ncut       = 0
+        !     open(58, file='var3.dat')
+        do i = 1, ntod
+           !        if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    !if (mask(k) == 1) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !     close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(6)) then
+        ! Remove isolated samples
+        ncut       = 0
+        if (mask(1) == 1. .and. mask(2) == 0.) then
+           mask_dyn(1) = 0.
+           mask(1)     = 0.
+           flag(1)     = huge(flag(1))
+           ncut        = ncut + 1
+        end if
+        do i = 2, ntod-1
+           if (mask(i-1) == 0. .and. mask(i) == 1. .and. mask(i+1) == 0.) then
+              mask_dyn(i) = 0.
+              mask(i)     = 0.
+              flag(i)     = huge(flag(i))
+              ncut        = ncut + 1
+           end if
+        end do
+        if (mask(ntod) == 1. .and. mask(ntod-1) == 0.) then
+           mask_dyn(ntod) = 0.
+           mask(ntod)     = 0.
+           flag(ntod)     = huge(flag(ntod))
+           ncut           = ncut + 1
+        end if
+        !     close(58)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(7)) then
+        ! Remove consecutive chunks with many flagged samples
+        window = 2000; threshold = 0.30
+        ncut       = 0
+        !     open(58, file='var4.dat')
+        do i = 1, ntod
+           !        write(58,*) i, res(i), iand(flag(k),self%flag0) .eq. 0
+           j = max(i-window,1)
+           k = min(i+window,ntod)
+           if (count(flag(j:k) == huge(flag(1)))/real(k-j+1,sp) > threshold) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !     close(58)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     ! Remove glitches in the high signal-to-noise regime
+     ! Must 1) be a masked pixel; 2) not already be flagged; 3) have a S/N > 10; 4) have a residual larger than some threshold times the expected signal
+!!$     threshold  = 0.50
+!!$     ncut       = 0
+!!$     do i = 1, ntod
+!!$
+!!$        if (mask(i) == 0. .and. iand(flag(i),self%flag0) .eq. 0 .and. abs(gain*s_sky(i)) > 10.d0 * self%scans(scan)%d(det)%N_psd%sigma0 .and. abs(res(i)) > threshold*abs(gain*s_sky(i))) then
+!!$           mask_dyn(i) = 0.
+!!$           mask(i)     = 0.
+!!$           flag(i)     = huge(flag(i))
+!!$           ncut        = ncut + 1
+!!$        end if
+!!$     end do
+!!$     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, high S/N     -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+
+     
+     !mask_dyn(1:330000) = 0.
+     !mask(1:330000)     = 0.
+     !mask_dyn(1:550000) = 0.
+     !mask(1:550000)     = 0.
+     !mask_dyn(575000:) = 0.
+     !mask(575000:)     = 0.
+     !flag(1:550000)    = huge(flag(1))
+     !flag(575000:)     = huge(flag(1))
+     
+!!$     open(58, file='var5.dat')
+!!$     do i = 1, ntod
+!!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
+!!$     end do
+!!$     close(58)
+
+     ! Solar-centric mask
+     if (apply_cut(8)) then
+        ncut = 0
+        if (allocated(self%mask_solar) .and. self%use_solar_point) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              if (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+     
+     ! Compress and store dynamic mask
+     allocate(bad(2,nmax))
+     bad = -1
+     n   = 0
+     do i = 1, ntod
+        if (mask_dyn(i) == 0.) then
+           ! Start new range if not already active
+           if (bad(1,n+1) == -1) bad(1,n+1) = i
+        else
+           ! Close active range
+           if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+              bad(2,n+1) = i-1
+              n          = n+1
+           end if
+        end if
+        
+        ! Increase array size if needed
+        if (n == nmax) then
+           nmax = 2*nmax
+           allocate(buffer(2,nmax))
+           buffer = -1
+           buffer(:,1:nmax/2) = bad
+           deallocate(bad)
+           allocate(bad(2,nmax))
+           bad = buffer
+           deallocate(buffer)
+        end if
+     end do
+     
+     ! Close open range if needed at the end
+     if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+        bad(2,n+1) = ntod
+        n          = n+1
+     end if
+     
+      ! Store final array
+     if (n > 0) then
+        allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
+        self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
+     end if
+     
+     deallocate(bad, mask_dyn)
+   end subroutine create_dynamic_mask
+
+   subroutine create_dynamic_mask2(self, scan, det, res, rms_range, mask)
      implicit none
      class(comm_tod),                   intent(inout) :: self
      integer(i4b),                      intent(in)    :: scan, det
@@ -3150,6 +3581,7 @@ contains
 !      if (allocated(mask_solar)) deallocate(mask_solar)
    end subroutine
 
+   
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod
@@ -3194,7 +3626,7 @@ contains
   end subroutine distribute_sky_maps
 
 
-  subroutine get_s_static(self, band, point, s)
+  subroutine get_s_static(self, band, s, point_solar, point_moon, earth_elon)
      ! Evaluates the solar centric TOD
      !
      ! Parameters:
@@ -3206,19 +3638,40 @@ contains
      implicit none
      class(comm_tod),            intent(in)  :: self
      integer(i4b),               intent(in)  :: band
-     integer(i4b), dimension(:), intent(in)  :: point
      real(sp),     dimension(:), intent(out) :: s
+     integer(i4b), dimension(:), intent(in), optional  :: point_solar
+     integer(i4b), dimension(:), intent(in), optional  :: point_moon
+     real(sp),     dimension(:), intent(in), optional  :: earth_elon
 
-     integer(i4b) :: i
+     real(sp)     :: elon
+     integer(i4b) :: i, bin
 
-     if (.not. associated(self%map_solar)) then
-        s = 0.d0
-        return
+     ! Initialize to zero
+     s = 0.
+
+     ! Solar contribution
+     if (present(point_solar) .and. associated(self%map_solar)) then
+        do i = 1, size(s)
+           s(i) = s(i) + self%map_solar(point_solar(i),1)
+        end do
      end if
-     
-     do i = 1, size(s)
-        s(i) = self%map_solar(point(i),1)
-     end do
+
+     ! Moon contribution
+     if (present(point_moon) .and. associated(self%map_moon)) then
+        do i = 1, size(s)
+           s(i) = s(i) + self%map_moon(point_moon(i),1)
+        end do
+     end if
+
+     ! Earth contribution
+     if (present(earth_elon) .and. associated(self%map_earth)) then
+        write(*,*) 'Solar elongation correction not yet implemented'
+        !do i = 1, size(s)
+        !   elon = 0.
+        !   bin  = 1
+        !   s(i) = s(i) + self%map_earth(bin)
+        !end do
+     end if
 
    end subroutine get_s_static
 

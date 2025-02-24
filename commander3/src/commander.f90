@@ -22,6 +22,7 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_sparse_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -387,9 +388,10 @@ program commander
          end do
       end select
 
-      ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_map(cpar, handle)
-      !call sample_static_zodi_amps(cpar, handle)
+      ! Sample stationary components
+      if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
+      if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -422,7 +424,7 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)

@@ -59,6 +59,7 @@ set(sources
 	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_pixhist_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
@@ -133,6 +134,7 @@ set(sources
         ${COMMANDER3_SOURCE_DIR}/comm_tod_cray_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
+	${COMMANDER3_SOURCE_DIR}/comm_sparse_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_mbb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_mbbtab_comp_mod.f90
