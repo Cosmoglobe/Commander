@@ -1780,7 +1780,7 @@ contains
       if (trim(exclude_static) /= 'earth') then
          do h = 1, tod%nhorn 
             do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%earth_elon(i,h)
+               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
                if (tod%map_earth(j) > -1.d30) then
                   w    = 1.d0; if (h > 1) w = -1.d0
                   s(i) = s(i) + w * tod%map_earth(j)

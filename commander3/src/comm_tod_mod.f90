@@ -195,6 +195,8 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
      !class(comm_map), pointer                          :: mask_solar => null() ! Solar centric/sidelobe mask
      real(dp),           allocatable, dimension(:,:)   :: mask_solar           ! Solar centric/sidelobe mask
+     real(dp),           allocatable, dimension(:,:)   :: mask_moon            ! Moon centric/sidelobe mask
+     real(dp),           allocatable, dimension(:)     :: mask_earth           ! Earth centric/sidelobe mask; elongation only
      logical(lgt)                                      :: map_solar_allocated
      logical(lgt)                                      :: map_moon_allocated
      logical(lgt)                                      :: map_earth_allocated
@@ -353,6 +355,7 @@ contains
     character(len=128),             intent(in)     :: tod_type
 
     integer(i4b) :: i, ndelta, ierr, unit
+    real(sp)     :: elon
     character(len=512) :: datadir, solar_init
 
     self%id            = id
@@ -458,9 +461,20 @@ contains
       self%procmask_zodi => comm_map(self%info, self%procmaskfzodi)
     end if
     if (trim(cpar%ds_tod_solar_mask(id_abs)) /= 'none') then
-       !self%mask_solar => comm_map(self%info, cpar%ds_tod_solar_mask(id_abs))
        allocate(self%mask_solar(0:12*self%nside_param**2-1,1))
        call read_map(cpar%ds_tod_solar_mask(id_abs), self%mask_solar)
+    end if
+    if (trim(cpar%ds_tod_moon_mask(id_abs)) /= 'none') then
+       allocate(self%mask_moon(0:12*self%nside_param**2-1,1))
+       call read_map(cpar%ds_tod_moon_mask(id_abs), self%mask_moon)
+    end if
+    if (trim(cpar%ds_tod_earth_mask(id_abs)) /= 'none') then
+       allocate(self%mask_earth(NBIN_EARTH_ELON))
+       open(58,file=trim(cpar%ds_tod_earth_mask(id_abs)))
+       do i = 1, NBIN_EARTH_ELON
+          read(58,*) elon, self%mask_earth(i)
+       end do
+       close(58)
     end if
     
     do i = 0, self%info%np-1
@@ -570,6 +584,8 @@ contains
        else
           do j = 1, self%ndet
              if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn))
+             if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
+             if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 self%pix2ind(pix(1)) = -1
@@ -590,7 +606,7 @@ contains
              end do
          end do
       end if
-      deallocate(pix)
+      deallocate(pix,psi)
     end do
     self%nobs = count(self%pix2ind == -1)
     allocate(self%ind2pix(self%nobs))
@@ -3041,7 +3057,7 @@ contains
      integer(i4b),        dimension(:), intent(inout) :: flag
      logical(lgt),                      intent(in)    :: only_solar_mask
      
-     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut
+     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut, b_elon
      real(dp) :: rms0
      real(sp) :: var0, threshold, gain
      logical(lgt), dimension(8) :: apply_cut
@@ -3322,6 +3338,30 @@ contains
               end if
            end do
         end if
+        if (allocated(self%mask_moon) .and. self%use_moon_point) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              if (self%mask_moon(self%scans(scan)%d(det)%pix_moon(i,1),1) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+        if (allocated(self%mask_earth) .and. self%use_earth_elon) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              b_elon = max(min(int(self%scans(scan)%d(det)%earth_elon(i,1)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+              if (self%mask_earth(b_elon) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
      
@@ -3370,111 +3410,6 @@ contains
      deallocate(bad, mask_dyn)
    end subroutine create_dynamic_mask
 
-   subroutine create_dynamic_mask2(self, scan, det, res, rms_range, mask)
-     implicit none
-     class(comm_tod),                   intent(inout) :: self
-     integer(i4b),                      intent(in)    :: scan, det
-     real(sp),            dimension(:), intent(in)    :: res
-     real(sp),            dimension(2), intent(in)    :: rms_range
-     real(sp),            dimension(:), intent(inout) :: mask
-     
-     logical(lgt) :: cut
-     integer(i4b) :: i, j, k, n, ntod, nmax
-     real(dp) :: box_width, rms, vec(3), elon
-     integer(i4b), allocatable, dimension(:,:) :: bad, buffer
-     !real(dp),     allocatable, dimension(:,:) :: mask_solar
-     
-     ntod = size(res)
-     nmax = 1000
-     
-      ! Compute rms
-      rms = 0.d0
-      n   = 0
-      do i = 1, ntod
-         if (mask(i) /= 1.) cycle
-         rms = rms + res(i)**2
-         n   = n   + 1
-      end do
-      rms = sqrt(rms/(n-1))
-
-!      write(*,*) 'a'
-      ! Get full-sky mask
-!      if (associated(self%mask_solar)) then
-!         allocate(mask_solar(0:12*self%nside**2-1,1))
-!         call self%mask_solar%bcast_fullsky_map(mask_solar)
-!      end if
-
-      
-!      write(*,*) 'b'
-      ! Look for strong outliers and masked samples, save bad ranges
-      allocate(bad(2,nmax))
-      bad = -1
-      n   = 0
-      do i = 1, ntod
-
-         ! Apply RMS selection criterium
-         if (mask(i) == 1) then
-            cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms
-         else
-            cut = .false.
-         end if
-         
-         ! Apply solar mask selection criterium
-!         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
-!         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
-         !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
-         if (allocated(self%mask_solar) .and. self%use_solar_point) then
-            cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
-         end if
-
-         if (cut) then
-            ! Start new range if not already active
-            if (bad(1,n+1) == -1) bad(1,n+1) = i
-            mask(i) = 0.
-         else
-            ! Close active range
-            if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-               bad(2,n+1) = i-1
-               n          = n+1
-            end if
-         end if
-         
-         ! Increase array size if needed
-         if (n == nmax) then
-            nmax = 2*nmax
-            allocate(buffer(2,nmax))
-            buffer = -1
-            buffer(:,1:nmax/2) = bad
-            deallocate(bad)
-            allocate(bad(2,nmax))
-            bad = buffer
-            deallocate(buffer)
-         end if
-      end do
-
-      ! Close open range if needed at the end
-      if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-         bad(2,n+1) = ntod
-         n          = n+1
-      end if
-      
-      ! Store final array
-      if (n > 0) then
-         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
-         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-!!$         do i = 1, n
-!!$            write(*,*) i, bad(:,i)
-!!$         end do
-         !write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
-      end if
-
-      
-!      write(*,*) 'c'
-      deallocate(bad)
-!      if (allocated(mask_solar)) deallocate(mask_solar)
-   end subroutine
-
-   
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod
