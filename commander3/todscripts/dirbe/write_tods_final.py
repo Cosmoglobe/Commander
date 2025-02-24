@@ -57,7 +57,7 @@ TSCAL = 2e-15
 SAMP_RATE = 1 / 8
 SAMP_RATE_DAYS = SAMP_RATE / (24 * 3600)
 
-N_MOON_INTERP = 11
+N_MOON_INTERP = 8640
 
 BEAM_DATA = dirbe_utils.get_beam_data()
 
@@ -118,6 +118,9 @@ class YdayData:
     earth_pos_start: np.ndarray
     earth_pos_stop: np.ndarray
     moon_positions: np.ndarray
+    earth_positions: np.ndarray
+    sat_positions: np.ndarray
+    time_arr: np.ndarray
 
 
 @dataclass
@@ -133,6 +136,9 @@ class CIO:
     earth_pos_start: list[np.ndarray]
     earth_pos_stop: list[np.ndarray]
     moon_positions: list[np.ndarray]
+    earth_positions: list[np.ndarray]
+    sat_positions: list[np.ndarray]
+    time_arr: list[np.ndarray]
 
 
 def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
@@ -149,6 +155,9 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
             earth_pos_start=[yday.earth_pos_start for yday in yday_data],
             earth_pos_stop=[yday.earth_pos_stop for yday in yday_data],
             moon_positions=[yday.moon_positions for yday in yday_data],
+            earth_positions=[yday.earth_positions for yday in yday_data],
+            sat_positions=[yday.sat_positions for yday in yday_data],
+            time_arr=[yday.time_arr for yday in yday_data],
         )
         for band in dirbe_utils.BANDS
     }
@@ -200,9 +209,11 @@ def get_yday_cio_data(
 
     # Convert time to MJD
     time = (START_TIME + TimeDelta(time, format="sec", scale="tai")).mjd
+    time_arr = np.linspace(time[0], time[-1], N_MOON_INTERP)
     sat_pos_start, earth_pos_start= dirbe_utils.get_sat_and_earth_pos(yday, time[0])
     sat_pos_stop, earth_pos_stop = dirbe_utils.get_sat_and_earth_pos(yday, time[-1])
-    moon_positions = dirbe_utils.get_moon_pos(yday, np.linspace(time[0], time[-1], N_MOON_INTERP))
+    sat_positions, earth_positions = dirbe_utils.get_sat_and_earth_pos(yday, time_arr)
+    moon_positions = dirbe_utils.get_moon_pos(yday, time_arr)
 
     # Gap filling
     # Get indexes where time difference is larger than 2 sampling rates and split time array
@@ -440,7 +451,10 @@ def get_yday_cio_data(
         sat_pos_stop=sat_pos_stop, 
         earth_pos_start=earth_pos_start,
         earth_pos_stop=earth_pos_stop,
+        sat_positions=sat_positions,
+        earth_positions=earth_positions,
         moon_positions=moon_positions,
+        time_arr=time_arr
     )
 
 
@@ -536,6 +550,10 @@ def write_band(
         comm_tod.add_field(pid_common_group + "/earthpos_end", cio.earth_pos_stop[pid])
 
         comm_tod.add_field(pid_common_group + "/moonpos_arr", cio.moon_positions[pid])
+        comm_tod.add_field(pid_common_group + "/satpos_arr", cio.sat_positions[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos_arr", cio.earth_positions[pid])
+        comm_tod.add_field(pid_common_group + "/time_arr", cio.time_arr[pid])
+        comm_tod.add_field(pid_common_group + "/time_len", len(cio.time_arr[pid]))
 
         comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(

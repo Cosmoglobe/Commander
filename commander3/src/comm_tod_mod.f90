@@ -84,10 +84,14 @@ module comm_tod_mod
      real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end of chunk
      real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
      real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
-     real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end of chunk
-     real(dp)       :: xarr_moon(11,3)                             ! 11 evenly spaced moon positions (x,y,z) 
-                                                                   ! including first and last point
+     real(dp)       :: x0_earth(3)                                 ! Earth position (x,y,z) for start of chunk
+     real(dp)       :: x1_earth(3)                                 ! Earth position (x,y,z) for end of chunk
+
+     real(dp), allocatable, dimension(:,:) :: xarr_moon            ! Moon positions
+     real(dp), allocatable, dimension(:,:) :: xarr_earth           ! Earth positions
+     real(dp), allocatable, dimension(:,:) :: xarr_obs             ! Observatory positions
+     real(dp), allocatable, dimension(:)   :: time_arr             ! Observatory positions
+     integer(i4b)   :: n_interp                                    ! Number of points used to interpolate
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -1006,7 +1010,17 @@ contains
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
-    call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon, opt=.true.)
+    if (hdf_group_exists(file, slabel // "/common/time_len")) then
+        ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
+        ! Can be generalized, but for now assumes that each location has the same time array.
+        call read_hdf(file, slabel // "/" // "common/time_len",  self%n_interp, opt=.true.)
+        allocate(self%xarr_moon(self%n_interp,3), self%xarr_obs(self%n_interp,3), self%xarr_earth(self%n_interp, 3))
+        allocate(self%time_arr(self%n_interp))
+        call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
+        call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
+        call read_hdf(file, slabel // "/common/earthpos_arr",  self%xarr_obs)
+        call read_hdf(file, slabel // "/common/satpos_arr",  self%xarr_earth)
+    end if
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
