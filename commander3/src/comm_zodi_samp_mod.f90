@@ -736,7 +736,7 @@ contains
                else
                   tod = data(i)%tod%scans(scan)%d(j)%tod
                end if
-               call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_static, pix_static=data(i)%tod%scans(scan)%d(j)%pix_sol)
+               call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_static)
                tod = tod - data(i)%tod%scans(scan)%d(j)%gain * s_static
 
                do k = 1, data(i)%tod%scans(scan)%ntod
@@ -2338,10 +2338,11 @@ contains
      
    end subroutine params_to_model
    
-   subroutine sample_static_zodi_map(cpar, handle)
+   subroutine sample_static_zodi_map(cpar, handle, map_id)
      implicit none
       type(comm_params), intent(inout) :: cpar
-      type(planck_rng), intent(inout) :: handle
+      type(planck_rng),  intent(inout) :: handle
+      character(len=*),  intent(in)    :: map_id
 
       integer(i4b) :: band, i, j, k, ndet, scan, nscan, npix, nmaps, p, ierr, ntod, nhorn, npix_band, ncomp, nactive
       real(dp)     :: res, w, vec(3), elon, amp
@@ -2361,7 +2362,16 @@ contains
       logical(lgt), allocatable, dimension(:)        :: active
 
       if (cpar%myid == 0) then
-         write(*,*) '   Sampling solar centric model maps'
+         if (trim(map_id) == 'solar') then
+            write(*,*) '   Sampling solar centric model maps'
+         else if (trim(map_id) == 'moon') then
+            write(*,*) '   Sampling Moon centric model maps'
+         else if (trim(map_id) == 'earth') then
+            write(*,*) '   Sampling Earth centric model maps'
+         else
+            write(*,*) '   Unknown static map type = ', trim(map_id)
+            stop
+         end if
       end if
 
       ncomp = zodi_model%n_comps
@@ -2369,19 +2379,35 @@ contains
       
       do band = 1, numband
          if (trim(data(band)%tod_type) == 'none') cycle
-         model = cpar%ds_tod_solar_model(data(band)%tod%band)
+         if (trim(map_id) == 'solar') then
+            model = cpar%ds_tod_solar_model(data(band)%tod%band)
+         else if (trim(map_id) == 'moon') then
+            model = cpar%ds_tod_moon_model(data(band)%tod%band)
+         else if (trim(map_id) == 'earth') then
+            model = cpar%ds_tod_earth_model(data(band)%tod%band)
+         end if
          if (trim(model) == 'none') cycle
          if (model(1:1) == '>') then
             do i = 1, numband
                if (trim(data(i)%label) == trim(model(2:))) then
-                  data(band)%tod%map_solar => data(i)%tod%map_solar
+                  if (trim(map_id) == 'solar') then
+                     data(band)%tod%map_solar => data(i)%tod%map_solar
+                  else if (trim(map_id) == 'moon') then
+                     data(band)%tod%map_moon => data(i)%tod%map_moon
+                  else if (trim(map_id) == 'earth') then
+                     data(band)%tod%map_earth => data(i)%tod%map_earth
+                  end if
                   exit
                end if
             end do
             cycle
          end if
-      
-         npix  = 12*data(band)%info%nside**2
+
+         if (trim(map_id) == 'earth') then
+            npix  = NBIN_EARTH_ELON
+         else
+            npix  = 12*data(band)%info%nside**2
+         end if
 
          ! Allocate temporary map structures
          allocate(A(0:npix-1), b(0:npix-1))
@@ -2433,8 +2459,6 @@ contains
                   
                   ! Get data and pointing
                   allocate(pix(ntod, nhorn), psi(ntod, nhorn), flag(ntod), tod(ntod), mask(ntod))
-                  !allocate(flag(ntod), tod(ntod), mask(ntod))
-                  !call data(i)%tod%decompress_pointing_and_flags(scan, j, flag=flag)
                   if (data(i)%tod%compressed_tod) then
                      call data(i)%tod%decompress_tod(scan, j, tod)
                   else
@@ -2446,7 +2470,6 @@ contains
                   do k = 1, data(i)%tod%scans(scan)%ntod
                      mask(k) = procmask(pix(k, 1))
                      if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
-                     !vec(:, k) = data(i)%tod%ind2vec(:, data(i)%tod%pix2ind(pix(k, 1)))
                   end do
                   where (mask > 0.5) 
                      mask = 1.
@@ -2454,25 +2477,27 @@ contains
                      mask = 0.
                   end where
 
-                  ! Compute non-stationary zodi TOD 
-                  call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_zodi, pix_dynamic=pix)
-                  
-                  !call get_zodi_emission(tod=data(i)%tod, pix=pix(:,1), scan=scan, &
-                  !    & det=j, s_zodi_scat=s_scat, s_zodi_therm=s_therm, model=zodi_model)
-                  !call get_s_zodi(s_therm=s_therm, s_scat=s_scat, s_zodi=s_zodi, emissivity=em, albedo=al)
+                  ! Compute non-stationary zodi TOD; exclude current static component
+                  call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_zodi, pix_dynamic=pix, exclude_static=map_id)
                   
                   ! Add residual to mapmaking equation in solar centric coordinates
                   w  = 1.d0/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0**2
                   amp = 1.d0 !zodi_model%amp_static(i)
                   do k = 1, ntod
                      if (mask(k) == 0) cycle
-                     p        = data(i)%tod%scans(scan)%d(j)%pix_sol(k,1)
-                     
-                     call pix2vec_ring(data(i)%tod%nside, p, vec)
-                     elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
+                     if (trim(map_id) == 'solar') then
+                        p = data(i)%tod%scans(scan)%d(j)%pix_sol(k,1)
+                     else if (trim(map_id) == 'moon') then
+                        p = data(i)%tod%scans(scan)%d(j)%pix_moon(k,1)
+                     else if (trim(map_id) == 'earth') then
+                        p = data(i)%tod%scans(scan)%d(j)%earth_elon(k,1)
+                     end if
+
+                     !call pix2vec_ring(data(i)%tod%nside, p, vec)
+                     !elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
                      
                      s_sky(k) = map_sky(1, data(i)%tod%pix2ind(pix(k, 1)), j, 1)  ! zodi is only temperature (for now)
-                     res      = tod(k) - (s_zodi(k)+s_sky(k))
+                     res      = tod(k) / data(i)%tod%scans(scan)%d(j)%gain - (s_zodi(k)+s_sky(k))
                      A(p)     = A(p) + w * amp * amp
                      b(p)     = b(p) + w * amp * res
                   end do
@@ -2488,20 +2513,37 @@ contains
          call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, cpar%comm_chain, ierr)
          
          ! Solve for best-fit map
-         if (.not. associated(data(band)%tod%map_solar)) then
-            allocate(data(band)%tod%map_solar(0:12*data(band)%info%nside**2-1,1))
-         end if
-         where (A > 0.d0)
-            !zodi_model%map_static(:,1) = b/A
-            data(band)%tod%map_solar(:,1) = b/A
-         elsewhere
-            !zodi_model%map_static(:,1) = -1.6375d30
-            data(band)%tod%map_solar(:,1) = -1.6375d30
-         end where
+         if (trim(map_id) == 'solar' .and. .not. associated(data(band)%tod%map_solar)) allocate(data(band)%tod%map_solar(0:12*data(band)%info%nside**2-1,1))
+         if (trim(map_id) == 'moon'  .and. .not. associated(data(band)%tod%map_moon))  allocate(data(band)%tod%map_moon(0:12*data(band)%info%nside**2-1,1))
+         if (trim(map_id) == 'earth' .and. .not. associated(data(band)%tod%map_earth)) allocate(data(band)%tod%map_earth(NBIN_EARTH_ELON))
 
-         if (cpar%myid_chain == 0) then
-            call write_map2('static_'//trim(data(band)%label)//'.fits', real(data(band)%tod%map_solar,dp))
+         if (trim(map_id) == 'solar') then
+            where (A > 0.d0)
+               data(band)%tod%map_solar(:,1) = b/A
+            elsewhere
+               data(band)%tod%map_solar(:,1) = -1.6375d30
+            end where
          end if
+
+         if (trim(map_id) == 'moon') then
+            where (A > 0.d0)
+               data(band)%tod%map_moon(:,1) = b/A
+            elsewhere
+               data(band)%tod%map_moon(:,1) = -1.6375d30
+            end where
+         end if
+         
+         if (trim(map_id) == 'earth') then
+            where (A > 0.d0)
+               data(band)%tod%map_earth = b/A
+            elsewhere
+               data(band)%tod%map_earth = -1.6375d30
+            end where
+         end if
+
+!!$         if (cpar%myid_chain == 0) then
+!!$            call write_map2('static_'//trim(data(band)%label)//'.fits', real(data(band)%tod%map_solar,dp))
+!!$         end if
          
          ! Clean up
          deallocate(A, b, active)

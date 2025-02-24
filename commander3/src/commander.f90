@@ -381,11 +381,10 @@ program commander
          end do
       end select
 
-      ! Sample stationary zodi components with 2D model
-      if (.false.) then
-         call sample_static_zodi_map(cpar, handle)
-      end if
-      !call sample_static_zodi_amps(cpar, handle)
+      ! Sample stationary components
+      if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
+      if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&

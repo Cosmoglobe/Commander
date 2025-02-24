@@ -40,5 +40,11 @@ module comm_defs
   !**************************************************
   integer(i4b), parameter :: GAIN     = 1
   integer(i4b), parameter :: NOISEAMP = 2
+
+  !**************************************************
+  !               Constants
+  !**************************************************
+
+  integer(i4b), parameter :: NBIN_EARTH_ELON = 180
   
 end module comm_defs

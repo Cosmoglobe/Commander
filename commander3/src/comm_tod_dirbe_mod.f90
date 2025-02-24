@@ -115,6 +115,8 @@ contains
       c%correct_orb     = .false.
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
+      c%use_moon_point  = .true.
+      c%use_earth_elon  = .true.
       c%symm_flags      = .false.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       c%chisq_threshold = 50000.
@@ -249,7 +251,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, apply_dynamic_mask
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -298,11 +300,11 @@ contains
       if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
         & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
         & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-         sample_gain        = .true.
-         apply_dynamic_mask = .true.
+         sample_gain        =  iter > 1
+         only_solar_mask    = .false.
       else
-         sample_gain        = .false.
-         apply_dynamic_mask = .false.
+         sample_gain        =  iter > 1
+         only_solar_mask    = .true.
       end if
       !sample_gain = .false.
 
@@ -328,7 +330,6 @@ contains
       call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
-
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
@@ -388,11 +389,11 @@ contains
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
-         if (self%first_call .and. apply_dynamic_mask) then
+         if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j))
+                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
             end do
             call sd%dealloc
             if (.not. any(self%scans(i)%d%accept)) cycle

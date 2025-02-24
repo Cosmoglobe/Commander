@@ -1711,14 +1711,15 @@ contains
    end subroutine read_tod_zodi_params
 
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, pix_static, s_therm, s_scat)
+   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, s_therm, s_scat, exclude_static)
       implicit none
       class(ZodiModel),                 intent(in)               :: zodi_model
       class(comm_tod),                  intent(inout)            :: tod
       integer(i4b),                     intent(in)               :: det, scan
       real(sp),         dimension(:),   intent(out)              :: s
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic,  pix_static
+      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
       real(sp),         dimension(:,:), intent(out),    optional :: s_therm, s_scat
+      character(len=*),                 intent(in),     optional :: exclude_static
       
       integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
       real(sp)     :: w
@@ -1749,16 +1750,40 @@ contains
          deallocate(s_scat_, s_therm_, s_zodi)
       end if
 
-      ! Add static zodi component by Healpix map lookup
-      if (present(pix_static) .and. associated(tod%map_solar)) then
-         nhorn = size(pix_static,2)      
-         do h = 1, nhorn
+      ! Add solar component by Healpix map lookup
+      if (trim(exclude_static) /= 'solar') then
+         do h = 1, tod%nhorn 
             do i = 1, ntod
-               j    = pix_static(i,h)
+               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
                if (tod%map_solar(j,1) > -1.d30) then
                   w    = 1.d0; if (h > 1) w = -1.d0
-                  !s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
                   s(i) = s(i) + w * tod%map_solar(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Moon component by Healpix map lookup
+      if (trim(exclude_static) /= 'moon') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
+               if (tod%map_moon(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_moon(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Earth component by Healpix map lookup
+      if (trim(exclude_static) /= 'earth') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%earth_elon(i,h)
+               if (tod%map_earth(j) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_earth(j)
                end if
             end do
          end do

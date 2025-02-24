@@ -93,6 +93,7 @@ F90SOURCES=hashtbl.f90 \
            comm_f_int_0d_mod.f90 \
            comm_f_int_2d_mod.f90 \
            comm_fft_mod.f90 \
+	   comm_tod_pixhist_mod.f90 \
            comm_tod_noise_psd_mod.f90 \
            comm_tod_mod.f90 \
            comm_tod_mapmaking_mod.f90 \
@@ -197,6 +198,7 @@ comm_tod_simulations_mod.o  : comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.
 comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_jump_mod.o         : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_map_mod.o
+comm_tod_pixhist_mod.o      : comm_tod_mod.o comm_tod_driver_mod.o
 comm_tod_mod.o              : comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o
 comm_tod_pointing_mod.o     : comm_tod_mod.o 
 comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
@@ -219,7 +221,7 @@ comm_tod_lfi_mod.o          : comm_tod_driver_mod.o comm_tod_adc_mod.o
 comm_tod_spider_mod.o       : comm_tod_driver_mod.o
    comm_tod_spider_smod.o      : comm_tod_spider_mod.o
 comm_tod_wmap_mod.o         : comm_tod_driver_mod.o
-comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o
+comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o comm_tod_pixhist_mod.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o
 comm_tod_inst_mod.o         : comm_tod_lb_mod.o comm_tod_lfi_mod.o comm_tod_spider_mod.o comm_tod_wmap_mod.o comm_tod_dirbe_mod.o comm_tod_hfi_mod.o #comm_tod_quiet_mod.o
 

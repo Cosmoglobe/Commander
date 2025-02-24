@@ -85,7 +85,8 @@ module comm_param_mod
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
      logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
      integer(i4b)       :: zodi_solar_nside
-     character(len=2048) :: zodi_solar_initmap, zodi_static_bands
+     logical(lgt)       :: sample_solar_maps, sample_moon_maps, sample_earth_maps
+     character(len=2048) :: zodi_solar_initmap, zodi_moon_initmap, zodi_earth_initmap, zodi_static_bands
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
@@ -181,6 +182,10 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_mask
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_model
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_moon_model
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_moon_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_model
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_init
 
      ! Component parameters
      character(len=2048) :: cs_inst_parfile
@@ -526,7 +531,10 @@ contains
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
        if (cpar%include_TOD_zodi) then
-          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',       par_lgt=cpar%sample_zodi)
+          call get_parameter_hashtable(htbl, 'SAMPLE_SOLAR_MAPS', par_lgt=cpar%sample_solar_maps)
+          call get_parameter_hashtable(htbl, 'SAMPLE_MOON_MAPS',  par_lgt=cpar%sample_moon_maps)
+          call get_parameter_hashtable(htbl, 'SAMPLE_EARTH_MAPS', par_lgt=cpar%sample_earth_maps)
           call get_parameter_hashtable(htbl, 'ZODI_USE_SOLAR_CENTRIC_COMP',  par_lgt=cpar%incl_zodi_solar_comp)
           if (cpar%incl_zodi_solar_comp) then
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_NSIDE',    par_int=cpar%zodi_solar_nside)
@@ -607,6 +615,8 @@ contains
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
     allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
+    allocate(cpar%ds_tod_moon_model(n), cpar%ds_tod_moon_init(n))
+    allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_init(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -684,6 +694,14 @@ contains
                   & par_string=cpar%ds_tod_solar_mask(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_solar_init(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MOON_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_moon_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MOON_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_moon_init(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_EARTH_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_earth_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_EARTH_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_earth_init(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
@@ -3529,6 +3547,8 @@ end subroutine
           call validate_file(trim(cpar%ds_tod_procmask2(i)), 'BAND_TOD_SMALL_PROCMASK'//itext)  ! Procmask2
           call validate_file(trim(cpar%ds_tod_solar_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
           call validate_file(trim(cpar%ds_tod_solar_init(i)), 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext)  ! Initial solar centric map
+          call validate_file(trim(cpar%ds_tod_moon_init(i)), 'BAND_TOD_MOON_CENTRIC_INITMAP'//itext)  ! Initial moon centric map
+          call validate_file(trim(cpar%ds_tod_earth_init(i)), 'BAND_TOD_EARTH_CENTRIC_INITMAP'//itext)  ! Initial Earth centric map
           call validate_file(trim(cpar%ds_tod_filelist(i)), 'BAND_TOD_FILELIST'//itext)   ! Filelist
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') then
             call validate_file(trim(cpar%ds_tod_jumplist(i)), 'BAND_TOD_JUMPLIST'//itext)   ! Jumplist
