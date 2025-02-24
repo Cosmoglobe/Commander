@@ -141,6 +141,21 @@ contains
     self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
          & init_realspace=.false.)
 
+    ! Deconvolve the existing beam if initialized from an input map
+    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          where (self%B_out%b_l(l,:) > 1d-6) 
+             self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+          elsewhere
+             self%x%alm(i,:) = 0.d0
+          end where
+          if (l > 500) then
+             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+          end if
+       end do
+    end if
+    
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
@@ -225,15 +240,18 @@ contains
             self%F(i,j)%p    => comm_map(info)
             self%F_null(i,j) =  .false.
           else
-            do k=1, j
-               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+            do k=1, j-1
+             if(size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0)) then
+              if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
                   self%F(i,j)%p => self%F(i,k)%p
                   self%F_null(i,j) =  .false.
                   exit
-               else if (k==j-1) then
-                  self%F(i,j)%p    => comm_map(info)
-                  self%F_null(i,j) =  .false.
-               end if
+              end if
+             end if
+             if (k==j-1) then !if we got through the whole loop above
+               self%F(i,j)%p    => comm_map(info)
+               self%F_null(i,j) =  .false.
+             end if
             end do
           end if
           if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
@@ -316,7 +334,7 @@ contains
           filename = get_token(temp_filename, ",", 1)
           info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
           self%mono_prior_map => comm_map(info_tempfit, trim(filename))
-       else          
+       else 
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
@@ -488,6 +506,7 @@ contains
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
 
+
     call update_status(status, "initPixreg_specind_pixreg_type")
     
     self%npixreg = 0
@@ -641,7 +660,7 @@ contains
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
-                stop
+                !stop
              end if
           end do !npar
        end if
@@ -1045,7 +1064,7 @@ contains
 !                if (self%myid == 0) write(*,*) 'd1', self%theta(i)%p%map(0,1:self%nmaps)
                 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
 
                    !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
@@ -1890,7 +1909,6 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             !if (info%myid == 0) write(*,*) 'q1, j=',j,  minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1946,6 +1964,7 @@ contains
                          stop !debug, replace by proper stop and error message
                       end if
                       self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
@@ -2083,7 +2102,6 @@ contains
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
-          write(*,*) "skal ikke vaere her, eval", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
           call m%Y()
           m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
           call m%YtW()
@@ -2156,7 +2174,6 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       write(*,*) "skal ikke vaere her, proj", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
        if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
@@ -2623,62 +2640,64 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
-               & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_proplen_'  // trim(postfix) // '.fits'
-             call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          if (self%output_localsamp_maps) then
+             if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+                  & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_proplen_'  // trim(postfix) // '.fits'
+                call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+                
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_nprop_'  // trim(postfix) // '.fits'
+                call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             end if
 
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_nprop_'  // trim(postfix) // '.fits'
-             call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-
-          end if
-
-          !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             
-             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-             tp => comm_map(info)
-             tp%map = self%theta(i)%p%map
-             do p = 1,self%poltype(i)
-                if (self%pol_pixreg_type(p,i) /=3) cycle
-                if (self%poltype(i) == 1) then
-                   p_min=1
-                   p_max=info%nmaps
-                   if (only_pol) p_min = 2
-                else if (self%poltype(i)==2) then
-                   if (p == 1) then
-                      p_min = 1
-                      p_max = 1
+             if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%map = self%theta(i)%p%map
+                do p = 1,self%poltype(i)
+                   if (self%pol_pixreg_type(p,i) /=3) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
                    else
-                      p_min = 2
-                      p_max = info%nmaps
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
                    end if
-                else if (self%poltype(i)==3) then
-                   p_min = p
-                   p_max = p
-                else
-                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                   stop
-                end if
-
-                do j = 0,info%np-1
-                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   
+                   do j = 0,info%np-1
+                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   end do
                 end do
-             end do
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_noSmooth_'  // trim(postfix) // '.fits'
-             call tp%writeFITS(trim(dir)//'/'//trim(filename))
-             call tp%dealloc(); deallocate(tp)
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_noSmooth_'  // trim(postfix) // '.fits'
+                call tp%writeFITS(trim(dir)//'/'//trim(filename))
+                call tp%dealloc(); deallocate(tp)
+             end if
 
           end if
 
           !output theta, proposal length and number of proposals per pixel region to HDF
           if (output_hdf) then
              npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             if (.not. allocated(self%pol_pixreg_type)) then
+                continue
+             else if (any(self%pol_pixreg_type(:npol,i) > 0)) then
                 npr=0
                 do j = 1,npol
                    if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -2706,6 +2725,8 @@ contains
 
                    deallocate(dp_pixreg,int_pixreg)
                 end if
+             else
+               continue
              end if
 
           end if

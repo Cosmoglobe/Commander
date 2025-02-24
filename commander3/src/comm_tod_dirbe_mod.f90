@@ -293,6 +293,7 @@ contains
       !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
       if (trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
+         sample_ncorr = .false.
       else
          sample_ncorr = .false.
       end if
@@ -351,7 +352,6 @@ contains
          call close_hdf_file(tod_file)
          stop
       end if
-
 
 
       !------------------------------------

@@ -180,8 +180,6 @@ contains
                end do
                c%tau0 = c%tau0 / ndet
           else
-               print *, "got to nonzero threshold, aborting"
-               stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & c%threshold, &
                     & c%n, c%nu0, c%tau0)

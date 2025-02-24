@@ -527,6 +527,7 @@ contains
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
+       if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
@@ -542,6 +543,8 @@ contains
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
        end if
+    else
+      cpar%tod_freq = cpar%num_gibbs_iter + 1
     end if
 
     if (cpar%resamp_CMB) then
@@ -589,7 +592,8 @@ contains
     character(len=3) :: itext
     character(len=2) :: jtext
 
-    len_itext=len(trim(itext)) !! FIXME
+    call int2string(1, itext)
+    len_itext=len(trim(itext))
     call get_parameter_hashtable(htbl, 'NUMBAND',             par_int=cpar%numband)
     !call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask, path=.true.)
@@ -781,7 +785,8 @@ contains
     pol_labels(2)='POL'
     pol_labels(3)='POL3'
 
-    len_itext=len(trim(itext)) !FIXME!!
+    call int2string(1, itext)
+    len_itext=len(trim(itext)) 
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile, path=.true.)
     call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
@@ -1000,6 +1005,18 @@ contains
        end if
 
     end do
+
+    if (cpar%myid == 0) then
+      do i = 1, n
+        do j = i+1, n
+          if (trim(cpar%cs_label(i)) == (cpar%cs_label(j))) then
+              write(*,*) 'COMP_LABEL ', i, ' and ', j, ' are both ', trim(cpar%cs_label(i))
+              write(*,*) 'Only unique components labels allowed'
+              stop
+          end if
+        end do
+      end do
+    end if
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
@@ -1096,6 +1113,7 @@ contains
        end if
        cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
+    ! Note to future Mathew: don't try to add path=true, it's not always a path
     call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
     call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i), path=.true.)
     if(cpar%cs_mask(i) /= 'fullsky') then
@@ -2838,6 +2856,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     cpar%cs_almsamp_init(1,i) = 'none'
+    cpar%cs_spec_pixreg(:,1,i) = 'fullsky'
+    cpar%cs_spec_pixreg_map(:,i) = 'fullsky'
 
     call get_parameter_hashtable(htbl, 'COMP_T_E_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
     k = cpar%cs_poltype(2,i)
@@ -3084,7 +3104,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      end if
 
 
-end subroutine
+end subroutine read_zodi_params_hash
 
   ! ********************************************************
   !                     Utility routines
@@ -3491,7 +3511,7 @@ end subroutine
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b) :: i, j
-    character(len=2048) :: chaindir
+    character(len=2048) :: datadir, chaindir, filename, filename1
     character(len=2) :: itext, jtext
     logical(lgt) :: exist
 
@@ -3585,6 +3605,13 @@ end subroutine
           if (trim(cpar%cs_input_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
+          
+          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+            filename = get_token(cpar%cs_mono_prior(i), ":", 2)
+            filename1 = get_token(filename, ",", 1)
+            call validate_file(trim(cpar%datadir) //"/"// trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
+          end if 
+ 
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_prior_amp(i)), 'COMP_AMP_PRIOR_MAP'//itext)
           end if

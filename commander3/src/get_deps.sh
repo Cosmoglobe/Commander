@@ -1,4 +1,7 @@
 #!/bin/bash
+# Produces makefiles that ocntain the actual dependancies of each file
+# usage: bash get_deps.sh *.f90
+
 declare -A blacklist
 
 declare -A srcs_lower
