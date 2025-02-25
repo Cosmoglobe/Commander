@@ -1749,7 +1749,8 @@ contains
 
          deallocate(s_scat_, s_therm_, s_zodi)
       end if
-
+      return
+      
       ! Add solar component by Healpix map lookup
       if (trim(exclude_static) /= 'solar') then
          do h = 1, tod%nhorn 

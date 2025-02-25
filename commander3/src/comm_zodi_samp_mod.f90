@@ -2490,7 +2490,7 @@ contains
                      else if (trim(map_id) == 'moon') then
                         p = data(i)%tod%scans(scan)%d(j)%pix_moon(k,1)
                      else if (trim(map_id) == 'earth') then
-                        p = data(i)%tod%scans(scan)%d(j)%earth_elon(k,1)
+                        p = max(min(int(data(i)%tod%scans(scan)%d(j)%earth_elon(k,1) / (pi/NBIN_EARTH_ELON)), NBIN_EARTH_ELON),1)
                      end if
 
                      !call pix2vec_ring(data(i)%tod%nside, p, vec)

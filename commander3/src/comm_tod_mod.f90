@@ -22,11 +22,16 @@ module comm_tod_mod
   use comm_fft_mod
   use comm_huffman_mod
   use comm_conviqt_mod
+  use comm_tod_cray_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_shared_arr_mod
+  use comm_utils
   USE ISO_C_BINDING
   implicit none
+
+  private
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -36,6 +41,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
+     real(dp)          :: baseline1, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -76,11 +82,17 @@ module comm_tod_mod
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for start of chunk
-     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end f chunk
+     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end of chunk
      real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end f chunk
-     real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end f chunk
+     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
+     real(dp)       :: x0_earth(3)                                 ! Earth position (x,y,z) for start of chunk
+     real(dp)       :: x1_earth(3)                                 ! Earth position (x,y,z) for end of chunk
+
+     real(dp), allocatable, dimension(:,:) :: xarr_moon            ! Moon positions
+     real(dp), allocatable, dimension(:,:) :: xarr_earth           ! Earth positions
+     real(dp), allocatable, dimension(:,:) :: xarr_obs             ! Observatory positions
+     real(dp), allocatable, dimension(:)   :: time_arr             ! Observatory positions
+     integer(i4b)   :: n_interp                                    ! Number of points used to interpolate
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -127,8 +139,9 @@ module comm_tod_mod
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
+     integer(i4b) :: ndark = 0                                    ! number of dark bolometers
+     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
-
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
@@ -137,7 +150,6 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
-     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -151,7 +163,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters, (xi_n, 2)
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs, nobs_lowres                     ! Number of observed pixels for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
@@ -208,7 +220,8 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
-     class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
+     class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -274,6 +287,7 @@ module comm_tod_mod
      procedure                           :: decompress_pointing_and_flags
      procedure                           :: decompress_tod
      procedure                           :: decompress_diodes
+     procedure                           :: decompress_dark_data
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
      procedure                           :: load_instrument_inst
@@ -287,7 +301,7 @@ module comm_tod_mod
      procedure                           :: create_dynamic_mask
      procedure                           :: get_s_static
   end type comm_tod
-
+  
   abstract interface
      subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
@@ -307,7 +321,7 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
-
+  
 contains
 
   subroutine initialize_tod_mod(cpar)
@@ -538,6 +552,15 @@ contains
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
+
+    ! Init cosmic ray template removal
+    if(self%n_cray_temps > 0) then 
+      allocate(self%cray(self%ndet))
+      do i = 1, self%ndet
+        self%cray(i)%p => comm_cray(self%n_cray_temps)
+      end do
+    end if
+
   end subroutine tod_constructor
 
   subroutine precompute_lookups(self)
@@ -654,6 +677,7 @@ contains
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
 
+
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
@@ -668,17 +692,27 @@ contains
 
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
-    self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    if(lmax_sl > 0) then
+      self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
+    end if
+
+    if(lmax_beam > 0) then
+      self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    end if
 
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       !self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
-       !call self%mbeam(i)%p%Y()
+       if(lmax_sl > 0) then
+         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       end if
+
+       if(lmax_beam > 0) then
+         self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
+         call self%mbeam(i)%p%Y()
+       end if
     end do
 
     call close_hdf_file(h5_file)
@@ -943,9 +977,9 @@ contains
     character(len=*), dimension(:), intent(in)    :: detlabels
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j,k,l, n, m, ext(1)
+    integer(i4b)       :: i,j,k,l, n, m, ext(1), setsize(1)
     real(sp)           :: nu
-    real(dp)           :: scalars(4)
+    real(dp)           :: scalars(4), time
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -980,10 +1014,28 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
+   
+    call get_size_hdf(file, slabel // "/common/time", setsize)
 
-    ! Read in time at the start and end of each scan (if available)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
-    call read_hdf(file, slabel // "/common/time_end",  self%t1, opt=.true.)
+    if(setsize(1) == 3) then
+      call read_hdf(file, slabel // "/common/time",  self%t0)
+    else 
+      call read_hdf(file, slabel // "/common/time", time)
+      self%t0(2) = time
+    end if
+
+
+    if (hdf_group_exists(file, slabel // "/common/time_end")) then
+       call get_size_hdf(file, slabel // "/common/time_end", setsize)
+       if (setsize(1) == 3) then
+         call read_hdf(file, slabel // "/common/time_end",  self%t1)
+       else
+         self%t1 = 0
+       end if
+     else
+       self%t1 = 0
+     end if
+
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
     ! Read in satellite and earth position at the start and end of each scan (if available)
@@ -991,6 +1043,18 @@ contains
     call read_hdf(file, slabel // "/common/satpos_end",  self%x1_obs, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
+
+    if (hdf_group_exists(file, slabel // "/common/time_len")) then
+        ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
+        ! Can be generalized, but for now assumes that each location has the same time array.
+        call read_hdf(file, slabel // "/" // "common/time_len",  self%n_interp, opt=.true.)
+        allocate(self%xarr_moon(3,self%n_interp), self%xarr_obs(3,self%n_interp), self%xarr_earth(3,self%n_interp))
+        allocate(self%time_arr(self%n_interp))
+        call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
+        call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
+        call read_hdf(file, slabel // "/common/earthpos_arr",  self%xarr_obs)
+        call read_hdf(file, slabel // "/common/satpos_arr",  self%xarr_earth)
+    end if
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -1130,10 +1194,13 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       !TODO: this needs to be generalized to work for both floats and ints
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
-       deallocate(hsymb_sp, htree)
+       call hufmak_precomp_int(hsymb,htree,self%todkey)
+       deallocate(hsymb, htree)
     end if
 
     ! Read instrument-specific infomation
@@ -1217,7 +1284,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -1228,10 +1295,6 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod .eqv. .false.) then
-             
-          else
-          end if
           if (tod%compressed_tod) then
              allocate(self%d(i)%zdiode(ndiode))
              call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
@@ -1944,6 +2007,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !
@@ -2470,6 +2534,33 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
+  subroutine decompress_dark_data(self, scan, det, dark)
+    ! Decompress dark tods
+    ! 
+    ! Inputs:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     dark detector number
+    !
+    ! Returns:
+    ! ----------
+    ! dark : real(sp) (ntod, ndark)
+    !   dark bolometer data
+
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    real(sp),          dimension(:),    intent(out) :: dark
+
+    dark = 0.0
+    !TODO: this
+
+  end subroutine decompress_dark_data
+
   subroutine decompress_diodes(self, scan, det, diodes, flag, pix, psi)
     ! Decompress per-diode tod information
     ! 
@@ -2570,8 +2661,17 @@ contains
     real(sp),            dimension(:),  intent(out) :: tod
 
     byte,  allocatable, dimension(:)  :: test
+    integer(i4b), allocatable, dimension(:) :: tod_int
 
-    call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    if( index(self%instlabel, 'LFI') /= 0) then ! raw data is naturally a float
+          call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    else ! raw data is an int
+      allocate(tod_int(size(tod)))
+      !write(*,*) self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, size(self%scans(scan)%d(det)%ztod)
+      call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
+      tod = real(tod_int, sp)
+      deallocate(tod_int)
+    endif
 
   end subroutine decompress_tod
   
@@ -2610,17 +2710,22 @@ contains
     integer(i4b),        dimension(:),intent(in)  :: pix, psi
     integer(i4b),        dimension(:),intent(out) :: pix_moon
 
-    integer(i4b) :: i, j
-    real(dp)     :: psi0
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: psi0, dt, t0, t
     real(dp)     :: x_moon(3), x_obs(3), x_obs2moon(3), theta0, phi0, alpha, vec(3), vec0(3), M(3,3), M_ecl2gal(3,3)
 
     call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
     
     do j = 1, tod%scans(scan)%ntod
-       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
-       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
-       alpha   = 0.d0
-       !x_moon  = (1.d0-alpha) * tod%scans(scan)%x0_moon + alpha * tod%scans(scan)%x1_moon   ! Moon position at time t in heliocentric/Ecliptic coordinates
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
+       
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)  + alpha * tod%scans(scan)%xarr_obs(:,b+1)    ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_moon  = (1.d0-alpha) * tod%scans(scan)%xarr_moon(:,b) + alpha * tod%scans(scan)%xarr_moon(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
        
        x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
@@ -2643,16 +2748,23 @@ contains
     integer(i4b),        dimension(:),intent(in)  :: pix
     real(sp),            dimension(:),intent(out) :: earth_elon
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: dt, t0, t
     real(dp)     :: x_obs2earth(3), x_obs(3), x_earth(3), alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
 
     call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
+
     do j = 1, tod%scans(scan)%ntod
-       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
-       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
-       alpha   = 0.d0
-       x_earth = (1.d0-alpha) * tod%scans(scan)%x0_earth + alpha * tod%scans(scan)%x1_earth ! Earth position at time t in heliocentric/Ecliptic coordinates
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
        
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)   + alpha * tod%scans(scan)%xarr_obs(:,b+1)     ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_earth = (1.d0-alpha) * tod%scans(scan)%xarr_earth(:,b) + alpha * tod%scans(scan)%xarr_earth(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
+
        x_obs2earth = x_earth - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2earth = x_obs2earth / sqrt(sum(x_obs2earth**2)) ! Unit vector
 
@@ -2954,7 +3066,10 @@ contains
       ! filter out non zero values
       t0_packed = pack(t0, t0 /= 0.)
       t1_packed = pack(t1, t1 /= 0.)
-      if (size(t0_packed) /= size(t1_packed)) stop "t0 and t1 are not the same size"
+      if (size(t0_packed) /= size(t1_packed)) then
+          write(*,*) "Irregularity in number of unique start/end-times of tods, ", size(t0_packed), ' versus ', size(t1_packed), ' needed for zodi/tod interpolation'
+          stop
+      end if
   
 
       allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))

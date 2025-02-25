@@ -457,7 +457,7 @@ contains
              if (data(i)%tod%map_earth_allocated) then
                 open(58,file=trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_earth_c'//ctext//'_k' // itext // '.dat')
                 do j = 1, NBIN_EARTH_ELON
-                   write(58,*) real(j+0.5,sp)*180./NBIN_EARTH_ELON, data(i)%tod%map_earth(j)
+                   write(58,*) real(j+0.5,sp)*pi/NBIN_EARTH_ELON, data(i)%tod%map_earth(j)
                 end do
                 close(58)
              end if
@@ -518,7 +518,6 @@ contains
 
       call create_hdf_group(chainfile, 'parameters')
       n = size(cpar%cs_label)
-
       do i = 1, n
          !write(*,*) i, trim(adjustl(cpar%cs_label(i)))
          hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
