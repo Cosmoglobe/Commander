@@ -28,6 +28,11 @@ ENABLE_TOD_ANALYSIS           = .true.
 TOD_INCLUDE_ZODI              = .true.
 SAMPLE_ZODI                   = .false.
 
+SAMPLE_SOLAR_MAPS             = .true.
+SAMPLE_MOON_MAPS              = .true.
+SAMPLE_EARTH_MAPS             = .true.  # Only as a function of elongation
+
+
 ##############################################################
 #                       Output options                       #
 ##############################################################
