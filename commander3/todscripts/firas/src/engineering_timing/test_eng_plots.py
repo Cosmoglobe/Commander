@@ -15,27 +15,65 @@
 
 '''
 
-def plot_sdf(sci_mode, t_min, t_max, vmin=None, vmax=None):
+def plot_sdf(sci_mode, t_min, t_max, vmin=None, vmax=None, eng_time=None,
+        eng_data1=None, eng_data2=None, eng_data3=None, eng_xcal=None):
 
-    time = sci_mode['ct_head/time'][()]
+    time = sci_mode['ct_head/time'][()]*(100*u.ns)
+    time = time.to('s').value
     ifgs = sci_mode['ifg_data/ifg'][()].astype(float)
     xcal = sci_mode['dq_data/xcal_pos'][()]
+    data_ready = sci_mode['sci_head/data_ready'][()] # (N_ifgs x 8)
+                                                     # Flagged if anything != 1
+                                                     # See line 206 of
+                                                     # fut_get_qualflags.for
+    data_qual  = sci_mode['sci_head/data_qual'][()]  # (N_ifgs x 60)
+                                                     # Telemetry quality?
+                                                     # See line 172 of
+                                                     # ftb_list_sci_time.for
+                                                     # Also, line 714, flagged
+                                                     # if anything != 0
+    # These are telemetry issues, so it's unlikely to be a huge problem.
+    mtm_length = sci_mode['sci_head']['mtm_length'][()]
+    mtm_speed  = sci_mode['sci_head']['mtm_speed'][()]
+    scan_mode = mtm_length*2 + mtm_speed
     inds = (time > t_min) & (time < t_max)
 
     time = time[inds]
     ifgs = ifgs[inds]
     xcal = xcal[inds]
+    scan_mode = scan_mode[inds]
 
-    ifgs[xcal != 1] = np.nan
+    #ifgs[xcal != 1] = np.nan
 
     med = np.median(ifgs, axis=1)
     ifgs = ifgs.T
     ifgs -=  med
 
 
-    plt.imshow(ifgs, extent=[time[0], time[-1], 0, 511], vmin=vmin, vmax=vmax,
-            aspect='auto', interpolation='none')
-    plt.show()
+    fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True, figsize=(12, 8))
+    axs = axes.flatten()
+
+    if (eng_time is not None):
+        axs[0].plot(eng_time, eng_data3, '.')
+        #axs[0].plot(eng_time, eng_data1, '.')
+        #axs[1].plot(eng_time, eng_data2)
+        axs[1].plot(time, xcal, '.')
+        axs[1].plot(eng_time, eng_xcal[:,0], '.')
+        axs[1].plot(eng_time, eng_xcal[:,1], '.')
+        axs[3].plot(time, scan_mode, '.')
+
+        axs[0].set_title('Existing temp data')
+        axs[1].set_title('Xcal position')
+        #axs[3].set_title('Scan mode')
+
+    #axs[3].imshow(ifgs, extent=[time[0], time[-1], 0, 511], vmin=vmin, vmax=vmax,
+    #        aspect='auto', interpolation='none')
+    d = np.arange(512)[::-1]
+    xx,yy = np.meshgrid(time, d)
+    axs[2].pcolormesh(xx, yy, ifgs, vmin=vmin, vmax=vmax)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig('ifg_with_eng.png')
+    #plt.show()
 
     return
 
@@ -103,6 +141,7 @@ names_en_analog_grt = [
 
 
 data = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng.h5')
+eng = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5')
 sdf = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5')
 
 
@@ -113,6 +152,19 @@ offsets = {}
 # "Binary time"
 # ADT Time, in units of 100ns since 1858-11-17
 bin_time = data['fdq_eng']['ct_head']['time']*(100*u.ns)
+
+# Getting bad flags
+stat_word_5 = eng['en_stat/stat_word_5'][()]
+stat_word_9 = eng['en_stat/stat_word_9'][()]
+stat_word_13 = eng['en_stat/stat_word_13'][()]
+stat_word_16 = eng['en_stat/stat_word_16'][()]
+lvdt_stat_a, lvdt_stat_b = eng['en_stat/lvdt_stat'][()].T
+
+xcal_eng = eng['en_xcal/pos'][()]
+
+filters = (stat_word_9 == 16185)
+
+
 
 dn = 8
 '''
@@ -226,7 +278,17 @@ t0 = 4.1582058e+18*u.ns
 t1 = 4.1582062e+18*u.ns
 t0 = 4.159640058589277e+18*u.ns
 t1 = 4.159660079727482e+18*u.ns
+
+t0 = 4.159641058589277e+18*u.ns
+t1 = 4.159645079727482e+18*u.ns
+t1 = t0 + 1*u.hr
+
+t0 = t_10
+t1 = t_11
 inds = (time > t0) & (time < t1)
+
+
+time = time.to('s')
 
 #inds = (np.arange(len(time)) > 550_000) & (np.arange(len(time)) < 600_000)
 
@@ -241,6 +303,11 @@ for side in ['a', 'b']:
         grts[f'{side}_lo_{grt}'][not_ok] = np.nan
         not_ok = grts[f'{side}_hi_{grt}'] == -9999
         grts[f'{side}_hi_{grt}'][not_ok] = np.nan
+
+        grts[f'{side}_lo_{grt}'][filters] = np.nan
+        grts[f'{side}_hi_{grt}'][filters] = np.nan
+
+not_ok = np.isfinite(grts['a_lo_xcal_tip'])
 
 fig, axes = plt.subplots(8, 4, sharex=True, sharey=False, figsize=(12, 12))
 axs = axes.flatten()
@@ -257,9 +324,40 @@ axs[2].set_title('b, low')
 axs[3].set_title('b, high')
 plt.savefig('temperature_readings.png')
 
+fig, axes = plt.subplots(sharex=True, nrows=2, ncols=3)
+axs = axes.flatten()
+axs[0].plot(time[inds], stat_word_5[inds], '.')
+axs[0].set_title('statword5')
+axs[1].plot(time[inds], stat_word_9[inds], '.')
+axs[1].set_title('statword9')
+axs[2].plot(time[inds], stat_word_13[inds], '.')
+axs[2].set_title('statword13')
+axs[3].plot(time[inds], stat_word_16[inds], '.')
+axs[3].set_title('statword16')
+axs[4].plot(time[inds], lvdt_stat_a[inds], '.')
+axs[4].set_title('lvdta')
+axs[5].plot(time[inds], lvdt_stat_b[inds], '.')
+axs[5].set_title('lvdtb')
+
+print(np.unique(stat_word_5[inds]), 'sw5')
+print(np.unique(stat_word_9[inds]), 'sw9')
+print(np.unique(stat_word_13[inds]), 'sw13')
+print(np.unique(stat_word_16[inds]), 'sw16')
+print(np.unique(lvdt_stat_a[inds]), 'lvdta')
+print(np.unique(lvdt_stat_b[inds]), 'lvdtb')
+plt.savefig('eng_data.png', bbox_inches='tight')
+
 plt.figure()
 ll = sdf['fdq_sdf_ll']
-plot_sdf(ll, t0.value/100, t1.value/100, vmin=-100, vmax=100)
+t0 = t0.to('s').value
+t1 = t1.to('s').value
+plot_sdf(ll, t0, t1, vmin=-100, vmax=100,
+        eng_time=time[inds], 
+        eng_data1=stat_word_9[inds],
+        eng_data2=stat_word_13[inds],
+        eng_data3=not_ok[inds],
+        #eng_data3=lvdt_stat_b[inds],
+        eng_xcal=xcal_eng[inds])
 
 
 plt.show()
@@ -267,6 +365,12 @@ plt.close()
 asdf
 
 from scipy.interpolate import interp1d
+
+stat_word_5 = eng['en_stat/stat_word_5'][()]
+stat_word_9 = eng['en_stat/stat_word_9'][()]
+stat_word_13 = eng['en_stat/stat_word_13'][()]
+stat_word_16 = eng['en_stat/stat_word_16'][()]
+lvdt_stat_a, lvdt_stat_b = eng['en_stat/lvdt_stat'][()].T
 
 for _, j in enumerate(np.arange(-32, 32, dn)):
     t_lo = (time[inds])
