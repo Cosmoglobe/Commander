@@ -207,6 +207,8 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
      !class(comm_map), pointer                          :: mask_solar => null() ! Solar centric/sidelobe mask
      real(dp),           allocatable, dimension(:,:)   :: mask_solar           ! Solar centric/sidelobe mask
+     real(dp),           allocatable, dimension(:,:)   :: mask_moon            ! Moon centric/sidelobe mask
+     real(dp),           allocatable, dimension(:)     :: mask_earth           ! Earth centric/sidelobe mask; elongation only
      logical(lgt)                                      :: map_solar_allocated
      logical(lgt)                                      :: map_moon_allocated
      logical(lgt)                                      :: map_earth_allocated
@@ -367,6 +369,7 @@ contains
     character(len=128),             intent(in)     :: tod_type
 
     integer(i4b) :: i, ndelta, ierr, unit
+    real(sp)     :: elon
     character(len=512) :: datadir, solar_init
 
     self%id            = id
@@ -472,9 +475,20 @@ contains
       self%procmask_zodi => comm_map(self%info, self%procmaskfzodi)
     end if
     if (trim(cpar%ds_tod_solar_mask(id_abs)) /= 'none') then
-       !self%mask_solar => comm_map(self%info, cpar%ds_tod_solar_mask(id_abs))
        allocate(self%mask_solar(0:12*self%nside_param**2-1,1))
        call read_map(cpar%ds_tod_solar_mask(id_abs), self%mask_solar)
+    end if
+    if (trim(cpar%ds_tod_moon_mask(id_abs)) /= 'none') then
+       allocate(self%mask_moon(0:12*self%nside_param**2-1,1))
+       call read_map(cpar%ds_tod_moon_mask(id_abs), self%mask_moon)
+    end if
+    if (trim(cpar%ds_tod_earth_mask(id_abs)) /= 'none') then
+       allocate(self%mask_earth(NBIN_EARTH_ELON))
+       open(58,file=trim(cpar%ds_tod_earth_mask(id_abs)))
+       do i = 1, NBIN_EARTH_ELON
+          read(58,*) elon, self%mask_earth(i)
+       end do
+       close(58)
     end if
     
     do i = 0, self%info%np-1
@@ -593,6 +607,8 @@ contains
        else
           do j = 1, self%ndet
              if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn))
+             if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
+             if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 self%pix2ind(pix(1)) = -1
@@ -613,7 +629,7 @@ contains
              end do
          end do
       end if
-      deallocate(pix)
+      deallocate(pix,psi)
     end do
     self%nobs = count(self%pix2ind == -1)
     allocate(self%ind2pix(self%nobs))
@@ -1032,7 +1048,7 @@ contains
         ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
         ! Can be generalized, but for now assumes that each location has the same time array.
         call read_hdf(file, slabel // "/" // "common/time_len",  self%n_interp, opt=.true.)
-        allocate(self%xarr_moon(self%n_interp,3), self%xarr_obs(self%n_interp,3), self%xarr_earth(self%n_interp, 3))
+        allocate(self%xarr_moon(3,self%n_interp), self%xarr_obs(3,self%n_interp), self%xarr_earth(3,self%n_interp))
         allocate(self%time_arr(self%n_interp))
         call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
         call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
@@ -2694,17 +2710,22 @@ contains
     integer(i4b),        dimension(:),intent(in)  :: pix, psi
     integer(i4b),        dimension(:),intent(out) :: pix_moon
 
-    integer(i4b) :: i, j
-    real(dp)     :: psi0
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: psi0, dt, t0, t
     real(dp)     :: x_moon(3), x_obs(3), x_obs2moon(3), theta0, phi0, alpha, vec(3), vec0(3), M(3,3), M_ecl2gal(3,3)
 
     call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
     
     do j = 1, tod%scans(scan)%ntod
-       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
-       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
-       alpha   = 0.d0
-       !x_moon  = (1.d0-alpha) * tod%scans(scan)%x0_moon + alpha * tod%scans(scan)%x1_moon   ! Moon position at time t in heliocentric/Ecliptic coordinates
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
+       
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)  + alpha * tod%scans(scan)%xarr_obs(:,b+1)    ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_moon  = (1.d0-alpha) * tod%scans(scan)%xarr_moon(:,b) + alpha * tod%scans(scan)%xarr_moon(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
        
        x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
@@ -2727,16 +2748,23 @@ contains
     integer(i4b),        dimension(:),intent(in)  :: pix
     real(sp),            dimension(:),intent(out) :: earth_elon
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: dt, t0, t
     real(dp)     :: x_obs2earth(3), x_obs(3), x_earth(3), alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
 
     call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
+
     do j = 1, tod%scans(scan)%ntod
-       alpha   = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
-       x_obs   = (1.d0-alpha) * tod%scans(scan)%x0_obs + alpha * tod%scans(scan)%x1_obs     ! Observatory position at time t in heliocentric/Ecliptic coordinates
-       alpha   = 0.d0
-       x_earth = (1.d0-alpha) * tod%scans(scan)%x0_earth + alpha * tod%scans(scan)%x1_earth ! Earth position at time t in heliocentric/Ecliptic coordinates
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
        
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)   + alpha * tod%scans(scan)%xarr_obs(:,b+1)     ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_earth = (1.d0-alpha) * tod%scans(scan)%xarr_earth(:,b) + alpha * tod%scans(scan)%xarr_earth(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
+
        x_obs2earth = x_earth - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2earth = x_obs2earth / sqrt(sum(x_obs2earth**2)) ! Unit vector
 
@@ -3144,7 +3172,7 @@ contains
      integer(i4b),        dimension(:), intent(inout) :: flag
      logical(lgt),                      intent(in)    :: only_solar_mask
      
-     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut
+     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut, b_elon
      real(dp) :: rms0
      real(sp) :: var0, threshold, gain
      logical(lgt), dimension(8) :: apply_cut
@@ -3425,6 +3453,30 @@ contains
               end if
            end do
         end if
+        if (allocated(self%mask_moon) .and. self%use_moon_point) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              if (self%mask_moon(self%scans(scan)%d(det)%pix_moon(i,1),1) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+        if (allocated(self%mask_earth) .and. self%use_earth_elon) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              b_elon = max(min(int(self%scans(scan)%d(det)%earth_elon(i,1)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+              if (self%mask_earth(b_elon) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
      
@@ -3473,115 +3525,6 @@ contains
      deallocate(bad, mask_dyn)
    end subroutine create_dynamic_mask
 
-   subroutine create_dynamic_mask2(self, scan, det, res, rms_range, mask)
-     implicit none
-     class(comm_tod),                   intent(inout) :: self
-     integer(i4b),                      intent(in)    :: scan, det
-     real(sp),            dimension(:), intent(in)    :: res
-     real(sp),            dimension(2), intent(in)    :: rms_range
-     real(sp),            dimension(:,:), intent(inout) :: mask
-     
-     logical(lgt) :: cut
-     integer(i4b) :: i, n, ntod, nmax
-     real(dp) :: box_width, rms, vec(3), elon
-     integer(i4b), allocatable, dimension(:,:) :: bad, buffer
-     !real(dp),     allocatable, dimension(:,:) :: mask_solar
-     
-     ntod = size(res)
-     nmax = 1000
-     
-      ! Compute rms
-      rms = 0.d0
-      n   = 0
-      do i = 1, ntod
-         if (mask(i,det) /= 1.) cycle
-         rms = rms + res(i)**2
-         n   = n   + 1
-      end do
-      if (n <= 1) then
-        rms = 0
-      else
-        rms = sqrt(rms/(n-1))
-      end if
-
-!      write(*,*) 'a'
-      ! Get full-sky mask
-!      if (associated(self%mask_solar)) then
-!         allocate(mask_solar(0:12*self%nside**2-1,1))
-!         call self%mask_solar%bcast_fullsky_map(mask_solar)
-!      end if
-
-      
-!      write(*,*) 'b'
-      ! Look for strong outliers and masked samples, save bad ranges
-      allocate(bad(2,nmax))
-      bad = -1
-      n   = 0
-      do i = 1, ntod
-
-         ! Apply RMS selection criterium
-         if (mask(i,det) == 1) then
-            cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms
-         else
-            cut = .false.
-         end if
-         
-         ! Apply solar mask selection criterium
-!         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
-!         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
-         !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
-         if (allocated(self%mask_solar) .and. self%use_solar_point) then
-            cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
-         end if
-
-         if (cut) then
-            ! Start new range if not already active
-            if (bad(1,n+1) == -1) bad(1,n+1) = i
-            mask(i,det) = 0.
-         else
-            ! Close active range
-            if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-               bad(2,n+1) = i-1
-               n          = n+1
-            end if
-         end if
-         
-         ! Increase array size if needed
-         if (n == nmax) then
-            nmax = 2*nmax
-            allocate(buffer(2,nmax))
-            buffer = -1
-            buffer(:,1:nmax/2) = bad
-            deallocate(bad)
-            allocate(bad(2,nmax))
-            bad = buffer
-            deallocate(buffer)
-         end if
-      end do
-
-      ! Close open range if needed at the end
-      if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-         bad(2,n+1) = ntod
-         n          = n+1
-      end if
-      
-      ! Store final array
-      if (n > 0) then
-         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
-         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-!!$         do i = 1, n
-!!$            write(*,*) i, bad(:,i)
-!!$         end do
-         !write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
-      end if
-
-      
-!      write(*,*) 'c'
-      deallocate(bad)
-!      if (allocated(mask_solar)) deallocate(mask_solar)
-   end subroutine
-
-   
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod

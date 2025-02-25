@@ -165,6 +165,7 @@ math_tools.o                :
 comm_sparse_mod.o           : math_tools.o
 powell_mod.o                :
 hmc_mod.o                   :
+comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o
 spline_1d_mod.o             : math_tools.o locate_mod.o
 ars_mod.o                   : sort_utils.o
 comm_4d_map_mod.o           : hashtbl_4dmap.o comm_hdf_mod.o

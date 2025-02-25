@@ -285,7 +285,7 @@ contains
 !!$            & emissivity=tod%zodi_emissivity, &
 !!$            & albedo=tod%zodi_albedo &
 !!$            &)
-          call get_s_tot_zodi(zodi_model, tod, j, scan, self%s_zodi(:, j), pix_dynamic=self%pix(:,j,:), s_scat=self%s_zodi_scat(:,:,j), s_therm=self%s_zodi_therm(:,:,j))
+          call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
 !!$          if (tod%myid == 0) then
 !!$             open(58,file='zodi.dat')
 !!$             do k =  1, size(self%s_zodi(:,j))
