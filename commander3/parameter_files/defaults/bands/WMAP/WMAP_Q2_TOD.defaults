@@ -1,6 +1,7 @@
 #WMAP Q2 TOD default parameters
 
 BAND_LABEL&&&                  = 040-WMAP_Q2
+BAND_INSTRUMENT_LABEL&&&       = 040-WMAP_Q2
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512
@@ -50,6 +51,7 @@ BAND_TOD_START_SCANID&&&       = 0
 BAND_TOD_END_SCANID&&&         = 468  # <= BAND_TOD_TOT_NUMSCAN
 BAND_TOD_TOT_NUMSCAN&&&        = 468
 BAND_TOD_FLAG&&&               = 2047
-BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
+BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = Q213,Q214,Q223,Q224
 BAND_TOD_INIT_FROM_HDF&&&      = default
+N_GIBBS_PER_TOD&&&             = 1

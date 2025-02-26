@@ -20,7 +20,6 @@
 !================================================================================
 module comm_tod_pointing_mod
    use comm_tod_mod
-   use comm_map_mod
    use comm_utils
    implicit none
 
@@ -39,7 +38,7 @@ contains
       real(sp),     dimension(:,:),      intent(out)            :: s_sky, tmask
       real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
 
-      integer(i4b)                                      :: i, p, det, nmap
+      integer(i4b)                                      :: i, j, k, p, det, nmap
       real(sp)                                          :: s
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -51,8 +50,8 @@ contains
       nmap = SIZE(map, 1)
       do det = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(det)%accept) then
-            s_sky(:, det) = 0.d0
-            tmask(:, det) = 0.d0
+            s_sky(:, det) = 0.
+            tmask(:, det) = 0.
             cycle
          end if
          do i = 1, tod%scans(scan_id)%ntod
@@ -60,6 +59,10 @@ contains
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             
             if (nmap == 3) then
+                if ((psi(i,det) > 4096)) then
+                  write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i, det)
+                  cycle
+                end if
                 s_sky(i,det) = map(1,p,det) + &
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
@@ -76,7 +79,7 @@ contains
       if (present(s_bp)) then
          do det = 1, tod%ndet
             if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bp(:,det) = 0.d0
+               s_bp(:,det) = 0.
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
@@ -92,8 +95,6 @@ contains
             end do
          end do
       end if
-
-
    end subroutine project_sky
 
    ! Sky signal template
@@ -143,21 +144,19 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            s_skyA(j, i) = map(1, lpoint, i) + &
+            s_skyA(j, i) = s_skyA(j,i) + map(1, lpoint, i) + &
                        &  sgn(i)*( &
                        &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
                        &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
-            s_skyB(j, i) = map(1, rpoint, i) + &
+            s_skyB(j, i) = s_skyB(j,i) + map(1, rpoint, i) + &
                        &  sgn(i) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
                     
-            if (i == 1) then
-               if (iand(flag(j), tod%flag0) .ne. 0) then
-                  tmask(j, :) = 0.
-               else
-                  tmask(j, :) = pmask(pix(j, 1))*pmask(pix(j,2))
-               end if
+            if (iand(flag(j), tod%flag0) .ne. 0) then
+               tmask(j, i) = 0.
+            else
+               tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
             end if
          end do
       end do

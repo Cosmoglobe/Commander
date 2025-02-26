@@ -1,7 +1,5 @@
 module comm_tod_jump_mod
-  use healpix_types
   use comm_utils
-  use rngmod
   implicit none
 
   interface tod2file

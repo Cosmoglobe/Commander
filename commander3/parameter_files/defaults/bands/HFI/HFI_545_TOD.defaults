@@ -41,9 +41,9 @@ BAND_TOD_START_SCANID&&&       = 700 # 3
 BAND_TOD_END_SCANID&&&         = 18300 #53724
 BAND_TOD_TOT_NUMSCAN&&&        = 18338 #53724
 BAND_TOD_FLAG&&&               = 0
+BAND_TOD_ABSCAL_COMP&&&        = full
+BAND_TOD_DETECTOR_LIST&&&      = 545-1,545-2,545-4
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-#BAND_TOD_DETECTOR_LIST&&&      = 545-1,545-2,545-4
-BAND_TOD_DETECTOR_LIST&&&      = 545-2
 BAND_TOD_INIT_FROM_HDF&&&      = default
 
 #TODO: make these paths into real defaults in the Oslo legacy archive 
@@ -57,6 +57,7 @@ BAND_BANDPASSFILE&&&           = HFI_instrument_v2.h5
 
 BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_545-1_n2048_mask.fits
 BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_545-1_n2048_mask.fits
+N_GIBBS_PER_TOD&&&             = 1
 BAND_TOD_RIMO&&&               = HFI_instrument_v2.h5
 BAND_TOD_FILELIST&&&           = filelist_545_Artem_full_pointing_DPC.txt #filelist_545_Artem_full.txt
 

@@ -30,20 +30,8 @@ module comm_tod_HFI_mod
   !   process_HFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
   use comm_tod_driver_mod
-  use comm_utils
+  use comm_tod_cray_mod
   implicit none
 
   private
@@ -62,7 +50,7 @@ module comm_tod_HFI_mod
   end type comm_HFI_tod
 
   interface comm_HFI_tod
-     procedure constructor
+     procedure constructor_hfi
   end interface comm_HFI_tod
 
 contains
@@ -70,7 +58,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type)
+  function constructor_hfi(cpar, id, id_abs, info, tod_type) result(c)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -93,87 +81,88 @@ contains
 
     implicit none
     type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id_abs
+    integer(i4b),            intent(in) :: id, id_abs
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type
-    class(comm_HFI_tod),     pointer    :: constructor
+    class(comm_HFI_tod),     pointer    :: c
 
-    integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
     ! Allocate object
-    allocate(constructor)
+    allocate(c)
 
     ! Set up noise PSD type and priors
-    constructor%freq            = cpar%ds_label(id_abs)
-    constructor%n_xi            = 3
-    constructor%noise_psd_model = 'oof'
-    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    c%freq            = cpar%ds_label(id_abs)
+    c%n_xi            = 3
+    c%noise_psd_model = 'oof'
+    allocate(c%xi_n_P_uni(c%n_xi,2))
+    allocate(c%xi_n_P_rms(c%n_xi))
 
     ! just so that it actually runs
-    constructor%xi_n_P_uni(2,:) = [0.10d0, 1.0d0]  ! fknee
-    constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+    c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+    c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+    !c%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
 
-    constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
-    constructor%n_cray_temps    = 3
+    c%n_cray_temps    = 3
 
     ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%nhorn           = 1
-    constructor%ndiode          = 1
-    constructor%compressed_tod  = .true.
-    constructor%correct_sl      = .false.
-    constructor%orb_4pi_beam    = .false.
-    constructor%symm_flags      = .false.
-    constructor%chisq_threshold = 1500.d0 !20.d0 ! 9.d0
-    constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    constructor%ntime           = 1
-    constructor%partner         = -1
-    constructor%n_cray_temps    = 3
+    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    c%nhorn           = 1
+    c%compressed_tod  = .true.
+    c%correct_sl      = .false.
+    c%correct_orb     = .true.
+    c%orb_4pi_beam    = .false.
+    c%symm_flags      = .false.
+    c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
+    c%nmaps           = info%nmaps
+    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
+    c%ntime           = 1
+    c%partner         = -1
 
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
-    constructor%nside_beam      = nside_beam
-    
+    c%nside_beam      = nside_beam
+
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
- 
+    call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
+    
     ! Read the actual TOD
-    call constructor%read_tod(constructor%label)
+    call c%read_tod(c%label)
 
     ! Initialize bandpass mean and proposal matrix
-    !call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    !call c%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    call constructor%precompute_lookups()
+    call c%precompute_lookups()
 
     ! Load the instrument file
-    call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
-    !allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
+    !allocate(c%slconv(c%ndet), c%orb_dp)
     
-    allocate(constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-    
+    allocate(c%orb_dp)
+    c%orb_dp => comm_orbdipole(c%mbeam)
+
     ! Initialize all baseline corrections to zero
-    do i = 1, constructor%nscan
-       constructor%scans(i)%d%baseline = 0.d0
+    do i = 1, c%nscan
+      do j = 1, c%ndet
+       c%scans(i)%d(j)%baseline = 0.d0
+      end do
     end do
 
     ! Allocate modulation phase
-    allocate(constructor%mod_phase(constructor%ndet,constructor%nscan))
-    constructor%mod_phase = 1.d0
+    allocate(c%mod_phase(c%ndet,c%nscan))
+    c%mod_phase = 1.d0
     
-  end function constructor
+  end function constructor_hfi
 
   !**************************************************
   !             Driver routine
@@ -238,7 +227,7 @@ contains
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
@@ -269,6 +258,8 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! in K_cmb
     call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! already in K_cmb
 
     ! Distribute processing masks
@@ -310,7 +301,7 @@ contains
        
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, skip_nonlin=.true.)
+       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true.)
 
        ! Estimate modulation baselines; separate for odd and even samples
        if (self%first_call) then
@@ -326,13 +317,14 @@ contains
        !    Not implemented yet
        
        ! Clean up
-       call dealloc_scandata(sd)
+       call sd%dealloc
     end do
     
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask2, procmask2)
-    !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask2, procmask2)
+    call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
+    !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+    !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -356,11 +348,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
 
 !!$       ! Calling Simulation Routine
@@ -405,7 +397,8 @@ contains
 
        ! Sample correlated noise
        !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-       sd%n_corr = 0.
+
+       sd%n_corr = 0.d0
 
        ! Compute noise spectrum parameters
        !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -413,14 +406,14 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod=sd%tod(:, j))
+          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod=sd%tod(:, j))
        end do
 
        ! Select data
        !if (select_data) call remove_bad_data(self, i, sd%flag)
 
        ! Compute chisquare for bandpass fit
-       if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
+       !if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
@@ -446,7 +439,7 @@ contains
        end if
 
        ! Clean up
-       call dealloc_scandata(sd)
+       call sd%dealloc
        deallocate(d_calib)
 
     end do
@@ -511,7 +504,7 @@ contains
     ! Clean up
     call binmap%dealloc()
     if (allocated(slist)) deallocate(slist)
-    deallocate(map_sky, procmask, procmask2)
+    deallocate(map_sky, procmask, procmask2, m_gain)
     if (self%correct_sl) then
        do i = 1, self%ndet
           call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
@@ -581,7 +574,7 @@ contains
        end do
        A1 = A1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b1 = b1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
-       tod%scans(scan)%d(i)%baseline  = b1/A1 + rand_gauss(handle)/sqrt(A1)
+       tod%scans(scan)%d(i)%baseline1  = b1/A1 + rand_gauss(handle)/sqrt(A1)
 
        ! Even samples
        A2 = 0.d0; b2 = 0.d0
@@ -595,7 +588,7 @@ contains
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
 
-       !write(*,*) "baseline=", tod%scans(scan)%d(i)%baseline, tod%scans(scan)%d(i)%baseline2, tod%mod_phase(i,scan)
+       !write(*,*) "baseline=", tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, tod%mod_phase(i,scan)
 
     end do
 
@@ -620,7 +613,7 @@ contains
     !
     ! Returns
     ! ----------
-    !   None, but updates tod%scans(scan)%d(:)%baseline  (for odd samples)
+    !   None, but updates tod%scans(scan)%d(:)%baseline1  (for odd samples)
     !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
     !                     tod%scans(scan)%d(:)%gain (temporary solution)
     !
@@ -639,9 +632,9 @@ contains
        do j = 1, self%ntod, 2
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
              if (mod(j,2) == 1) then
-                mu = mu + self%tod(j,1)-tod%scans(scan)%d(i)%baseline
+                mu = mu + self%tod(j,1)-tod%scans(scan)%d(i)%baseline1
              else
-                mu = mu - self%tod(j,1)-tod%scans(scan)%d(i)%baseline
+                mu = mu - self%tod(j,1)-tod%scans(scan)%d(i)%baseline1
              end if
              n  = n  + 1.d0
           end if
@@ -701,7 +694,7 @@ contains
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
-               self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline)
+               self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
            else
                self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if

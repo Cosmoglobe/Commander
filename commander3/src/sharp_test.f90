@@ -13,7 +13,7 @@ program sharp_test
 
 
   n = 1
-  nside = 2048
+  nside = 64
   lmax  = 3*nside
   nmaps = 1
 
