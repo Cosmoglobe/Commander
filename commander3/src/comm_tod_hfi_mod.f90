@@ -332,7 +332,7 @@ contains
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     call sample_calibration(self, 'abscal', handle, map_sky, procmask2, procmask2)
     !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask2, procmask2)
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -425,7 +425,12 @@ contains
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
-       
+
+!!$       open(58,file='res.dat')
+!!$       do j = 1, sd%ntod
+!!$          write(58,*) j, sd%tod(j,1), d_calib(2,j,1)
+!!$       end do
+!!$       close(58)
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -683,6 +688,12 @@ contains
     real(sp)     :: sgn
     logical :: exists
 
+!!$    open(58,file='tod_adc.dat')
+!!$    do j = 1, self%ntod
+!!$       write(58,*) j, self%tod(j,1)
+!!$    end do
+!!$    close(58)
+    
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle       
        sgn = tod%mod_phase(i,scan)
