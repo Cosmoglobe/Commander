@@ -167,6 +167,13 @@ contains
             & sd%psi(:,j,:), sd%flag(:,j))
     end do
 
+!!$    open(58,file='decomp.dat', recl=1024)
+!!$    do j = 1, sd%ntod
+!!$       write(58,*) j, sd%pix(j,1,1), sd%flag(j,1)
+!!$    end do
+!!$    close(58)
+
+
     if(darkdata_) then
       do j=1, tod%ndark
         call tod%decompress_dark_data(scan, j, sd%dark(:,j))

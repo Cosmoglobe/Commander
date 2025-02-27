@@ -90,7 +90,7 @@ contains
     ! Initialize instrument-specific parameters
     c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     c%nhorn           = 1
-    c%compressed_tod  = .false.
+    c%compressed_tod  = .true.
     c%correct_sl      = .false.
     if(c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
       c%correct_sl    = .false.
@@ -117,7 +117,7 @@ contains
     
     ! Read the actual TOD
     call c%read_tod(c%label)
-
+    
     ! Initialize bandpass mean and proposal matrix
     !call c%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
@@ -224,7 +224,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
-
+    
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
@@ -298,6 +298,12 @@ contains
         if (.not. any(self%scans(i)%d%accept)) cycle
         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true., darkdata=.true.)
 
+!!$        open(58,file='res.dat', recl=1024)
+!!$        do j = 1, sd%ntod
+!!$           write(58,*) j, sd%tod(j,1), sd%pix(j,1,1), sd%flag(j,1)
+!!$        end do
+!!$        close(58)
+        
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
@@ -327,6 +333,9 @@ contains
        call sd%dealloc
     end do
 
+!!$    call mpi_finalize(ierr)
+!!$    stop
+    
     ! Fit global timestream contaminants 
 
     ! Subtract cosmic ray contribution
@@ -397,7 +406,6 @@ contains
        ! Sample correlated noise
 
        !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-
        sd%n_corr = 0.d0
 
        ! Compute noise spectrum parameters
@@ -420,10 +428,9 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
-
-!!$       open(58,file='res.dat')
+!!$       open(58,file='res.dat', recl=1024)
 !!$       do j = 1, sd%ntod
-!!$          write(58,*) j, sd%tod(j,1), d_calib(2,j,1)
+!!$          write(58,*) j, sd%tod(j,1), d_calib(2,j,1), sd%pix(j,1,1), sd%flag(j,1)
 !!$       end do
 !!$       close(58)
 
@@ -627,7 +634,7 @@ contains
        end do
 
        if (n == 0) then
-          write(*,*) "Scan disabled in set_modulation_phase"
+          write(*,*) "Scan disabled in set_modulation_phase; no samples crossing the galactic plane (should not happen)"
           tod%scans(scan)%d(i)%accept = .false.
        else
           mu = mu/n
