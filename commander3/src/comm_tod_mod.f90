@@ -31,7 +31,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
+  public comm_tod, comm_scan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -277,6 +277,7 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
+     procedure                           :: apply_nonlin_corr_inst
      procedure                           :: construct_dipole_template
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
@@ -321,6 +322,44 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
+
+  ! Class for uncompressed data for a given scan
+  type :: comm_scandata
+     integer(i4b) :: ntod, ndet, nhorn, ndelta
+     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
+     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
+     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
+     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
+     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
+     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
+     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
+     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
+     integer(i4b) :: band                                           ! Band ID
+  end type comm_scandata
+
   
 contains
 
@@ -2007,6 +2046,22 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  subroutine apply_nonlin_corr_inst(self, scan, sd)
+    !  Apply an instrument-specific non_linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(in)       :: self
+    integer(i4b),                          intent(in)       :: scan
+    class(comm_scandata),                  intent(inout)    :: sd
+
+    return
+
+  end subroutine apply_nonlin_corr_inst
+  
   
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain

@@ -27,50 +27,7 @@ module comm_tod_driver_mod
   contains
     procedure init_singlehorn => init_det_data_singlehorn
     procedure dealloc         => dealloc_det_data
-
   end type comm_detdata
-
-  ! Class for uncompressed data for a given scan
-  type :: comm_scandata
-     integer(i4b) :: ntod, ndet, nhorn, ndelta
-     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
-     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
-     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
-     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
-     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
-     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
-     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
-     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
-     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
-     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
-     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
-     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
-     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
-     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
-     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
-     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
-     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
-     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
-     integer(i4b) :: band                                           ! Band ID
-   contains
-     procedure  :: init_singlehorn   => init_scan_data_singlehorn
-     procedure  :: init_differential => init_scan_data_differential
-     procedure  :: dealloc           => dealloc_scan_data
-  end type comm_scandata
-
 
 contains
 
@@ -369,7 +326,7 @@ contains
     end do
 
     ! Apply non-linearity corrections
-    !if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd)
+    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd)
     
     !call update_status(status, "todinit_stot")
 
@@ -783,9 +740,9 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
        if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
+          call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
@@ -919,7 +876,7 @@ contains
 
        ! Prepare data
        if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        end if

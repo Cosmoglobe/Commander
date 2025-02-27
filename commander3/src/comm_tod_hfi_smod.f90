@@ -98,6 +98,7 @@ contains
       c%correct_sl    = .true.
     end if  
     c%correct_orb     = .true.
+    c%apply_inst_corr = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .false.
     c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
@@ -330,7 +331,7 @@ contains
 
  
        ! Clean up
-       call sd%dealloc
+       call dealloc_scan_data(sd)
     end do
 
 !!$    call mpi_finalize(ierr)
@@ -350,7 +351,7 @@ contains
 
         call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
 
-        call sd%dealloc
+        call dealloc_scan_data(sd)
       end do
 
       call dd%dealloc
@@ -396,11 +397,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        
        ! Sample correlated noise
@@ -448,7 +449,7 @@ contains
        end if
 
        ! Clean up
-       call sd%dealloc
+       call dealloc_scan_data(sd)
        deallocate(d_calib)
 
     end do
@@ -634,7 +635,7 @@ contains
        end do
 
        if (n == 0) then
-          write(*,*) "Scan disabled in set_modulation_phase; no samples crossing the galactic plane (should not happen)"
+          write(*,*) "set_modulation_phase: no samples crossing the galactic plane. Scan disabled = ", tod%scanid(scan)
           tod%scans(scan)%d(i)%accept = .false.
        else
           mu = mu/n
@@ -672,7 +673,6 @@ contains
 
     integer(i4b) :: i, j
     real(sp)     :: sgn
-    logical :: exists
 
 !!$    open(58,file='tod_adc.dat')
 !!$    do j = 1, self%ntod

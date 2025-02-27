@@ -386,7 +386,7 @@ contains
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
          if (self%first_call) then
@@ -395,9 +395,9 @@ contains
                call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
                     & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
             end do
-            call sd%dealloc
+            call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
          end if
 
          ! Sample correlated noise
@@ -476,7 +476,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          deallocate(d_calib)
       end do
 

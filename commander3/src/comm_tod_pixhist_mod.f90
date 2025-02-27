@@ -34,7 +34,7 @@ contains
        if (.not. any(tod%scans(i)%d%accept)) cycle
 
        ! Prepare data
-       call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
+       call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
 
        ! Find min, max and nhits
        do j = 1, tod%ndet
@@ -51,7 +51,7 @@ contains
        end do
 
        ! Clean up
-       call sd%dealloc
+       call dealloc_scan_data(sd)
     end do
     
   end subroutine compute_min_max_nhit_per_pix
