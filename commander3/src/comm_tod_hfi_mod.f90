@@ -86,7 +86,7 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_HFI_tod),     pointer    :: c
 
-    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
     ! Allocate object
@@ -98,11 +98,14 @@ contains
     c%noise_psd_model = 'oof'
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
-
+    allocate(c%xi_n_nu_fit(c%n_xi,2))
+    
     ! just so that it actually runs
     c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
     c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    !c%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+    do k = 1, c%n_xi
+       c%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! Placeholder
+    end do
 
     c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
@@ -114,7 +117,7 @@ contains
     ! Initialize instrument-specific parameters
     c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     c%nhorn           = 1
-    c%compressed_tod  = .true.
+    c%compressed_tod  = .false.
     c%correct_sl      = .false.
     c%correct_orb     = .true.
     c%orb_4pi_beam    = .false.
@@ -149,7 +152,8 @@ contains
     !allocate(c%slconv(c%ndet), c%orb_dp)
     
     allocate(c%orb_dp)
-    c%orb_dp => comm_orbdipole(c%mbeam)
+    !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
+    c%orb_dp => comm_orbdipole(comm=c%comm)
 
     ! Initialize all baseline corrections to zero
     do i = 1, c%nscan
@@ -217,7 +221,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_gain, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
@@ -236,6 +240,7 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
+    sample_gain           = .false.                ! Don't sample gains until other effects are under better control
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
@@ -321,9 +326,11 @@ contains
     end do
     
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
-    !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
-    !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+    if (sample_gain) then
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
+       !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+       !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+    end if
 
 
     ! Prepare intermediate data structures
