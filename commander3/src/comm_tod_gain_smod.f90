@@ -100,13 +100,15 @@ contains
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
-          if (present(mask_lowres)) then
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
-          else
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
-          end if
+!!$          if (present(mask_lowres)) then
+!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
+!!$          else
+!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
+!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
+!!$          end if
+          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
           if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
              write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
           end if
@@ -126,23 +128,28 @@ contains
     if (.false.) then
        call int2string(tod%scanid(scan_id), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
-       open(58,file='gain_delta_'//itext//'.dat')
-       do i = ext(1), ext(2)
-          write(58,*) i, residual(i,1)
+       open(58,file='gain_delta_'//itext//'.dat', recl=1024)
+       write(58,*) "#", tod%scans(scan_id)%ntod, size(tod_arr), tod%gain0(0), tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
+       do i = 1, size(tod_arr)
+          write(58,*) i, r_fill(i), tod_arr(i,1), s_tot(i,1), mask(i,1)
        end do
-       write(58,*)
-       write(58,*)
-       do i = 1, size(s_invsqrtN,1)
-          write(58,*) i, s_invsqrtN(i,1)
-       end do
-       write(58,*)
-       do i = 1, size(s_tot,1)
-          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-       end do
-       write(58,*)
-       do i = 1, size(s_tot,1)
-          write(58,*) i, tod_arr(i, 1)
-       end do
+       
+!!$       do i = ext(1), ext(2)
+!!$          write(58,*) i, residual(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       write(58,*)
+!!$       do i = 1, size(s_invsqrtN,1)
+!!$          write(58,*) i, s_invsqrtN(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1)
+!!$       end do
        close(58)
     end if
 
@@ -255,14 +262,14 @@ contains
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          !if (j == 1) then
-          !   open(58,file='gain_in.dat')
-          !   do k = 1, size(g,1)
-          !      if (g(k,j,2) > 0) then
-          !         write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-          !      end if
-          !   end do
-          !   close(58)
+          if (j == 1) then
+!!$             open(58,file='gain_in.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
              !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
           !   open(68,file='g.unf', form='unformatted')
@@ -273,7 +280,7 @@ contains
           !   write(68) tod%gain_alpha(j)
           !   write(68) tod%gain_fknee(j)
           !   close(68)
-          !end if
+          end if
 
           sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
@@ -288,11 +295,12 @@ contains
              call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), &
                   & tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           else
-             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), &
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, 1000*tod%gain_sigma_0(j), tod%gain_alpha(j), &
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
 
-         ! Force flat average to zero
+          ! Force flat average to zero
+          !write(*,*) 'disabling gain mean subtraction'
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
@@ -307,15 +315,15 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          !if (j == 1) then
-          !   open(58,file='gain_out.dat')
-          !   do k = 1, size(g,1)
-          !      if (g(k,j,2) > 0) then
-          !         write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-          !      end if
-          !   end do
-          !   close(58)
-          !end if
+          if (j == 1) then
+!!$             open(58,file='gain_out.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
+          end if
        end do
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -469,7 +477,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
+         write(*,*) ' |      abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if

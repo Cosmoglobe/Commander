@@ -80,6 +80,7 @@ contains
     c%nside_def       = 0
     c%fwhm_def        = 0.d0
     c%mono_prior_type = 'none'
+    c%latmask         = -1.d0
     precond_type                = cpar%cg_precond
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)

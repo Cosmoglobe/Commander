@@ -46,7 +46,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 1
+    version = 3
 
     rimo = fits.open(args.rimo)
     
@@ -76,7 +76,9 @@ def main():
                 slData_B, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'fsl_alms_' + str(freq) + '-' + det + '.fits'), return_mmax=True, hdu=2)
 
                 inst_file.add_alms(prefix, 'sl', lfi.getLmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), lfi.complex2realAlms(slData_E, mmax_s), lfi.complex2realAlms(slData_B, mmax_s))
-
+            else:
+                #we need sidelobe models for 545 and 857
+                inst_file.add_alms(prefix, 'sl', 0, 0, [0], [0], [0])
 
 
             inst_file.add_alms(prefix, 'beam', lfi.getLmax(len(beamData), mmax_b), mmax_b, lfi.complex2realAlms(beamData, mmax_b), None, None)

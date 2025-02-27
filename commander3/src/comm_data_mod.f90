@@ -675,7 +675,7 @@ contains
     integer(i4b),      intent(in)    :: band
     character(len=*),  intent(out)   :: mapfile
 
-    integer(i4b)       :: i, n, unit
+    integer(i4b)       :: i, j, n, unit
     character(len=512) :: filename
 
     filename = trim(adjustl(cpar%ds_mapfile(band)))
@@ -700,6 +700,7 @@ contains
     type(comm_params), intent(in)    :: cpar
     
     integer(i4b) :: i, j
+    real(sp)           :: elon
     character(len=512) :: model
     
     ! Initialize solar centric maps
@@ -727,6 +728,61 @@ contains
        end if
     end do
 
+    ! Initialize Moon centric maps
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_moon_allocated = .false.
+       model = cpar%ds_tod_moon_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_moon => data(j)%tod%map_moon
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_moon_allocated = .true.
+          allocate(data(i)%tod%map_moon(0:data(i)%info%npix-1,1))
+          if (trim(cpar%ds_tod_moon_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_moon = 0.d0
+          else
+             call read_map(cpar%ds_tod_moon_init(data(i)%tod%band), data(i)%tod%map_moon)
+          end if
+       end if
+    end do
+
+    ! Initialize Earth elongation profiles
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_earth_allocated = .false.
+       model = cpar%ds_tod_earth_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_earth => data(j)%tod%map_earth
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_earth_allocated = .true.
+          allocate(data(i)%tod%map_earth(1:NBIN_EARTH_ELON))
+          if (trim(cpar%ds_tod_earth_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_earth = 0.d0
+          else
+             open(58,file=trim(cpar%ds_tod_earth_init(data(i)%tod%band)))
+             do j = 1, NBIN_EARTH_ELON
+                read(58,*) elon, data(i)%tod%map_earth(j)
+             end do
+             close(58)
+          end if
+       end if
+    end do
+
+    
   end subroutine initialize_inter_tod_params
 
   
