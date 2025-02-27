@@ -400,6 +400,7 @@ contains
     !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
     !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
 
+
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -454,6 +455,13 @@ contains
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
+
+
+!!$       open(58,file='res.dat')
+!!$       do j = 1, sd%ntod
+!!$          write(58,*) j, sd%tod(j,1), d_calib(2,j,1)
+!!$       end do
+!!$       close(58)
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -695,6 +703,12 @@ contains
     real(sp)     :: sgn
     logical :: exists
 
+!!$    open(58,file='tod_adc.dat')
+!!$    do j = 1, self%ntod
+!!$       write(58,*) j, self%tod(j,1)
+!!$    end do
+!!$    close(58)
+    
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle       
        sgn = tod%mod_phase(i,scan)
