@@ -229,7 +229,7 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = .false.                ! Don't sample gains until other effects are under better control
+    sample_gain           = .true.                ! Don't sample gains until other effects are under better control
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
@@ -265,9 +265,6 @@ contains
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     !call self%procmask%writeFITS("mask.fits")
     
-!    call mpi_finalize(ierr)
-!    stop
-
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
        if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
