@@ -29,7 +29,7 @@ COMP_CL_L_PIVOT&&             = 50          # Pivot multipole
 COMP_CL_DEFAULT_AMP_T&&       =  1e7        # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       =  500
 COMP_CL_DEFAULT_AMP_B&&       =  500
-COMP_CL_DEFAULT_BETA_T&&      =  5.d0
+COMP_CL_DEFAULT_BETA_T&&      =  10.d0
 COMP_CL_DEFAULT_BETA_E&&      =  10.d0
 COMP_CL_DEFAULT_BETA_B&&      =  10.d0
 
@@ -52,7 +52,7 @@ COMP_BETA_SMOOTHING_SCALE&&   = 1
 COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 
 COMP_T_DEFAULT&&              = 16.
-COMP_T_PRIOR_UNI_LOW&&        = 8.
+COMP_T_PRIOR_UNI_LOW&&        = 7.5
 COMP_T_PRIOR_UNI_HIGH&&       = 20.
 COMP_T_PRIOR_GAUSS_MEAN&&     = 18
 COMP_T_PRIOR_GAUSS_RMS&&      =  1.

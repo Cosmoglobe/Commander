@@ -186,5 +186,12 @@ class hfi(object):
         if version == 1:
             print("Should check the version here")
 
-        if version > 1:
+        if version == 2:
+            print("I don't know how this is supposed to be different than 1")
+
+        if version == 3:
+            if f['545-1/sllmax'] != 0:
+                print("HFI instrument file doesn't contain sidelobes for 545")
+
+        if version > 3:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")

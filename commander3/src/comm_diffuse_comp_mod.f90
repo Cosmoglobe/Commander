@@ -245,24 +245,24 @@ interface
   end subroutine initSpecindProp
 
 
-  module subroutine initDiffPrecond(comm)
+  module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond
 
-  module subroutine initDiffPrecond_diagonal(comm)
+  module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_diagonal
 
 
-  module subroutine initDiffPrecond_pseudoinv(comm)
+  module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_pseudoinv
@@ -336,25 +336,28 @@ interface
   end function projectDiffuseBand
 
 
-  module subroutine applyDiffPrecond(x)
+  module subroutine applyDiffPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond
 
 
-  module subroutine applyDiffPrecond_diagonal(x)
+  module subroutine applyDiffPrecond_diagonal(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_diagonal
 
 
-  module subroutine applyDiffPrecond_pseudoinv(x)
+  module subroutine applyDiffPrecond_pseudoinv(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_pseudoinv
@@ -434,8 +437,9 @@ interface
 
 
   
-  module subroutine print_precond_mat
+  module subroutine print_precond_mat(samp_group)
     implicit none
+    integer(i4b),                     intent(in)    :: samp_group
   end subroutine print_precond_mat
 
   module subroutine updateDiffuseFInt(self, band)

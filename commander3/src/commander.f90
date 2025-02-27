@@ -22,6 +22,7 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_sparse_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -54,7 +55,14 @@ program commander
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
-    call get_command_argument(arg_indx, arg)
+    call get_command_argument(arg_indx, arg, j, stat)
+    if (stat .ne. 0) then
+      if (stat == -1) then
+        write(*,*) 'Command line argument was truncated: ', arg
+      else 
+        write(*,*) 'Command line argument retrieval failed: ', arg
+      end if
+    end if
 
     select case (arg)
       case ('-v', '--version')
@@ -259,7 +267,7 @@ program commander
   iter  = first_sample
   first = .true.
   first_zodi = .true.
-  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
+  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind .or. cpar%mcmc_num_samp_groups > 0)) modfact = 2
   !----------------------------------------------------------------------------------
   ! Part of Simulation routine
   !----------------------------------------------------------------------------------
@@ -344,10 +352,12 @@ program commander
 !     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
+      call downsamp_invariant_structs(cpar)
       if (first_zodi) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
-         call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
+      else
+         call apply_zodi_glitch_mask(cpar)
       end if
 
 !!$      do i = 1, zodi_model%n_comps
@@ -357,9 +367,10 @@ program commander
 !!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
 !!$      end do
       
+
       call compute_downsamp_zodi(cpar, zodi_model)      
       if (first_zodi) then
-         call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+         !call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)
          call create_zodi_glitch_mask(cpar, handle)
          first_zodi = .false.
@@ -377,9 +388,10 @@ program commander
          end do
       end select
 
-      ! Sample stationary zodi components with 2D model
-      !call sample_static_zodi_map(cpar, handle)
-      !call sample_static_zodi_amps(cpar, handle)
+      ! Sample stationary components
+      if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
+      if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -412,11 +424,11 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 1) then
+     if (cpar%sample_signal_amplitudes .and. iter > 0) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)

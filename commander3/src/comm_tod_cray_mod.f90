@@ -68,9 +68,11 @@ contains
     end subroutine build_cray_templates
 
     ! fits the constructed templates to the cosmic rays in the timestreams
-    subroutine fit_cray_amplitudes(self)
+    subroutine fit_cray_amplitudes(self, tod, cr)
       implicit none
       class(comm_cray),                          intent(inout) :: self
+      real(sp), dimension(:),                    intent(in)    :: tod
+      real(sp), dimension(:),                    intent(inout) :: cr
 
     end subroutine fit_cray_amplitudes
 

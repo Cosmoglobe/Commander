@@ -462,7 +462,8 @@ contains
        end if
 
        ! Check MH statistic
-       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2 .or. negative
+       !reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2 .or. negative
+       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
        call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
 
