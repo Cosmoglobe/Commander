@@ -8,15 +8,12 @@ from pathlib import Path
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
+from globals import COORDINATES, OFFSET, T_CMB
 from my_utils import planck
 
 user = os.environ["USER"]
 save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
 
-COORDINATES = "G"
-
-OFFSET = 0.5
-T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
@@ -27,16 +24,12 @@ sky = {}
 scan = {}
 if COORDINATES == "G":
     pix_gal = {}
-    if OFFSET == 0:
-        folder = "galactic"
-    else:
-        folder = f"galactic_offset_{OFFSET}"
+    folder = "galactic"
+
 elif COORDINATES == "E":
     pix_ecl = {}
-    if OFFSET == 0:
-        folder = "ecliptic"
-    else:
-        folder = f"ecliptic_offset_{OFFSET}"
+    folder = "ecliptic"
+
 
 for channel in channels.keys():
     for mode in modes.keys():
@@ -129,7 +122,9 @@ for channel in channels.keys():
             Path.mkdir(
                 Path(f"{save_path}maps/hit_maps/{folder}"), parents=True, exist_ok=True
             )
-            plt.savefig(f"{save_path}maps/hit_maps/{folder}/{f"{channel}_{mode}"}.png")
+            plt.savefig(
+                f"{save_path}maps/hit_maps/{folder}/{f"{channel}_{mode}_offset{OFFSET}"}.png"
+            )
             plt.close()
 # for i in range(len(pix_terr)):
 #     hpxmap[pix_terr[i]] += np.abs(sky[i])
@@ -174,7 +169,7 @@ for channel in channels.keys():
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"{save_path}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"{save_path}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_offset{OFFSET}.png"
                 )
                 plt.close()
 
@@ -218,7 +213,9 @@ for freq in range(len(f_ghz["ll_lf"])):
         max=200,
     )
     # hp.graticule(coord="G")
-    plt.savefig(f"{save_path}maps/joint/{folder}/{int(f_ghz['ll_lf'][freq]):04d}.png")
+    plt.savefig(
+        f"{save_path}maps/joint/{folder}/{int(f_ghz['ll_lf'][freq]):04d}_offset{OFFSET}.png"
+    )
     plt.close()
 
 # high frequencies
@@ -250,7 +247,9 @@ for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
         max=200,
     )
     # hp.graticule(coord="G")
-    plt.savefig(f"{save_path}maps/joint/{folder}/{int(f_ghz['lh_ss'][freq]):04d}.png")
+    plt.savefig(
+        f"{save_path}maps/joint/{folder}/{int(f_ghz['lh_ss'][freq]):04d}_offset{OFFSET}.png"
+    )
     plt.close()
 
 print("plotting up/down scan map")
@@ -314,7 +313,7 @@ for channel in channels.keys():
                     max=200,
                 )
                 plt.savefig(
-                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up.png"
+                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up_offset{OFFSET}.png"
                 )
                 plt.close()
 
@@ -327,7 +326,7 @@ for channel in channels.keys():
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
-                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down.png"
+                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down_offset{OFFSET}.png"
                 )
                 plt.close()
 
