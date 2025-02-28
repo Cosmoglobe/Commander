@@ -358,10 +358,10 @@ for channel, channel_value in channels.items():
             print(spec[f"{channel}_{mode}"].shape)
             print(planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"]).shape)
             bla = spec_to_ifg(
-                # spec=spec[f"{channel}_{mode}"],
+                spec=spec[f"{channel}_{mode}"],
                 # spec=bb_ical[f"{channel}_{mode}"],
-                spec=planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"])
-                - 0.95 * planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"]),
+                # spec=planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"])
+                # - 0.95 * planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"]),
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
