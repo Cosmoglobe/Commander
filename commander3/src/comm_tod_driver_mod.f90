@@ -744,7 +744,7 @@ contains
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
-
+       
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
@@ -782,7 +782,8 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
-       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampel tod'!(mode)
+
+       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
@@ -1021,6 +1022,12 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
        if (tod%compressed_tod) then
+!!$          write(*,*) 'calib g', tod%scanid(scan), inv_gain
+!!$          write(*,*) 'calib d', tod%scanid(scan), maxval(abs(sd%tod(:,j)))
+!!$          write(*,*) 'calib n', tod%scanid(scan), maxval(abs(sd%n_corr(:,j)))
+!!$          write(*,*) 'calib t', tod%scanid(scan), maxval(abs(sd%s_tot(:,j)))
+!!$          write(*,*) 'calib s', tod%scanid(scan), maxval(abs(sd%s_sky(:,j)))
+!!$          write(*,*) 'calib b', tod%scanid(scan), maxval(abs(sd%s_bp(:,j)))
         d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else

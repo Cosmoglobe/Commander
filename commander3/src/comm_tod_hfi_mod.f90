@@ -40,7 +40,7 @@ module comm_tod_hfi_mod
   public comm_hfi_tod
 
   type, extends(comm_tod) :: comm_hfi_tod
-     integer(i4b), allocatable, dimension(:,:)   :: mod_phase
+     real(sp), allocatable, dimension(:,:)   :: mod_phase
      class(comm_crosstalk), pointer :: xtalk
    contains
      procedure     :: process_tod             => process_hfi_tod

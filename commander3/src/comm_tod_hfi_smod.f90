@@ -63,22 +63,25 @@ contains
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
     c%n_xi            = 3
-    c%noise_psd_model = 'oof'
+    !c%noise_psd_model = 'white'       ! Using white noise until we get better estimates of the actual noise PSD
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
     ! just so that it actually runs
-    c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+    c%xi_n_P_uni(2,:) = [0.001d0, 1.0d0]  ! fknee
     c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    do k = 1, c%n_xi
-       c%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! Placeholder
-    end do
+    !do k = 1, c%n_xi
+    !   c%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! Placeholder
+    !end do
     
     !TODO: These numbers are made up, we should refine them
     c%xi_n_nu_fit(1,:) = [3.d0, 10.d0] 
     c%xi_n_nu_fit(2,:) = [0.d0, 1.25d0]
     c%xi_n_nu_fit(3,:) = [0.d0, 1.25d0]
-    c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    !c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_P_rms      = [-1.d0, 0.1d0, -1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
 
     c%n_cray_temps    = 3
 
@@ -88,7 +91,7 @@ contains
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nhorn           = 1
     c%compressed_tod  = .true.
     c%correct_sl      = .false.
@@ -144,7 +147,7 @@ contains
 
     ! Allocate modulation phase
     allocate(c%mod_phase(c%ndet,c%nscan))
-    c%mod_phase = 1.d0
+    c%mod_phase = 1.0
    
     ! initialize crosstalk class
     allocate(correlations(c%ndet, c%ndet))
@@ -209,7 +212,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_gain, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
@@ -229,7 +232,8 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = .true.                ! Don't sample gains until other effects are under better control
+    sample_gain           = .false.                 
+    sample_ncorr          = iter > 1 !.true.                
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
@@ -343,13 +347,13 @@ contains
 
       call self%cray(j)%p%build_cray_templates()
 
-      do i=1, self%nscan
-        call populate_sd_from_dd(sd, dd, i, j)
-
-        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
-
-        call dealloc_scan_data(sd)
-      end do
+!!$      do i=1, self%nscan
+!!$        call populate_sd_from_dd(sd, dd, i, j)
+!!$
+!!$        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
+!!$
+!!$        call dealloc_scan_data(sd)
+!!$      end do
 
       call dd%dealloc
     end do
@@ -393,22 +397,47 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
-!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
-       
+                     
+       ! Create dynamic mask
+       if (self%first_call) then
+          ! Estimate sigma0 for masking
+          sd%n_corr = 0.d0
+          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+
+          ! Create mask
+          do j = 1, sd%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                  & [-5.,5.], sd%mask(:,j), sd%flag(:,j), .false., [.true.,.true.,.true.,.true.,.false.,.true.,.false.,.false.])
+          end do
+          call dealloc_scan_data(sd)
+          if (.not. any(self%scans(i)%d%accept)) cycle
+
+          ! Update scan data with new flagging
+          if (sample_rel_bandpass) then
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          else if (sample_abs_bandpass) then
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          else
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          end if
+       end if
+
        ! Sample correlated noise
-
-       !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-       sd%n_corr = 0.d0
-
-       ! Compute noise spectrum parameters
-       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-
+       if (sample_ncorr) then
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
+          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       else
+          sd%n_corr = 0.d0
+          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+       end if
+       
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -426,11 +455,13 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
-!!$       open(58,file='res.dat', recl=1024)
-!!$       do j = 1, sd%ntod
-!!$          write(58,*) j, sd%tod(j,1), d_calib(2,j,1), sd%pix(j,1,1), sd%flag(j,1)
-!!$       end do
-!!$       close(58)
+       if (self%scanid(i) == 500) then
+          open(58,file='res'//samptext//'.dat', recl=1024)
+          do j = 1, sd%ntod
+             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1)))
+          end do
+          close(58)
+       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -550,7 +581,8 @@ contains
     ! tod%scans(scan)%d(i)%gain - the gain constant over a scan [real number]
     ! sd = self --- self%s_tot - sky signal model
     ! self%s_tot(self%ntod, self%ndet) - how s_tot structured
-
+    
+    if (tod%scanid(scan) == 500) open(58,file='baseline.dat', recl=1024)
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        sgn = tod%mod_phase(i,scan)
@@ -562,26 +594,30 @@ contains
           A1 = A1 + 1.d0
           b1 = b1 + self%tod(j,i)
           if (sub_s) b1 = b1 - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
+          if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
        end do
        A1 = A1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b1 = b1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        tod%scans(scan)%d(i)%baseline1  = b1/A1 + rand_gauss(handle)/sqrt(A1)
 
        ! Even samples
+       if (tod%scanid(scan) == 500) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A2 = A2 + 1.d0
           b2 = b2 + self%tod(j,i)
-          if (sub_s) b1 = b1 + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
+          if (sub_s) b2 = b2 + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
+          if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
        end do
        A2 = A2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
 
-       !write(*,*) "baseline=", tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, tod%mod_phase(i,scan)
+       write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
 
     end do
+    if (tod%scanid(scan) == 500) close(58)
 
   end subroutine sample_hfi_baselines
 
@@ -623,9 +659,9 @@ contains
        do j = 1, self%ntod, 2
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
              if (mod(j,2) == 1) then
-                mu = mu + self%tod(j,1)-tod%scans(scan)%d(i)%baseline1
+                mu = mu + (self%tod(j,1)-tod%scans(scan)%d(i)%baseline1)
              else
-                mu = mu - self%tod(j,1)-tod%scans(scan)%d(i)%baseline1
+                mu = mu - (self%tod(j,1)-tod%scans(scan)%d(i)%baseline2)
              end if
              n  = n  + 1.d0
           end if
