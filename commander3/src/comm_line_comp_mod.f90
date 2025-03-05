@@ -151,7 +151,7 @@ contains
              do k = 0, data(i)%ndet
 !                write(*,*) 'line disabled'
                 c%F_int(l,i,k)%p => comm_F_line(c, data(i)%bp(k)%p, .true., &
-                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%RJ2data(k), j)
+                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%bp(k)%p%RJ2data, j)
              end do
              j = j+1
           else

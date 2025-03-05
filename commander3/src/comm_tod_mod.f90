@@ -27,6 +27,7 @@ module comm_tod_mod
   use comm_tod_noise_psd_mod
   use comm_shared_arr_mod
   use comm_utils
+  use comm_bp_mod
   USE ISO_C_BINDING
   implicit none
 
@@ -251,6 +252,9 @@ module comm_tod_mod
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
      integer(i4b), allocatable, dimension(:) :: split
 
+     ! Bandpass, pointer to comm_data%bp
+     class(comm_bp_ptr),   allocatable, dimension(:) :: bp
+     
      ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
    !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
