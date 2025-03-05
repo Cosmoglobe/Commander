@@ -20,7 +20,7 @@ module comm_zodi_mod
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
       character(len=24) :: phasefunc_type, bandpass_type
-      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params, n_phase, numband
+      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params, n_phase_params, numband
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
       real(dp)     :: nu_min_scatter, nu_max_thermal
@@ -99,8 +99,8 @@ contains
     zodi_model%joint_mono       = cpar%zs_joint_mono
     
     if (trim(zodi_model%phasefunc_type) == 'K98') then
-       zodi_model%n_phase = 3*numband
-       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       zodi_model%n_phase_params = 3*numband
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        do i  = 1, numband
           read(band_instlabels(i),*) band
           if (band >= 1 .and. band <= 10) then
@@ -112,13 +112,13 @@ contains
           end if
        end do
     else if (trim(zodi_model%phasefunc_type) == 'Wright') then
-       zodi_model%n_phase = 2
-       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       zodi_model%n_phase_params = 2
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) = -0.3133d0 ! p20
        zodi_model%par_phase(2) =  0.5749d0 ! p21
     else if (trim(zodi_model%phasefunc_type) == 'Hong') then
-       zodi_model%n_phase = 6
-       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       zodi_model%n_phase_params = 6
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) =  0.700d0 ! g_1
        zodi_model%par_phase(2) = -0.200d0 ! g_2       
        zodi_model%par_phase(3) = -0.810d0 ! g_3
@@ -130,55 +130,55 @@ contains
        stop
     end if
       
-      comp_params = cpar%zs_comp_params(:, :, 1)
-      do i = 1, zodi_model%n_comps
-         if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
-            call zodi_model%comp_from_chain(cpar, comp_params, i)
-         end if
-      end do
-      call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
-      call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
+    comp_params = cpar%zs_comp_params(:, :, 1)
+    do i = 1, zodi_model%n_comps
+       if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
+          call zodi_model%comp_from_chain(cpar, comp_params, i)
+       end if
+    end do
+    call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
+    call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
 
-      ! Find total number of free parameters, and set up parameter mapping
-      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
-      zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
-      do i = 1, zodi_model%n_comps
-         zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
-         if (i < zodi_model%n_comps) then
-            zodi_model%comps(i+1)%start_ind = zodi_model%comps(i)%start_ind + &
-                 & zodi_model%comps(i)%npar + 2*numband
-         end if
-      end do
-
-      ! stat =  0  -> sample freely
-      ! stat = -1  -> fix to input
-      ! stat = -2  -> fix to zero
-      ! stat = -3  -> fix to unity
-      ! stat >  0  -> set equal to parameter stat
-      allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
-      allocate(zodi_model%theta2band(zodi_model%npar_tot))
-      allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
-      allocate(zodi_model%theta_scale(zodi_model%npar_tot,2))
-      allocate(zodi_model%par_labels(zodi_model%npar_tot))
-      allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
+    ! Find total number of free parameters, and set up parameter mapping
+    zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
+    zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
+    do i = 1, zodi_model%n_comps
+       zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
+       if (i < zodi_model%n_comps) then
+          zodi_model%comps(i+1)%start_ind = zodi_model%comps(i)%start_ind + &
+               & zodi_model%comps(i)%npar + 2*numband
+       end if
+    end do
       
-      ! Set up sampling groups
-      allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
-      zodi_model%sampgroup_active_band = .false.
-      do i = 1, cpar%zs_num_samp_groups
-         call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
-         do j = 1, ntok
-            k = get_string_index(band_labels, tokens(j))
-            zodi_model%sampgroup_active_band(k,i) = .true. 
-         end do
-         call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
-      end do
-      do i = 1, zodi_model%npar_tot
-         zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
-      end do
-      do i = 1, numband
-         band_update_monopole(i,0) = any(band_update_monopole(i,1:cpar%zs_num_samp_groups))
-      end do
+    ! stat =  0  -> sample freely
+    ! stat = -1  -> fix to input
+    ! stat = -2  -> fix to zero
+    ! stat = -3  -> fix to unity
+    ! stat >  0  -> set equal to parameter stat
+    allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
+    allocate(zodi_model%theta2band(zodi_model%npar_tot))
+    allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
+    allocate(zodi_model%theta_scale(zodi_model%npar_tot,2))
+    allocate(zodi_model%par_labels(zodi_model%npar_tot))
+    allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
+      
+    ! Set up sampling groups
+    allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
+    zodi_model%sampgroup_active_band = .false.
+    do i = 1, cpar%zs_num_samp_groups
+       call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
+       do j = 1, ntok
+          k = get_string_index(band_labels, tokens(j))
+          zodi_model%sampgroup_active_band(k,i) = .true. 
+       end do
+       call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
+    end do
+    do i = 1, zodi_model%npar_tot
+       zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
+    end do
+    do i = 1, numband
+       band_update_monopole(i,0) = any(band_update_monopole(i,1:cpar%zs_num_samp_groups))
+    end do
 
       ! Initialize parameter-band mapping
       zodi_model%theta2band(1:zodi_model%n_general_params) = 0 ! General parameters affect all bands
@@ -298,8 +298,11 @@ contains
    subroutine init_general_params(self, general_params)
       class(ZodiModel), intent(inout) :: self
       real(dp), intent(in) :: general_params(:)
-      self%T_0 = general_params(1)
+      self%T_0   = general_params(1)
       self%delta = general_params(2)
+      if (self%phasefunc_type == 'Hong') then
+         self%par_phase(1:6)   = general_params(3:8)
+      end if
    end subroutine
 
     subroutine init_general_priors_and_scales(self, prior, scale)
@@ -311,7 +314,20 @@ contains
       prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
       scale(1,:) = [286.d0, 3.d0]
       prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
-      scale(2,:) = [0.4d0, 0.01d0]      
+      scale(2,:) = [0.4d0, 0.01d0]
+      prior(:,3) = [-1d0, 1d0, 0.70d0, 0.1d0] ! g_1
+      scale(3,:) = [1d0, 0.01d0]
+      prior(:,4) = [-1d0, 1d0, -0.20d0, 0.1d0] ! g_2
+      scale(4,:) = [1d0, 0.01d0]
+      prior(:,5) = [-1d0, 1d0, -0.81d0, 0.1d0] ! g_3
+      scale(5,:) = [1d0, 0.01d0]
+      prior(:,6) = [0d0, 1d0, 0.665d0, 0.1d0] ! w_1
+      scale(6,:) = [1d0, 0.01d0]
+      prior(:,7) = [0d0, 1d0, 0.330d0, 0.1d0] ! w_2
+      scale(7,:) = [1d0, 0.01d0]
+      prior(:,8) = [0d0, 1d0, 0.005d0, 0.0001d0] ! w_3
+      scale(8,:) = [1d0, 0.0005d0]
+
     end subroutine init_general_priors_and_scales
 
 
@@ -1001,7 +1017,7 @@ contains
            label = comp_param(1)
            call get_tokens(label, '@', comp_param, num=n)
            if (n == 1) then
-              ! General parameter
+              ! General 
               ind = zodi_model%get_par_ind(param=comp_param(1))
               stat(ind) = 0
            else if (n == 2) then
