@@ -9,8 +9,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck
 from utils.config import gen_nyquistl
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck
 
 T_CMB = 2.72548  # Fixsen 2009
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}

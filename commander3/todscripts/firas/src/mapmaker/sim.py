@@ -1,10 +1,6 @@
-import glob
-import os
 import time
 
 import astropy.units as u
-import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from funcs import dust
@@ -12,12 +8,6 @@ from funcs import dust
 dust_map_downgraded_mjy = fits.open("tests/dust_map_downgraded.fits")
 # get map data from the fits file
 dust_map_downgraded_mjy = dust_map_downgraded_mjy[0].data
-
-# plot map
-# hp.mollview(dust_map_downgraded_mjy, title="Dust map", unit="MJy/sr", min=0, max=200)
-# plt.savefig("tests/dust_map_downgraded.png")
-# plt.clf()
-# plt.close()
 
 # frequency mapping
 # nu0 = {"ss": 68.020812, "lf": 23.807283}

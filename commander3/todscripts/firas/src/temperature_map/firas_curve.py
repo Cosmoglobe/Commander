@@ -3,9 +3,16 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-from my_utils import planck, residuals
 from scipy.optimize import minimize
 from utils.config import gen_nyquistl
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+from my_utils import planck, residuals
+
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}

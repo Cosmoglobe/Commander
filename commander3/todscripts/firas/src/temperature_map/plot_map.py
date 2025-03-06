@@ -9,6 +9,13 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from globals import COORDINATES, OFFSET, T_CMB
+
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
 from my_utils import planck
 
 user = os.environ["USER"]

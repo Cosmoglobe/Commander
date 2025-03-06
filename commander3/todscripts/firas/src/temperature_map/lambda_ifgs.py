@@ -1,7 +1,14 @@
 import numpy as np
 from astropy.io import fits
-from my_utils import ifg_to_spec, planck
 from utils.config import gen_nyquistl
+import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+from my_utils import ifg_to_spec, planck
+
 
 data_path = "/mn/stornext/d16/cmbco/ola/firas/coadded_interferograms/"
 

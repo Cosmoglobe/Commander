@@ -5,8 +5,13 @@ Script to take the previously generated cal spectra (cal.npy) and plot them
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from my_utils import planck
 import os
+import sys
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+from my_utils import planck
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
