@@ -100,20 +100,6 @@ def calculate_time_constant(
 
 
 # @njit(parallel=True)
-def my_median(arr):
-    sort = np.zeros_like(arr)
-    for i in prange(len(arr)):
-        tmp = np.sort(arr[i])
-        sort[i] = tmp
-
-    n = arr.shape[1]
-    # n is always even so we can just use this formula
-
-    median = (sort[:, n // 2] + sort[:, n // 2 - 1]) / 2
-    return median
-
-
-# @njit(parallel=True)
 def clean_ifg(
     ifg,
     mtm_length,
@@ -126,7 +112,7 @@ def clean_ifg(
 ):
     # print("ifg shape before subtraction:", ifg.shape)
 
-    median_ifg = np.expand_dims(my_median(ifg), axis=-1)
+    median_ifg = np.expand_dims(np.median(ifg), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg
