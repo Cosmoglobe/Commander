@@ -622,7 +622,7 @@ contains
 
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
     
-    if (myid == 0) write(*,*) trim(message)
+    write(*,*) trim(message)
 
     call mpi_abort(MPI_COMM_WORLD, 1, ierr)
     

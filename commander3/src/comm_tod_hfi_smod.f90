@@ -132,7 +132,7 @@ contains
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
-    !allocate(c%slconv(c%ndet), c%orb_dp)
+    if(c%correct_sl) allocate(c%slconv(c%ndet), c%orb_dp)
     
     allocate(c%orb_dp)
     !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
@@ -377,7 +377,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., sample_rel_bandpass)
+    call binmap%init(self, .true., .false.)!, nplus2=.true.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -494,7 +494,8 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
+         !call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
        else
          call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2, correct_transfer=.true.)
        end if
@@ -614,7 +615,7 @@ contains
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
 
-       write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
+       !write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
 
     end do
     if (tod%scanid(scan) == 500) close(58)
