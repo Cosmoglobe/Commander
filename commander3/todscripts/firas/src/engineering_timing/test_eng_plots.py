@@ -10,70 +10,116 @@
  timing of the engineering frames doesn't exist anymore. Probably some sort of
  packet loss.
 
- Currently I'm trying ot figure this out by looking at very specific regions
+ Currently I'm trying to figure this out by looking at very specific regions
  where the temperature shifts quite rapidly, and the lag is very obvious.
 
 '''
 
-def plot_sdf(sci_mode, t_min, t_max, vmin=None, vmax=None, eng_time=None,
+
+def find_epoch(time):
+    '''
+    Takes time in seconds since MJD=0, returns index of the epoch.
+    '''
+    t_inds = (time >= time_periods)
+    return np.arange(len(time_periods))[t_inds][-1]
+
+def nt(times, epoch):
+    newtime = times - time_periods[epoch]
+    return newtime.to('s')
+
+DATA_DIR = '/mn/stornext/d16/cmbco/ola/firas/initial_data'
+DATA_DIR = '/home/dwatts/Commander/commander3/todscripts/firas/src/engineering_timing'
+
+def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=None,
         eng_data1=None, eng_data2=None, eng_data3=None, eng_xcal=None):
 
-    time = sci_mode['ct_head/time'][()]*(100*u.ns)
-    time = time.to('s').value
-    ifgs = sci_mode['ifg_data/ifg'][()].astype(float)
-    xcal = sci_mode['dq_data/xcal_pos'][()]
-    data_ready = sci_mode['sci_head/data_ready'][()] # (N_ifgs x 8)
+    epoch = find_epoch(t_min)
+
+    time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) - 136*u.s + 42*u.s
+    time1 = time1.to('s')
+    time2 = sci_mode2['ct_head/time'][()]*(100*u.ns) - 136*u.s + 42*u.s
+    time2 = time2.to('s')
+    data_ready = sci_mode1['sci_head/data_ready'][()] # (N_ifgs x 8)
                                                      # Flagged if anything != 1
                                                      # See line 206 of
                                                      # fut_get_qualflags.for
-    data_qual  = sci_mode['sci_head/data_qual'][()]  # (N_ifgs x 60)
+    data_qual  = sci_mode1['sci_head/data_qual'][()]  # (N_ifgs x 60)
                                                      # Telemetry quality?
                                                      # See line 172 of
                                                      # ftb_list_sci_time.for
                                                      # Also, line 714, flagged
                                                      # if anything != 0
     # These are telemetry issues, so it's unlikely to be a huge problem.
-    mtm_length = sci_mode['sci_head']['mtm_length'][()]
-    mtm_speed  = sci_mode['sci_head']['mtm_speed'][()]
+    mtm_length = sci_mode1['sci_head']['mtm_length'][()]
+    mtm_speed  = sci_mode1['sci_head']['mtm_speed'][()]
     scan_mode = mtm_length*2 + mtm_speed
-    inds = (time > t_min) & (time < t_max)
+    inds1 = (time1 > t_min) & (time1 < t_max)
+    inds2 = (time2 > t_min) & (time2 < t_max)
 
-    time = time[inds]
-    ifgs = ifgs[inds]
-    xcal = xcal[inds]
-    scan_mode = scan_mode[inds]
-
-    #ifgs[xcal != 1] = np.nan
-
-    med = np.median(ifgs, axis=1)
-    ifgs = ifgs.T
-    ifgs -=  med
+    time1 = nt(time1[inds1],epoch)
+    time2 = nt(time2[inds2],epoch)
+    xcal1 = sci_mode1['dq_data/xcal_pos'][()]
+    xcal1 = xcal1[inds1]
+    xcal2 = sci_mode2['dq_data/xcal_pos'][()]
+    xcal2 = xcal2[inds2]
+    scan_mode = scan_mode[inds1]
 
 
-    fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True, figsize=(12, 8))
+
+
+    #fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True, figsize=(12, 8))
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 8))
     axs = axes.flatten()
 
+    '''
     if (eng_time is not None):
-        axs[0].plot(eng_time, eng_data3, '.')
+        #axs[0].plot(eng_time, eng_data3, '.')
         #axs[0].plot(eng_time, eng_data1, '.')
         #axs[1].plot(eng_time, eng_data2)
-        axs[1].plot(time, xcal, '.')
+        axs[1].plot(time1, xcal, '.')
         axs[1].plot(eng_time, eng_xcal[:,0], '.')
         axs[1].plot(eng_time, eng_xcal[:,1], '.')
-        axs[3].plot(time, scan_mode, '.')
+        axs[3].plot(time1, scan_mode, '.')
 
-        axs[0].set_title('Existing temp data')
+        #axs[0].set_title('Existing temp data')
         axs[1].set_title('Xcal position')
         #axs[3].set_title('Scan mode')
+    '''
 
     #axs[3].imshow(ifgs, extent=[time[0], time[-1], 0, 511], vmin=vmin, vmax=vmax,
     #        aspect='auto', interpolation='none')
+
+    ifgs = sci_mode1['ifg_data/ifg'][inds1].astype(float)
+    med = np.median(ifgs, axis=1)
+    ifgs1 = ifgs.T
+    ifgs1 -=  med
+   
+    #ifgs1[:,xcal1!=1] = np.nan
+
     d = np.arange(512)[::-1]
-    xx,yy = np.meshgrid(time, d)
-    axs[2].pcolormesh(xx, yy, ifgs, vmin=vmin, vmax=vmax)
+    xx,yy = np.meshgrid(time1.value, d)
+    axs[1].pcolormesh(xx, yy, ifgs1, vmin=vmin, vmax=vmax)
+
+    ifgs = sci_mode2['ifg_data/ifg'][inds2].astype(float)
+    med = np.median(ifgs, axis=1)
+    ifgs2 = ifgs.T
+    ifgs2 -=  med
+
+    #ifgs2[:,xcal2!=1] = np.nan
+
+    xx,yy = np.meshgrid(time2.value, d)
+    axs[0].pcolormesh(xx, yy, ifgs2, vmin=vmin, vmax=vmax)
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.savefig('ifg_with_eng.png')
-    #plt.show()
+    plt.close('all')
+
+
+    for i in range(352, 358):
+        plt.plot(time1, ifgs1[i])
+    plt.figure()
+    for i in range(350, 360):
+        plt.plot(time2, -ifgs2[i])
+    plt.show()
 
     return
 
@@ -95,6 +141,8 @@ time_support()
 # https://docs.astropy.org/en/latest/api/astropy.visualization.time_support.html
 
 # FIRAS mission periods, MJD in ns
+t_launch = (Time('1989:322:14:35').mjd*u.day).to(u.s)
+t_apco = (Time('1989:325:11:18').mjd*u.day).to(u.s) # Aperture cover ejection
 t_00 = (Time('1989:326:11:30').mjd*u.day).to(u.ns) # First light
 t_01 = (Time('1989:328:00:00').mjd*u.day).to(u.ns) # First ICAL nulling
 t_02 = (Time('1989:343:01:52').mjd*u.day).to(u.ns) # MTM uses position mode through SAA
@@ -107,6 +155,26 @@ t_08 = (Time('1990:207:11:04').mjd*u.day).to(u.ns) # Sky horn calibration, XCAL 
 t_09 = (Time('1990:208:11:20').mjd*u.day).to(u.ns) # Horns commanded to final temperature
 t_10 = (Time('1990:220:05:00').mjd*u.day).to(u.ns) # XCAL placed under temperature control
 t_11 = (Time('1990:264:09:36').mjd*u.day).to(u.ns) # Final period over
+
+time_periods = np.array([t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
+period_labels = ['First light',
+                 'First ICAL nulling',
+                 'SAA, MTM on',
+                 '2.70 to 2.75 K',
+                 'SAA, MTM off',
+                 'Eclipse season',
+                 '6K Horns',
+                 '4K Horns',
+                 'Sky horn cal',
+                 'Final horn temps',
+                 'XCAL placed']
+
+
+t_gc1_start = (Time('1990:081:04:09').mjd*u.day).to(u.ns)
+t_gc1_end   = (Time('1990:084:02:23').mjd*u.day).to(u.ns)
+
+t_gc2_start = (Time('1990:254:05:19').mjd*u.day).to(u.ns)
+t_gc2_end   = (Time('1990:259:08:34').mjd*u.day).to(u.ns)
 
 
 lens_grt =  [
@@ -140,9 +208,9 @@ names_en_analog_grt = [
 
 
 
-data = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng.h5')
-eng = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5')
-sdf = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5')
+data = h5py.File(f'{DATA_DIR}/fdq_eng.h5')
+eng = h5py.File(f'{DATA_DIR}/fdq_eng_new.h5')
+sdf = h5py.File(f'{DATA_DIR}/fdq_sdf_new.h5')
 
 
 
@@ -167,6 +235,7 @@ filters = (stat_word_9 == 16185)
 
 
 dn = 8
+dn = 0.5
 '''
 # GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
@@ -283,16 +352,127 @@ t0 = 4.159641058589277e+18*u.ns
 t1 = 4.159645079727482e+18*u.ns
 t1 = t0 + 1*u.hr
 
-t0 = t_10
-t1 = t_11
+t0 = t_01
+t1 = t0 + 204*u.min
+
+t0 = t_gc2_start - 1*u.hour
+t1 = t_gc2_end   + 1*u.hour
+
+# t0 = 2.558e7*u.s + t_apco
+
+# Big slope between 2.558 and 2.559
+
+# t0 = 2.5613e7*u.s + t_apco
+# t1 = 2.5616e7*u.s + t_apco
+
+#t1 = t0 + 2*u.hr
+#
+#t0 = 2.5584e7*u.s + t_apco
+#t1 = 2.5587e7*u.s + t_apco
+
+t0 = t_09
+t1 = t_10
+
+#t0 = 2.197425e7*u.s + t_apco
+#t1 = 2.197475e7*u.s + t_apco
+#
+t0 = 2.197e7*u.s + t_apco
+t1 = 2.198e7*u.s + t_apco
+
+t0 = 546_500*u.s + t_09
+t1 = 548_000*u.s + t_09
+
+t0 = 546_750*u.s + t_09
+t1 = 547_750*u.s + t_09
+
+t0 = 600_000*u.s + t_09
+t1 = 650_000*u.s + t_09
+
+t0 = t_10 + 686_000*u.s
+t1 = t_10 + 686_800*u.s
+
+# Good ICAL variation region
+#t0 = (1.91e7 + 2000)*u.s
+#t1 = (1.91e7 + 5500)*u.s
+
+# First xcal off
+t0 = 1.085e6*u.s + t_02
+t1 = 4.137e9*u.s
+
+# Second
+t0 = (4.139e9 + 500_000)*u.s
+t1 = (4.139e9 + 575_000)*u.s
+
+# Third
+t0 = (4.142e9 + 20_000)*u.s
+t1 = (4.142e9 + 30_000)*u.s
+
+# Fourth
+t0 = 5.235e6*u.s + t_03
+t1 = (4.144e9 + 700_000)*u.s
+
+# Fifth
+t0 = (4.1473e9 + 50_000)*u.s
+t1 = (4.1473e9 + 100_000)*u.s
+t1 = 2.68e6*u.s + t_04
+
+# Sixth
+t0 = (4.1497e9 + 85_000)*u.s
+t1 = (4.1497e9 + 120_000)*u.s
+
+
+# Seventh
+t0 = (4.153e9 + 460_000)*u.s
+t1 = (4.153e9 + 480_000)*u.s
+
+# Eight
+t0 = (4.156e9 + 300_000)*u.s
+t1 = (4.156e9 + 900_000)*u.s
+
+# Nine
+t0 = (4.1576e9 + 10_000)*u.s
+t1 = (4.1576e9 + 30_000)*u.s
+t0 = 805_500*u.s + t_10
+t1 = 815_000*u.s + t_10
+
+# Ten
+t0 = (4.15805e9 +  2_000)*u.s
+t1 = (4.15805e9 + 10_000)*u.s
+
+
+# 11 (ish)
+t0 = 2.455e6*u.s + t_10
+t1 = 2.465e6*u.s + t_10
+
+# 12 (ish)
+t0 = 2.103e6*u.s + t_10
+t1 = 2.110e6*u.s + t_10
+
+
+
+'''
+# Putting the xcal in. Do we get the fuzzy region here?
+t0 = (4.1586e9 + 50_000)*u.s
+t1 = (4.1586e9 + 70_000)*u.s
+t0 = 1.853e6*u.s + t_10
+t1 = 1.856e6*u.s + t_10
+'''
+
+# This seems to have the ifgs being aligned well with the temperature data.
+# I am also not sure that the plateau information is necessary.
+
+
+epoch = find_epoch(t0)
+time = time.to('s')
 inds = (time > t0) & (time < t1)
 
 
-time = time.to('s')
 
 #inds = (np.arange(len(time)) > 550_000) & (np.arange(len(time)) < 600_000)
 
 #inds = np.ones(len(time), dtype=bool)
+
+grt_times = {}
 
 
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
@@ -307,51 +487,123 @@ for side in ['a', 'b']:
         grts[f'{side}_lo_{grt}'][filters] = np.nan
         grts[f'{side}_hi_{grt}'][filters] = np.nan
 
+
+        if (grt == 'collimator') or (grt == 'xcal_cone'):
+            grt_times[f'{side}_lo_{grt}'] = time + 16*u.s
+            grt_times[f'{side}_hi_{grt}'] = time
+        else:
+            grt_times[f'{side}_lo_{grt}'] = time
+            grt_times[f'{side}_hi_{grt}'] = time + 16*u.s
+
 not_ok = np.isfinite(grts['a_lo_xcal_tip'])
 
-fig, axes = plt.subplots(8, 4, sharex=True, sharey=False, figsize=(12, 12))
+fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
 axs = axes.flatten()
-for i, grt in enumerate(grt_names):
-    axs[4*i].plot(time[inds], grts[f'a_lo_{grt}'][inds], '.', label='Low current reading')
-    axs[4*i+1].plot(time[inds], grts[f'a_hi_{grt}'][inds], '.', label='High current reading')
+axs[0].plot(nt(time[inds],epoch), grts[f'a_hi_xcal_cone'][inds] - grts[f'a_hi_ical'][inds],'.')
+axs[1].plot(nt(time[inds],epoch), grts[f'a_lo_xcal_cone'][inds] - grts[f'a_lo_ical'][inds],'.')
+axs[0].margins(0)
+axs[1].set_xlabel(f'Time since epoch {epoch+1} [s]')
+#plt.show()
 
-    axs[4*i+2].plot(time[inds], grts[f'b_lo_{grt}'][inds], '.', label='Low current reading')
-    axs[4*i+3].plot(time[inds], grts[f'b_hi_{grt}'][inds], '.', label='High current reading')
-    axs[4*i].set_ylabel(grt)
-axs[0].set_title('a, low')
-axs[1].set_title('a, high')
-axs[2].set_title('b, low')
-axs[3].set_title('b, high')
-plt.savefig('temperature_readings.png')
+grt_biases = {}
+grt_biases['a_hi_xcal_tip'] = 0.007
+grt_biases['b_hi_xcal_tip'] = 0
+grt_biases['a_hi_skyhorn'] = 0.002
+grt_biases['b_hi_skyhorn'] = 0.00
+grt_biases['a_hi_refhorn'] = 0.0055
+grt_biases['b_hi_refhorn'] = 0.0045
+grt_biases['a_hi_ical'] = 0.013
+grt_biases['b_hi_ical'] = 0.005
+grt_biases['a_hi_dihedral'] = 0.29
+grt_biases['b_hi_dihedral'] = 0.54
+grt_biases['a_hi_mirror'] = 0.65
+grt_biases['b_hi_mirror'] = 0.73
+grt_biases['a_hi_xcal_cone'] = 0.005
+grt_biases['b_hi_xcal_cone'] = 0.0025
+grt_biases['a_hi_collimator'] = 0.69
+grt_biases['b_hi_collimator'] = 0
+
+#grt_names = ['skyhorn','xcal_cone']
+for ji, j in enumerate(np.arange(-5, 5.5, dn)):
+    fig, axes = plt.subplots(4, 4, sharex=True, sharey=False, figsize=(13, 13))
+    axs = axes.flatten()
+    for i, grt in enumerate(grt_names):
+        axs[2*i].plot(nt(grt_times[f'a_lo_{grt}'][inds], epoch), grts[f'a_lo_{grt}'][inds], 'o-', label='Low current reading')
+        axs[2*i].plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], 'o-', label='High current reading')
+        axs[2*i].set_title(f'{grt} readings (a)')
+    
+        axs[2*i+1].plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds], 'o-', label='Low current reading')
+        axs[2*i+1].plot(nt(grt_times[f'b_hi_{grt}'][inds] + j*u.s, epoch), grts[f'b_hi_{grt}'][inds]- grt_biases[f'b_hi_{grt}'], 'o-', label='High current reading')
+        axs[2*i+1].set_title(f'{grt} readings (b)')
+    axs[2*i].legend(loc='best')
+    axs[1].plot(nt(grt_times[f'b_lo_{grt}'][inds],epoch), xcal_eng[inds,0])
+    axs[1].plot(nt(grt_times[f'b_lo_{grt}'][inds],epoch), xcal_eng[inds,1])
+    axs[1].set_title('Xcal position')
+    if ji == 0:
+        xlim = axs[0].get_xlim()
+    else:
+        axs[0].set_xlim(xlim)
+    plt.suptitle(f'Extra {j} seconds')
+    fig.supxlabel(f'Time since epoch {epoch+1} [s]')
+    plt.savefig(f'temperature_readings_{ji:02}.png')
+    plt.close()
+plt.close('all')
+
+grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
+        'mirror', 'xcal_cone', 'collimator']
+
+for i, grt in enumerate(grt_names):
+    if 'xcal' not in grt:
+        continue
+    plt.plot(nt(grt_times[f'a_lo_{grt}'][inds],epoch), grts[f'a_lo_{grt}'][inds],  'o-', label=f'{grt} Low current reading a')
+    plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s,epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], 'o-', label=f'{grt} High current reading a')
+
+    plt.plot(nt(grt_times[f'b_lo_{grt}'][inds],epoch), grts[f'b_lo_{grt}'][inds],  'o-', label=f'{grt} Low current reading b')
+    plt.plot(nt(grt_times[f'b_hi_{grt}'][inds] + j*u.s,epoch), grts[f'b_hi_{grt}'][inds]- grt_biases[f'b_hi_{grt}'], 'o-', label=f'{grt} High current reading b')
+plt.legend(loc='best')
+#plt.show()
+for i, grt in enumerate(grt_names):
+    if 'ical' not in grt:
+        continue
+    plt.plot(nt(grt_times[f'a_lo_{grt}'][inds],epoch), grts[f'a_lo_{grt}'][inds],  'o-', label=f'{grt} Low current reading a')
+    plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s,epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'],  'o-', label=f'{grt} High current reading a')
+
+    plt.plot(nt(grt_times[f'b_lo_{grt}'][inds],epoch), grts[f'b_lo_{grt}'][inds],  'o-', label=f'{grt} Low current reading b')
+    plt.plot(nt(grt_times[f'b_hi_{grt}'][inds] + j*u.s,epoch), grts[f'b_hi_{grt}'][inds]- grt_biases[f'b_hi_{grt}'],  'o-', label=f'{grt} High current reading b')
+plt.legend(loc='best')
+#plt.show()
+
 
 fig, axes = plt.subplots(sharex=True, nrows=2, ncols=3)
 axs = axes.flatten()
-axs[0].plot(time[inds], stat_word_5[inds], '.')
+axs[0].plot(nt(time[inds],epoch), stat_word_5[inds], '.')
 axs[0].set_title('statword5')
-axs[1].plot(time[inds], stat_word_9[inds], '.')
+axs[1].plot(nt(time[inds],epoch), stat_word_9[inds], '.')
 axs[1].set_title('statword9')
-axs[2].plot(time[inds], stat_word_13[inds], '.')
+axs[2].plot(nt(time[inds],epoch), stat_word_13[inds], '.')
 axs[2].set_title('statword13')
-axs[3].plot(time[inds], stat_word_16[inds], '.')
+axs[3].plot(nt(time[inds],epoch), stat_word_16[inds], '.')
 axs[3].set_title('statword16')
-axs[4].plot(time[inds], lvdt_stat_a[inds], '.')
+axs[4].plot(nt(time[inds],epoch), lvdt_stat_a[inds], '.')
 axs[4].set_title('lvdta')
-axs[5].plot(time[inds], lvdt_stat_b[inds], '.')
+axs[5].plot(nt(time[inds],epoch), lvdt_stat_b[inds], '.')
 axs[5].set_title('lvdtb')
+axs[0].margins(0)
 
-print(np.unique(stat_word_5[inds]), 'sw5')
-print(np.unique(stat_word_9[inds]), 'sw9')
-print(np.unique(stat_word_13[inds]), 'sw13')
-print(np.unique(stat_word_16[inds]), 'sw16')
-print(np.unique(lvdt_stat_a[inds]), 'lvdta')
-print(np.unique(lvdt_stat_b[inds]), 'lvdtb')
+
+fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
+axs = axes.flatten()
+axs[0].plot(nt(time[inds],epoch), lvdt_stat_b[inds], '.')
+axs[1].plot(nt(time[inds],epoch), stat_word_9[inds], '.')
+axs[0].margins(0)
+plt.suptitle('Important flags?')
 plt.savefig('eng_data.png', bbox_inches='tight')
 
-plt.figure()
 ll = sdf['fdq_sdf_ll']
-t0 = t0.to('s').value
-t1 = t1.to('s').value
-plot_sdf(ll, t0, t1, vmin=-100, vmax=100,
+rh = sdf['fdq_sdf_rh']
+t0 = t0.to('s')
+t1 = t1.to('s')
+plot_sdf(ll, rh, t0, t1, vmin=-100, vmax=100,
         eng_time=time[inds], 
         eng_data1=stat_word_9[inds],
         eng_data2=stat_word_13[inds],
@@ -360,9 +612,8 @@ plot_sdf(ll, t0, t1, vmin=-100, vmax=100,
         eng_xcal=xcal_eng[inds])
 
 
-plt.show()
-plt.close()
-asdf
+#plt.show()
+#plt.close()
 
 from scipy.interpolate import interp1d
 
@@ -372,7 +623,7 @@ stat_word_13 = eng['en_stat/stat_word_13'][()]
 stat_word_16 = eng['en_stat/stat_word_16'][()]
 lvdt_stat_a, lvdt_stat_b = eng['en_stat/lvdt_stat'][()].T
 
-for _, j in enumerate(np.arange(-32, 32, dn)):
+for _, j in enumerate(np.arange(15, 17, dn)):
     t_lo = (time[inds])
     t_hi = (time[inds] + j*dt)
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
@@ -409,10 +660,10 @@ for _, j in enumerate(np.arange(-32, 32, dn)):
     fig.supxlabel(r'$T_\mathrm{low}$')
     plt.suptitle(f'{j} second offset')
     plt.tight_layout()
-    plt.savefig(f'offsets_diff_{_:03}.png')
+    #plt.savefig(f'offsets_diff_{_:03}.png')
     plt.close()
 
-for _, j in enumerate(np.arange(-32, 32, dn)):
+for _, j in enumerate(np.arange(15,17, dn)):
     t_lo = (time[inds])
     t_hi = (time[inds] + j*dt)
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
@@ -449,5 +700,5 @@ for _, j in enumerate(np.arange(-32, 32, dn)):
     fig.supxlabel(r'$T_\mathrm{low}$')
     plt.suptitle(f'{j} second offset')
     plt.tight_layout()
-    plt.savefig(f'offsets_split_{_:03}.png')
+    #plt.savefig(f'offsets_split_{_:03}.png')
     plt.close()

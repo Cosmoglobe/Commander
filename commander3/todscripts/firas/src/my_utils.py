@@ -163,6 +163,50 @@ def ifg_to_spec(
     sweeps,
     apod,
 ):
+    '''
+    Inputs are the same as spec_to_ifg, except for the ifg argument, which is the interferogram to be converted.
+
+    ifg is the interferogram to be converted. Its frequency values are set specifically by the mode of operation.
+    mtm_speed: speed of the mirror transport mechanism, 0 or 1
+    channel: channel number, left low, left high, right low, right high
+    adds_per_group: number of interferograms added per group.
+    bol_cmd_bias: bias command to the bolometer. Found in fdq_eng/en_stat/bol_cmd_bias, (589069, 4) int8 array
+    bol_volt: Found in fdq_eng/en_analog/group1/bol_volt, (589069, 4) float32 array
+    gain: Found in fdq_sdf_??/sci_head/gain, (589069,) int16 array, values from -1 to 7 inclusive.
+    sweeps: Found in fdq_sdf_??/sci_head/sc_head11, (589069,) int16 array, values from -1 to 16 inclusive.
+
+    These parameters all come directly from the calibration model files. We should try to fit these (or in apod, tune).
+    apod: the apodization function, length 512 array, specially tuned by FIRAS team.
+    otf: optical transfer function, from the published calibration model.
+    Jo, Jg, Tbol, rho, R0, T0, beta, G1, C3, C1: parameters for the bolometers, from the published calibration model.
+    As an example:
+    Jo = data[1].data['BOLPARM8'][0]
+    Jg = data[1].data['BOLPARM9'][0]
+    Tbol = data[1].data['BOLOM_B2'][0]
+    rho = data[1].data['BOLPARM5'][0]
+    R0 = data[1].data['BOLPARM_'][0]
+    T0 = data[1].data['BOLPARM2'][0]
+    beta = data[1].data['BOLPARM4'][0]
+    G1 = data[1].data['BOLPARM5'][0]
+    C3 = data[1].data['BOLPARM7'][0]
+    C1 = data[1].data['BOLPARM6'][0]
+    Typical values for LLSS:
+    Jo=1.662232
+    Jg=0.92
+    Tbol=1.5309418
+    rho=2.3263578
+    R0=11.938669
+    T0=371.645
+    beta=1.172
+    G1=2.3263578
+    C3=2.428e-10
+    C1=5.8665056e-10 
+
+    mtm_length: length of the mirror transport mechanism, 0 or 1
+    gain: gain of the bolometer, from the calibration model
+    sweeps: number of sweeps, from the calibration model
+    apod: apodization function, from the calibration model
+    '''
 
     ifg = clean_ifg(ifg, mtm_length, mtm_speed, gain, sweeps, apod)
 
@@ -218,6 +262,8 @@ def ifg_to_spec(
         T0=T0,
     )
 
+    print(tau)
+
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
 
     spec = spec / S0[:, np.newaxis] * B
@@ -263,6 +309,49 @@ def spec_to_ifg(
     sweeps,
     apod,
 ):
+    '''
+    Converts spectrum to interferogram using the pipeline's etf and otf. Expects the spectrum to be in units of MJy/sr.
+
+    The arguments are the same as ifg_to_spec, except for the spec argument, which is the spectrum to be converted.
+
+    spec is spectrum to be converted in units of MJy/sr. Its frequency values are set specifically by the mode of operation.
+
+    mtm_speed: speed of the mirror transport mechanism, 0 or 1
+    channel: channel number, left low, left high, right low, right high
+    adds_per_group: number of interferograms added per group.
+    bol_cmd_bias: bias command to the bolometer. Found in fdq_eng/en_stat/bol_cmd_bias, (589069, 4) int8 array
+    bol_volt: Found in fdq_eng/en_analog/group1/bol_volt, (589069, 4) float32 array
+    gain: Found in fdq_sdf_??/sci_head/gain, (589069,) int16 array, values from -1 to 7 inclusive.
+    sweeps: Found in fdq_sdf_??/sci_head/sc_head11, (589069,) int16 array, values from -1 to 16 inclusive.
+
+
+    These parameters all come directly from the calibration model files. We should try to fit these (or in apod, tune).
+    apod: the apodization function, length 512 array, specially tuned by FIRAS team.
+    otf: optical transfer function, from the published calibration model.
+    Jo, Jg, Tbol, rho, R0, T0, beta, G1, C3, C1: parameters for the bolometers, from the published calibration model.
+    As an example:
+    Jo = data[1].data['BOLPARM8'][0]
+    Jg = data[1].data['BOLPARM9'][0]
+    Tbol = data[1].data['BOLOM_B2'][0]
+    rho = data[1].data['BOLPARM5'][0]
+    R0 = data[1].data['BOLPARM_'][0]
+    T0 = data[1].data['BOLPARM2'][0]
+    beta = data[1].data['BOLPARM4'][0]
+    G1 = data[1].data['BOLPARM5'][0]
+    C3 = data[1].data['BOLPARM7'][0]
+    C1 = data[1].data['BOLPARM6'][0]
+    Typical values for LLSS:
+    Jo=1.662232
+    Jg=0.92
+    Tbol=1.5309418
+    rho=2.3263578
+    R0=11.938669
+    T0=371.645
+    beta=1.172
+    G1=2.3263578
+    C3=2.428e-10
+    C1=5.8665056e-10
+    '''
     if mtm_speed == 0:
         cutoff = 5
     else:
