@@ -6,3 +6,9 @@ OFFSET = 0.5
 
 # plotting parameters
 COORDINATES = "G"
+
+# data paths
+if OFFSET == 0:
+    PROCESSED_DATA_PATH = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/processed_sky.npz"
+else:
+    PROCESSED_DATA_PATH = f"/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/processed_sky_offset_{OFFSET}.npz"

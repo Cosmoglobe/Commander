@@ -3,15 +3,13 @@ Script to take the previously generated sky spectra (sky.npy) and plot a map wit
 """
 
 import os
+import sys
 from pathlib import Path
 
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from globals import COORDINATES, OFFSET, T_CMB
-
-import os
-import sys
+from globals import COORDINATES, OFFSET, PROCESSED_DATA_PATH, T_CMB
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -24,7 +22,7 @@ save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
-data = np.load(f"../../data/processed_sky_offset_{OFFSET}.npz")
+data = np.load(PROCESSED_DATA_PATH)
 # print(data.files)
 
 sky = {}

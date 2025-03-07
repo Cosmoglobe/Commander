@@ -7,7 +7,6 @@ from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
 
-# @njit(parallel=True)
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     """
     Taken largely from calc_responsivity in fsl.
@@ -17,56 +16,32 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, bet
 
     cmd_bias = bol_cmd_bias.astype(
         "double"
-    )  # / 25.5  # only use the factor for when it's not in volts? i.e. don't use for the data from lambda
-
-    # print("cmd_bias:", cmd_bias)
+    )
 
     V = (bol_volt - Jo) / Jg
-
-    # print("V:", V)
 
     RL = 4.0e7
     R = RL * V / (cmd_bias - V)
 
-    # print("R:", R, "RL:", RL)
-
     X = V * rho
     Y = R / R0 / X
-
-    # print("X:", X, "Y:", Y)
 
     SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
     Tbol = T0 / SQ**2
 
-    # print("SQ:", SQ, "Tbol:", Tbol)
-
     SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
-
-    # print("SQ:", SQ)
 
     Tbol = T0 / (SQ * SQ)
 
-    # print("Tbol:", Tbol)
-
     G = G1 * Tbol**beta
-
-    # print("G:", G)
 
     H = Tbol / X * np.tanh(X / Tbol)
 
-    # print("H:", H)
-
     DT = 1.0 / H - 1.0 - 0.5 * np.sqrt(T0 / Tbol)
-
-    # print("DT:", DT)
 
     Z = (G * Tbol * R + DT * V**2) / (G * Tbol * R / H - DT * V**2)
 
-    # print("Z:", Z)
-
     S0 = rscale * R * (Z - H) / (V * (Z * R / RL + 1.0) * (H + 1.0))
-
-    # print("S0:", S0)
 
     return S0
 
@@ -98,7 +73,6 @@ def calculate_time_constant(
 
     return tau
 
-
 # @njit(parallel=True)
 def clean_ifg(
     ifg,
@@ -112,7 +86,7 @@ def clean_ifg(
 ):
     # print("ifg shape before subtraction:", ifg.shape)
 
-    median_ifg = np.expand_dims(np.median(ifg), axis=-1)
+    median_ifg = np.expand_dims(np.median(ifg, axis=1), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg

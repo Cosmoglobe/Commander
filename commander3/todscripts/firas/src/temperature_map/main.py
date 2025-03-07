@@ -2,23 +2,21 @@
 This script takes the interferograms into spectra.
 """
 
+import os
+import sys
 from datetime import datetime
 
 import h5py
 import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from astropy.io import fits
+from globals import PROCESSED_DATA_PATH
 from utils.config import gen_nyquistl
-import os
-import sys
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
-
 
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
@@ -406,8 +404,7 @@ for channel, channel_value in channels.items():
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
                 # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
-                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
-                / 25.5,  # needs this factor to put it into volts (from pipeline)
+                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"] / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 fnyq_hz=fnyq["hz"][frec[f"{channel}_{mode}"]],
@@ -660,12 +657,8 @@ for variable in extra_variables:
         ]
 
 # save the sky
-if OFFSET == 0:
-    save_name = "../../data/processed_sky.npz"
-else:
-    save_name = f"../../data/processed_sky_offset_{OFFSET}.npz"
 np.savez(
-    save_name,
+    PROCESSED_DATA_PATH,
     **variablesm,
     **sky,
 )

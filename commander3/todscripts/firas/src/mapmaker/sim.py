@@ -41,7 +41,7 @@ def sim_dust():
     #     plt.clf()
     #     plt.close()
 
-    frequencies = np.linspace(0, 13.604162 * SPEC_SIZE, SPEC_SIZE)
+    frequencies = np.linspace(0, 13.604162/2 * SPEC_SIZE, SPEC_SIZE)
 
     signal = dust(frequencies, nu0_dust, beta_dust, t_dust)
 

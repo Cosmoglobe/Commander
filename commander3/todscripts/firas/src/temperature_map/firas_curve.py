@@ -1,18 +1,22 @@
+import os
+import sys
+
 import h5py
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from globals import PROCESSED_DATA_PATH
 from scipy.optimize import minimize
 from utils.config import gen_nyquistl
-import os
-import sys
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 from my_utils import planck, residuals
 
+user = os.environ["USER"]
+save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
@@ -21,8 +25,7 @@ channels = {"rl": 1, "ll": 3}
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-data = np.load("../../output/data/sky.npz")
-# print(data.files)
+data = np.load(PROCESSED_DATA_PATH)
 
 sky = {}
 pix_gal = {}
@@ -30,63 +33,6 @@ for channel in channels.keys():
     for mode in modes.keys():
         sky[f"{channel}_{mode}"] = np.abs(data[f"{channel}_{mode}"])
         pix_gal[mode] = data[f"pix_gal_{mode}"]
-
-# stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
-# stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
-# stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
-# lvdt_stat_b = np.array(data["df_data/lvdt_stat_b"][()]).astype(int)
-# stat_word_13 = np.array(data["df_data/stat_word_13"][()]).astype(int)
-# stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
-
-
-# to not use ICAL higher than 3 temps
-# a_ical = np.array(data["df_data/a_ical"][()])
-# b_ical = np.array(data["df_data/b_ical"][()])
-# ical = (a_ical + b_ical) / 2
-# ical_lower_3 = ical < 3
-# pix_gal = pix_gal[ical_lower_3]
-# sky = sky[ical_lower_3]
-
-# remove data that i flagged
-# stat_word_1 = stat_word_1[short_filter & slow_filter]
-# stat_word_12 = stat_word_12[short_filter & slow_filter]
-# stat_word_9 = stat_word_9[short_filter & slow_filter]
-# lvdt_stat_b = lvdt_stat_b[short_filter & slow_filter]
-# stat_word_13 = stat_word_13[short_filter & slow_filter]
-# stat_word_16 = stat_word_16[short_filter & slow_filter]
-
-# filter1 = stat_word_1 != 46
-# filter2 = stat_word_12 != 19121
-# filter3 = stat_word_9 != 45110
-# filter4 = stat_word_12 != 18536
-# filter5 = stat_word_12 != 54906
-# filter6 = lvdt_stat_b != 83
-# filter7 = stat_word_12 != 63675
-# filter8 = stat_word_13 != 19585
-# filter9 = stat_word_16 != 14372
-
-# pix_gal = pix_gal[
-#     filter1
-#     & filter2
-#     & filter3
-#     & filter4
-#     & filter5
-#     & filter6
-#     & filter7
-#     & filter8
-#     & filter9
-# ]
-# sky = sky[
-#     filter1
-#     & filter2
-#     & filter3
-#     & filter4
-#     & filter5
-#     & filter6
-#     & filter7
-#     & filter8
-#     & filter9
-# ]
 
 # frequency mapping
 nu0 = {"ss": 68.020812, "lf": 23.807283}
@@ -171,5 +117,5 @@ for channel in channels.keys():
         plt.ylabel("Brightness [MJy/sr]")
         plt.title("BB curve")
         plt.legend()
-        plt.savefig(f"../../output/plots/bb_curve_{f"{channel}_{mode}"}.png")
+        plt.savefig(f"{save_path}/plots/bb_curve/{f"{channel}_{mode}"}.png")
         plt.clf()
