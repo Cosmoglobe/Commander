@@ -41,16 +41,18 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=128), dimension(2) :: general = [character(len=128) :: "T_0", "T_DELTA"]
-     character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
-     character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
-     character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
-     character(len=128), dimension(5) :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
-     character(len=128), dimension(4) :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
-     character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
+     character(len=2048), dimension(2)  :: general = [character(len=2048) :: "T_0", "T_DELTA"]
+     character(len=2048), dimension(6)  :: common = [character(len=2048) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
+     character(len=2048), dimension(4)  :: cloud = [character(len=2048) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
+     character(len=2048), dimension(4)  :: band = [character(len=2048) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
+     character(len=2048), dimension(5)  :: ring = [character(len=2048) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=2048), dimension(5)  :: feature = [character(len=2048) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=2048), dimension(2)  :: interstellar = [character(len=2048) :: 'R', 'ALPHA']
+     character(len=2048), dimension(5)  :: fan = [character(len=2048) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
+     character(len=2048), dimension(4)  :: comet = [character(len=2048) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
+     character(len=2048), dimension(16) :: WrightCloudRing = [character(len=2048) :: 'p1', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19']
+     character(len=2048), dimension(6)  :: WrightBand = [character(len=2048) :: 'q1', 'q5', 'q6', 'q7', 'q8', 'R_1']
+     character(len=2048), dimension(6)  :: comp_types = [character(len=2048) :: 'CLOUD', 'BAND', 'RING', 'FEATURE', 'WRIGHTCLOUDRING', 'WRIGHTBAND']
      
      contains
             procedure :: get_labels
@@ -70,11 +72,11 @@ module comm_param_mod
      integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
      integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, thinning, num_init_chains
-     character(len=512) :: chain_status, init_chain_prefix
+     character(len=2048) :: chain_status, init_chain_prefix
      real(dp)           :: T_CMB
-     character(len=512) :: MJysr_convention
-     character(len=512) :: fft_magic_number_file
-     character(len=512) :: output_comps
+     character(len=2048) :: MJysr_convention
+     character(len=2048) :: fft_magic_number_file
+     character(len=2048) :: output_comps
      logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
      logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
@@ -83,21 +85,22 @@ module comm_param_mod
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
      logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
      integer(i4b)       :: zodi_solar_nside
-     character(len=512) :: zodi_solar_initmap, zodi_static_bands
+     logical(lgt)       :: sample_solar_maps, sample_moon_maps, sample_earth_maps
+     character(len=2048) :: zodi_solar_initmap, zodi_moon_initmap, zodi_earth_initmap, zodi_static_bands
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
      integer(i4b),       allocatable, dimension(:)     :: nside_smooth
-     character(len=512), allocatable, dimension(:)     :: pixwin_smooth
-     character(len=512), allocatable, dimension(:)     :: init_chain_prefixes
-     character(len=512)                                :: sims_output_dir !< simulations directory
+     character(len=2048), allocatable, dimension(:)     :: pixwin_smooth
+     character(len=2048), allocatable, dimension(:)     :: init_chain_prefixes
+     character(len=2048)                                :: sims_output_dir !< simulations directory
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
      logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
 
      ! Output parameters
-     character(len=512) :: outdir
+     character(len=2048) :: outdir
      integer(i4b)       :: nside_chisq, nmaps_chisq
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
@@ -105,70 +108,70 @@ module comm_param_mod
      logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec
 
      ! Numerical parameters
-     character(len=512) :: cg_conv_crit, cg_precond
+     character(len=2048) :: cg_conv_crit, cg_precond
      integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
-     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group
-     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
+     character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group
+     character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
      integer(i4b),       dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
-     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_bands
+     character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_bands
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir, ds_sourcemask, ds_procmask
+     character(len=2048) :: datadir, ds_sourcemask, ds_procmask
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
      integer(i4b),       allocatable, dimension(:)   :: ds_nside
      integer(i4b),       allocatable, dimension(:)   :: ds_lmax
-     character(len=512), allocatable, dimension(:)   :: ds_label
-     character(len=512), allocatable, dimension(:)   :: ds_instlabel
-     character(len=512), allocatable, dimension(:)   :: ds_unit
-     character(len=512), allocatable, dimension(:)   :: ds_noise_format
+     character(len=2048), allocatable, dimension(:)   :: ds_label
+     character(len=2048), allocatable, dimension(:)   :: ds_instlabel
+     character(len=2048), allocatable, dimension(:)   :: ds_unit
+     character(len=2048), allocatable, dimension(:)   :: ds_noise_format
      integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
-     character(len=512), allocatable, dimension(:)   :: ds_mapfile
-     character(len=512), allocatable, dimension(:)   :: ds_noisefile
-     character(len=512), allocatable, dimension(:)   :: ds_regnoise
-     character(len=512), allocatable, dimension(:,:) :: ds_noise_rms_smooth
+     character(len=2048), allocatable, dimension(:)   :: ds_mapfile
+     character(len=2048), allocatable, dimension(:)   :: ds_noisefile
+     character(len=2048), allocatable, dimension(:)   :: ds_regnoise
+     character(len=2048), allocatable, dimension(:,:) :: ds_noise_rms_smooth
      real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
-     character(len=512), allocatable, dimension(:)   :: ds_maskfile
-     character(len=512), allocatable, dimension(:)   :: ds_maskfile_calib
-     character(len=512), allocatable, dimension(:)   :: ds_beamtype
-     character(len=512), allocatable, dimension(:)   :: ds_blfile
-     character(len=512), allocatable, dimension(:)   :: ds_btheta_file
-     character(len=512), allocatable, dimension(:)   :: ds_pixwin
+     character(len=2048), allocatable, dimension(:)   :: ds_maskfile
+     character(len=2048), allocatable, dimension(:)   :: ds_maskfile_calib
+     character(len=2048), allocatable, dimension(:)   :: ds_beamtype
+     character(len=2048), allocatable, dimension(:)   :: ds_blfile
+     character(len=2048), allocatable, dimension(:)   :: ds_btheta_file
+     character(len=2048), allocatable, dimension(:)   :: ds_pixwin
      logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
-     character(len=512), allocatable, dimension(:)   :: ds_bptype
-     character(len=512), allocatable, dimension(:)   :: ds_bpfile
-     character(len=512), allocatable, dimension(:)   :: ds_bpmodel
+     character(len=2048), allocatable, dimension(:)   :: ds_bptype
+     character(len=2048), allocatable, dimension(:)   :: ds_bpfile
+     character(len=2048), allocatable, dimension(:)   :: ds_bpmodel
      real(dp),           allocatable, dimension(:)   :: ds_nu_c
      logical(lgt),       allocatable, dimension(:)   :: ds_sample_gain
      real(dp),           allocatable, dimension(:,:) :: ds_gain_prior
-     character(len=512), allocatable, dimension(:)   :: ds_gain_calib_comp
+     character(len=2048), allocatable, dimension(:)   :: ds_gain_calib_comp
      integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmin
      integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
-     character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
-     character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
+     character(len=2048), allocatable, dimension(:)   :: ds_gain_apodmask
+     character(len=2048), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
-     character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
+     character(len=2048), allocatable, dimension(:)   :: ds_component_sensitivity
      real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
      logical(lgt),       allocatable, dimension(:)   :: ds_zodi_reference_band
 
      !TOD data parameters
-     character(len=512), allocatable, dimension(:)   :: ds_tod_type
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
-     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask_zodi
-     character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
-     character(len=512), allocatable, dimension(:)   :: ds_tod_jumplist
-     character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
-     character(len=512), allocatable, dimension(:)   :: ds_tod_dets
-     character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
-     character(len=512), allocatable, dimension(:)   :: ds_tod_initHDF
-     character(len=512), allocatable, dimension(:)   :: ds_tod_level
-     character(len=512), allocatable, dimension(:)   :: ds_tod_abscal
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_type
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_procmask1
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_procmask2
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_procmask_zodi
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_filelist
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_jumplist
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_instfile
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_dets
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_bp_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_initHDF
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_level
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_abscal
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
@@ -176,40 +179,46 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_mask
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_model
-     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_mask
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_model
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_moon_model
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_moon_mask
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_moon_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_model
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_mask
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_init
 
      ! Component parameters
-     character(len=512) :: cs_inst_parfile
-     character(len=512) :: cs_init_inst_hdf
+     character(len=2048) :: cs_inst_parfile
+     character(len=2048) :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
      logical(lgt)       :: cs_output_localsamp_maps
      real(dp)           :: cmb_dipole_prior(3)
-     character(len=512) :: cmb_dipole_prior_mask
+     character(len=2048) :: cmb_dipole_prior_mask
      logical(lgt),       allocatable, dimension(:)     :: cs_include
-     character(len=512), allocatable, dimension(:)     :: cs_initHDF
-     character(len=512), allocatable, dimension(:)     :: cs_label
-     character(len=512), allocatable, dimension(:)     :: cs_type
-     character(len=512), allocatable, dimension(:)     :: cs_class
+     character(len=2048), allocatable, dimension(:)     :: cs_initHDF
+     character(len=2048), allocatable, dimension(:)     :: cs_label
+     character(len=2048), allocatable, dimension(:)     :: cs_type
+     character(len=2048), allocatable, dimension(:)     :: cs_class
      logical(lgt),       allocatable, dimension(:)     :: cs_polarization
      real(dp),           allocatable, dimension(:,:)   :: cs_cg_scale
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_fix_pixreg
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg_priors
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mask
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_mask
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_freeze
-     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_type
-     character(len=512), allocatable, dimension(:,:)   :: cs_almsamp_init
-     character(len=512), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
+     character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
+     character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_pixreg
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
+     character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_fix_pixreg
+     character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_pixreg_priors
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mask
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_nprop
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_proplen
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mono_mask
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mono_freeze
+     character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mono_type
+     character(len=2048), allocatable, dimension(:,:)   :: cs_almsamp_init
+     character(len=2048), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
      real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
      real(dp),           allocatable, dimension(:,:)   :: cs_spec_corr_limit
@@ -227,39 +236,40 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp_prior
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
-     character(len=512), allocatable, dimension(:)     :: cs_unit
+     character(len=2048), allocatable, dimension(:)     :: cs_unit
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_ref
      real(dp),           allocatable, dimension(:)     :: cs_nu_min, cs_nu_max
-     character(len=512), allocatable, dimension(:)     :: cs_band_ref
+     character(len=2048), allocatable, dimension(:)     :: cs_band_ref
      real(dp),           allocatable, dimension(:)     :: cs_fwhm
-     character(len=512), allocatable, dimension(:)     :: cs_cltype
-     character(len=512), allocatable, dimension(:)     :: cs_clfile
-     character(len=512), allocatable, dimension(:)     :: cs_binfile
+     character(len=2048), allocatable, dimension(:)     :: cs_cltype
+     character(len=2048), allocatable, dimension(:)     :: cs_clfile
+     character(len=2048), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
-     character(len=512), allocatable, dimension(:)     :: cs_mask
-     character(len=512), allocatable, dimension(:)     :: cs_mono_prior
+     character(len=2048), allocatable, dimension(:)     :: cs_mask
+     character(len=2048), allocatable, dimension(:)     :: cs_mono_prior
      real(dp),           allocatable, dimension(:)     :: cs_latmask
-     character(len=512), allocatable, dimension(:)     :: cs_indmask
-     character(len=512), allocatable, dimension(:)     :: cs_defmask
+     character(len=2048), allocatable, dimension(:)     :: cs_indmask
+     character(len=2048), allocatable, dimension(:)     :: cs_defmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_theta_def
      integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
      logical(lgt),       allocatable, dimension(:)     :: cs_output_EB
-     character(len=512), allocatable, dimension(:)     :: cs_input_amp
-     character(len=512), allocatable, dimension(:)     :: cs_prior_amp
-     character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
-     character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     character(len=2048), allocatable, dimension(:)     :: cs_input_amp
+     character(len=2048), allocatable, dimension(:)     :: cs_prior_amp
+     character(len=2048), allocatable, dimension(:,:)   :: cs_input_ind
+     character(len=2048), allocatable, dimension(:,:)   :: cs_SED_template
+     character(len=2048), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
-     character(len=512), allocatable, dimension(:)     :: cs_catalog
-     character(len=512), allocatable, dimension(:)     :: cs_init_catalog
-     character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
+     character(len=2048), allocatable, dimension(:)     :: cs_catalog
+     character(len=2048), allocatable, dimension(:)     :: cs_init_catalog
+     character(len=2048), allocatable, dimension(:)     :: cs_ptsrc_template
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_min_beta
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_max_beta
      logical(lgt),       allocatable, dimension(:)     :: cs_burn_in
@@ -277,7 +287,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS), zs_randomize_rms
      real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_sol_elong(2)
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
+     character(len=2048)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=2048)                     :: zs_wiring
      character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
@@ -288,9 +298,9 @@ module comm_param_mod
      integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
      integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
      character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
-     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
+     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
+     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
+     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
                                                                                                   ! Sample using specificed cg
                                                                                                   ! groups. If none, skip amplitude
                                                                                                   ! sampling
@@ -310,8 +320,8 @@ contains
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b)       :: paramfile_len, ierr, i, idx
-    character(len=512) :: paramfile, paramfile_name
-    character(len=512), allocatable, dimension(:) :: paramfile_cache
+    character(len=2048) :: paramfile, paramfile_name
+    character(len=2048), allocatable, dimension(:) :: paramfile_cache
 
     call getarg(1, paramfile)
     ! read parameter file once, save to ascii array
@@ -322,7 +332,7 @@ contains
 
     ! Read parameters into cache
     if (cpar%myid == cpar%root) then
-       paramfile_len = 512
+       paramfile_len = 2048
        allocate(paramfile_cache(paramfile_len))
        call read_paramfile_to_ascii(paramfile,paramfile_cache,paramfile_len)
     end if
@@ -331,7 +341,7 @@ contains
        allocate(paramfile_cache(paramfile_len))
     end if
     do i=1,paramfile_len
-       call mpi_bcast(paramfile_cache(i), 512, MPI_CHAR, cpar%root, MPI_COMM_WORLD, ierr)
+       call mpi_bcast(paramfile_cache(i), 2048, MPI_CHAR, cpar%root, MPI_COMM_WORLD, ierr)
     end do
     !Initialize a hash table
     call init_hash_tbl_sll(htable,tbl_len=10*paramfile_len)
@@ -519,11 +529,15 @@ contains
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
+       if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
        if (cpar%include_TOD_zodi) then
-          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',       par_lgt=cpar%sample_zodi)
+          call get_parameter_hashtable(htbl, 'SAMPLE_SOLAR_MAPS', par_lgt=cpar%sample_solar_maps)
+          call get_parameter_hashtable(htbl, 'SAMPLE_MOON_MAPS',  par_lgt=cpar%sample_moon_maps)
+          call get_parameter_hashtable(htbl, 'SAMPLE_EARTH_MAPS', par_lgt=cpar%sample_earth_maps)
           call get_parameter_hashtable(htbl, 'ZODI_USE_SOLAR_CENTRIC_COMP',  par_lgt=cpar%incl_zodi_solar_comp)
           if (cpar%incl_zodi_solar_comp) then
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_NSIDE',    par_int=cpar%zodi_solar_nside)
@@ -531,6 +545,8 @@ contains
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
        end if
+    else
+      cpar%tod_freq = cpar%num_gibbs_iter + 1
     end if
 
     if (cpar%resamp_CMB) then
@@ -578,7 +594,8 @@ contains
     character(len=3) :: itext
     character(len=2) :: jtext
 
-    len_itext=len(trim(itext)) !! FIXME
+    call int2string(1, itext)
+    len_itext=len(trim(itext))
     call get_parameter_hashtable(htbl, 'NUMBAND',             par_int=cpar%numband)
     !call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask, path=.true.)
@@ -604,6 +621,8 @@ contains
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
     allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
+    allocate(cpar%ds_tod_moon_model(n), cpar%ds_tod_moon_mask(n), cpar%ds_tod_moon_init(n))
+    allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_mask(n), cpar%ds_tod_earth_init(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -681,6 +700,18 @@ contains
                   & par_string=cpar%ds_tod_solar_mask(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_solar_init(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MOON_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_moon_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MOON_CENTRIC_MASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_moon_mask(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MOON_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_moon_init(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_EARTH_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_earth_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_EARTH_CENTRIC_MASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_earth_mask(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_EARTH_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_earth_init(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
@@ -752,15 +783,16 @@ contains
     integer(i4b)       :: i, j, k, n, len_itext, idx
     real(dp)           :: amp, lat, lon
     character(len=2)   :: itext
-    character(len=512) :: maskfile, tokens(4)
-    character(len=512) :: pol_labels(3)
+    character(len=2048) :: maskfile, tokens(4)
+    character(len=2048) :: pol_labels(3)
     logical(lgt)       :: bool_flag
 
     pol_labels(1)='INT'
     pol_labels(2)='POL'
     pol_labels(3)='POL3'
 
-    len_itext=len(trim(itext)) !FIXME!!
+    call int2string(1, itext)
+    len_itext=len(trim(itext)) 
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile, path=.true.)
     call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
@@ -815,7 +847,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
-    allocate(cpar%cs_SED_prior(n))
+    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -979,6 +1011,18 @@ contains
        end if
 
     end do
+
+    if (cpar%myid == 0) then
+      do i = 1, n
+        do j = i+1, n
+          if (trim(cpar%cs_label(i)) == (cpar%cs_label(j))) then
+              write(*,*) 'COMP_LABEL ', i, ' and ', j, ' are both ', trim(cpar%cs_label(i))
+              write(*,*) 'Only unique components labels allowed'
+              stop
+          end if
+        end do
+      end do
+    end if
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
@@ -1002,11 +1046,11 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k, idx
-    character(len=512)             :: maskfile
+    character(len=2048)             :: maskfile
 
 
     call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
@@ -1075,6 +1119,7 @@ contains
        end if
        cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
+    ! Note to future Mathew: don't try to add path=true, it's not always a path
     call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
     call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i), path=.true.)
     if(cpar%cs_mask(i) /= 'fullsky') then
@@ -1110,7 +1155,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     real(dp)           :: amp, lat, lon
-    character(len=512) :: tokens(4)
+    character(len=2048) :: tokens(4)
 
     call get_parameter_hashtable(htbl, 'CMB_DIPOLE_PRIOR', par_string=cpar%cmb_dipole_prior_mask, path=.true.)
     if (trim(cpar%cmb_dipole_prior_mask) /= 'none') then
@@ -1135,7 +1180,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -1262,7 +1307,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -1493,7 +1538,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -1713,7 +1758,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -1842,7 +1887,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -1966,7 +2011,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2185,7 +2230,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2202,7 +2247,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2423,7 +2468,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2637,6 +2682,8 @@ contains
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_MBBTAB_TYPE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
     end if
@@ -2650,7 +2697,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2790,7 +2837,7 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     logical(lgt),       intent(inout) :: bool_flag
-    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2048), intent(in) :: pol_labels(3)
     character(len=2),   intent(in) :: itext
     integer(i4b),       intent(in) :: len_itext, i
     integer(i4b)                   :: j, k
@@ -2815,6 +2862,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     cpar%cs_almsamp_init(1,i) = 'none'
+    cpar%cs_spec_pixreg(:,1,i) = 'fullsky'
+    cpar%cs_spec_pixreg_map(:,i) = 'fullsky'
 
     call get_parameter_hashtable(htbl, 'COMP_T_E_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
     k = cpar%cs_poltype(2,i)
@@ -2932,17 +2981,17 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
+     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_WRIGHTCLOUDRING_PARAMETERS, N_WRIGHTBAND_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
      character(len=2) :: itext2
      character(len=3) :: itext
      character(len=64), allocatable :: parameter_labels(:)
-     character(len=512), dimension(4) :: value_and_priors_str
-     character(len=512), dimension(20) :: zs_comp_lens_str
+     character(len=2048), dimension(4) :: value_and_priors_str
+     character(len=2048), dimension(20) :: zs_comp_lens_str
      real(dp), dimension(4) :: value_and_priors
      character(len=64) :: value_string
      logical(lgt) :: use_comp
-     character(len=512) :: temp_emissivity, temp_albedo
-     character(len=512), allocatable, dimension(:) :: samp_group_strings, emissivity_string, albedo_string
+     character(len=2048) :: temp_emissivity, temp_albedo
+     character(len=2048), allocatable, dimension(:) :: samp_group_strings, emissivity_string, albedo_string
      real(dp), parameter :: DEFAULT_PRIOR_LOWER_LIMIT = -1d300, DEFAULT_PRIOR_UPPER_LIMIT = 1d300
 
      call get_parameter_hashtable(htbl, 'NUM_ZODI_COMPS', par_int=cpar%zs_ncomps)
@@ -3061,7 +3110,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      end if
 
 
-end subroutine
+end subroutine read_zodi_params_hash
 
   ! ********************************************************
   !                     Utility routines
@@ -3071,7 +3120,7 @@ end subroutine
   subroutine parse_parameter(line, parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
     implicit none
     character(len=*)           :: line, parname
-    character(len=256)         :: toks(2), key, value, par
+    character(len=2048)         :: toks(2), key, value, par
     logical(lgt)               :: found
     integer(i4b),     optional :: par_int
     character(len=*), optional :: par_char
@@ -3128,7 +3177,7 @@ end subroutine
     logical(lgt),     optional :: par_present
     character(len=*), optional :: desc
 
-    character(len=512) :: line
+    character(len=2048) :: line
     integer(i4b)       :: i
     logical(lgt)       :: found
     do i = 1, command_argument_count() !iargc()
@@ -3154,7 +3203,7 @@ end subroutine
   subroutine dump_expanded_paramfile(parfile, outfile)
     implicit none
     character(len=*)           :: parfile, outfile
-    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b), parameter    :: maxdepth = 2048
     integer(i4b)               :: depth, units(maxdepth), i, num, ounit, stat
     character(len=1024)        :: key, value, arg, default_path
 
@@ -3390,8 +3439,8 @@ end subroutine
     implicit none
     character(len=*) :: string, sep
     character(len=*), optional   :: group
-    character(len=256)  :: op, cl
-    integer(i4b), save           :: level(256), nl
+    character(len=2048)  :: op, cl
+    integer(i4b), save           :: level(2048), nl
     integer(i4b), intent(inout)  :: ext(2)
     logical(lgt), optional       :: allow_empty
 
@@ -3468,7 +3517,7 @@ end subroutine
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b) :: i, j
-    character(len=512) :: chaindir
+    character(len=2048) :: datadir, chaindir, filename, filename1
     character(len=2) :: itext, jtext
     logical(lgt) :: exist
 
@@ -3524,6 +3573,10 @@ end subroutine
           call validate_file(trim(cpar%ds_tod_procmask2(i)), 'BAND_TOD_SMALL_PROCMASK'//itext)  ! Procmask2
           call validate_file(trim(cpar%ds_tod_solar_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
           call validate_file(trim(cpar%ds_tod_solar_init(i)), 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext)  ! Initial solar centric map
+          call validate_file(trim(cpar%ds_tod_moon_init(i)), 'BAND_TOD_MOON_CENTRIC_INITMAP'//itext)  ! Initial moon centric map
+          call validate_file(trim(cpar%ds_tod_moon_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
+          call validate_file(trim(cpar%ds_tod_earth_init(i)), 'BAND_TOD_EARTH_CENTRIC_INITMAP'//itext)  ! Initial Earth centric map
+          call validate_file(trim(cpar%ds_tod_earth_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
           call validate_file(trim(cpar%ds_tod_filelist(i)), 'BAND_TOD_FILELIST'//itext)   ! Filelist
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') then
             call validate_file(trim(cpar%ds_tod_jumplist(i)), 'BAND_TOD_JUMPLIST'//itext)   ! Jumplist
@@ -3560,6 +3613,13 @@ end subroutine
           if (trim(cpar%cs_input_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
+          
+          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+            filename = get_token(cpar%cs_mono_prior(i), ":", 2)
+            filename1 = get_token(filename, ",", 1)
+            call validate_file(trim(cpar%datadir) //"/"// trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
+          end if 
+ 
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_prior_amp(i)), 'COMP_AMP_PRIOR_MAP'//itext)
           end if
@@ -3675,17 +3735,17 @@ end subroutine
 
   subroutine read_paramfile_to_ascii(paramfile,paramfile_cache, paramfile_len)
     implicit none
-    character(len=512),                            intent(in)  :: paramfile
-    character(len=512), allocatable, dimension(:), intent(inout) :: paramfile_cache
+    character(len=2048),                            intent(in)  :: paramfile
+    character(len=2048), allocatable, dimension(:), intent(inout) :: paramfile_cache
     integer(i4b),intent(inout) :: paramfile_len
 
-    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b), parameter    :: maxdepth = 2048
     integer(i4b)               :: depth, units(maxdepth), line_nr,i, stat, pos
-    character(len=512)         :: key, value, filenames(maxdepth), line
+    character(len=2048)         :: key, value, filenames(maxdepth), line
     character(len=1024)        :: default_path
     character(len=3)           :: band_num
 
-    character(len=512), allocatable, dimension(:) :: new_cache
+    character(len=2048), allocatable, dimension(:) :: new_cache
 
     ! read file to ascii array
 
@@ -3863,10 +3923,10 @@ end subroutine
       logical(lgt),     optional :: par_present
       character(len=*), optional :: desc
       logical(lgt),     optional :: path
-      character(len=256)         :: key
+      character(len=2048)        :: key
       character(len=:), ALLOCATABLE   :: itext,jtext
       CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
-      character(len=512)              :: val4
+      character(len=2048)             :: val4
       integer(i4b)                    :: i,j
       logical(lgt)                    :: loc_path
     
@@ -3962,8 +4022,8 @@ end subroutine
   ! outputs the parameter file to the path provided
   subroutine save_ascii_parameter_file(outfile, ascii_table)
     implicit none
-    character(len=512), intent(in) :: outfile
-    character(len=512), dimension(:), intent(in) :: ascii_table
+    character(len=2048), intent(in) :: outfile
+    character(len=2048), dimension(:), intent(in) :: ascii_table
     
     integer(i4b)      :: unit, i
     
@@ -3985,10 +4045,10 @@ end subroutine
   ! filling the hash table with elements from the parameter file (ascii array) 
   subroutine put_ascii_into_hashtable(asciitbl,htbl)
     implicit none
-    character(len=512), allocatable, dimension(:), intent(in) :: asciitbl
+    character(len=2048), allocatable, dimension(:), intent(in) :: asciitbl
     type(hash_tbl_sll), intent(inout) :: htbl
-    character(len=512) :: key, val
-    character(len=256) :: toks(2)
+    character(len=2048) :: key, val
+    character(len=2048) :: toks(2)
     integer            :: i, n
     do i = 1,size(asciitbl)
        call get_tokens(trim(asciitbl(i)), "=", group="''" // '""', maxnum=2, toks=toks, num=n)
@@ -4011,11 +4071,11 @@ end subroutine
   subroutine get_chainfile_and_samp(string, chainfile, initsamp)
     implicit none
     character(len=*),   intent(in)  :: string
-    character(len=512), intent(out) :: chainfile
+    character(len=2048), intent(out) :: chainfile
     integer(i4b),       intent(out) :: initsamp
     
     integer(i4b) :: i, num, e
-    character(len=512), dimension(2) :: toks
+    character(len=2048), dimension(2) :: toks
 
 
     call get_tokens(string, ":", toks, num)    
@@ -4096,8 +4156,8 @@ end subroutine
      class(InterplanetaryDustParamLabels), intent(in) :: self
      character(len=*), intent(in) :: comp_type
      logical(lgt), intent(in), optional :: add_common
-     character(len=128), allocatable :: labels(:)
-     character(len=128) :: comp_type_upper
+     character(len=2048), allocatable :: labels(:)
+     character(len=2048) :: comp_type_upper
 
      comp_type_upper = comp_type
      call toupper(comp_type_upper)
@@ -4115,7 +4175,11 @@ end subroutine
      case ('FAN')
           labels = self%fan
      case ('COMET')
-          labels = self%comet
+        labels = self%comet
+     case ('WRIGHTCLOUDRING')
+        labels = self%wrightcloudring
+     case ('WRIGHTBAND')
+        labels = self%wrightband
      case default
           print *, 'Unknown component type: ', comp_type
           stop

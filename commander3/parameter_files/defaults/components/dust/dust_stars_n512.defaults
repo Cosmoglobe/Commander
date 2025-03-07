@@ -1,5 +1,5 @@
 # Stars component
-COMP_LABEL&&                  = stars_diff
+COMP_LABEL&&                  = stars_dust
 COMP_TYPE&&                   = MBB
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
 COMP_POLARIZATION&&           = .false.

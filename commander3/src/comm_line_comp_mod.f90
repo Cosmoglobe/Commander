@@ -305,7 +305,7 @@ contains
        end if
 
        ! Draw sample
-       par = -1.d30
+       par = -1.d300
        if (trim(self%operation) == 'optimize') then
           if (mu < self%p_uni(1,id)) then
              par = self%p_uni(1,id)
@@ -326,7 +326,11 @@ contains
           end do
        end if
        
-       write(*,*) '  Line ratio i = ', id, ' = ', par
+       if (band == self%ref_band) then
+          write(*,*) '  Line ratio i = ', id, ' = ', par, ' (at refband)'
+       else
+          write(*,*) '  Line ratio i = ', id, ' = ', par
+       end if
     end if
     
     ! Distribute new relative line ratio, and update

@@ -21,6 +21,7 @@
 module comm_tod_mapmaking_mod
    use comm_tod_mod
    use comm_shared_arr_mod
+   use comm_map_mod
    implicit none
 
    type comm_binmap
@@ -481,7 +482,7 @@ end subroutine bin_differential_TOD
 
    end subroutine compute_Ax
 
-  subroutine finalize_binned_map_unpol(tod, binmap, rms, scale, chisq_S, mask)
+  subroutine finalize_binned_map_unpol(tod, binmap, rms, scale, chisq_S, mask, correct_transfer)
     !
     ! Routine to finalize temperature-only binned maps
     ! 
@@ -501,6 +502,7 @@ end subroutine bin_differential_TOD
     real(dp),                             intent(in)    :: scale
     real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
     real(sp),        dimension(0:),       intent(in),    optional :: mask
+    logical(lgt),                         intent(in),    optional :: correct_transfer
 
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
@@ -509,6 +511,10 @@ end subroutine bin_differential_TOD
     real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
+    logical(lgt) :: correct_transfer_
+
+    correct_transfer_ = .false.
+    if(present(correct_transfer)) correct_transfer_ = correct_transfer
 
     myid  = tod%myid
     nprocs= tod%numprocs
@@ -602,6 +608,37 @@ end subroutine bin_differential_TOD
 
 
   end subroutine finalize_binned_map_unpol
+
+  subroutine finalize_binned_map_nplus2(tod, binmap, rms, scale, chisq_S, mask, correct_transfer)
+    !
+    ! Routine to finalize the binned maps
+    ! Makes one T map per detector but joint Q+U maps
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:
+    ! binmap:
+    ! rms:
+    ! scale
+    ! chisq_S
+    ! mask
+    !
+    implicit none
+    class(comm_tod),                      intent(in)    :: tod
+    type(comm_binmap),                    intent(inout) :: binmap
+    class(comm_map),                      intent(inout) :: rms
+    real(dp),                             intent(in)    :: scale
+    real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
+    real(sp),        dimension(0:),       intent(in),    optional :: mask
+    logical(lgt),                         intent(in),    optional :: correct_transfer
+
+    logical(lgt) :: correct_transfer_
+
+    correct_transfer_ = .false.
+    if(present(correct_transfer)) correct_transfer_ = correct_transfer
+
+
+  end subroutine finalize_binned_map_nplus2
 
 
   subroutine finalize_binned_map(tod, binmap, rms, scale, chisq_S, mask)

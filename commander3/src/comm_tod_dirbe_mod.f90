@@ -39,6 +39,7 @@ module comm_tod_DIRBE_mod
    type, extends(comm_tod) :: comm_dirbe_tod
    contains
       procedure     :: process_tod          => process_DIRBE_tod
+      procedure     :: dumpToHDF_inst       => dumpToHDF_DIRBE
    end type comm_dirbe_tod
 
    interface comm_dirbe_tod
@@ -114,12 +115,18 @@ contains
       c%correct_orb     = .false.
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
+      c%use_moon_point  = .true.
+      c%use_earth_elon  = .true.
       c%symm_flags      = .false.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       c%chisq_threshold = 50000.
       c%nmaps           = info%nmaps
       c%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
       c%sol_elong_range = cpar%zs_sol_elong
+
+      c%gain_tune_sigma0 = .false.
+      c%gain_samprate    = 1.d0 / 3600.d0 / 24.d0
+      c%gain_sigma_0     = 0.005
       
       nside_beam                  = 128
       nmaps_beam                  = 1
@@ -156,9 +163,41 @@ contains
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
       !end do
-      
+
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_dirbe
+
+
+    subroutine dumpToHDF_DIRBE(self, chainfile, path)
+      ! 
+      ! Writes instrument-specific TOD parameters to existing chain file
+      ! 
+      ! Arguments:
+      ! ----------
+      ! self:     derived class (comm_tod)
+      !           TOD object
+      ! chainfile: derived type (hdf_file)
+      !           Already open HDF file handle to existing chainfile
+      ! path:   string
+      !           HDF path to current dataset, e.g., "000001/tod/030"
+      !
+      ! Returns
+      ! ----------
+      ! None
+      !
+      implicit none
+      class(comm_dirbe_tod),               intent(in)     :: self
+      type(hdf_file),                      intent(in)     :: chainfile
+      character(len=*),                    intent(in)     :: path
+
+
+      if (self%myid == 0) then
+         if (self%map_solar_allocated == .true.) then
+           call write_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
+         end if
+      end if
+
+    end subroutine dumpToHDF_DIRBE
 
    !**************************************************
    !             Driver routine
@@ -212,7 +251,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -224,7 +263,7 @@ contains
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
-      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf, freqmap
       real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
       real(dp), allocatable, dimension(:)       :: AY, AY_reduced, X
       real(dp), allocatable, dimension(:, :, :) :: s_therm_tot, s_scat_tot ! (n_tod_tot, ncomps, ndet)
@@ -247,17 +286,29 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
+      !sample_gain           = .true. !iter > 1                         ! Gain sampling, LB TOD sims have perfect gain
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
       !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
       if (trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
+         sample_ncorr = .false.
       else
          sample_ncorr = .false.
       end if
-         
+
+      if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
+        & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
+        & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+         sample_gain        =  iter > 1
+         only_solar_mask    = .false.
+      else
+         sample_gain        =  iter > 1
+         only_solar_mask    = .true.
+      end if
+      !sample_gain = .false.
+
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -280,7 +331,6 @@ contains
       call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
-
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
@@ -304,7 +354,6 @@ contains
       end if
 
 
-
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
@@ -312,11 +361,11 @@ contains
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
-         call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask2, procmask2, smooth=.true., mask_threshold=0.1d0)
       end if
 
       ! Prepare intermediate data structures
@@ -337,17 +386,18 @@ contains
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
          if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
+               call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
             end do
-            call sd%dealloc
+            call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
          end if
 
          ! Sample correlated noise
@@ -373,7 +423,7 @@ contains
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-         
+
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
@@ -389,25 +439,31 @@ contains
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+               call write_hdf(tod_file, '/pix_sol', self%scans(i)%d(1)%pix_sol)
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
-               call write_hdf(tod_file, '/n_corr', sd%n_corr)
-               call write_hdf(tod_file, '/s_sl', sd%s_sl)
-               call write_hdf(tod_file, '/s_orb', sd%s_orb)
+               !call write_hdf(tod_file, '/n_corr', sd%n_corr)
+               !call write_hdf(tod_file, '/s_sl', sd%s_sl)
+               !call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
+               call write_hdf(tod_file, '/flag', sd%flag)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
-               do k = 1, size(sd%s_zodi_therm, dim=2)
-                  call int2string(k, scantext)
-                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
-               end do
+               !do k = 1, size(sd%s_zodi_therm, dim=2)
+               !   call int2string(k, scantext)
+               !   call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
+               !end do
                call close_hdf_file(tod_file)
             end if
          end if
 
          ! Bin TOD
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+!!$         do j = 1, binmap%nobs
+!!$            if (binmap%A_map(1,j) > 0.) write(*,*) j, real(binmap%b_map(1,1,j),sp), real(binmap%A_map(1,j),sp), real(binmap%b_map(1,1,j)/binmap%A_map(1,j),sp)
+!!$         end do
 
          ! Update scan list
          call wall_time(t2)
@@ -420,7 +476,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          deallocate(d_calib)
       end do
 

@@ -243,9 +243,11 @@ contains
             select type(c)
             class is (comm_diffuse_comp)
               c%x%alm = c%x%alm*scales(i)
+              c%x_scale = c%x_scale * scales(i)
               !call c%x%Y
             class is (comm_template_comp)
               c%T%map = c%T%map*scales(i)
+              c%T_scale = c%T_scale * scales(i)
             class default
               write(*,*) "You have not set behavior for class ", trim(c%class)
               stop
@@ -283,6 +285,26 @@ contains
            write(*,*) '| '
          end if
 
+         i = 0
+         c => compList
+         do while (associated(c))
+            if (c%scale_sigma(l) > 0d0) then
+               i = i + 1
+               select type(c)
+               class is (comm_diffuse_comp)
+                  c%x%alm = c%x%alm/scales(i)
+                  !call c%x%Y
+               class is (comm_template_comp)
+                  c%T%map = c%T%map/scales(i)
+               class default
+                  write(*,*) "You have not set behavior for class ", trim(c%class)
+                  stop
+               end select
+            end if
+            c => c%nextComp()
+         end do
+
+         
          ! Instead of doing compsep, revert the amplitudes here
          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
@@ -326,7 +348,7 @@ contains
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     integer(i4b) :: band, ierr, i, j, k, m, pol, pix
-    logical(lgt)  :: include_comp, reject, todo
+    logical(lgt)  :: include_comp, reject, todo, negative
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
@@ -341,7 +363,7 @@ contains
 
        mval_0 = -1d0
        k = 0
-
+       
        c => compList
        do while (associated(c))
           k = k + 1
@@ -376,6 +398,7 @@ contains
 
        call store_buffer()
 
+       negative = .false.
        c => compList
        do while (associated(c))
                        
@@ -391,19 +414,21 @@ contains
                  write(*,*) '| MBBtab original'
                  do i = 1, c%ntab
                    if (c%theta_steplen(c%npar+i,l) > 0) then
-                     write(*,*) '|         ', c%SEDtab(3,i)
+                     write(*,*) '|         ', c%SEDtab(3:,i)
                    end if
                  end do
                  write(*,*) '| MBBtab proposal'
                  do i = 1, c%ntab
-                   if (c%theta_steplen(c%npar+i,l) > 0) then
-                     c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
-                     write(*,*) '|         ',  c%SEDtab(3,i)
-                   end if
+                    if (c%theta_steplen(c%npar+i,l) > 0) then
+                       do j = 3, size(c%SEDtab(:,i))
+                          c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
+                       end do
+                       write(*,*) '|         ',  c%SEDtab(3:,i)
+                    end if
                  end do
                end if
 
-
+               negative = negative .or. any(c%SEDtab(3:,:) < 0.d0)
             end if
             call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
@@ -437,6 +462,7 @@ contains
        end if
 
        ! Check MH statistic
+       !reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2 .or. negative
        reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
        call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
@@ -459,7 +485,7 @@ contains
               if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
                  if (cpar%myid_chain .eq. 0) then
                    do i = 1, c%ntab
-                      c%SEDtab(3,i) = c%SEDtab_buff(3,i)
+                      c%SEDtab(3:,i) = c%SEDtab_buff(3:,i)
                    end do
                  end if
 
@@ -683,6 +709,7 @@ contains
                         c%theta(j)%p%map(pix,pol) = c%theta_pixreg_buff(c%ind_pixreg_arr(pix,pol,j),pol,j)
                      end do
                   end do
+                  c%theta_pixreg(:,:,j) = c%theta_pixreg_buff(:,:,j)
                   if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
                end select
             end do
@@ -742,7 +769,7 @@ contains
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens, n_in_group, ierr, num_gains
+    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, npar, n_tokens, n_in_group, ierr, num_gains
     integer(i4b) :: wire_to_ind, wire_from_ind
     integer(i4b), allocatable, dimension(:,:)  :: bands_to_sample
     real(dp) :: sigma
@@ -808,9 +835,7 @@ contains
     ! Initializing, allocating all gain proposal lengths
     do i = 1, numband
       allocate(data(i)%gain_sigmas(cpar%mcmc_num_user_samp_groups))
-      !allocate(data(i)%rescale_comp(cpar%mcmc_num_user_samp_groups))
       data(i)%gain_sigmas = 0d0
-      !data(i)%rescale_comp = ''
     end do
 
     do i = 1, cpar%mcmc_num_user_samp_groups
@@ -843,16 +868,13 @@ contains
 
 
         else if (n == 1) then
+            call get_tokens(tokens(j), '%', comp_tokens)
+            read(comp_tokens(2), *) sigma
 
             call get_tokens(comp_tokens(1), ':', comp_names)
-            
-            if (comp_names(1)(1:7) == 'rescale') then
-                write(*,*) comp_tokens(1)
-                stop
 
-            else if (trim(comp_names(1)) == 'gain') then
-                call get_tokens(tokens(j), '%', comp_tokens)
-                read(comp_tokens(2), *) sigma
+
+            if (trim(comp_names(1)) == 'gain') then
                 do k = 1, numband
                   if (trim(comp_names(2)) .eq. trim(data(k)%label)) then
                     data(k)%gain_sigmas(i) = sigma
@@ -860,8 +882,6 @@ contains
                 end do
 
             else if (trim(comp_names(2)) == 'scale') then
-              call get_tokens(tokens(j), '%', comp_tokens)
-              read(comp_tokens(2), *) sigma
 
               c => compList
               do while (associated(c))

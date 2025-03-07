@@ -52,6 +52,7 @@ module comm_template_comp_mod
      real(dp),  dimension(2)    :: P         ! Gaussian prior on amplitude (mean,sigma)
      real(dp),  dimension(2)    :: P_cg      ! Gaussian prior on amplitude for CG (mean,sigma)
      class(comm_map), pointer   :: T    => null()   ! Template
+     real(dp)                   :: T_scale          ! overall scaling amplitude for the template
      class(comm_map), pointer   :: mask => null()   ! Template mask
    contains
      procedure :: dumpFITS      => dumpTemplateToFITS
@@ -112,6 +113,7 @@ contains
     c%comm      = cpar%comm_chain
     c%numprocs  = cpar%numprocs_chain
     c%P         = [mu,rms]
+    c%T_scale   = 1.d0
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid_chain
@@ -296,6 +298,9 @@ contains
        call create_hdf_group(chainfile, trim(adjustl(path)))
        path = trim(adjustl(path))//'/'//trim(adjustl(data(self%band)%label))
        call write_hdf(chainfile, trim(adjustl(path)), self%x)
+       if(self%T_scale /= 1.d0 .and. self%myid == 0) then
+         call write_hdf(chainfile, trim(adjustl(path)) // 'T_scale', self%T_scale)
+       end if
     end if
     
   end subroutine dumpTemplateToFITS
@@ -330,9 +335,9 @@ contains
   end subroutine initTemplateHDF
 
 
-  subroutine initTemplatePrecond(comm)
+  subroutine initTemplatePrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2
@@ -343,7 +348,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (npre == 0) return
-    if (allocated(P_cr%invM_temp)) return
+    if (allocated(P_cr(samp_group)%invM_temp)) return
 
     call mpi_comm_rank(comm, myid, ierr)
         
@@ -396,7 +401,7 @@ contains
     call mpi_reduce(mat, mat2, size(mat2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
 
     ! Invert matrix to finalize preconditioner
-    allocate(P_cr%invM_temp(1,1))
+    allocate(P_cr(samp_group)%invM_temp(1,1))
     if (myid == 0) then
        ! Multiply with sqrtS from left side
        i1  = 0
@@ -440,8 +445,8 @@ contains
        end do
        ! Invert matrix to finalize preconditioner
        call invert_matrix_with_mask(mat2)
-       allocate(P_cr%invM_temp(1,1)%M(npre,npre))
-       P_cr%invM_temp(1,1)%M = mat2
+       allocate(P_cr(samp_group)%invM_temp(1,1)%M(npre,npre))
+       P_cr(samp_group)%invM_temp(1,1)%M = mat2
     end if
 
     deallocate(mat,mat2)
@@ -458,10 +463,11 @@ contains
   end subroutine updateTemplatePrecond
 
 
-  subroutine applyTemplatePrecond(x)
+  subroutine applyTemplatePrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
-
+    integer(i4b),                     intent(in)    :: samp_group
+    
     integer(i4b)              :: i, j, k, l, m, nmaps
     logical(lgt)              :: skip
     real(dp),                  allocatable, dimension(:,:) :: amp
@@ -496,7 +502,7 @@ contains
     end do
 
     ! Multiply with preconditioner
-    y = matmul(P_cr%invM_temp(1,1)%M, y)
+    y = matmul(P_cr(samp_group)%invM_temp(1,1)%M, y)
 
     ! Reformat y(npre) structure back into linear array
     l = 1

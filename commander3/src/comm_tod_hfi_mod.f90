@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_tod_HFI_mod
+module comm_tod_hfi_mod
   !   Module which contains all the HFI time ordered data processing and routines
   !   for a given frequency band
   !
@@ -31,30 +31,41 @@ module comm_tod_HFI_mod
   !       Routine which processes the time ordered data
   !
   use comm_tod_driver_mod
+  use comm_tod_cray_mod
+  use comm_conviqt_mod
+  use comm_tod_crosstalk_mod
   implicit none
 
   private
-  public comm_HFI_tod
+  public comm_hfi_tod
 
-  type, extends(comm_tod) :: comm_HFI_tod
+  type, extends(comm_tod) :: comm_hfi_tod
+     real(sp), allocatable, dimension(:,:)   :: mod_phase
+     class(comm_crosstalk), pointer :: xtalk
    contains
-     procedure     :: process_tod        => process_HFI_tod
-     procedure     :: read_tod_inst      => read_tod_inst_HFI
-     procedure     :: read_scan_inst     => read_scan_inst_HFI
-     procedure     :: initHDF_inst       => initHDF_HFI
-     procedure     :: dumpToHDF_inst     => dumpToHDF_HFI
-  end type comm_HFI_tod
+     procedure     :: process_tod             => process_hfi_tod
+     procedure     :: read_tod_inst           => read_tod_inst_hfi
+     procedure     :: read_scan_inst          => read_scan_inst_hfi
+     procedure     :: initHDF_inst            => initHDF_hfi
+     procedure     :: dumpToHDF_inst          => dumpToHDF_hfi
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_hfi
+     procedure     :: apply_nonlin_corr_inst  => apply_nonlin_corr_hfi
 
-  interface comm_HFI_tod
+     procedure, private     :: stitch_hfi_dc_level
+     procedure, private     :: hfi_dark_correction
+     procedure, private     :: estimate_hfi_4k_lines
+  end type comm_hfi_tod
+
+  interface comm_hfi_tod
      procedure constructor_hfi
-  end interface comm_HFI_tod
+  end interface comm_hfi_tod
 
-contains
+interface
 
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor_hfi(cpar, id, id_abs, info, tod_type) result(c)
+  module function constructor_hfi(cpar, id, id_abs, info, tod_type) result(c)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -80,85 +91,14 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type
-    class(comm_HFI_tod),     pointer    :: c
-
-    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
-    logical(lgt) :: pol_beam
-
-    ! Allocate object
-    allocate(c)
-
-    ! Set up noise PSD type and priors
-    c%freq            = cpar%ds_label(id_abs)
-    c%n_xi            = 3
-    c%noise_psd_model = 'oof'
-    allocate(c%xi_n_P_uni(c%n_xi,2))
-    allocate(c%xi_n_P_rms(c%n_xi))
-
-    ! just so that it actually runs
-    c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
-    c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    !c%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
-
-    c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-
-    ! Initialize common parameters
-    call c%tod_constructor(cpar, id, id_abs, info, tod_type)
-
-    ! Initialize instrument-specific parameters
-    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    c%nhorn           = 1
-    c%compressed_tod  = .true.
-    c%correct_sl      = .false.
-    c%correct_orb     = .true.
-    c%orb_4pi_beam    = .false.
-    c%symm_flags      = .false.
-    c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
-    c%nmaps           = info%nmaps
-    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    c%ntime           = 1
-    c%HFI_flag        = .true.
-    c%partner         = -1
-
-    nside_beam                  = 512
-    nmaps_beam                  = 3
-    pol_beam                    = .true.
-    c%nside_beam      = nside_beam
-
-    ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
-    
-    ! Read the actual TOD
-    call c%read_tod(c%label)
-
-    ! Initialize bandpass mean and proposal matrix
-    !call c%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
-
-    ! Construct lookup tables
-    call c%precompute_lookups()
-
-    ! Load the instrument file
-    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
-
-    ! Allocate sidelobe convolution data structures
-    !allocate(c%slconv(c%ndet), c%orb_dp)
-    
-    allocate(c%orb_dp)
-    c%orb_dp => comm_orbdipole(c%mbeam)
-
-    ! Initialize all baseline corrections to zero
-    do i = 1, c%nscan
-      do j = 1, c%ndet
-       c%scans(i)%d(j)%baseline = 0.d0
-      end do
-    end do
+    class(comm_hfi_tod),     pointer    :: c
 
   end function constructor_hfi
 
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_HFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
+  module subroutine process_hfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     !
     ! Routine that processes the HFI time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -196,7 +136,7 @@ contains
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_HFI_tod),                      intent(inout) :: self
+    class(comm_hfi_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -205,238 +145,94 @@ contains
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+  end subroutine process_hfi_tod
 
-    real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
-    type(comm_binmap)   :: binmap
-    type(comm_scandata) :: sd
-    character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext
-    character(len=512)  :: prefix, postfix, prefix4D, filename
-    character(len=512), allocatable, dimension(:) :: slist
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
-    real(sp), allocatable, dimension(:,:)     :: s_buf
-    real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
-    real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-    call int2string(iter, ctext)
-    call update_status(status, "tod_start"//ctext)
+  module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+    ! 
+    ! Estimates baselines for MODULATED data, separate for odd and even samples
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scandata)
+    !           HFI-specific TOD object
+    ! tod:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! scan:     scan ID
+    ! handle:   planck_rng derived type
+    !           Healpix definition for random number generation
+    !           so that the same sequence can be resumed later on from that same
+    !           point
+    !           
+    !
+    ! Returns
+    ! ----------
+    !   None, but updates tod%scans(scan)%d(:)%baseline  (for odd samples)
+    !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
+    !                     tod%scans(scan)%d(:)%gain (temporary solution)
+    !
+    implicit none
+    class(comm_scandata),                 intent(in)    :: self
+    class(comm_hfi_tod),                  intent(inout) :: tod
+    integer(i4b),                         intent(in)    :: scan
+    type(planck_rng),                     intent(inout) :: handle
+    logical(lgt),                         intent(in), optional :: subtract_s_tot
+  end subroutine sample_hfi_baselines
 
-    ! Toggle optional operations
-    sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    select_data           = self%first_call        ! only perform data selection the first time
-    output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
+  module subroutine set_modulation_phase(self, tod, scan)
+    ! 
+    ! Estimates baselines for MODULATED data, separate for odd and even samples
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scandata)
+    !           HFI-specific TOD object
+    ! tod:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! scan:     scan ID
+    ! handle:   planck_rng derived type
+    !           Healpix definition for random number generation
+    !           so that the same sequence can be resumed later on from that same
+    !           point
+    !           
+    !
+    ! Returns
+    ! ----------
+    !   None, but updates tod%scans(scan)%d(:)%baseline1  (for odd samples)
+    !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
+    !                     tod%scans(scan)%d(:)%gain (temporary solution)
+    !
+    implicit none
+    class(comm_scandata),                 intent(in)    :: self
+    class(comm_hfi_tod),                  intent(inout) :: tod
+    integer(i4b),                         intent(in)    :: scan
+  end subroutine set_modulation_phase
+  
 
-    ! Initialize local variables
-    ndelta          = size(delta,3)
-    self%n_bp_prop  = ndelta
-    nside           = map_out%info%nside
-    nmaps           = map_out%info%nmaps
-    npix            = 12*nside**2
-    self%output_n_maps = 3
-    if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
-    end if
-
-    call int2string(chain, ctext)
-    call int2string(iter, samptext)
-    call int2string(self%myid, myid_text)
-    prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
-    postfix = '_c' // ctext // '_k' // samptext // '.fits'
-
-    ! Distribute maps
-    allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
-    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
-
-    ! Distribute processing masks
-    allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-    call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-    call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-    deallocate(m_buf)
-
-    ! Precompute far sidelobe Conviqt structures
-    !if (self%correct_sl) then
-    !   if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-    !   do i = 1, self%ndet
-          !TODO: figure out why this is rotated
-    !      call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-    !      self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-    !           & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-    !           & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-    !   end do
-    !end if
-!    write(*,*) 'qqq', self%myid
-!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-    call update_status(status, "tod_init")
-
-    !------------------------------------
-    ! Perform main sampling steps
-    !------------------------------------
-
-    ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    !call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-
-    ! Prepare intermediate data structures
-    call binmap%init(self, .true., sample_rel_bandpass)
-    if (sample_abs_bandpass .or. sample_rel_bandpass) then
-       allocate(chisq_S(self%ndet,size(delta,3)))
-       chisq_S = 0.d0
-    end if
-    if (output_scanlist) then
-       allocate(slist(self%nscan))
-       slist   = ''
-    end if
-
-    ! Perform loop over scans
-    if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
-    do i = 1, self%nscan
-       
-       ! Skip scan if no accepted data
-       if (.not. any(self%scans(i)%d%accept)) cycle
-       call wall_time(t1)
-
-       ! Prepare data
-       if (sample_rel_bandpass) then
-!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
-       else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
-       else
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
-       end if
-       allocate(s_buf(sd%ntod,sd%ndet))
-
-       ! Calling Simulation Routine
-       if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-          call sd%dealloc
-          cycle
-       end if
-
-       ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-
-       ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-
-       ! Compute chisquare
-       do j = 1, sd%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod=sd%tod(:, j))
-       end do
-
-       ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)
-
-       ! Compute chisquare for bandpass fit
-       if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-
-       ! Compute binned map
-       allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-       call compute_calibrated_data(self, i, sd, d_calib)
-       
-       ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-       if (self%output_4D_map > 0) then
-          if (mod(iter-1,self%output_4D_map) == 0) then
-             allocate(sigma0(sd%ndet))
-             do j = 1, sd%ndet
-                sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-             end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
-             deallocate(sigma0)
-          end if
-       end if
-
-       ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
-       ! Update scan list
-       call wall_time(t2)
-       self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
-       self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
-       if (output_scanlist) then
-          write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
-               & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),&
-               & real(self%spinaxis(i,:),sp)
-       end if
-
-       ! Clean up
-       call sd%dealloc
-       deallocate(s_buf, d_calib)
-
-    end do
-
-    if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
-
-    ! Output latest scan list with new timing information
-    if (output_scanlist) call self%output_scan_list(slist)
-
-    ! Solve for maps
-    call synchronize_binmap(binmap, self)
-    if (sample_rel_bandpass) then
-       if (self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
-       else
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6, chisq_S=chisq_s, mask=procmask2)
-       end if
-    else
-       if(self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6)
-       else 
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6)
-       end if
-    end if
-    map_out%map = binmap%outmaps(1)%p%map
-
-    ! Sample bandpass parameters
-    if (sample_rel_bandpass .or. sample_abs_bandpass) then
-       call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
-       self%bp_delta = delta(:,:,1)
-    end if
-   
-    ! Output maps to disk
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-
-    ! Clean up
-    call binmap%dealloc()
-    if (allocated(slist)) deallocate(slist)
-    deallocate(map_sky, procmask, procmask2)
-    if (self%correct_sl) then
-       do i = 1, self%ndet
-          call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
-       end do
-    end if
-
-    ! Parameter to check if this is first time routine has been
-    self%first_call = .false.
-
-    call update_status(status, "tod_end"//ctext)
-
-  end subroutine process_HFI_tod
+  module subroutine demodulate_tod(self, tod, scan)
+    ! 
+    ! Demodulate HFI TOD
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scandata)
+    !           HFI-specific TOD object
+    ! tod:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! scan:     Scan ID
+    !
+    ! Returns
+    ! ----------
+    !   None, but updates self%tod
+    !
+    implicit none
+    class(comm_scandata),                         intent(inout) :: self
+    class(comm_hfi_tod),                          intent(in)    :: tod
+    integer(i4b),                                 intent(in)    :: scan
+  end subroutine demodulate_tod
 
   
-  subroutine read_tod_inst_HFI(self, file)
+  module subroutine read_tod_inst_hfi(self, file)
     ! 
     ! Reads HFI-specific common fields from TOD fileset
     ! 
@@ -454,9 +250,9 @@ contains
     implicit none
     class(comm_HFI_tod),                 intent(inout)          :: self
     type(hdf_file),                      intent(in),   optional :: file
-  end subroutine read_tod_inst_HFI
+  end subroutine read_tod_inst_hfi
   
-  subroutine read_scan_inst_HFI(self, file, slabel, detlabels, scan)
+  module subroutine read_scan_inst_hfi(self, file, slabel, detlabels, scan)
     ! 
     ! Reads HFI-specific scan information from TOD fileset
     ! 
@@ -483,9 +279,9 @@ contains
     character(len=*),                    intent(in)    :: slabel
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
-  end subroutine read_scan_inst_HFI
+  end subroutine read_scan_inst_hfi
 
-  subroutine initHDF_HFI(self, chainfile, path)
+  module subroutine initHDF_hfi(self, chainfile, path)
     ! 
     ! Initializes HFI-specific TOD parameters from existing chain file
     ! 
@@ -506,9 +302,9 @@ contains
     class(comm_HFI_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine initHDF_HFI
+  end subroutine initHDF_hfi
   
-  subroutine dumpToHDF_HFI(self, chainfile, path)
+  module subroutine dumpToHDF_hfi(self, chainfile, path)
     ! 
     ! Writes HFI-specific TOD parameters to existing chain file
     ! 
@@ -529,6 +325,112 @@ contains
     class(comm_HFI_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine dumpToHDF_HFI
+  end subroutine dumpToHDF_hfi
 
-end module comm_tod_HFI_mod
+  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s)
+    !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
+    real(sp),            dimension(:,:),   intent(out)   :: s
+  end subroutine construct_corrtemp_hfi
+
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd)
+    !  Construct and apply HFI instrument-specific non-linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !
+    !  sd: comm_scandata
+    !       structure holding the scan data
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+  end subroutine apply_nonlin_corr_hfi
+
+  module subroutine stitch_hfi_dc_level(self, scan, sd)
+    !  Construct and apply HFI instrument-specific non-linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+  end subroutine stitch_hfi_dc_level
+
+  module subroutine hfi_dark_correction(self, scan, sd)
+    !  Construct and apply HFI instrument-specific corrections
+    !  from dark bolometer timestreams
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+  end subroutine hfi_dark_correction
+
+  module subroutine estimate_hfi_4k_lines(self, scan, sd)
+    !  Construct and apply HFI instrument-specific corrections
+    !  from 4k lines
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  sd: comm_scandata object
+    !       structure holding the data for each scan
+    !
+    implicit none
+    class(comm_hfi_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    class(comm_scandata),                  intent(inout) :: sd
+  end subroutine estimate_hfi_4k_lines
+
+end interface
+
+end module comm_tod_hfi_mod

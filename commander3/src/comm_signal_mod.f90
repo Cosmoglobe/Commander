@@ -105,7 +105,11 @@ contains
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
-          call add_to_complist(c)
+          if(associated(c)) then
+            call add_to_complist(c)
+          else
+            if(cpar%myid == 0) write(*,*) "Component failed to initialize: "//trim(cpar%cs_type(i))
+          end if
        case ("ptsrc")
           c => comm_ptsrc_comp(cpar, ncomp, i)
           call add_to_complist(c)
@@ -246,26 +250,26 @@ contains
       end do
     end if
    
-    ! Sample point source amplitudes
-    c => compList 
-    do while (associated(c))
-       select type (c)
-       class is (comm_ptsrc_comp)
-          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
-             ! Initialize residual maps
-             do l = 1, numband
-                res             => compute_residual(l)
-                data(l)%res%map =  res%map
-                call res%dealloc(); deallocate(res)
-                nullify(res)
-             end do
-             ! Perform sampling
-             call c%samplePtsrcAmp(cpar, handle, samp_group)
-             return
-          end if
-       end select
-       c => c%nextComp()
-    end do
+    ! Sample point source amplitudes with precomputed amplitudes
+!!$    c => compList 
+!!$    do while (associated(c))
+!!$       select type (c)
+!!$       class is (comm_ptsrc_comp)
+!!$          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+!!$             ! Initialize residual maps
+!!$             do l = 1, numband
+!!$                res             => compute_residual(l)
+!!$                data(l)%res%map =  res%map
+!!$                call res%dealloc(); deallocate(res)
+!!$                nullify(res)
+!!$             end do
+!!$             ! Perform sampling
+!!$             call c%samplePtsrcAmp(cpar, handle, samp_group)
+!!$             return
+!!$          end if
+!!$       end select
+!!$       c => c%nextComp()
+!!$    end do
     
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
@@ -291,7 +295,8 @@ contains
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
-    call initPrecond(cpar%comm_chain)
+    if (.not. allocated(P_cr)) allocate(P_cr(cpar%cg_num_user_samp_groups))
+    call initPrecond(cpar%comm_chain, samp_group)
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
     call cr_x2amp(samp_group, x)
@@ -388,12 +393,12 @@ contains
 
   end subroutine sample_all_amps_by_CG
 
-  subroutine initPrecond(comm)
+  subroutine initPrecond(comm, samp_group)
     implicit none
-    integer(i4b), intent(in) :: comm
-    call initDiffPrecond(comm)
-    call initPtsrcPrecond(comm)
-    call initTemplatePrecond(comm)
+    integer(i4b), intent(in) :: comm, samp_group
+    call initDiffPrecond(comm, samp_group)
+    call initPtsrcPrecond(comm, samp_group)
+    call initTemplatePrecond(comm, samp_group)
   end subroutine initPrecond
 
   subroutine add_to_complist(c)
@@ -417,7 +422,7 @@ contains
     integer(i4b)              :: i, j, ext(2), initsamp, initsamp2
     character(len=4)          :: ctext
     character(len=6)          :: itext, itext2
-    character(len=512)        :: chainfile, hdfpath
+    character(len=2048)       :: chainfile, hdfpath
     class(comm_comp), pointer :: c => null()
     type(hdf_file) :: file, file2
     class(comm_N),      pointer :: N => null() 

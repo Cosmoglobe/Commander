@@ -33,7 +33,7 @@ module comm_zodi_mod
       logical(lgt), allocatable, dimension(:,:) :: sampgroup_active_band
       integer(i4b), allocatable, dimension(:)   :: theta2band
       real(dp),     allocatable, dimension(:,:) :: theta_prior
-      real(dp),     allocatable, dimension(:)   :: theta_scale
+      real(dp),     allocatable, dimension(:,:) :: theta_scale
 
       ! Stationary model
 !      real(dp), allocatable, dimension(:)   :: amp_static
@@ -116,7 +116,7 @@ contains
       allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
       allocate(zodi_model%theta2band(zodi_model%npar_tot))
       allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
-      allocate(zodi_model%theta_scale(zodi_model%npar_tot))
+      allocate(zodi_model%theta_scale(zodi_model%npar_tot,2))
       allocate(zodi_model%par_labels(zodi_model%npar_tot))
       allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
       
@@ -127,7 +127,7 @@ contains
          call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
          do j = 1, ntok
             k = get_string_index(band_labels, tokens(j))
-            zodi_model%sampgroup_active_band(k,i) = .true.
+            zodi_model%sampgroup_active_band(k,i) = .true. 
          end do
          call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
       end do
@@ -165,7 +165,7 @@ contains
          zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
               & zodi_model%comps(i)%labels
          do j = ind, ind+zodi_model%comps(i)%npar-1
-            zodi_model%par_labels(j) = &
+            zodi_model%par_labels_full(j) = &
               & trim(zodi_model%comp_labels(i))//':'//trim(zodi_model%par_labels(j))
          end do
             
@@ -173,21 +173,26 @@ contains
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
             zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
-            zodi_model%theta_scale(ind+j)   = 1.d0
+            zodi_model%theta_scale(ind+j,:)   = [1.d0,0.1d0]
             zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+j)  = trim(zodi_model%comp_labels(i))//':em@'//trim(band_labels(j))
             
             zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
-            zodi_model%theta_scale(ind+numband+j)   = 1.d0
+            zodi_model%theta_scale(ind+numband+j,:)   = [1.d0, 0.01d0]
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+numband+j) = trim(zodi_model%comp_labels(i))//':al@'//trim(band_labels(j))
+
+            ! Set DIRBE emissivity rms by hand
+            if (trim(band_instlabels(j)) == '06') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.01d0]
+            if (trim(band_instlabels(j)) == '07') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.02d0]
+            if (trim(band_instlabels(j)) == '08') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.03d0]
          end do
       end do
       ! Monopoles
       do j = 1, numband
          ind = zodi_model%npar_tot - numband + j
          zodi_model%theta_prior(:,ind) = [0.d0, 1d30, 0.d0, -1.d0] ! Priors
-         zodi_model%theta_scale(ind)   = 1.d0
+         zodi_model%theta_scale(ind,:) = [1.d0,0.01d0]
          zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
          zodi_model%par_labels_full(ind) = 'm@'//trim(band_labels(j))
       end do
@@ -259,12 +264,12 @@ contains
       implicit none
       class(ZodiModel),           intent(in)    :: self
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
-      scale(1)   = 286.d0
+      scale(1,:) = [286.d0, 3.d0]
       prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
-      scale(2)   = 0.4d0      
+      scale(2,:) = [0.4d0, 0.01d0]      
     end subroutine init_general_priors_and_scales
 
 
@@ -395,6 +400,52 @@ contains
                  &)
             allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%comet]
+         case ('wrightcloudring')
+            allocate (ZodiWrightCloudRing::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightCloudRing(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & p1=params(i, 7), &
+                & p3=params(i, 8), &
+                & p4=params(i, 9), &
+                & p5=params(i, 10), &
+                & p6=params(i, 11), &
+                & p7=params(i, 12), &
+                & p8=params(i, 13), &
+                & p9=params(i, 14), &
+                & p10=params(i, 15), &
+                & p13=params(i, 16), &
+                & p14=params(i, 17), &
+                & p15=params(i, 18), &
+                & p16=params(i, 19), &
+                & p17=params(i, 20), &
+                & p18=params(i, 21), &
+                & p19=params(i, 22) &
+                &)
+            allocate(self%comps(i)%labels(22))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightcloudring]
+         case ('wrightband')
+            allocate (ZodiWrightBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightBand(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & q1=params(i, 7), &
+                & q5=params(i, 8), &
+                & q6=params(i, 9), &
+                & q7=params(i, 10), &
+                & q8=params(i, 11), &
+                & R_1=params(i, 12) &
+                &)
+            allocate(self%comps(i)%labels(12))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightband]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -474,11 +525,37 @@ contains
             x(running_idx + 4) = comp%Z_midplane_0
             x(running_idx + 5) = comp%R_outer
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-            class is (ZodiComet)
+         class is (ZodiComet)
             x(running_idx + 1) = comp%P
             x(running_idx + 2) = comp%Z_midplane_0
             x(running_idx + 3) = comp%R_inner
             x(running_idx + 4) = comp%R_outer
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightCloudRing)
+            x(running_idx + 1)  = comp%p1
+            x(running_idx + 2)  = comp%p3
+            x(running_idx + 3)  = comp%p4
+            x(running_idx + 4)  = comp%p5
+            x(running_idx + 5)  = comp%p6
+            x(running_idx + 6)  = comp%p7
+            x(running_idx + 7)  = comp%p8
+            x(running_idx + 8)  = comp%p9
+            x(running_idx + 9)  = comp%p10
+            x(running_idx + 10) = comp%p13
+            x(running_idx + 11) = comp%p14
+            x(running_idx + 12) = comp%p15
+            x(running_idx + 13) = comp%p16
+            x(running_idx + 14) = comp%p17
+            x(running_idx + 15) = comp%p18
+            x(running_idx + 16) = comp%p19
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightBand)
+            x(running_idx + 1)  = comp%q1
+            x(running_idx + 2)  = comp%q5
+            x(running_idx + 3)  = comp%q6
+            x(running_idx + 4)  = comp%q7
+            x(running_idx + 5)  = comp%q8
+            x(running_idx + 6)  = comp%R_1
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
@@ -563,6 +640,32 @@ contains
             comp%Z_midplane_0 = x(running_idx + 2)
             comp%R_inner = x(running_idx + 3)
             comp%R_outer = x(running_idx + 4)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightCloudRing)
+            comp%p1  = x(running_idx + 1)
+            comp%p3  = x(running_idx + 2)
+            comp%p4  = x(running_idx + 3)
+            comp%p5  = x(running_idx + 4)
+            comp%p6  = x(running_idx + 5)
+            comp%p7  = x(running_idx + 6)
+            comp%p8  = x(running_idx + 7)
+            comp%p9  = x(running_idx + 8)
+            comp%p10 = x(running_idx + 9)
+            comp%p13 = x(running_idx + 10)
+            comp%p14 = x(running_idx + 11)
+            comp%p15 = x(running_idx + 12)
+            comp%p16 = x(running_idx + 13)
+            comp%p17 = x(running_idx + 14)
+            comp%p18 = x(running_idx + 15)
+            comp%p19 = x(running_idx + 16)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightBand)
+            comp%q1  = x(running_idx + 1)
+            comp%q5  = x(running_idx + 2)
+            comp%q6  = x(running_idx + 3)
+            comp%q7  = x(running_idx + 4)
+            comp%q8  = x(running_idx + 5)
+            comp%R_1 = x(running_idx + 6)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()
@@ -652,7 +755,7 @@ contains
       type(hdf_file) :: file
 
       character(len=32), allocatable :: param_labels(:)
-      character(len=512) :: chainfile, group_name
+      character(len=2048) :: chainfile, group_name
 
       if (cpar%myid == cpar%root) then
          if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
@@ -836,7 +939,7 @@ contains
      integer(i4b),     dimension(:), intent(inout) :: stat
 
      integer(i4b) :: i, c, j, k, first, last, n_params, n, m, ind, em_global, al_global, c_to, c_from, band
-     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2)
+     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2), al_from(2), al_to(2)
      character(len=2048) :: str
      
      ! Default: Fix everything at input
@@ -866,6 +969,8 @@ contains
                  if (active(band) .and. band_todtype(band) /= 'none') then
                     !ind       = zodi_model%get_par_ind(mono_band=band)
                     band_update_monopole(band,samp_group) = .true.
+                    ind = zodi_model%get_par_ind(mono_band=band)
+                    stat(ind) = 0
                  end if
                  cycle
               else
@@ -919,7 +1024,7 @@ contains
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
                  stat(ind) = 0
               end if
-           else if (trim(label(1:2)) == 'al') then
+           else if (trim(label(1:2)) == 'al' .and. trim(label) /= 'alpha') then
               ! Albedo
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
@@ -945,12 +1050,12 @@ contains
      end do
 
      ! Set up monopoles
-     do i = 1, numband
-        if (active(i) .and. band_todtype(i) /= 'none') then
-           ind = zodi_model%get_par_ind(mono_band=i)
-           stat(ind) = 0
-        end if
-     end do
+!!$     do i = 1, numband
+!!$        if (active(i) .and. band_todtype(i) /= 'none') then
+!!$           ind = zodi_model%get_par_ind(mono_band=i)
+!!$           stat(ind) = 0
+!!$        end if
+!!$     end do
 
      ! Apply explicit parameter wiring
      call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
@@ -993,6 +1098,26 @@ contains
               if (.not. active(j) .or. .not. active(k)) cycle
               c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_string=em_from(2))
               c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_string=em_to(2))
+              stat(c_from) = c_to
+           end if
+        else if (trim(wire_from(2)(1:2)) == 'al') then
+           call get_tokens(wire_from(2), '@', al_from, num=n)
+           call get_tokens(wire_to(2), '@', al_to, num=n)
+           if (n == 1) then
+              ! Attach all bands
+              do c = 1, numband
+                 if (.not. active(c)) cycle
+                 c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_band=c)
+                 c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_band=c)
+                 stat(c_from) = c_to
+              end do
+           else
+              ! Attach specified band
+              j = get_string_index(band_labels, al_from(2))
+              k = get_string_index(band_labels, al_to(2))
+              if (.not. active(j) .or. .not. active(k)) cycle
+              c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_string=al_from(2))
+              c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_string=al_to(2))
               stat(c_from) = c_to
            end if
         else
@@ -1159,7 +1284,7 @@ contains
       else
          scattering = .false.
          do i = 1, zodi_model%n_comps
-            if (zodi_model%comps(i)%c%emissivity(tod%id) > EPS) then
+            if (zodi_model%comps(i)%c%albedo(tod%id) > EPS) then
                scattering = .true.
                exit
             end if
@@ -1260,6 +1385,11 @@ contains
             end if
 
             call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+!!$            write(*,*) tod%info%myid, k, size(comp_LOS(k)%T), size(tod%zodi_B_nu_spl_obj(det)%x), size(tod%zodi_B_nu_spl_obj(det)%y)
+!!$            write(*,*) tod%info%myid, k, comp_LOS(k)%T
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%x
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y2
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
@@ -1279,7 +1409,7 @@ contains
             end if
          end do
 !!$         call vec2ang(unit_vector, lat, lon)
-!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:))!, sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
+!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
 !!$
 !!$         write(*,*) "X", comp_LOS(1)%X(1,:)
 !!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
@@ -1291,8 +1421,9 @@ contains
 !!$         !write(*,*) "F", comp_LOS(1)%F_sol*1.d20
 !!$         !write(*,*) "Phi", comp_LOS(1)%Phi
 !!$         !write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0
+!!$         write(*,*) "T_0, delta", model%T_0, model%delta
+!!$         write(*,*) "T", comp_LOS(1)%T
 !!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
-
       end do
 
 !!$      close(58)
@@ -1524,7 +1655,7 @@ contains
       type(hdf_file) :: file
       real(dp) :: lambda, lambda_min, lambda_max
       real(dp), allocatable :: emissivity(:), albedo(:)
-      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
+      character(len=2048) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
 
       !allocate(tod%zodi_emissivity(tod%zodi_n_comps))
       !allocate(tod%zodi_albedo(tod%zodi_n_comps))
@@ -1580,14 +1711,15 @@ contains
    end subroutine read_tod_zodi_params
 
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, pix_static, s_therm, s_scat)
+   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, s_therm, s_scat, exclude_static)
       implicit none
       class(ZodiModel),                 intent(in)               :: zodi_model
       class(comm_tod),                  intent(inout)            :: tod
       integer(i4b),                     intent(in)               :: det, scan
       real(sp),         dimension(:),   intent(out)              :: s
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic,  pix_static
+      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
       real(sp),         dimension(:,:), intent(out),    optional :: s_therm, s_scat
+      character(len=*),                 intent(in),     optional :: exclude_static
       
       integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
       real(sp)     :: w
@@ -1617,17 +1749,42 @@ contains
 
          deallocate(s_scat_, s_therm_, s_zodi)
       end if
-
-      ! Add static zodi component by Healpix map lookup
-      if (present(pix_static) .and. associated(tod%map_solar)) then
-         nhorn = size(pix_static,2)      
-         do h = 1, nhorn
+      return
+      
+      ! Add solar component by Healpix map lookup
+      if (trim(exclude_static) /= 'solar') then
+         do h = 1, tod%nhorn 
             do i = 1, ntod
-               j    = pix_static(i,h)
+               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
                if (tod%map_solar(j,1) > -1.d30) then
                   w    = 1.d0; if (h > 1) w = -1.d0
-                  !s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
                   s(i) = s(i) + w * tod%map_solar(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Moon component by Healpix map lookup
+      if (trim(exclude_static) /= 'moon') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
+               if (tod%map_moon(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_moon(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Earth component by Healpix map lookup
+      if (trim(exclude_static) /= 'earth') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+               if (tod%map_earth(j) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s(i) = s(i) + w * tod%map_earth(j)
                end if
             end do
          end do

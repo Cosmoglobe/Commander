@@ -97,6 +97,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      class(comm_map),               pointer     :: defmask => null()
      class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
+     real(dp)                                   :: x_scale !overall scaling parameter for component
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out => null()       ! Output beam
@@ -112,9 +113,9 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
      integer(i4b) :: ntab
-     real(dp), allocatable, dimension(:,:) :: SEDtab
-     real(dp), allocatable, dimension(:,:) :: SEDtab_buff
-     real(dp)                              :: SEDtab_prior  ! Single value for MH proposals, per comp
+     real(dp), allocatable, dimension(:,:) :: SEDtab        ! (2+npar_tab, nbin)
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff   ! 
+     real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling
@@ -244,24 +245,24 @@ interface
   end subroutine initSpecindProp
 
 
-  module subroutine initDiffPrecond(comm)
+  module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond
 
-  module subroutine initDiffPrecond_diagonal(comm)
+  module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_diagonal
 
 
-  module subroutine initDiffPrecond_pseudoinv(comm)
+  module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_pseudoinv
@@ -335,25 +336,28 @@ interface
   end function projectDiffuseBand
 
 
-  module subroutine applyDiffPrecond(x)
+  module subroutine applyDiffPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond
 
 
-  module subroutine applyDiffPrecond_diagonal(x)
+  module subroutine applyDiffPrecond_diagonal(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_diagonal
 
 
-  module subroutine applyDiffPrecond_pseudoinv(x)
+  module subroutine applyDiffPrecond_pseudoinv(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_pseudoinv
@@ -433,8 +437,9 @@ interface
 
 
   
-  module subroutine print_precond_mat
+  module subroutine print_precond_mat(samp_group)
     implicit none
+    integer(i4b),                     intent(in)    :: samp_group
   end subroutine print_precond_mat
 
   module subroutine updateDiffuseFInt(self, band)

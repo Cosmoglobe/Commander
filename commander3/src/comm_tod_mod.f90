@@ -22,11 +22,16 @@ module comm_tod_mod
   use comm_fft_mod
   use comm_huffman_mod
   use comm_conviqt_mod
+  use comm_tod_cray_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_shared_arr_mod
+  use comm_utils
   USE ISO_C_BINDING
   implicit none
+
+  private
+  public comm_tod, comm_scan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -36,6 +41,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
+     real(dp)          :: baseline1, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -51,7 +57,8 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)     :: baseline       ! Polynomial coefficients for baseline function
      integer(i4b),       allocatable, dimension(:,:)   :: pix_sol        ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
-     integer(i4b),       allocatable, dimension(:,:)   :: psi_sol        ! Discretized polarization angle in solar centric coordinates, for zodi and sidelobe mapping
+     integer(i4b),       allocatable, dimension(:,:)   :: pix_moon       ! Discretized pointing in Moon centric coordinates, for zodi and sidelobe mapping
+     real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
@@ -75,11 +82,17 @@ module comm_tod_mod
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for start of chunk
-     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end f chunk
+     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end of chunk
      real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end f chunk
-     real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end f chunk
+     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
+     real(dp)       :: x0_earth(3)                                 ! Earth position (x,y,z) for start of chunk
+     real(dp)       :: x1_earth(3)                                 ! Earth position (x,y,z) for end of chunk
+
+     real(dp), allocatable, dimension(:,:) :: xarr_moon            ! Moon positions
+     real(dp), allocatable, dimension(:,:) :: xarr_earth           ! Earth positions
+     real(dp), allocatable, dimension(:,:) :: xarr_obs             ! Observatory positions
+     real(dp), allocatable, dimension(:)   :: time_arr             ! Observatory positions
+     integer(i4b)   :: n_interp                                    ! Number of points used to interpolate
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -126,8 +139,9 @@ module comm_tod_mod
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
+     integer(i4b) :: ndark = 0                                    ! number of dark bolometers
+     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
-
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
@@ -136,7 +150,6 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
-     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -150,7 +163,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters, (xi_n, 2)
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs, nobs_lowres                     ! Number of observed pixels for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
@@ -164,6 +177,8 @@ module comm_tod_mod
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: output_zodi_comps                            ! Output zodi components
      logical(lgt) :: use_solar_point                              ! Compute solar centric pointing, for zodi or sidelobe mapping
+     logical(lgt) :: use_moon_point                               ! Compute Moon centric pointing, for zodi or sidelobe mapping
+     logical(lgt) :: use_earth_elon                               ! Compute Earth elongation
      real(sp)     :: sol_elong_range(2)                           ! Acceptable solar elongation range
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
@@ -192,14 +207,21 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
      !class(comm_map), pointer                          :: mask_solar => null() ! Solar centric/sidelobe mask
      real(dp),           allocatable, dimension(:,:)   :: mask_solar           ! Solar centric/sidelobe mask
+     real(dp),           allocatable, dimension(:,:)   :: mask_moon            ! Moon centric/sidelobe mask
+     real(dp),           allocatable, dimension(:)     :: mask_earth           ! Earth centric/sidelobe mask; elongation only
      logical(lgt)                                      :: map_solar_allocated
+     logical(lgt)                                      :: map_moon_allocated
+     logical(lgt)                                      :: map_earth_allocated
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
+     real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
+     real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
-     class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
+     class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -255,6 +277,7 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
+     procedure                           :: apply_nonlin_corr_inst
      procedure                           :: construct_dipole_template
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
@@ -265,6 +288,7 @@ module comm_tod_mod
      procedure                           :: decompress_pointing_and_flags
      procedure                           :: decompress_tod
      procedure                           :: decompress_diodes
+     procedure                           :: decompress_dark_data
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
      procedure                           :: load_instrument_inst
@@ -278,7 +302,7 @@ module comm_tod_mod
      procedure                           :: create_dynamic_mask
      procedure                           :: get_s_static
   end type comm_tod
-
+  
   abstract interface
      subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
@@ -299,6 +323,44 @@ module comm_tod_mod
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
 
+  ! Class for uncompressed data for a given scan
+  type :: comm_scandata
+     integer(i4b) :: ntod, ndet, nhorn, ndelta
+     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
+     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
+     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
+     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
+     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
+     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
+     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
+     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
+     integer(i4b) :: band                                           ! Band ID
+  end type comm_scandata
+
+  
 contains
 
   subroutine initialize_tod_mod(cpar)
@@ -346,6 +408,7 @@ contains
     character(len=128),             intent(in)     :: tod_type
 
     integer(i4b) :: i, ndelta, ierr, unit
+    real(sp)     :: elon
     character(len=512) :: datadir, solar_init
 
     self%id            = id
@@ -385,6 +448,7 @@ contains
     self%sample_abs_bp   = .false.
     self%zodiband        = -1
     self%sol_elong_range = [0., 180.]
+    self%sample_mono     = .false.
     
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
@@ -392,6 +456,8 @@ contains
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
    end if
    self%use_solar_point = self%subtract_zodi
+   self%use_moon_point  = .false.
+   self%use_earth_elon  = .false.
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -399,7 +465,9 @@ contains
       self%orbital = .true.
     end if
 
-    if (trim(self%noise_psd_model) == 'oof') then
+    if (trim(self%noise_psd_model) == 'white') then
+       self%n_xi = 1  ! {sigma0}
+    else if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
@@ -448,9 +516,20 @@ contains
       self%procmask_zodi => comm_map(self%info, self%procmaskfzodi)
     end if
     if (trim(cpar%ds_tod_solar_mask(id_abs)) /= 'none') then
-       !self%mask_solar => comm_map(self%info, cpar%ds_tod_solar_mask(id_abs))
        allocate(self%mask_solar(0:12*self%nside_param**2-1,1))
        call read_map(cpar%ds_tod_solar_mask(id_abs), self%mask_solar)
+    end if
+    if (trim(cpar%ds_tod_moon_mask(id_abs)) /= 'none') then
+       allocate(self%mask_moon(0:12*self%nside_param**2-1,1))
+       call read_map(cpar%ds_tod_moon_mask(id_abs), self%mask_moon)
+    end if
+    if (trim(cpar%ds_tod_earth_mask(id_abs)) /= 'none') then
+       allocate(self%mask_earth(NBIN_EARTH_ELON))
+       open(58,file=trim(cpar%ds_tod_earth_mask(id_abs)))
+       do i = 1, NBIN_EARTH_ELON
+          read(58,*) elon, self%mask_earth(i)
+       end do
+       close(58)
     end if
     
     do i = 0, self%info%np-1
@@ -514,6 +593,15 @@ contains
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
+
+    ! Init cosmic ray template removal
+    if(self%n_cray_temps > 0) then 
+      allocate(self%cray(self%ndet))
+      do i = 1, self%ndet
+        self%cray(i)%p => comm_cray(self%n_cray_temps)
+      end do
+    end if
+
   end subroutine tod_constructor
 
   subroutine precompute_lookups(self)
@@ -533,28 +621,35 @@ contains
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     integer(i4b) :: i, j, k, l, ierr
-    integer(i4b), allocatable, dimension(:) :: pix
+    integer(i4b), allocatable, dimension(:) :: pix, psi
 
     ! Construct observed pixel array
     allocate(self%pix2ind(0:12*self%nside**2-1))
     self%pix2ind = -2
     do i = 1, self%nscan
-       allocate(pix(self%scans(i)%ntod))
+       allocate(pix(self%scans(i)%ntod), psi(self%scans(i)%ntod))
        if (self%nhorn == 2) then
-          if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(1)%psi_sol(self%scans(i)%ntod,self%nhorn))
+          if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn))
+          if (self%use_moon_point)  allocate(self%scans(i)%d(1)%pix_moon(self%scans(i)%ntod,self%nhorn))
+          if (self%use_earth_elon)  allocate(self%scans(i)%d(1)%earth_elon(self%scans(i)%ntod,self%nhorn))
           do l = 1, self%nhorn
              call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
              self%pix2ind(pix(1)) = -1
              do k = 2, self%scans(i)%ntod
                 self%pix2ind(pix(k)) = -1
              end do
-             if (self%use_solar_point) then
-                call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+             if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
+             if (self%use_moon_point)  then
+                call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
+                call compute_moon_centered_pointing(self, i, 1, pix, psi, self%scans(i)%d(1)%pix_moon(:,l))
              end if
+             if (self%use_earth_elon) call compute_earth_elongation(self, i, 1, pix, self%scans(i)%d(1)%earth_elon(:,l))
           end do
        else
           do j = 1, self%ndet
-             if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(j)%psi_sol(self%scans(i)%ntod,self%nhorn))
+             if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn))
+             if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
+             if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 self%pix2ind(pix(1)) = -1
@@ -566,13 +661,16 @@ contains
                    end if
                    self%pix2ind(pix(k)) = -1
                 end do
-                if (self%use_solar_point) then
-                   call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+                if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
+                if (self%use_moon_point)  then
+                   call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%psi(l)%p, psi)
+                   call compute_moon_centered_pointing(self, i, j, pix, psi, self%scans(i)%d(j)%pix_moon(:,l))
                 end if
+                if (self%use_earth_elon) call compute_earth_elongation(self, i, j, pix, self%scans(i)%d(j)%earth_elon(:,l))
              end do
          end do
       end if
-      deallocate(pix)
+      deallocate(pix,psi)
     end do
     self%nobs = count(self%pix2ind == -1)
     allocate(self%ind2pix(self%nobs))
@@ -620,6 +718,7 @@ contains
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
 
+
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
@@ -634,17 +733,27 @@ contains
 
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
-    self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    if(lmax_sl > 0) then
+      self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
+    end if
+
+    if(lmax_beam > 0) then
+      self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    end if
 
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       !self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
-       !call self%mbeam(i)%p%Y()
+       if(lmax_sl > 0) then
+         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       end if
+
+       if(lmax_beam > 0) then
+         self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
+         call self%mbeam(i)%p%Y()
+       end if
     end do
 
     call close_hdf_file(h5_file)
@@ -909,9 +1018,9 @@ contains
     character(len=*), dimension(:), intent(in)    :: detlabels
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j,k,l, n, m, ext(1)
+    integer(i4b)       :: i,j,k,l, n, m, ext(1), setsize(1)
     real(sp)           :: nu
-    real(dp)           :: scalars(4)
+    real(dp)           :: scalars(4), time
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -946,10 +1055,28 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
+   
+    call get_size_hdf(file, slabel // "/common/time", setsize)
 
-    ! Read in time at the start and end of each scan (if available)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
-    call read_hdf(file, slabel // "/common/time_end",  self%t1, opt=.true.)
+    if(setsize(1) == 3) then
+      call read_hdf(file, slabel // "/common/time",  self%t0)
+    else 
+      call read_hdf(file, slabel // "/common/time", time)
+      self%t0(2) = time
+    end if
+
+
+    if (hdf_group_exists(file, slabel // "/common/time_end")) then
+       call get_size_hdf(file, slabel // "/common/time_end", setsize)
+       if (setsize(1) == 3) then
+         call read_hdf(file, slabel // "/common/time_end",  self%t1)
+       else
+         self%t1 = 0
+       end if
+     else
+       self%t1 = 0
+     end if
+
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
     ! Read in satellite and earth position at the start and end of each scan (if available)
@@ -957,6 +1084,18 @@ contains
     call read_hdf(file, slabel // "/common/satpos_end",  self%x1_obs, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
+
+    if (hdf_group_exists(file, slabel // "/common/time_len")) then
+        ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
+        ! Can be generalized, but for now assumes that each location has the same time array.
+        call read_hdf(file, slabel // "/" // "common/time_len",  self%n_interp, opt=.true.)
+        allocate(self%xarr_moon(3,self%n_interp), self%xarr_obs(3,self%n_interp), self%xarr_earth(3,self%n_interp))
+        allocate(self%time_arr(self%n_interp))
+        call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
+        call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
+        call read_hdf(file, slabel // "/common/earthpos_arr",  self%xarr_obs)
+        call read_hdf(file, slabel // "/common/satpos_arr",  self%xarr_earth)
+    end if
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -973,8 +1112,10 @@ contains
       
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
-       xi_n(1:3)            = scalars(2:4)
-       xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       if (tod%n_xi >= 3) then
+          xi_n(2:3)         = scalars(3:4)
+       end if
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
@@ -983,24 +1124,23 @@ contains
           self%d(i)%baseline = 0.
        end if
 
-       if (trim(tod%noise_psd_model) == 'oof') then
-         self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       if (trim(tod%noise_psd_model) == 'white') then
+          self%d(i)%N_psd => comm_noise_psd_white(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == 'oof') then
+         self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
           xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
           xi_n(4) =  0.00d0
           xi_n(5) =  1.35d0
           xi_n(6) =  0.40d0
           self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
        else if (trim(tod%noise_psd_model) == 'oof_quad') then
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
 !!$          do while (.true.)
@@ -1010,7 +1150,6 @@ contains
 !!$          end do
 !!$          close(58)
 !!$          stop
-
        end if
        deallocate(xi_n)
 
@@ -1096,10 +1235,13 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       !TODO: this needs to be generalized to work for both floats and ints
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
-       deallocate(hsymb_sp, htree)
+       call hufmak_precomp_int(hsymb,htree,self%todkey)
+       deallocate(hsymb, htree)
     end if
 
     ! Read instrument-specific infomation
@@ -1183,7 +1325,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -1194,10 +1336,6 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod .eqv. .false.) then
-             
-          else
-          end if
           if (tod%compressed_tod) then
              allocate(self%d(i)%zdiode(ndiode))
              call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
@@ -1625,7 +1763,29 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+       if (self%map_solar_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
+           call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
+         else
+           write(*,*) 'Solar map field not in existing chain, keeping default'
+         end if
+      end if
+      if (self%map_moon_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
+            call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
+         else
+            write(*,*) 'Moon map field not in existing chain, keeping default'
+         end if
+      end if
+      if (self%map_earth_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
+            call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
+         else
+            write(*,*) 'Earth map field not in existing chain, keeping default'
+         end if
+      end if
     end if
+
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
@@ -1888,6 +2048,23 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  subroutine apply_nonlin_corr_inst(self, scan, sd)
+    !  Apply an instrument-specific non_linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(in)       :: self
+    integer(i4b),                          intent(in)       :: scan
+    class(comm_scandata),                  intent(inout)    :: sd
+
+    return
+
+  end subroutine apply_nonlin_corr_inst
+  
+  
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !
@@ -2414,6 +2591,33 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
+  subroutine decompress_dark_data(self, scan, det, dark)
+    ! Decompress dark tods
+    ! 
+    ! Inputs:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     dark detector number
+    !
+    ! Returns:
+    ! ----------
+    ! dark : real(sp) (ntod, ndark)
+    !   dark bolometer data
+
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    real(sp),          dimension(:),    intent(out) :: dark
+
+    dark = 0.0
+    !TODO: this
+
+  end subroutine decompress_dark_data
+
   subroutine decompress_diodes(self, scan, det, diodes, flag, pix, psi)
     ! Decompress per-diode tod information
     ! 
@@ -2514,17 +2718,26 @@ contains
     real(sp),            dimension(:),  intent(out) :: tod
 
     byte,  allocatable, dimension(:)  :: test
+    integer(i4b), allocatable, dimension(:) :: tod_int
 
-    call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    if( index(self%instlabel, 'LFI') /= 0) then ! raw data is naturally a float
+          call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    else ! raw data is an int
+      allocate(tod_int(size(tod)))
+      !write(*,*) self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, size(self%scans(scan)%d(det)%ztod)
+      call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
+      tod = real(tod_int, sp)
+      deallocate(tod_int)
+    endif
 
   end subroutine decompress_tod
   
-  subroutine compute_solar_centered_pointing(tod, scan, det, pix, psi, pix_sol, psi_sol)
+  subroutine compute_solar_centered_pointing(tod, scan, det, pix, pix_sol)
     implicit none
     class(comm_tod),                  intent(in)  :: tod
     integer(i4b),                     intent(in)  :: scan, det
-    integer(i4b),        dimension(:),intent(in)  :: pix, psi
-    integer(i4b),        dimension(:),intent(out) :: pix_sol, psi_sol
+    integer(i4b),        dimension(:),intent(in)  :: pix
+    integer(i4b),        dimension(:),intent(out) :: pix_sol
 
     integer(i4b) :: i, j
     real(dp)     :: alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
@@ -2544,9 +2757,81 @@ contains
        vec0 = matmul(M_sun, vec0)                   ! Solar-centered coordinates
        call vec2pix_ring(tod%nside, vec0, pix_sol(j))
     end do
-    psi_sol = 0 ! Not computed yet
     
   end subroutine compute_solar_centered_pointing
+
+  subroutine compute_moon_centered_pointing(tod, scan, det, pix, psi, pix_moon)
+    implicit none
+    class(comm_tod),                  intent(in)  :: tod
+    integer(i4b),                     intent(in)  :: scan, det
+    integer(i4b),        dimension(:),intent(in)  :: pix, psi
+    integer(i4b),        dimension(:),intent(out) :: pix_moon
+
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: psi0, dt, t0, t
+    real(dp)     :: x_moon(3), x_obs(3), x_obs2moon(3), theta0, phi0, alpha, vec(3), vec0(3), M(3,3), M_ecl2gal(3,3)
+
+    call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
+    
+    do j = 1, tod%scans(scan)%ntod
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
+       
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)  + alpha * tod%scans(scan)%xarr_obs(:,b+1)    ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_moon  = (1.d0-alpha) * tod%scans(scan)%xarr_moon(:,b) + alpha * tod%scans(scan)%xarr_moon(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
+       
+       x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
+       x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
+       x_obs2moon = matmul(M_ecl2gal, x_obs2moon)         ! Moon position in Galactic coordinates
+
+       ! Compute pointing in Moon centered coordinates
+       psi0 = psi(j) * 2.d0*pi/4096.d0 ! Fix this
+       call pix2ang_ring(tod%nside, pix(j), theta0, phi0) ! Galactic coordinates
+       call compute_euler_matrix_zyz(-psi0, -theta0, -phi0, M)
+       vec = matmul(M, x_obs2moon)
+       call vec2pix_ring(tod%nside, vec, pix_moon(j))
+    end do
+    
+  end subroutine compute_moon_centered_pointing
+
+  subroutine compute_earth_elongation(tod, scan, det, pix, earth_elon)
+    implicit none
+    class(comm_tod),                  intent(in)  :: tod
+    integer(i4b),                     intent(in)  :: scan, det
+    integer(i4b),        dimension(:),intent(in)  :: pix
+    real(sp),            dimension(:),intent(out) :: earth_elon
+
+    integer(i4b) :: i, j, b, n
+    real(dp)     :: dt, t0, t
+    real(dp)     :: x_obs2earth(3), x_obs(3), x_earth(3), alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
+
+    call ecl_to_gal_rot_mat(M_ecl2gal)
+    n  = tod%scans(scan)%n_interp
+    t0 = tod%scans(scan)%time_arr(1)
+    dt = (tod%scans(scan)%time_arr(n)-t0)/(n-1)
+
+    do j = 1, tod%scans(scan)%ntod
+       t = tod%scans(scan)%t0(1) + (j-1.d0)/tod%samprate / (24.d0*3600.d0)
+       b = max(min(int((t-t0)/dt), n-1),1)
+       
+       alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
+       x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)   + alpha * tod%scans(scan)%xarr_obs(:,b+1)     ! Observatory position at time t in heliocentric/Ecliptic coordinates
+       x_earth = (1.d0-alpha) * tod%scans(scan)%xarr_earth(:,b) + alpha * tod%scans(scan)%xarr_earth(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
+
+       x_obs2earth = x_earth - x_obs ! Earth position relative to observatory in Ecliptic coordinates
+       x_obs2earth = x_obs2earth / sqrt(sum(x_obs2earth**2)) ! Unit vector
+
+       call pix2vec_ring(tod%nside, pix(j), vec0)   ! Satellite pointing in Galactic coordinates
+       vec0 = matmul(transpose(M_ecl2gal), vec0)    ! Satellite pointing in Ecliptic coordinates
+
+       earth_elon(j) = acos(max(min(sum(vec0 * x_obs2earth),1.d0),-1.d0))
+    end do
+    
+  end subroutine compute_earth_elongation
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2838,7 +3123,10 @@ contains
       ! filter out non zero values
       t0_packed = pack(t0, t0 /= 0.)
       t1_packed = pack(t1, t1 /= 0.)
-      if (size(t0_packed) /= size(t1_packed)) stop "t0 and t1 are not the same size"
+      if (size(t0_packed) /= size(t1_packed)) then
+          write(*,*) "Irregularity in number of unique start/end-times of tods, ", size(t0_packed), ' versus ', size(t1_packed), ' needed for zodi/tod interpolation'
+          stop
+      end if
   
 
       allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))
@@ -2931,109 +3219,361 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask)
+   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask, apply_flag)
      implicit none
      class(comm_tod),                   intent(inout) :: self
      integer(i4b),                      intent(in)    :: scan, det
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(2), intent(in)    :: rms_range
      real(sp),            dimension(:), intent(inout) :: mask
+     integer(i4b),        dimension(:), intent(inout) :: flag
+     logical(lgt),                      intent(in)    :: only_solar_mask
+     logical(lgt),        dimension(8), intent(in), optional :: apply_flag
      
-     logical(lgt) :: cut
-     integer(i4b) :: i, j, k, n, ntod, nmax
-     real(dp) :: box_width, rms, vec(3), elon
+     integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut, b_elon
+     real(dp) :: rms0
+     real(sp) :: var0, threshold, gain
+     logical(lgt), dimension(8) :: apply_cut
+     logical(lgt), allocatable, dimension(:)   :: cut
      integer(i4b), allocatable, dimension(:,:) :: bad, buffer
-     !real(dp),     allocatable, dimension(:,:) :: mask_solar
+     real(sp),     allocatable, dimension(:)   :: mask_dyn, var_window
+
+     if (sum(mask) == 0) return 
+
+     if (present(apply_flag)) then
+        apply_cut = apply_flag
+     else
+        apply_cut(1) = .true. ! Extreme outliers
+        apply_cut(2) = .true. ! Single sample outliers
+        apply_cut(3) = .true. ! Excess variance in windows of   5 samples
+        apply_cut(4) = .true. ! Excess variance in windows of  50 samples
+        apply_cut(5) = .true. ! Excess variance in windows of 500 samples
+        apply_cut(6) = .true. ! Isolated samples
+        apply_cut(7) = .true. ! Long chunks with many masked samples
+        apply_cut(8) = .true. ! Solar mask
+        if (only_solar_mask) apply_cut(1:7) = .false.
+     end if
      
      ntod = size(res)
+     ntot = count(iand(flag,self%flag0) .eq. 0)
      nmax = 1000
+     gain = self%scans(scan)%d(det)%gain
+
+     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
      
-      ! Compute rms
-      rms = 0.d0
-      n   = 0
-      do i = 1, ntod
-         if (mask(i) /= 1.) cycle
-         rms = rms + res(i)**2
-         n   = n   + 1
-      end do
-      rms = sqrt(rms/(n-1))
+     ! Generate dynamic mask
+     allocate(mask_dyn(ntod))
+     mask_dyn = 1.0
 
-!      write(*,*) 'a'
-      ! Get full-sky mask
-!      if (associated(self%mask_solar)) then
-!         allocate(mask_solar(0:12*self%nside**2-1,1))
-!         call self%mask_solar%bcast_fullsky_map(mask_solar)
-!      end if
+!!$     open(58, file='var0.dat')
+!!$     do i = 1, ntod
+!!$        if (mask(i) == 1.) write(58,*) i, res(i)
+!!$     end do
+!!$     close(58)
 
-      
-!      write(*,*) 'b'
-      ! Look for strong outliers and masked samples, save bad ranges
-      allocate(bad(2,nmax))
-      bad = -1
-      n   = 0
-      do i = 1, ntod
+     if (apply_cut(1)) then
+        ! Extreme outliers
+        threshold = 5. ! White noise sigma; DIRBE = 20
+        ncut = 0
+        do i = 1, ntod
+           if (mask(i) == 1. .and. abs(res(i)) > threshold) then
+              mask_dyn(i) = 0.
+              mask(i)     = 0.
+              flag(i)     = huge(flag(i))
+              ncut        = ncut + 1
+           end if
+        end do
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
 
-         ! Apply RMS selection criterium
-         if (mask(i) == 1) then
-            cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms
-         else
-            cut = .false.
-         end if
-         
-         ! Apply solar mask selection criterium
-!         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
-!         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
-         !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
-         if (allocated(self%mask_solar)) then
-            cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
-         end if
+     ! Single sample outlier cut; potentially iterate in order to adjust the threshold rms
+     if (apply_cut(2)) then
+        allocate(cut(ntod))
+        ncut = 0
+        !open(58, file='var1.dat')
+        do iter = 1, 1
+           ! Compute full-scan, masked rms0
+           rms0 = 0.d0
+           n   = 0
+           do i = 1, ntod
+              if (mask(i) == 1.) then
+                 rms0 = rms0 + res(i)**2
+                 n   = n   + 1
+              end if
+           end do
+           rms0 = sqrt(rms0/(n-1))
+           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
+           
+           do i = 1, ntod
+              cut(i) = (mask(i) == 1. .and. (res(i) < rms_range(1)*rms0 .or. res(i) > rms_range(2)*rms0))
+              !if (mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
+           end do
+           
+           ! Apply RMS selection criterium
+           if (cut(1) .and. (.not. cut(2) .or. mask(2) == 0.)) then
+              mask_dyn(1) = 0.
+              mask(1)     = 0.
+              flag(1)     = huge(flag(1))
+              ncut        = ncut + 1
+           end if
+           do i = 2, ntod-1
+              if (cut(i) .and. (.not. cut(i-1) .or. mask(i-1) == 0.) .and. (.not. cut(i+1) .or. mask(i+1) == 0.)) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut + 1
+              end if
+           end do
+           if (cut(ntod) .and. (.not. cut(ntod-1) .or. mask(ntod-1) == 0.)) then
+              mask_dyn(ntod) = 0.
+              mask(ntod)     = 0.
+              flag(ntod)     = huge(flag(ntod))
+              ncut           = ncut + 1
+           end if
+        end do
+        !close(58)
+        deallocate(cut)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+     
+     if (apply_cut(3)) then
+        ! Look for excess variance excess in small windows; typically cosmic rays and other short glitches
+        allocate(var_window(ntod))
+        window = 5; threshold = 1.5 ! DIRBE = 3
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
+        var_window = sqrt(var_window)
+        var0       = sqrt(var0)     
+        ncut       = 0
+        !open(58, file='var2.dat')
+        do i = 1, ntod
+           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0), threshold*var0
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 !if (mask(k) == 1) then
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
 
-         if (cut) then
-            ! Start new range if not already active
-            if (bad(1,n+1) == -1) bad(1,n+1) = i
-            mask(i) = 0.
-         else
-            ! Close active range
-            if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-               bad(2,n+1) = i-1
-               n          = n+1
-            end if
-         end if
-         
-         ! Increase array size if needed
-         if (n == nmax) then
-            nmax = 2*nmax
-            allocate(buffer(2,nmax))
-            buffer = -1
-            buffer(:,1:nmax/2) = bad
-            deallocate(bad)
-            allocate(bad(2,nmax))
-            bad = buffer
-            deallocate(buffer)
-         end if
-      end do
+     if (apply_cut(4)) then
+        ! Look for excess variance excess in intermediate windows
+        allocate(var_window(ntod))
+        window = 50; threshold = 2.0
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
+        var_window = sqrt(var_window)
+        ncut       = 0
+        !open(58, file='var3.dat')
+        do i = 1, ntod
+           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    !if (mask(k) == 1) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
 
-      ! Close open range if needed at the end
-      if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-         bad(2,n+1) = ntod
-         n          = n+1
-      end if
-      
+!!$     open(58, file='var4.dat')
+!!$     do i = 1, ntod
+!!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
+!!$     end do
+!!$     close(58)
+
+     if (apply_cut(5)) then
+        ! Look for excess variance excess in large windows
+        allocate(var_window(ntod))
+        window = 500; threshold = 1.5
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
+        var_window = sqrt(var_window)
+        ncut       = 0
+        !     open(58, file='var3.dat')
+        do i = 1, ntod
+           !        if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    !if (mask(k) == 1) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !     close(58)
+        deallocate(var_window)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(6)) then
+        ! Remove isolated samples
+        ncut       = 0
+        if (iand(flag(1),self%flag0) .eq. 0 .and. iand(flag(2),self%flag0) .ne. 0) then
+           mask_dyn(1) = 0.
+           mask(1)     = 0.
+           flag(1)     = huge(flag(1))
+           ncut        = ncut + 1
+        end if
+        do i = 2, ntod-1
+           if (iand(flag(i-1),self%flag0) .ne. 0 .and. iand(flag(i),self%flag0) .eq. 0 .and. iand(flag(i+1),self%flag0) .ne. 0) then
+              mask_dyn(i) = 0.
+              mask(i)     = 0.
+              flag(i)     = huge(flag(i))
+              ncut        = ncut + 1
+           end if
+        end do
+        if (iand(flag(ntod),self%flag0) .eq. 0 .and. iand(flag(ntod-1),self%flag0) .ne. 0) then
+           mask_dyn(ntod) = 0.
+           mask(ntod)     = 0.
+           flag(ntod)     = huge(flag(ntod))
+           ncut           = ncut + 1
+        end if
+        !     close(58)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+
+     if (apply_cut(7)) then
+        ! Remove consecutive chunks with many flagged samples
+        window = 2000; threshold = 0.30
+        ncut       = 0
+        !     open(58, file='var4.dat')
+        do i = 1, ntod
+           !        write(58,*) i, res(i), iand(flag(k),self%flag0) .eq. 0
+           j = max(i-window,1)
+           k = min(i+window,ntod)
+           if (count(flag(j:k) == huge(flag(1)))/real(k-j+1,sp) > threshold) then
+              do k = max(i-window,1), min(i+window,ntod)
+                 if (iand(flag(k),self%flag0) .eq. 0) then
+                    mask_dyn(k) = 0.
+                    mask(k)     = 0.
+                    flag(k)     = huge(flag(k))
+                    ncut        = ncut + 1
+                 end if
+              end do
+           end if
+        end do
+        !     close(58)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+     
+!!$     open(58, file='var5.dat')
+!!$     do i = 1, ntod
+!!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
+!!$     end do
+!!$     close(58)
+!!$
+!!$     call mpi_finalize(i)
+!!$     stop
+     
+     ! Solar-centric mask
+     if (apply_cut(8)) then
+        ncut = 0
+        if (allocated(self%mask_solar) .and. self%use_solar_point) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              if (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+        if (allocated(self%mask_moon) .and. self%use_moon_point) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              if (self%mask_moon(self%scans(scan)%d(det)%pix_moon(i,1),1) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+        if (allocated(self%mask_earth) .and. self%use_earth_elon) then
+           do i = 1, ntod
+              if (iand(flag(i),self%flag0) .ne. 0) cycle
+              b_elon = max(min(int(self%scans(scan)%d(det)%earth_elon(i,1)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+              if (self%mask_earth(b_elon) < 0.5) then
+                 mask_dyn(i) = 0.
+                 mask(i)     = 0.
+                 flag(i)     = huge(flag(i))
+                 ncut        = ncut+1
+              end if
+           end do
+        end if
+
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+     end if
+     
+     ! Compress and store dynamic mask
+     allocate(bad(2,nmax))
+     bad = -1
+     n   = 0
+     do i = 1, ntod
+        if (mask_dyn(i) == 0.) then
+           ! Start new range if not already active
+           if (bad(1,n+1) == -1) bad(1,n+1) = i
+        else
+           ! Close active range
+           if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+              bad(2,n+1) = i-1
+              n          = n+1
+           end if
+        end if
+        
+        ! Increase array size if needed
+        if (n == nmax) then
+           nmax = 2*nmax
+           allocate(buffer(2,nmax))
+           buffer = -1
+           buffer(:,1:nmax/2) = bad
+           deallocate(bad)
+           allocate(bad(2,nmax))
+           bad = buffer
+           deallocate(buffer)
+        end if
+     end do
+     
+     ! Close open range if needed at the end
+     if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+        bad(2,n+1) = ntod
+        n          = n+1
+     end if
+     
       ! Store final array
-      if (n > 0) then
-         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
-         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-!!$         do i = 1, n
-!!$            write(*,*) i, bad(:,i)
-!!$         end do
-         !write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
-      end if
+     if (n > 0) then
+        allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
+        self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
+     end if
 
-      
-!      write(*,*) 'c'
-      deallocate(bad)
-!      if (allocated(mask_solar)) deallocate(mask_solar)
-   end subroutine
+     if (count(iand(flag,self%flag0) .ne. 0) == 0) then
+        write(*,fmt='(a,a,i6,i4)') ' Dynamic mask, scan rejected = ', trim(self%freq), self%scanid(scan), det
+        self%scans(scan)%d(det)%accept = .false.
+     end if
+
+     deallocate(bad, mask_dyn)
+   end subroutine create_dynamic_mask
 
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
@@ -3079,7 +3619,7 @@ contains
   end subroutine distribute_sky_maps
 
 
-  subroutine get_s_static(self, band, point, s)
+  subroutine get_s_static(self, band, s, point_solar, point_moon, earth_elon)
      ! Evaluates the solar centric TOD
      !
      ! Parameters:
@@ -3091,19 +3631,40 @@ contains
      implicit none
      class(comm_tod),            intent(in)  :: self
      integer(i4b),               intent(in)  :: band
-     integer(i4b), dimension(:), intent(in)  :: point
      real(sp),     dimension(:), intent(out) :: s
+     integer(i4b), dimension(:), intent(in), optional  :: point_solar
+     integer(i4b), dimension(:), intent(in), optional  :: point_moon
+     real(sp),     dimension(:), intent(in), optional  :: earth_elon
 
-     integer(i4b) :: i
+     real(sp)     :: elon
+     integer(i4b) :: i, bin
 
-     if (.not. associated(self%map_solar)) then
-        s = 0.d0
-        return
+     ! Initialize to zero
+     s = 0.
+
+     ! Solar contribution
+     if (present(point_solar) .and. associated(self%map_solar)) then
+        do i = 1, size(s)
+           s(i) = s(i) + self%map_solar(point_solar(i),1)
+        end do
      end if
-     
-     do i = 1, size(s)
-        s(i) = self%map_solar(point(i),1)
-     end do
+
+     ! Moon contribution
+     if (present(point_moon) .and. associated(self%map_moon)) then
+        do i = 1, size(s)
+           s(i) = s(i) + self%map_moon(point_moon(i),1)
+        end do
+     end if
+
+     ! Earth contribution
+     if (present(earth_elon) .and. associated(self%map_earth)) then
+        write(*,*) 'Solar elongation correction not yet implemented'
+        !do i = 1, size(s)
+        !   elon = 0.
+        !   bin  = 1
+        !   s(i) = s(i) + self%map_earth(bin)
+        !end do
+     end if
 
    end subroutine get_s_static
 
