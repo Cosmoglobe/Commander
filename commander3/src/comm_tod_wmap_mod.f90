@@ -541,11 +541,11 @@ contains
               call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
-                 call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
+                 call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2)
                  call timer%start(TOD_BASELINE, self%band)
                  call sample_baseline_WMAP(self, i, sd%tod, sd%s_tot, sd%mask, handle)
                  call timer%stop(TOD_BASELINE, self%band)
-                 call sd%dealloc
+                 call dealloc_scan_data(sd)
               end do
               self%apply_inst_corr = .true.
 
@@ -610,11 +610,11 @@ contains
                     & real(self%spinaxis(i,:),sp)
             end if
             if (select_data) then 
-               call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+               call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
                  & init_s_bp=bp_corr)
                n_tot = n_tot + sd%ntod/1000
                n_flag = n_flag + sd%ntod/1000
-               call sd%dealloc
+               call dealloc_scan_data(sd)
             end if
             cycle
          end if
@@ -738,7 +738,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          call timer%start(TOD_ALLOC, self%band)
          deallocate(s_buf, d_calib)
          call timer%stop(TOD_ALLOC, self%band)

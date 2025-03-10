@@ -31,7 +31,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
+  public comm_tod, comm_scan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -277,6 +277,7 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
+     procedure                           :: apply_nonlin_corr_inst
      procedure                           :: construct_dipole_template
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
@@ -321,6 +322,44 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
+
+  ! Class for uncompressed data for a given scan
+  type :: comm_scandata
+     integer(i4b) :: ntod, ndet, nhorn, ndelta
+     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
+     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
+     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
+     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
+     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
+     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
+     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
+     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
+     integer(i4b) :: band                                           ! Band ID
+  end type comm_scandata
+
   
 contains
 
@@ -426,7 +465,9 @@ contains
       self%orbital = .true.
     end if
 
-    if (trim(self%noise_psd_model) == 'oof') then
+    if (trim(self%noise_psd_model) == 'white') then
+       self%n_xi = 1  ! {sigma0}
+    else if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
@@ -1071,8 +1112,10 @@ contains
       
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
-       xi_n(1:3)            = scalars(2:4)
-       xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       if (tod%n_xi >= 3) then
+          xi_n(2:3)         = scalars(3:4)
+       end if
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
@@ -1081,24 +1124,23 @@ contains
           self%d(i)%baseline = 0.
        end if
 
-       if (trim(tod%noise_psd_model) == 'oof') then
-         self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       if (trim(tod%noise_psd_model) == 'white') then
+          self%d(i)%N_psd => comm_noise_psd_white(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == 'oof') then
+         self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
           xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
           xi_n(4) =  0.00d0
           xi_n(5) =  1.35d0
           xi_n(6) =  0.40d0
           self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
        else if (trim(tod%noise_psd_model) == 'oof_quad') then
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
 !!$          do while (.true.)
@@ -1108,7 +1150,6 @@ contains
 !!$          end do
 !!$          close(58)
 !!$          stop
-
        end if
        deallocate(xi_n)
 
@@ -2007,6 +2048,22 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  subroutine apply_nonlin_corr_inst(self, scan, sd)
+    !  Apply an instrument-specific non_linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(in)       :: self
+    integer(i4b),                          intent(in)       :: scan
+    class(comm_scandata),                  intent(inout)    :: sd
+
+    return
+
+  end subroutine apply_nonlin_corr_inst
+  
   
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
@@ -3162,7 +3219,7 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask)
+   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask, apply_flag)
      implicit none
      class(comm_tod),                   intent(inout) :: self
      integer(i4b),                      intent(in)    :: scan, det
@@ -3171,6 +3228,7 @@ contains
      real(sp),            dimension(:), intent(inout) :: mask
      integer(i4b),        dimension(:), intent(inout) :: flag
      logical(lgt),                      intent(in)    :: only_solar_mask
+     logical(lgt),        dimension(8), intent(in), optional :: apply_flag
      
      integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut, b_elon
      real(dp) :: rms0
@@ -3182,23 +3240,26 @@ contains
 
      if (sum(mask) == 0) return 
 
-     apply_cut(1) = .true. ! Extreme outliers
-     apply_cut(2) = .true. ! Single sample outliers
-     apply_cut(3) = .true. ! Excess variance in windows of   5 samples
-     apply_cut(4) = .true. ! Excess variance in windows of  50 samples
-     apply_cut(5) = .true. ! Excess variance in windows of 500 samples
-     apply_cut(6) = .true. ! Isolated samples
-     apply_cut(7) = .true. ! Long chunks with many masked samples
-     apply_cut(8) = .true. ! Solar mask
-     if (only_solar_mask) apply_cut(1:7) = .false.
-     
+     if (present(apply_flag)) then
+        apply_cut = apply_flag
+     else
+        apply_cut(1) = .true. ! Extreme outliers
+        apply_cut(2) = .true. ! Single sample outliers
+        apply_cut(3) = .true. ! Excess variance in windows of   5 samples
+        apply_cut(4) = .true. ! Excess variance in windows of  50 samples
+        apply_cut(5) = .true. ! Excess variance in windows of 500 samples
+        apply_cut(6) = .true. ! Isolated samples
+        apply_cut(7) = .true. ! Long chunks with many masked samples
+        apply_cut(8) = .true. ! Solar mask
+        if (only_solar_mask) apply_cut(1:7) = .false.
+     end if
      
      ntod = size(res)
      ntot = count(iand(flag,self%flag0) .eq. 0)
      nmax = 1000
      gain = self%scans(scan)%d(det)%gain
 
-     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flagging     -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
+     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
      
      ! Generate dynamic mask
      allocate(mask_dyn(ntod))
@@ -3212,7 +3273,7 @@ contains
 
      if (apply_cut(1)) then
         ! Extreme outliers
-        threshold = 20. ! White noise sigma
+        threshold = 5. ! White noise sigma; DIRBE = 20
         ncut = 0
         do i = 1, ntod
            if (mask(i) == 1. .and. abs(res(i)) > threshold) then
@@ -3229,7 +3290,7 @@ contains
      if (apply_cut(2)) then
         allocate(cut(ntod))
         ncut = 0
-        !     open(58, file='var1.dat')
+        !open(58, file='var1.dat')
         do iter = 1, 1
            ! Compute full-scan, masked rms0
            rms0 = 0.d0
@@ -3272,14 +3333,14 @@ contains
         end do
         !close(58)
         deallocate(cut)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, rms cut      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
-
+     
      if (apply_cut(3)) then
         ! Look for excess variance excess in small windows; typically cosmic rays and other short glitches
         allocate(var_window(ntod))
-        window = 5; threshold = 3.
-        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        window = 5; threshold = 1.5 ! DIRBE = 3
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
         var_window = sqrt(var_window)
         var0       = sqrt(var0)     
         ncut       = 0
@@ -3307,7 +3368,7 @@ contains
         ! Look for excess variance excess in intermediate windows
         allocate(var_window(ntod))
         window = 50; threshold = 2.0
-        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
         var_window = sqrt(var_window)
         ncut       = 0
         !open(58, file='var3.dat')
@@ -3330,11 +3391,17 @@ contains
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
+!!$     open(58, file='var4.dat')
+!!$     do i = 1, ntod
+!!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
+!!$     end do
+!!$     close(58)
+
      if (apply_cut(5)) then
         ! Look for excess variance excess in large windows
         allocate(var_window(ntod))
         window = 500; threshold = 1.5
-        call compute_running_variance(res, mask, window, var_window, var_mean=var0)
+        call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
         var_window = sqrt(var_window)
         ncut       = 0
         !     open(58, file='var3.dat')
@@ -3360,21 +3427,21 @@ contains
      if (apply_cut(6)) then
         ! Remove isolated samples
         ncut       = 0
-        if (mask(1) == 1. .and. mask(2) == 0.) then
+        if (iand(flag(1),self%flag0) .eq. 0 .and. iand(flag(2),self%flag0) .ne. 0) then
            mask_dyn(1) = 0.
            mask(1)     = 0.
            flag(1)     = huge(flag(1))
            ncut        = ncut + 1
         end if
         do i = 2, ntod-1
-           if (mask(i-1) == 0. .and. mask(i) == 1. .and. mask(i+1) == 0.) then
+           if (iand(flag(i-1),self%flag0) .ne. 0 .and. iand(flag(i),self%flag0) .eq. 0 .and. iand(flag(i+1),self%flag0) .ne. 0) then
               mask_dyn(i) = 0.
               mask(i)     = 0.
               flag(i)     = huge(flag(i))
               ncut        = ncut + 1
            end if
         end do
-        if (mask(ntod) == 1. .and. mask(ntod-1) == 0.) then
+        if (iand(flag(ntod),self%flag0) .eq. 0 .and. iand(flag(ntod-1),self%flag0) .ne. 0) then
            mask_dyn(ntod) = 0.
            mask(ntod)     = 0.
            flag(ntod)     = huge(flag(ntod))
@@ -3407,38 +3474,16 @@ contains
         !     close(58)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
-
-     ! Remove glitches in the high signal-to-noise regime
-     ! Must 1) be a masked pixel; 2) not already be flagged; 3) have a S/N > 10; 4) have a residual larger than some threshold times the expected signal
-!!$     threshold  = 0.50
-!!$     ncut       = 0
-!!$     do i = 1, ntod
-!!$
-!!$        if (mask(i) == 0. .and. iand(flag(i),self%flag0) .eq. 0 .and. abs(gain*s_sky(i)) > 10.d0 * self%scans(scan)%d(det)%N_psd%sigma0 .and. abs(res(i)) > threshold*abs(gain*s_sky(i))) then
-!!$           mask_dyn(i) = 0.
-!!$           mask(i)     = 0.
-!!$           flag(i)     = huge(flag(i))
-!!$           ncut        = ncut + 1
-!!$        end if
-!!$     end do
-!!$     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, high S/N     -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
-
-     
-     !mask_dyn(1:330000) = 0.
-     !mask(1:330000)     = 0.
-     !mask_dyn(1:550000) = 0.
-     !mask(1:550000)     = 0.
-     !mask_dyn(575000:) = 0.
-     !mask(575000:)     = 0.
-     !flag(1:550000)    = huge(flag(1))
-     !flag(575000:)     = huge(flag(1))
      
 !!$     open(58, file='var5.dat')
 !!$     do i = 1, ntod
 !!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
 !!$     end do
 !!$     close(58)
-
+!!$
+!!$     call mpi_finalize(i)
+!!$     stop
+     
      ! Solar-centric mask
      if (apply_cut(8)) then
         ncut = 0
@@ -3521,7 +3566,12 @@ contains
         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
      end if
-     
+
+     if (count(iand(flag,self%flag0) .eq. 0) == 0) then
+        write(*,fmt='(a,a,i6,i4)') ' Dynamic mask, scan rejected = ', trim(self%freq), self%scanid(scan), det
+        self%scans(scan)%d(det)%accept = .false.
+     end if
+
      deallocate(bad, mask_dyn)
    end subroutine create_dynamic_mask
 

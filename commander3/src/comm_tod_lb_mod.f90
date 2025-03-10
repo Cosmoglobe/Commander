@@ -328,11 +328,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 
@@ -378,7 +378,7 @@ contains
        end if
 
        ! Clean up
-       call sd%dealloc
+       call dealloc_scan_data(sd)
        deallocate(s_buf, d_calib)
 
     end do
