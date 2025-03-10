@@ -72,15 +72,15 @@ contains
     logical(lgt),                       intent(in), optional :: nomono
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: nfft, nbuff, j_end, j_start
+    integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
-    real(dp)     :: power, fft_norm
+    real(dp)     :: power, fft_norm, var1, var2
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
+    real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -102,7 +102,7 @@ contains
     call timer%stop(TOT_FFT)
 
     call timer%start(TOT_FFT)
-    allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
+    allocate(dt(nfft), dv(0:n-1), ps(0:n-1), d_prime(ntod), ncorr2(ntod))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
@@ -160,12 +160,38 @@ contains
 
        ! Remove monopole if requested by user
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
+
+       ! Output power spectrum of signal-subtracted gap-filled TOD to disk
+       if (.false. .and. self%scanid(scan) == 5012) then
+          !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
+          dt(1:ntod)           = d_prime(:)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          open(58,file='noise_psd.dat', recl=1024)
+          do l = 1, n-1
+             ps(l) = abs(dv(l)) ** 2 / ntod
+             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+          end do
+          close(58)
+       end if
        
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)
 
+       ! Check goodness-of-fit
+       var1 = 0.d0; var2 = 0.d0
+       do j = 1, ntod
+          if (mask(j,i) == 1.) then
+             var1 = var1 + (d_prime(j)-ncorr2(j))**2
+             var2 = var2 +  d_prime(j)**2
+          end if
+       end do
+       pcg_converged = pcg_converged .and. var1 < var2
+
        if (.not. pcg_converged) then
+          !write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
+
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -204,24 +230,25 @@ contains
           call timer%stop(TOT_FFT)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
+       else
+          !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
        end if
 
-       !if (.true. .and. mod(self%scanid(scan),100) == 1) then
-       !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
-       !   open(65,file=trim(filename),status='REPLACE')
-       !   do j = 1, ntod
-       !      if (present(tod_arr)) then
-       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
-       !      else
-       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
-       !      end if
-       !   end do
-       !   close(65)
-       !   !stop
-       !end if
+       !if (.true. .and. mod(self%scanid(scan),1000) == 1) then
+       !if (.true. .and. self%scanid(scan) == 5013) then
+       if (.false.) then
+          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
+          open(65,file=trim(filename),status='REPLACE',recl=1024)
+          do j = 1, ntod
+             !write(65, '(i8,6(E15.6E3))') j, n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), ncorr2(j)
+             write(65, '(i8,7(E15.6E3))') j, d_prime(j), n_corr(j,i), ncorr2(j), sigma_0, ((d_prime(j)-n_corr(j,i))/sigma_0)**2, ((d_prime(j)-ncorr2(j))/sigma_0)**2, mask(j,i)
+          end do
+          close(65)
+          !stop
+       end if
 
     end do
-    deallocate(dt, dv)
+    deallocate(dt, dv, ps)
     deallocate(d_prime)
     deallocate(ncorr2)
 
@@ -270,17 +297,20 @@ contains
     allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
     allocate(u(nmask), bp(nmask), xp(nmask), rp(nmask), p(nmask))
 
-    if (nomono) then
-       invNcorr(0) = 1d12
-    else
+!    if (nomono) then
+!       invNcorr(0) = 1d12
+!    else
        invNcorr(0) = 0.d0
-    end if
+!    end if
     invM(0)     = 1.d0
+    !open(58,file='N_psd.dat', recl=1024)
     do l = 1, n-1
        freq        = l*(samprate/2)/(n-1)
        invNcorr(l) = N_psd%sigma0**2 / N_psd%eval_corr(freq)
        invM(l)     = 1.d0 / (1.d0 + invNcorr(l))
+       !write(58,*) freq, N_psd%sigma0**2, N_psd%eval_corr(freq), invM(l)
     end do
+    !close(58)
 
     j = 1
     do i = 1, ntod
@@ -326,6 +356,7 @@ contains
        xp    = xp + alp*p
        rp    = rp - alp * Ad(u)
        r2new = sum(rp**2)
+       !write(*,*) 'CG ncorr -- ', k, r2new, sigma_bp
        if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           exit
@@ -339,6 +370,9 @@ contains
 
     x     = Ad
     ncorr = x * N_psd%sigma0
+
+    ! Subtract monopole 
+    if (nomono) ncorr = ncorr -  sum(ncorr*mask)/sum(mask)
     
     deallocate(invNcorr, invM)
     deallocate(x, b, r, d, Mr, Ad)
@@ -472,7 +506,7 @@ contains
     samprate = self%samprate
     n_gibbs  = 1
     threshold = 5.d0 ! Remove outliers
-    outscan   = -1 !92
+    outscan   = 5013 !-1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
     do i = 1, ndet
@@ -630,6 +664,7 @@ contains
     logical(lgt) :: off_
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
+    class(comm_noise_psd), pointer :: N_psd
     
     ntod     = size(buffer, 1)
     ndet     = size(buffer, 2)
@@ -639,7 +674,26 @@ contains
     pow_     = 1.d0; if (present(pow)) pow_ = pow
     off_     = .false.; if (present(off)) off_ = off
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
-    
+
+    ! Check if white noise is requested; in that case, skip FFTs
+    N_psd => tod%scans(scan)%d(1)%N_psd
+    select type (N_psd)
+    class is (comm_noise_psd_white)
+       do i = 1, ndet
+          if (.not. tod%scans(scan)%d(i)%accept) then
+             buffer(:,i)  = 0.d0
+          else
+             buffer(:,i) = buffer(:,i) / (tod%scans(scan)%d(i)%N_psd%sigma0**2 * samprate / tod%samprate)**pow_
+          end if
+          if (off_) then
+             ! Subtract offset
+             buffer(:,i) = buffer(:,i) - sum(buffer(:,i))/size(buffer(:,i))
+          end if
+       end do
+       return
+    end select
+
+    ! If not white noise, perform the multiplication in Fourier space
     allocate(dt(2*ntod,m), dv(0:n-1,m))
     call timer%start(TOT_FFT)
     call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
