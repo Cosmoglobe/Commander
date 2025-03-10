@@ -115,8 +115,8 @@ contains
       c%correct_orb     = .false.
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
-      c%use_moon_point  = .true.
-      c%use_earth_elon  = .true.
+      c%use_moon_point  = cpar%sample_moon_maps
+      c%use_earth_elon  = cpar%sample_earth_maps
       c%symm_flags      = .false.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       c%chisq_threshold = 50000.
