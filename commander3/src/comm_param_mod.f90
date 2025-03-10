@@ -41,7 +41,7 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=2048), dimension(2)  :: general = [character(len=2048) :: "T_0", "T_DELTA", "G1", "G2", "G3", "W1", "W2", "W3"]
+     character(len=2048), dimension(7)  :: general = [character(len=2048) :: "T_0", "T_DELTA", "G1", "G2", "G3", "W2", "W3"]
      character(len=2048), dimension(6)  :: common = [character(len=2048) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
      character(len=2048), dimension(4)  :: cloud = [character(len=2048) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=2048), dimension(4)  :: band = [character(len=2048) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']

@@ -20,7 +20,7 @@ module comm_zodi_mod
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
       character(len=24) :: phasefunc_type, bandpass_type
-      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params, n_phase_params, numband
+      integer(i4b) :: n_comps, n_common_params, n_general_params, n_phase_params, numband
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
       real(dp)     :: nu_min_scatter, nu_max_thermal
@@ -39,7 +39,7 @@ module comm_zodi_mod
 !      real(dp), allocatable, dimension(:)   :: amp_static
 !      real(dp), allocatable, dimension(:,:) :: map_static
     contains
-      procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales, get_phase_function
+      procedure :: init_comps, init_general_params, model_to_chain, params_to_model, model_to_params, comp_from_chain, get_par_ind, init_general_priors_and_scales, get_phase_function
    end type ZodiModel
 
    type(ZodiModel), target :: zodi_model
@@ -95,11 +95,11 @@ contains
     zodi_model%general_labels   = cpar%zodi_param_labels%general
     zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
     zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
-    zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
     zodi_model%joint_mono       = cpar%zs_joint_mono
     
     if (trim(zodi_model%phasefunc_type) == 'K98') then
-       zodi_model%n_phase_params = 3*numband
+       zodi_model%n_phase_params   = 3*numband
+       zodi_model%n_general_params = 2 + zodi_model%n_phase_params
        allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        do i  = 1, numband
           read(band_instlabels(i),*) band
@@ -112,19 +112,20 @@ contains
           end if
        end do
     else if (trim(zodi_model%phasefunc_type) == 'Wright') then
-       zodi_model%n_phase_params = 2
+       zodi_model%n_general_params = 2
+       zodi_model%n_general_params = 2 + zodi_model%n_phase_params
        allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) = -0.3133d0 ! p20
        zodi_model%par_phase(2) =  0.5749d0 ! p21
     else if (trim(zodi_model%phasefunc_type) == 'Hong') then
-       zodi_model%n_phase_params = 6
+       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+       zodi_model%n_phase_params   = 5
        allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) =  0.700d0 ! g_1
        zodi_model%par_phase(2) = -0.200d0 ! g_2       
        zodi_model%par_phase(3) = -0.810d0 ! g_3
-       zodi_model%par_phase(4) =  0.665d0 ! w_1
-       zodi_model%par_phase(5) =  0.330d0 ! w_2
-       zodi_model%par_phase(6) =  0.005d0 ! w_3       
+       zodi_model%par_phase(4) =  0.330d0 ! w_2
+       zodi_model%par_phase(5) =  0.005d0 ! w_3       
     else
        write(*,*) 'Unsupported zodi phase function type:', trim(zodi_model%phasefunc_type)
        stop
@@ -195,10 +196,20 @@ contains
       ! Initialize priors and scale factors
       call zodi_model%init_general_priors_and_scales(zodi_model%theta_prior, &
            & zodi_model%theta_scale)
-      zodi_model%par_labels(1:zodi_model%n_general_params) = &
-           & zodi_model%general_labels
-      zodi_model%par_labels_full(1:zodi_model%n_general_params) = &
-           & zodi_model%par_labels(1:zodi_model%n_general_params) 
+
+      if (trim(zodi_model%phasefunc_type) == 'Hong') then
+         zodi_model%par_labels(1:zodi_model%n_general_params) = &
+              & zodi_model%general_labels
+         zodi_model%par_labels_full(1:zodi_model%n_general_params) = &
+              & zodi_model%par_labels(1:zodi_model%n_general_params)
+      else
+         zodi_model%par_labels(1:2) = zodi_model%general_labels(1:2)
+         zodi_model%par_labels_full(1:2) = zodi_model%par_labels(1:2)
+         do i = 3, zodi_model%n_general_params
+            zodi_model%par_labels(i)      = 'skip'
+            zodi_model%par_labels_full(i) = 'skip'
+         end do
+      end if
       do i = 1, zodi_model%n_comps
          ! Shape parameters
          ind = zodi_model%comps(i)%start_ind
@@ -301,7 +312,7 @@ contains
       self%T_0   = general_params(1)
       self%delta = general_params(2)
       if (self%phasefunc_type == 'Hong') then
-         self%par_phase(1:6)   = general_params(3:8)
+         self%par_phase(1:5)   = general_params(3:7)
       end if
    end subroutine
 
@@ -321,18 +332,17 @@ contains
       scale(4,:) = [1d0, 0.01d0]
       prior(:,5) = [-1d0, 1d0, -0.81d0, 0.1d0] ! g_3
       scale(5,:) = [1d0, 0.01d0]
-      prior(:,6) = [0d0, 1d0, 0.665d0, 0.1d0] ! w_1
+      prior(:,6) = [0d0, 1d0, 0.330d0, 0.1d0] ! w_2
       scale(6,:) = [1d0, 0.01d0]
-      prior(:,7) = [0d0, 1d0, 0.330d0, 0.1d0] ! w_2
-      scale(7,:) = [1d0, 0.01d0]
-      prior(:,8) = [0d0, 1d0, 0.005d0, 0.0001d0] ! w_3
-      scale(8,:) = [1d0, 0.0005d0]
+      prior(:,7) = [0d0, 1d0, 0.005d0, 0.0001d0] ! w_3
+      scale(7,:) = [1d0, 0.0005d0]
 
     end subroutine init_general_priors_and_scales
 
 
 
-   subroutine init_comps(self, params, comp_types, param_labels)
+    subroutine init_comps(self, params, comp_types, param_labels)
+      implicit none
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
       real(dp), intent(in) :: params(:, :)
@@ -340,7 +350,6 @@ contains
       class(InterplanetaryDustParamLabels), intent(in) :: param_labels
       integer(i4b) :: i, ierr
       allocate (self%comps(self%n_comps))
-      self%n_params = self%n_general_params
       ! NOTE: The order of the parameters in the `params` array must match the below order of readin
       do i = 1, self%n_comps
          !self%comps(i)%labels = [param_labels%common]
@@ -510,112 +519,70 @@ contains
          end select
          self%comps(i)%npar = size(self%comps(i)%labels)
          call self%comps(i)%c%init()
-         self%n_params = self%n_params + size(self%comps(i)%labels)
 
          ! Initialize emissivity and albedo
          allocate(self%comps(i)%c%emissivity(numband),self%comps(i)%c%albedo(numband))
          self%comps(i)%c%emissivity(numband) = 1.d0
          self%comps(i)%c%albedo(numband)     = 0.d0
       end do
-   end subroutine
+
+    end subroutine init_comps
 
 
+   subroutine model_to_params(self, x, samp_group, labels)
+     implicit none
+     class(ZodiModel),               intent(in)           :: self
+     real(dp),         dimension(:), intent(out)          :: x
+     integer(i4b),                   intent(in), optional :: samp_group
+     character(len=*), allocatable, optional, intent(inout) :: labels(:)
 
-    subroutine model_to_params2(self, x, labels)
-      ! Dumps a zodi model to a parameter vector `x`. If `labels` is present, it is populated with
-      ! the corresponding parameter labels.
-      class(ZodiModel), intent(in) :: self
-      real(dp), intent(out) :: x(:)
-      character(len=*), allocatable, optional, intent(inout) :: labels(:)
-      character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
-      integer(i4b) :: i, j, running_idx
+     integer(i4b) :: i, j, idx
+     real(dp), allocatable, dimension(:) :: z
+     character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
+     
+     allocate(z(self%npar_tot))
 
-      if (size(x) /= self%n_params) stop "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`"
-      if (present(labels)) then
-         if (allocated(labels)) stop "`labels` must not be allocated at the time of passing it in to `model_to_params`"
-         allocate(comp_label_upper(self%n_comps))
-      end if
+     if (present(labels)) then
+        if (allocated(labels)) stop "`labels` must not be allocated at the time of passing it in to `model_to_params`"
+        allocate(comp_label_upper(self%n_comps))
+     end if
+     
+     ! General parameters
+     z(1) = self%T_0
+     z(2) = self%delta
+     if (trim(self%phasefunc_type) == 'Hong') then
+        z(3:7) = self%par_phase(1:5)
+     end if
+     if (present(labels)) then
+        if (trim(self%phasefunc_type) == 'Hong') then
+           labels = self%general_labels
+        else
+           labels = self%general_labels(1:2)
+           do i = 1, self%n_phase_params
+              labels = [labels, "SKIP"]
+           end do
+        end if
+     end if
+     idx = self%n_general_params
+     
+     ! Component parameters
+     do i = 1, self%n_comps
+        ! Shape parameters
+        call self%comps(i)%c%model2param(z(idx+1:idx+self%comps(i)%npar))
+        idx = idx + self%comps(i)%npar
 
-      running_idx = 0
-      do i = 1, self%n_comps
-         x(running_idx + 1) = self%comps(i)%c%n_0
-         x(running_idx + 2) = self%comps(i)%c%incl
-         x(running_idx + 3) = self%comps(i)%c%Omega
-         x(running_idx + 4) = self%comps(i)%c%x_0
-         x(running_idx + 5) = self%comps(i)%c%y_0
-         x(running_idx + 6) = self%comps(i)%c%z_0
-         running_idx = running_idx + self%n_common_params
-         select type (comp => self%comps(i)%c)
-         class is (ZodiCloud)
-            x(running_idx + 1) = comp%alpha
-            x(running_idx + 2) = comp%beta
-            x(running_idx + 3) = comp%gamma
-            x(running_idx + 4) = comp%mu
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiBand)
-            x(running_idx + 1) = comp%delta_zeta
-            x(running_idx + 2) = comp%delta_r
-            x(running_idx + 3) = comp%v
-            x(running_idx + 4) = comp%p
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiRing)
-            x(running_idx + 1) = comp%R_0
-            x(running_idx + 2) = comp%sigma_r
-            x(running_idx + 3) = comp%sigma_z
-            x(running_idx + 4) = comp%theta_0
-            x(running_idx + 5) = comp%sigma_theta
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFeature)
-            x(running_idx + 1) = comp%R_0
-            x(running_idx + 2) = comp%sigma_r
-            x(running_idx + 3) = comp%sigma_z
-            x(running_idx + 4) = comp%theta_0
-            x(running_idx + 5) = comp%sigma_theta
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiInterstellar)
-            x(running_idx + 1) = comp%R
-            x(running_idx + 2) = comp%alpha
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFan)
-            x(running_idx + 1) = comp%Q
-            x(running_idx + 2) = comp%P
-            x(running_idx + 3) = comp%gamma
-            x(running_idx + 4) = comp%Z_midplane_0
-            x(running_idx + 5) = comp%R_outer
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiComet)
-            x(running_idx + 1) = comp%P
-            x(running_idx + 2) = comp%Z_midplane_0
-            x(running_idx + 3) = comp%R_inner
-            x(running_idx + 4) = comp%R_outer
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiWrightCloudRing)
-            x(running_idx + 1)  = comp%p1
-            x(running_idx + 2)  = comp%p3
-            x(running_idx + 3)  = comp%p4
-            x(running_idx + 4)  = comp%p5
-            x(running_idx + 5)  = comp%p6
-            x(running_idx + 6)  = comp%p7
-            x(running_idx + 7)  = comp%p8
-            x(running_idx + 8)  = comp%p9
-            x(running_idx + 9)  = comp%p10
-            x(running_idx + 10) = comp%p13
-            x(running_idx + 11) = comp%p14
-            x(running_idx + 12) = comp%p15
-            x(running_idx + 13) = comp%p16
-            x(running_idx + 14) = comp%p17
-            x(running_idx + 15) = comp%p18
-            x(running_idx + 16) = comp%p19
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiWrightBand)
-            x(running_idx + 1)  = comp%q1
-            x(running_idx + 2)  = comp%q5
-            x(running_idx + 3)  = comp%q6
-            x(running_idx + 4)  = comp%q7
-            x(running_idx + 5)  = comp%q8
-            x(running_idx + 6)  = comp%R_1
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         end select
+        ! Emissivity and albedo
+        do j = 1, numband
+           if (band_todtype(j) == "none") then
+              z(idx        +j) = 0.d0
+              z(idx+numband+j) = 0.d0
+           else
+              z(idx        +j) = self%comps(i)%c%emissivity(j)
+              z(idx+numband+j) = self%comps(i)%c%albedo(j)
+           end if
+        end do
+        idx = idx + 2*numband
+
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
             comp_label_upper(i) = self%comp_labels(i)
@@ -623,114 +590,113 @@ contains
             do j = 1, size(labels_copy)
                labels_copy(j) = trim(adjustl(comp_label_upper(i)))//'_'//trim(adjustl(labels_copy(j))) 
             end do
-               labels = [labels, labels_copy]
+            labels = [labels, labels_copy]
+            ! Add placeholders for emissivity and albedo
+            do j = 1, numband
+               labels = [labels, ["skip","skip"]]
+            end do
          end if
-      end do
-      x(running_idx + 1) = self%T_0
-      x(running_idx + 2) = self%delta
-      if (present(labels)) then
-         labels = [labels, self%general_labels]
-      end if
-    end subroutine model_to_params2
+     end do
 
-   subroutine params_to_model2(self, x)
-      ! Dumps a zodi model to a parameter vector `x`.
-      class(ZodiModel), intent(inout) :: self
-      real(dp), intent(in) :: x(:)
-      integer(i4b) :: i, running_idx
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (band_todtype(i) /= "none") then
+           z(idx) = band_monopole(i) !get_monopole_amp(data(i)%label)
+           !write(*,*) 'get', i, trim(data(i)%label), z(idx)
+        else
+           z(idx) = 0.d0
+        end if
+        if (present(labels)) labels = [labels, "skip"]
+     end do
+     
+     if (present(samp_group)) then
+        x = pack(z, self%theta_stat(:,samp_group)==0)
+        if (present(labels)) labels = pack(labels, self%theta_stat(:,samp_group)==0)
+     else
+        x = z
+     end if
+     deallocate(z)     
+     
+   end subroutine model_to_params
 
-      if (size(x) /= self%n_params) then
-         write(*,*) "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`", size(x), self%n_params
-         stop
-      end if
+   subroutine params_to_model(self, x, samp_group)
+     implicit none
+     class(ZodiModel),               intent(inout)        :: self
+     real(dp),         dimension(:), intent(in)           :: x
+     integer(i4b),                   intent(in), optional :: samp_group
 
-      running_idx = 0
-      do i = 1, self%n_comps
-         self%comps(i)%c%n_0 = x(running_idx + 1)
-         self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
-         self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
-         self%comps(i)%c%x_0 = x(running_idx + 4)
-         self%comps(i)%c%y_0 = x(running_idx + 5)
-         self%comps(i)%c%z_0 = x(running_idx + 6)
-         running_idx = running_idx + self%n_common_params
-         
-         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
-         select type (comp => self%comps(i)%c)
-         class is (ZodiCloud)
-            comp%alpha = x(running_idx + 1)
-            comp%beta = x(running_idx + 2)
-            comp%gamma = x(running_idx + 3)
-            comp%mu = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiBand)
-            comp%delta_zeta = mod(x(running_idx + 1), 360.) ! degree prior
-            comp%delta_r = x(running_idx + 2)
-            comp%v = x(running_idx + 3)
-            comp%p = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiRing)
-            comp%R_0 = x(running_idx + 1)
-            comp%sigma_r = x(running_idx + 2)
-            comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
-            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFeature)
-            comp%R_0 = x(running_idx + 1)
-            comp%sigma_r = x(running_idx + 2)
-            comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
-            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiInterstellar)
-            comp%R = x(running_idx + 1)
-            comp%alpha = x(running_idx + 2)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFan)
-            comp%Q = x(running_idx + 1)
-            comp%P = x(running_idx + 2)
-            comp%gamma = x(running_idx + 3)
-            comp%Z_midplane_0 = x(running_idx + 4)
-            comp%R_outer = x(running_idx + 5)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiComet)
-            comp%P = x(running_idx + 1)
-            comp%Z_midplane_0 = x(running_idx + 2)
-            comp%R_inner = x(running_idx + 3)
-            comp%R_outer = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiWrightCloudRing)
-            comp%p1  = x(running_idx + 1)
-            comp%p3  = x(running_idx + 2)
-            comp%p4  = x(running_idx + 3)
-            comp%p5  = x(running_idx + 4)
-            comp%p6  = x(running_idx + 5)
-            comp%p7  = x(running_idx + 6)
-            comp%p8  = x(running_idx + 7)
-            comp%p9  = x(running_idx + 8)
-            comp%p10 = x(running_idx + 9)
-            comp%p13 = x(running_idx + 10)
-            comp%p14 = x(running_idx + 11)
-            comp%p15 = x(running_idx + 12)
-            comp%p16 = x(running_idx + 13)
-            comp%p17 = x(running_idx + 14)
-            comp%p18 = x(running_idx + 15)
-            comp%p19 = x(running_idx + 16)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiWrightBand)
-            comp%q1  = x(running_idx + 1)
-            comp%q5  = x(running_idx + 2)
-            comp%q6  = x(running_idx + 3)
-            comp%q7  = x(running_idx + 4)
-            comp%q8  = x(running_idx + 5)
-            comp%R_1 = x(running_idx + 6)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         end select
-         call self%comps(i)%c%init()
-      end do
-      self%T_0 = x(running_idx + 1)
-      self%delta = x(running_idx + 2)
-    end subroutine params_to_model2
+     integer(i4b) :: i, j, idx
+     real(dp), allocatable, dimension(:) :: z, z_prev
+     
+     allocate(z(self%npar_tot))
+
+     ! Initialize full parameter vector
+     if (present(samp_group)) then
+        allocate(z_prev(self%npar_tot))
+        call self%model_to_params(z_prev)
+        idx = 1
+        do i = 1, self%npar_tot
+           if (self%theta_stat(i,samp_group) == 0) then
+              z(i) = x(idx)
+              idx = idx+1
+           else if (self%theta_stat(i,samp_group) == -1) then
+              z(i) = z_prev(i)
+           else if (self%theta_stat(i,samp_group) == -2) then
+              z(i) = 0.d0
+           else if (self%theta_stat(i,samp_group) == -3) then
+              z(i) = 1.d0
+           end if
+        end do
+        do i = 1, self%npar_tot
+           if (self%theta_stat(i,samp_group) > 0) then
+              z(i) = z(self%theta_stat(i,samp_group))
+           end if
+        end do
+        deallocate(z_prev)
+     else
+        z = x
+     end if
+     
+     ! General parameters
+     self%T_0   = z(1) 
+     self%delta = z(2)
+     if (trim(self%phasefunc_type) == 'Hong') then
+        self%par_phase(1:5) = z(3:7) 
+     end if
+     
+     ! Component parameters
+     idx = self%n_general_params
+     do i = 1, self%n_comps
+        ! Shape parameters
+        call self%comps(i)%c%param2model(z(idx+1:idx+self%comps(i)%npar))
+        call self%comps(i)%c%init()
+
+        ! Emissivity and albedo
+        idx = idx + self%comps(i)%npar
+        do j = 1, numband
+           if (band_todtype(j) /= "none") then
+              self%comps(i)%c%emissivity(j) = z(idx+j)
+              self%comps(i)%c%albedo(j)     = z(idx+numband+j)
+           end if
+        end do
+        idx = idx + 2*numband
+     end do
+
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (band_todtype(i) /= "none") then
+           band_monopole(i) = z(idx) 
+        end if
+     end do
+
+     deallocate(z)
+     
+   end subroutine params_to_model
+
+
+
 
    subroutine model_to_chain(self, cpar, iter)
       ! Dumps the zodi model to the chain file
@@ -767,10 +733,16 @@ contains
       comp_group_path = trim(adjustl(zodi_path))//'/comps'
       call create_hdf_group(file, trim(adjustl(comp_group_path)))
 
-      allocate(params(self%n_params))
-      call self%model_to_params2(params, labels)
-      
-      param_idx = 0 
+      allocate(params(self%npar_tot))
+      call self%model_to_params(params, labels=labels)
+
+      do i = 1, self%n_general_params
+         if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
+         param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
+         call write_hdf(file, trim(adjustl(param_label)), params(i))
+      end do
+
+      param_idx = self%n_general_params      
       do i = 1, self%n_comps
          comp_path = trim(adjustl(comp_group_path))//'/'//trim(adjustl(self%comp_labels(i)))//'/'
          call create_hdf_group(file, trim(adjustl(comp_path)))
@@ -782,11 +754,6 @@ contains
          param_idx = param_idx + n_comp_params
          call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', self%comps(i)%c%emissivity)
          call write_hdf(file, trim(adjustl(comp_path))//'/albedo', self%comps(i)%c%albedo)
-      end do
-      if (param_idx + self%n_general_params /= self%n_params) stop "Error: param_idx + self%n_general_params /= self%n_params"
-      do i = 1, self%n_general_params
-         param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
-         call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
       end do
 
       ! Static component
@@ -1554,7 +1521,7 @@ contains
      integer(i4b),     intent(in)           :: band
      real(dp),         intent(out)          :: Phi(:)
 
-     real(dp) :: C0, C1, C2, p20, p21, g, w, norm
+     real(dp) :: C0, C1, C2, p20, p21, g1, g2, g3, w1, w2, w3, norm
      integer(i4b) :: n
      
      if (trim(self%phasefunc_type) == 'K98') then
@@ -1569,12 +1536,15 @@ contains
         p21  = self%par_phase(2)
         Phi = exp(-p20*cos(Theta) + p21*cos(Theta)**2)
      else if (trim(self%phasefunc_type) == 'Hong') then
-        g   = self%par_phase(1); w = self%par_phase(4)
-        Phi =       w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0
-        g   = self%par_phase(1); w = self%par_phase(4)
-        Phi = Phi + w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0
-        g   = self%par_phase(1); w = self%par_phase(4)
-        Phi = Phi + w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0 
+        g1  = self%par_phase(1)
+        g2  = self%par_phase(2)
+        g3  = self%par_phase(3)
+        w1  = 1.d0-sum(self%par_phase(4:5))
+        w2  = self%par_phase(4)
+        w3  = self%par_phase(5)
+        Phi =       w1 * (1d0-g1**2)/(1.d0+g1**2-2d0*g1*cos(Theta))**1.5d0
+        Phi = Phi + w2 * (1d0-g2**2)/(1.d0+g2**2-2d0*g2*cos(Theta))**1.5d0
+        Phi = Phi + w3 * (1d0-g3**2)/(1.d0+g3**2-2d0*g3*cos(Theta))**1.5d0 
         Phi = Phi / (4.d0*pi)
      else
         write(*,*) 'Unsupported zodi phase function type:', trim(self%phasefunc_type)
@@ -1900,18 +1870,27 @@ contains
       end if
 
       open(newunit=io, file=trim(adjustl(filename)), action="write")
-      allocate(params(model%n_params))
-      call model%model_to_params2(params, labels=labels)
+      allocate(params(model%npar_tot))
+      call model%model_to_params(params, labels=labels)
 
-      allocate(comp_switch_indices(model%n_comps))
+      allocate(comp_switch_indices(0:model%n_comps))
 
-      running_idx = 0
+      ! Newline after general parameters
+      if (trim(model%phasefunc_type) == 'Hong') then
+         comp_switch_indices(0) = model%n_general_params
+      else
+         comp_switch_indices(0) = 2
+      end if
+
+      ! Newline after each component
+      running_idx = model%n_general_params
       do i = 1, model%n_comps
          running_idx = running_idx + size(model%comps(i)%labels)
          comp_switch_indices(i) = running_idx
       end do
 
-      do i = 1, model%n_params
+      do i = 1, model%npar_tot
+         if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
          if (any(comp_switch_indices == i)) then
                write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
             else
@@ -1956,87 +1935,93 @@ contains
    end subroutine
 
    subroutine ascii_to_zodi_model(cpar, model, filename)
-      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(inout) :: model
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-      type(hash_tbl_sll) :: htbl
+     implicit none
+     ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
+     class(ZodiModel), target, intent(inout) :: model
+     type(comm_params), intent(in) :: cpar
+     character(len=*), intent(in) :: filename
+     type(hash_tbl_sll) :: htbl
+     
+     integer(i4b) :: i, j, io, io_status, ierr, n_comps
+     logical(lgt) :: exists
+     character(len=512) :: key, val, line
+     character(len=128), allocatable :: labels(:)
+     characteR(len=128) :: toks(100)
+     characteR(len=512) :: concatenated_string
+     real(dp), allocatable :: params(:)
+     
+     allocate(params(model%npar_tot))
+     !if (cpar%myid_chain == cpar%root) then
+     inquire(file=trim(adjustl(filename)), exist=exists)
+     if (.not. exists) then
+        print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+        stop
+     end if
+     
+     call init_hash_tbl_sll(htbl, tbl_len=500)
+     
+     open(newunit=io, file=trim(adjustl(filename)), action="read")
+     io_status = 0
+     do while (io_status == 0)
+        read(io, "(a)", iostat=io_status) line
+        if (io_status == 0 .and. line /= "") then
+           j = index(line, "=")
+           if (j == 0) then
+              print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
+              close(io)
+              stop
+           end if
+           
+           key = trim(adjustl(line(:j-1)))
+           val = trim(adjustl(line(j+1:)))
+           call tolower(key)
+           call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val)))
+        end if
+     end do
+     close(io)
+     
+     call model%model_to_params(params, labels=labels)
+     params = 0.
+     if (size(labels) /= size(params)) then
+        write(*,*) labels
+        write(*,*) params
+        write(*,*) size(labels), size(params)
+        stop "Error: size of labels and params do not match"
+     end if
+     do i = 1, size(labels)
+        if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
+        call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
+     end do
+     !end if
 
-      integer(i4b) :: i, j, io, io_status, ierr, n_comps
-      logical(lgt) :: exists
-      character(len=512) :: key, val, line
-      character(len=128), allocatable :: labels(:)
-      characteR(len=128) :: toks(100)
-      characteR(len=512) :: concatenated_string
-      real(dp), allocatable :: params(:)
-
-      allocate(params(model%n_params))
-      !if (cpar%myid_chain == cpar%root) then
-         inquire(file=trim(adjustl(filename)), exist=exists)
-         if (.not. exists) then
-            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-            stop
-         end if
-         
-         call init_hash_tbl_sll(htbl, tbl_len=500)
-         
-         open(newunit=io, file=trim(adjustl(filename)), action="read")
-         io_status = 0
-         do while (io_status == 0)
-            read(io, "(a)", iostat=io_status) line
-            if (io_status == 0 .and. line /= "") then
-               j = index(line, "=")
-               if (j == 0) then
-                  print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
-                  close(io)
-                  stop
-               end if
-
-               key = trim(adjustl(line(:j-1)))
-               val = trim(adjustl(line(j+1:)))
-               call tolower(key)
-               call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val))) 
-            end if
-         end do
-         close(io)
-
-         call model%model_to_params2(params, labels)
-         params = 0.
-         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
-         do i = 1, size(labels)
-            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
-         end do
-      !end if
-
-      !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call model%params_to_model2(params)
-
-      do i = 1, numband
-         if (trim(band_todtype(i)) == 'none') cycle
-         !if (.not. data(i)%tod%subtract_zodi) cycle
-         !if (cpar%myid == 0) then
-            call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%emissivity(i)
-            end do
-
-            call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%albedo(i)
-            end do
-            
-!            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
-         !end if
-         !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-         !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      end do
-   end subroutine
-
-
+     !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     call model%params_to_model(params)
+     
+     do i = 1, numband
+        if (trim(band_todtype(i)) == 'none') cycle
+        !if (.not. data(i)%tod%subtract_zodi) cycle
+        !if (cpar%myid == 0) then
+        call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
+        call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+        if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
+        do j = 1, n_comps
+           read(toks(j), *) model%comps(j)%c%emissivity(i)
+        end do
+        
+        call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
+        call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+        if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
+        do j = 1, n_comps
+           read(toks(j), *) model%comps(j)%c%albedo(i)
+        end do
+        
+        !            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
+        !end if
+        !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+        !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     end do
+   end subroutine ascii_to_zodi_model
+   
    subroutine print_zodi_model(theta, samp_group)
      implicit none
      real(dp),     allocatable, intent(in) :: theta(:)

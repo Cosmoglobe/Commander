@@ -380,8 +380,6 @@ program commander
 
       ! Sample non-stationary zodi components with geometric 3D model
       select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("mh")
-         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
             if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)

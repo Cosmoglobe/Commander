@@ -3166,7 +3166,7 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask)
+   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask, flag, only_solar_mask, s_tot)
      implicit none
      class(comm_tod),                   intent(inout) :: self
      integer(i4b),                      intent(in)    :: scan, det
@@ -3175,6 +3175,7 @@ contains
      real(sp),            dimension(:), intent(inout) :: mask
      integer(i4b),        dimension(:), intent(inout) :: flag
      logical(lgt),                      intent(in)    :: only_solar_mask
+     real(sp),            dimension(:), intent(in), optional :: s_tot
      
      integer(i4b) :: i, j, k, n, pix, ntod, nmax, window, ntot, iter, ncut, b_elon
      real(dp) :: rms0
@@ -3233,7 +3234,7 @@ contains
      if (apply_cut(2)) then
         allocate(cut(ntod))
         ncut = 0
-        !     open(58, file='var1.dat')
+        open(58, file='var1.dat')
         do iter = 1, 1
            ! Compute full-scan, masked rms0
            rms0 = 0.d0
@@ -3249,7 +3250,7 @@ contains
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. (res(i) < rms_range(1)*rms0 .or. res(i) > rms_range(2)*rms0))
-              !if (mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
+              if (mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
            end do
            
            ! Apply RMS selection criterium
@@ -3274,7 +3275,7 @@ contains
               ncut           = ncut + 1
            end if
         end do
-        !close(58)
+        close(58)
         deallocate(cut)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, rms cut      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
@@ -3287,9 +3288,9 @@ contains
         var_window = sqrt(var_window)
         var0       = sqrt(var0)     
         ncut       = 0
-        !open(58, file='var2.dat')
+        open(58, file='var2.dat')
         do i = 1, ntod
-           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0), threshold*var0
+           if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0), threshold*var0
            if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
               do k = max(i-window,1), min(i+window,ntod)
                  !if (mask(k) == 1) then
@@ -3302,7 +3303,7 @@ contains
               end do
            end if
         end do
-        !close(58)
+        close(58)
         deallocate(var_window)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
@@ -3314,9 +3315,9 @@ contains
         call compute_running_variance(res, mask, window, var_window, var_mean=var0)
         var_window = sqrt(var_window)
         ncut       = 0
-        !open(58, file='var3.dat')
+        open(58, file='var3.dat')
         do i = 1, ntod
-           !if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
            if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
               do k = max(i-window,1), min(i+window,ntod)
                  if (iand(flag(k),self%flag0) .eq. 0) then
@@ -3329,7 +3330,7 @@ contains
               end do
            end if
         end do
-        !close(58)
+        close(58)
         deallocate(var_window)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
@@ -3341,9 +3342,9 @@ contains
         call compute_running_variance(res, mask, window, var_window, var_mean=var0)
         var_window = sqrt(var_window)
         ncut       = 0
-        !     open(58, file='var3.dat')
+        open(58, file='var3.dat')
         do i = 1, ntod
-           !        if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
+           if (mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0)
            if (mask(i) == 1. .and. var_window(i) > threshold*var0) then
               do k = max(i-window,1), min(i+window,ntod)
                  if (iand(flag(k),self%flag0) .eq. 0) then
@@ -3356,7 +3357,7 @@ contains
               end do
            end if
         end do
-        !     close(58)
+        close(58)
         deallocate(var_window)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
@@ -3392,9 +3393,9 @@ contains
         ! Remove consecutive chunks with many flagged samples
         window = 2000; threshold = 0.30
         ncut       = 0
-        !     open(58, file='var4.dat')
+             open(58, file='var4.dat')
         do i = 1, ntod
-           !        write(58,*) i, res(i), iand(flag(k),self%flag0) .eq. 0
+           write(58,*) i, res(i), iand(flag(k),self%flag0) .eq. 0
            j = max(i-window,1)
            k = min(i+window,ntod)
            if (count(flag(j:k) == huge(flag(1)))/real(k-j+1,sp) > threshold) then
@@ -3408,7 +3409,7 @@ contains
               end do
            end if
         end do
-        !     close(58)
+        close(58)
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
@@ -3437,11 +3438,15 @@ contains
      !flag(1:550000)    = huge(flag(1))
      !flag(575000:)     = huge(flag(1))
      
-!!$     open(58, file='var5.dat')
-!!$     do i = 1, ntod
-!!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
-!!$     end do
-!!$     close(58)
+     open(58, file='var5.dat')
+     do i = 1, ntod
+        if (present(s_tot)) then
+           if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), s_tot(i)
+        else
+           if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i)
+        end if
+     end do
+     close(58)
 
      ! Solar-centric mask
      if (apply_cut(8)) then

@@ -393,7 +393,7 @@ contains
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
+                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask, s_tot=sd%s_tot(:,j))
             end do
             call sd%dealloc
             if (.not. any(self%scans(i)%d%accept)) cycle
