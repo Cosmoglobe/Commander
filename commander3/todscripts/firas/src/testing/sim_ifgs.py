@@ -48,7 +48,7 @@ eng_times = sdf[f'fdq_sdf_{ch}/dq_data/eng_time'][()]
 pub_model = fits.open(f'FIRAS_CALIBRATION_MODEL_{ch.upper()}{sm.upper()}.FITS')
 
 apod = pub_model[1].data['APODIZAT'][0]
-# apod = np.ones_like(apod)
+apod = np.ones_like(apod)
 etf = pub_model[1].data['RELEX_GA'][0] + 1j*pub_model[1].data['IELEX_GA'][0]
 otf = pub_model[1].data['RTRANSFE'][0] + 1j*pub_model[1].data['ITRANSFE'][0]
 
@@ -75,8 +75,9 @@ ind = np.arange(54_825,54_875)
 ind = np.arange(529_025,529_100)
 #ind = np.arange(529_000,529_100)
 
-ind = np.arange(54_800, 55_000)
+#ind = np.arange(54_800, 55_000)
 
+ind = np.arange(529_000,530_000)
 
 channel = 3
 mtm_speed = mtm_speeds[ind]
@@ -107,14 +108,17 @@ ifg = ifg[bla]
 
 
 eng_time_array = eng['ct_head/time'][()]
-bol_cmd_biass = eng['en_stat/bol_cmd_bias'][()]
+bol_cmd_biass = eng['en_stat/bol_cmd_bias'][()].astype(int)
 bol_volts = eng['en_analog/group1/bol_volt'][()]
 
+bol_cmd_biass[bol_cmd_biass < 0] += 256
+bol_cmd_biass = np.double(bol_cmd_biass) / 25.5
 
-icals = eng['en_analog/grt/a_lo_ical'][()]
-xcals = eng['en_analog/grt/a_lo_xcal_cone'][()]
-skyhorn = eng['en_analog/grt/a_lo_skyhorn'][()]
-refhorn = eng['en_analog/grt/a_lo_refhorn'][()]
+
+icals = eng['en_analog/grt/b_lo_ical'][()]
+xcals = eng['en_analog/grt/b_lo_xcal_cone'][()]
+skyhorn = eng['en_analog/grt/b_lo_skyhorn'][()]
+refhorn = eng['en_analog/grt/b_lo_refhorn'][()]
 dihedral = eng['en_analog/grt/a_lo_dihedral'][()]
 
 
@@ -261,14 +265,15 @@ for i in range(len(xcals)):
     S_sky = D - R.value
     theory = R +  bb_xcal(nu).to('MJy/sr')
     axes[1].plot(nu, D, color='k', alpha=0.1)
-    #axes[1].plot(nu, theory, alpha=0.1, color='r', zorder=5)
-    axes[1].set_ylim([-500, 500])
+    axes[1].plot(nu, theory, alpha=0.1, color='r', zorder=5)
+    axes[1].set_ylim([-25, 25])
     axes[1].set_title('Calibrated spectra')
 
     axes[2].plot(nu, theory.real, color='k', alpha=0.1)
     #axes[2].plot(nu, theory.imag, alpha=0.1, color='r', zorder=5)
     #axes[2].set_ylim([-500, 500])
     axes[2].set_title('Theory spectra')
+    axes[2].set_ylim([-25, 25])
 
     spec_th[i][5:len(otf) + 5] = theory.to('MJy/sr')
     spec_xcal[i][5:len(otf) + 5] = (bb_xcal(nu)).to('MJy/sr')
@@ -338,22 +343,22 @@ plt.pcolormesh(spec_th.imag, vmin=-10, vmax=10)
 
 plt.figure()
 plt.title('Data, real')
-plt.pcolormesh(spec_out.real, vmin=-1e2, vmax=1e2)
+plt.pcolormesh(spec_out.real, vmin=-10, vmax=10)
 plt.figure()
-plt.pcolormesh(spec_out.imag, vmin=-1e2, vmax=1e2)
+plt.pcolormesh(spec_out.imag, vmin=-10, vmax=10)
 plt.title('Data, imag')
 
 
 plt.figure()
 plt.title('Data - Model, real')
-plt.pcolormesh(spec_out.real - spec_th.real, vmin=-1e2, vmax=1e2)
+plt.pcolormesh(spec_out.real - spec_th.real, vmin=-10, vmax=10)
 plt.figure()
 plt.title('Data - Model, imag')
-plt.pcolormesh(spec_out.imag - spec_th.imag, vmin=-1e2, vmax=1e2)
+plt.pcolormesh(spec_out.imag - spec_th.imag, vmin=-10, vmax=10)
 
 
 
-#plt.show()
+plt.show()
 
 
 
