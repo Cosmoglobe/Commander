@@ -531,10 +531,10 @@ contains
          call update_status(status, "init_noise_filter_from_chain")
 
          ! init the noise filter from chain if we are not computing it
-         if(trim(res%init_from_HDF) == 'none' .or. cpar%init_chain_prefix == 'none') then
-           chainfile = ""
-         else if(trim(res%init_from_HDF) == 'default') then
+         if(trim(res%init_from_HDF) == 'default') then
            call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+         else if(trim(res%init_from_HDF) == 'none') then
+           chainfile = ""
          else
            call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
          end if
@@ -806,7 +806,7 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), chaindir, dospike=.true.)
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.

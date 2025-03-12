@@ -132,7 +132,7 @@ contains
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
-    if(c%correct_sl) allocate(c%slconv(c%ndet), c%orb_dp)
+    !allocate(c%slconv(c%ndet), c%orb_dp)
     
     allocate(c%orb_dp)
     !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
@@ -156,7 +156,6 @@ contains
   !  allocate(c%xtalk)
     c%xtalk => comm_crosstalk(correlations)
 
- 
   end function constructor_hfi
 
   !**************************************************
@@ -216,7 +215,7 @@ contains
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
-    character(len=4)    :: ctext, myid_text
+    character(len=4)    :: ctext, myid_text, det_text
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
@@ -225,6 +224,8 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+    integer(i4b)        :: unit, i_tod, i_det !! ADDED
+    character(len=512)  :: fname !! ADDED
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -291,8 +292,8 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-    ! estimate A/B detector crosstalk coeficients
-    call self%xtalk%estimate_crosstalk_matrix()
+    !! estimate A/B detector crosstalk coeficients  !COMMENTED
+    !!call self%xtalk%estimate_crosstalk_matrix()    !COMMENTED
 
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan
@@ -300,16 +301,62 @@ contains
         if (.not. any(self%scans(i)%d%accept)) cycle
         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true., darkdata=.true.)
 
-!!$        open(58,file='res.dat', recl=1024)
-!!$        do j = 1, sd%ntod
-!!$           write(58,*) j, sd%tod(j,1), sd%pix(j,1,1), sd%flag(j,1)
-!!$        end do
-!!$        close(58)
+!        if (.true. .and. self%scanid(i) == 5012) then
+!           do i_det = 1, self%ndet
+!              call int2string(i_det, det_text)
+!              open(58,file=trim(chaindir) // '/res_' // det_text // '.dat', recl=1024)
+!              do j = 1, sd%ntod
+!                 write(58,*) j, sd%tod(j,i_det), sd%pix(j,i_det,1), sd%flag(j,i_det)
+!              end do
+!              close(58)
+!           end do
+!        end if
+    
+
+!! ADDED =====================================================
+        if (.false. .and. self%myid == 0 .and. i==1) then
+           call int2string(i,scantext)
+           fname = trim(chaindir) // '/TOD_decomp_' // samptext // '_' // scantext //'_ID_' // myid_text // '.txt'
+           unit = getlun()
+           open(unit, file=trim(fname), recl=512)
+           do i_det = 1, self%ndet
+              do i_tod = 1, self%scans(i)%ntod
+                 write(unit,*) sd%tod(i_tod,i_det)
+              end do
+              write(unit,*) '==='
+           end do
+           close(unit)
+        end if
+
+        if (.false.) then 
+           ! estimate A/B detector crosstalk coeficients
+           if (self%myid == 0 .and. i==1) write(*,*) '   --> Removing crosstalk'
+           call wall_time(t1)
+           call self%xtalk%estimate_crosstalk_matrix(sd)
+           call self%xtalk%remove_crosstalk_signal(self,sd)
+           call wall_time(t2)
+           if (self%myid == 0 .and. i==1) write(*,*) '       Time for removal = ',t2-t1,' sec'
+        end if
+
+        if (.false. .and. self%myid == 0 .and. i==1) then
+           call int2string(i,scantext)
+           fname = trim(chaindir) // '/TOD_corr_decomp_' // samptext // '_' // scantext //'_ID_' // myid_text // '.txt'
+           unit = getlun()
+           open(unit, file=trim(fname), recl=512)
+           do i_det = 1, self%ndet
+              do i_tod = 1, self%scans(i)%ntod
+                 write(unit,*) sd%tod(i_tod,i_det)
+              end do
+              write(unit,*) '==='
+           end do
+           close(unit)
+        end if
+!! ===========================================================
         
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
-       call self%xtalk%remove_crosstalk_signal(sd, i)
+       !call self%xtalk%remove_crosstalk_signal(sd, i)
 
        ! Estimate modulation baselines; separate for odd and even samples
        if (self%first_call) then
@@ -377,7 +424,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false.)!, nplus2=.true.)
+    call binmap%init(self, .true., sample_rel_bandpass)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -403,7 +450,7 @@ contains
        else
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
-                     
+
        ! Create dynamic mask
        if (self%first_call) then
           ! Estimate sigma0 for masking
@@ -431,7 +478,7 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), chaindir, nomono=.true.)
           call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
        else
           sd%n_corr = 0.d0
@@ -455,13 +502,14 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
-       if (self%scanid(i) == 500) then
-          open(58,file='res'//samptext//'.dat', recl=1024)
-          do j = 1, sd%ntod
-             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1)))
-          end do
-          close(58)
-       end if
+!       if (self%scanid(i) == 5012) then
+!          call int2string(self%scanid(i), scantext)
+!          open(58,file=trim(chaindir) // '/res'//samptext//'_'//scantext//'.dat', recl=1024)
+!          do j = 1, sd%ntod
+!             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1),1-(sd%flag(j,1)/maxval(sd%flag(:,1)))
+!          end do
+!          close(58)
+!       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -494,8 +542,7 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         !call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
-         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+         call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
        else
          call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2, correct_transfer=.true.)
        end if
@@ -615,7 +662,7 @@ contains
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
 
-       !write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
+!!$       write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
 
     end do
     if (tod%scanid(scan) == 500) close(58)

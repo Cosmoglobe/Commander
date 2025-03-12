@@ -582,8 +582,8 @@ contains
            self%scans(i)%d(j)%gain = 1.d0
         end do
 
-      !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
+      !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), chaindir, dospike=.true.)
+        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), chaindir, dospike=.true.) 
         
 
         if (debug) then

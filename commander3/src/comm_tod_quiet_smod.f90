@@ -166,6 +166,7 @@ contains
     real(dp), allocatable, dimension(:, :, :) :: b_map, b_mono, sys_mono
     character(len=512)                        :: prefix, postfix
     character(len=2048)                       :: Sfilename
+    character(len=4),                         :: chaindir=''  ! ADDED (placeholder)
 
     logical(lgt)        :: select_data, sample_abs_bandpass
     logical(lgt)        :: sample_rel_bandpass, output_scanlist
@@ -296,7 +297,7 @@ contains
 
        ! Sample correlated noise
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
-         & sd%pix(:,1,:), dospike=.false.)
+         & sd%pix(:,1,:), chaindir, dospike=.false.)
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)

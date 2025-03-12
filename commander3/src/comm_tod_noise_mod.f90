@@ -28,7 +28,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
+  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, chaindir, freqmask, dospike, nomono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -67,10 +67,12 @@ contains
     integer(i4b),     dimension(1:,1:), intent(in)     :: pix
     real(sp),         dimension(1:,1:), intent(in)     :: mask, s_sub
     real(sp),         dimension(1:,1:), intent(out)    :: n_corr
+    character(len=*),                   intent(in)     :: chaindir  ! ADDED
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
-
+    
+    character(len=6)  :: scantext
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
     integer*8    :: plan_fwd, plan_back
@@ -81,6 +83,11 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
+
+    integer(i4b) :: l80, l20, fit_dim, degree ! ADDED
+    real(dp)     :: factor, sigma_avg ! ADDED
+    real(dp),     allocatable, dimension(:)   :: ys, coeff ! ADDED
+    real(dp),     allocatable, dimension(:,:) :: xs, xTx ! ADDED
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -162,19 +169,113 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       if (.false. .and. self%scanid(scan) == 5012) then
-          !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
+       
+       !! ADDED =================================================
+
+       if (.true.) then
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          open(58,file='noise_psd.dat', recl=1024)
           do l = 1, n-1
              ps(l) = abs(dv(l)) ** 2 / ntod
-             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
           end do
-          close(58)
-       end if
-       
+
+          ! PRINT
+          if (.true. .and. self%scanid(scan) >= 5000 .and. self%scanid(scan) <5100) then
+             call int2string(self%scanid(scan),scantext)
+             open(58,file=trim(chaindir) // '/pre_noise_psd' // scantext // '.dat', recl=1024)
+             do l = 1, n-1
+                write(58,*) l*(samprate/2)/(n-1), ps(l)
+             end do
+             close(58)
+
+!             open(58,file=trim(chaindir) // '/pre_d_prime' // scantext // '.dat', recl=1024)
+!             do l = 1, ntod
+!                write(58,*) l, d_prime(l)
+!             end do
+!             close(58)
+          end if
+
+          ! starting_freq = 80 Hz
+          l80 = n/(samprate/2)*80
+          
+          ! quadratic interpolation from l80
+          fit_dim = n - l80
+          degree = 2    
+          allocate(xs(fit_dim,0:degree),ys(fit_dim))
+          xs = 1.d0
+          do j = 1, degree
+             do l = 1, fit_dim
+                xs(l,j) = ((l80 + l-1)*(samprate/2)/(n-1))**j
+             end do
+          end do
+          ys = ps(l80:n-1)
+          
+          allocate(xTx(0:degree,0:degree),coeff(0:degree))
+          do j = 0, degree
+             do k = 0, degree
+                xTx(k,j) = sum(xs(:,j)*xs(:,k))
+             end do
+             coeff(j) = sum(xs(:,j)*ys)
+          end do
+
+          ! gaussian elimination
+          do j = 0, degree-2
+             do k = j+1, degree
+                factor = xTx(k,j) / xTx(j,j)
+                xTx(k,j:degree) = xTx(k,j:degree) - factor * xTx(j,j:degree)
+                coeff(k) = coeff(k) - factor * coeff(j)
+             end do
+          end do
+          coeff(degree) = coeff(degree) / xTx(degree,degree)
+          do j = degree, 0, -1
+             coeff(j) = (coeff(j) - sum(xTx(j,j+1:degree) * coeff(j+1:degree))) / xTx(j,j)
+          end do
+
+          deallocate(ys,xTx)
+
+          ! Find sigma level to adjust (now average from 20Hz to 80Hz)
+          sigma_avg =  0.d0
+          l20 = n/(samprate/2)*20
+          do l = l20, l80
+             sigma_avg = sigma_avg + ps(l)/(l80 - l20 +1)
+          end do
+
+!          if (self%myid==0) write(*,*) 'Noise level: sigma_avg = ',sigma_avg !! ADDED
+
+          ! Filter deconvolution
+          do l = l80, n-1
+             dv(l) = dv(l) * sqrt(sigma_avg / sum(xs(l-l80+1,:) * coeff))
+          end do
+          call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          dt          = dt / nfft
+          d_prime(:) = dt(1:ntod)
+
+          deallocate(xs,coeff)
+
+          ! PRINT
+          if (.true. .and. self%scanid(scan) >= 5000 .and. self%scanid(scan) < 5100) then
+             do l = 1, n-1
+                ps(l) = abs(dv(l)) ** 2 / ntod
+             end do
+             call int2string(self%scanid(scan),scantext)
+             open(58,file=trim(chaindir) // '/post_noise_psd' // scantext // '.dat', recl=1024)
+             do l = 1, n-1
+                write(58,*) l*(samprate/2)/(n-1), ps(l)
+             end do
+             close(58)
+
+!             open(58,file=trim(chaindir) // '/post_d_prime' // scantext // '.dat', recl=1024)
+!             do l = 1, ntod
+!                write(58,*) l, d_prime(l)
+!             end do
+!             close(58)
+          end if
+
+       end if 
+       !! =======================================================
+
+
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)
