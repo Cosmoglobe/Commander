@@ -95,7 +95,7 @@ contains
     c%nhorn           = 1
     c%compressed_tod  = .true.
     c%correct_sl      = .false.
-    if(c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
+    if(.true. .or. c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
       c%correct_sl    = .false.
     else
       c%correct_sl    = .true.
@@ -104,6 +104,7 @@ contains
     c%apply_inst_corr = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .false.
+    c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
@@ -212,7 +213,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_zodi, output_zodi_comps
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
@@ -220,7 +221,7 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
+    real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -232,8 +233,10 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = .false.                 
+    sample_gain           = .true.                 
     sample_ncorr          = iter > 1 !.true.                
+    sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
+    output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
@@ -247,6 +250,7 @@ contains
     if (self%output_aux_maps > 0 .or. .true.) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
+    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -264,6 +268,10 @@ contains
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
+    if (self%sample_zodi .and. self%subtract_zodi) then
+       allocate(procmask_zodi(0:npix-1))
+       call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
+    end if
     deallocate(m_buf)
 
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
@@ -298,7 +306,7 @@ contains
     do i = 1, self%nscan
         ! Skip scan if no accepted data
         if (.not. any(self%scans(i)%d%accept)) cycle
-        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true., darkdata=.true.)
+        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=.true., darkdata=.true.)
 
 !!$        open(58,file='res.dat', recl=1024)
 !!$        do j = 1, sd%ntod
@@ -397,11 +405,11 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
        end if
                      
        ! Create dynamic mask
@@ -421,11 +429,11 @@ contains
 
           ! Update scan data with new flagging
           if (sample_rel_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
           else if (sample_abs_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
           else
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
           end if
        end if
 
@@ -523,6 +531,11 @@ contains
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+       do i = 1, zodi_model%n_comps
+          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+       end do
+    endif
 
     ! Clean up
     call binmap%dealloc()

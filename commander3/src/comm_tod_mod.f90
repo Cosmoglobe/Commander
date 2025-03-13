@@ -3567,7 +3567,7 @@ contains
         write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
      end if
 
-     if (count(iand(flag,self%flag0) .ne. 0) == 0) then
+     if (count(iand(flag,self%flag0) .eq. 0) == 0) then
         write(*,fmt='(a,a,i6,i4)') ' Dynamic mask, scan rejected = ', trim(self%freq), self%scanid(scan), det
         self%scans(scan)%d(det)%accept = .false.
      end if

@@ -74,8 +74,8 @@ N_GIBBS_PER_TOD&&&             = 1
 BAND_TOD_RIMO&&&               = HFI_instrument_v2.h5
 BAND_TOD_FILELIST&&&           = filelist_545_Artem_full_pointing_DPC.txt #filelist_545_Artem_full.txt
 
-BAND_TOD_ZODI_SUBTRACTION&&&   = .false. 
-BAND_TOD_ZODI_MASK&&&          = zodi_proc_mask_01_n512.fits
+BAND_TOD_ZODI_SUBTRACTION&&&   = .true. 
+BAND_TOD_ZODI_MASK&&&          = mask_common_dx12_n2048_TQU.fits 
 BAND_TOD_ZODI_EMISSIVITY&&&    = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
-BAND_TOD_ZODI_ALBEDO&&&        = 0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0
+BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
 BAND_TOD_ZODI_REFERENCE_BAND&&&= .false.
