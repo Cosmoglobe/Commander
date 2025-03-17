@@ -34,7 +34,7 @@ module comm_utils
   use locate_mod
   use math_tools
   use powell_mod
-  use hmc_mod
+  !use hmc_mod
   implicit none
 
   !include "mpif.h"

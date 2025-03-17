@@ -14,6 +14,7 @@
 module hmc_mod
   use healpix_types
   use rngmod
+  use comm_utils
   implicit none
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Implementation of Hamiltonian Monte Carlo, specifically the No-U-Turn
@@ -25,7 +26,7 @@ module hmc_mod
 contains
 
   subroutine hmc(theta, lnlike, grad_lnlike, n_steps, eps, handle, length, M)
-    ! Algorithm 1 from Hoffman & Gelman (2014)
+    ! Algorithm 5 (standard hmc plus dual averaging to adjust epsilon) from Hoffman & Gelman (2014) 
     ! Requires step size eps. n_steps is the number of independent draws,
     ! while "length" how many steps the Leapfrog integrator should be run. H&G
     ! recommend eps*length = 1, so it defaults to this unless specified
@@ -65,10 +66,15 @@ contains
        end function grad_lnlike
     end interface
 
-
-    integer(i4b) :: i, j, npar, L, t0, M_adapt
-    real(dp) :: alpha, H_m, logeps, logepsbar, gamm, kappa, mu, delta
+    integer(i4b) :: i, j, npar, L, t0, M_adapt, unit
+    real(dp) :: alpha, H_m, logeps, logepsbar, gamm, kappa, mu, delta, acc_rate
     real(dp), dimension(size(theta)) :: p0, p, theta_prop, mass, theta_new, p_new
+
+    unit = getlun()
+    open(unit,file='angela_outputs/hmc/gaussian_tests/hmc_state.dat', recl=2048)
+    write(unit, *) '#ITERATION  | POSITION_X  |  MOMENTUM_X'
+
+    acc_rate = 0.0
 
     H_m = 0
     mu = log(10*eps)
@@ -90,7 +96,7 @@ contains
     if (present(length)) then
       L = length
     else
-      L = int(1/eps)
+      L = max(1, int(1/eps))  !assumpion eps*L=1 this requires further tests
     end if
 
     theta_prop = theta
@@ -104,8 +110,6 @@ contains
       theta_prop = theta
       p = p0
 
-      L = max(1, int(1/eps, i4b))
-
       do j = 1, L
         call Leapfrog(theta_prop, p, theta_new, p_new, eps, grad_lnlike, mass)
         theta_prop = theta_new
@@ -113,10 +117,11 @@ contains
         !write(*,*) '1', lnlike(theta_prop) - 0.5*sum(p**2/mass), theta_prop(1), p(1)
       end do
       alpha = min(1.d0, exp(lnlike(theta_prop) - lnlike(theta) &
-                     &- 0.5*(sum(p**2/mass) - sum(p0**2/mass)))  )
+                     &- 0.d5*(sum(p**2/mass) + 0.d5*sum(p0**2/mass)))  )
       if (alpha > rand_uni(handle)) then
         theta = theta_prop
-        p = p_new
+        p = -p_new
+        acc_rate = acc_rate + 1
       else
         theta = theta
         p = p0
@@ -127,21 +132,27 @@ contains
         logeps = mu - sqrt(real(i,dp))/gamm*H_m
         logepsbar = i**(-kappa)*logeps + (1-i**(-kappa))*logepsbar
         eps = exp(logeps)
-        write(*,*) '2', theta(1), eps, exp(logepsbar)
+      !!  write(*,*) '2', theta(1), eps, exp(logepsbar)
+      !!else
+      !!  write(*,*) '2', theta(1)
+      !end if
+      !if (i .eq. M_adapt) then
       else
-        write(*,*) '2', theta(1)
-      end if
-      if (i .eq. M_adapt) then
         eps = exp(logepsbar)
+      end if
+
+      if (mod(i, 1)==0) then
+        write(unit, *)  i, '  | ', theta(1), '  | ', p(1)
       end if
 
     end do
 
+    write(*,*) "final acceptance rate ", acc_rate/real(n_steps + M_adapt)
 
   end subroutine hmc
 
   subroutine nuts(theta, lnlike, grad_lnlike, n_steps, eps, handle, M)
-    ! Algorithm 3 from Hoffman & Gelman (2014), efficient NUTS with slice sampler
+    ! Algorithm 6 (efficient nuts as in alg 3 plus dual averaging) from Hoffman & Gelman (2014), efficient NUTS with slice sampler
     ! Does not take length as an argument, as it samples until the U-Turn
     ! condition is reached (momentum and (theta_plus - theta_minus) are
     ! perpendicular).
@@ -179,6 +190,8 @@ contains
     real(dp), dimension(size(theta)) :: theta_plus, theta_minus, theta_p
     real(dp), dimension(size(theta)) :: p_plus, p_minus, p_p, p, buff1, buff2, mass
 
+    integer(i4b) :: unit
+
     npar = size(theta)
 
     H_m = 0
@@ -189,6 +202,10 @@ contains
     t0 = 10
     kappa = 0.75
     delta = 0.65
+
+    unit = getlun()
+    open(unit,file='angela_outputs/hmc/gaussian_tests/two_hmc_state.dat', recl=2048)
+    write(unit, *) '#ITERATION  | POSITION_X  | MOMENTUM_X  | POSITION_Y  | MOMENTUM_Y | LOGLIKE  |  GRADLOGLIKE'
 
     if (present(M)) then
       mass = M
@@ -240,28 +257,31 @@ contains
         if (s .ne. 1) exit
       end do
 
-      !write(*,*) '4', lnlike(theta) - 0.5*sum(p**2/mass), theta(1)
       if (k .le. M_adapt) then
         H_m = (1d0 - 1d0/real(k+t0,dp))*H_m + (delta - alpha/n_alpha)/real(k+t0,dp)
         logeps = mu - sqrt(real(k,dp))/gamm*H_m
         logepsbar = k**(-kappa)*logeps + (1-k**(-kappa))*logepsbar
         eps = exp(logeps)
-        write(*,*) '4', theta(1), eps, exp(logepsbar)
+!     !   write(*,*) '4', theta(1), eps, exp(logepsbar)
+!     ! else
+!     !   write(*,*) '4', theta(1)
+      !end if
+      !if (k .eq. M_adapt) then
       else
-        write(*,*) '4', theta(1)
-      end if
-      if (k .eq. M_adapt) then
         eps = exp(logepsbar)
       end if
 
+      if ((mod(k, 10)==0) .or. (k < 10)) then
+        write(unit, *)  k, '  | ', theta(1), '  | ', p(1), '  | ', theta(2), '  | ', p(2), '  | ', lnlike_hmc_test(theta), '  | ', grad_lnlike_hmc_test(theta)
+      end if
+
     end do
-
-
   end subroutine nuts
 
   recursive subroutine BuildTree(theta, p, logu, v, j, eps, theta0, p0, lnlike, grad_lnlike, mass, &
                       & theta_minus, p_minus, theta_plus, p_plus, theta_p, p_p, n_p, s_p, &
                       & alpha, n_alpha, handle)
+  ! BuildTree function as in algorithm 6 of Hoffman and Gelman
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta, p, theta_minus, p_minus, theta_plus, p_plus, theta_p, p_p, mass, theta0, p0
     real(dp),                           intent(in) :: logu, eps
@@ -320,7 +340,6 @@ contains
       Ep = lnlike(theta_p) - 0.5*sum(p_p**2/mass)
       alpha = min(1d0, exp(Ep - E0))
 
-
     else
       call BuildTree(theta, p, logu, v, j-1, eps, theta0, p0, lnlike, grad_lnlike, mass, &
           & theta_minus, p_minus, theta_plus, p_plus, theta_p, p_p, n_p, s_p, alpha_p, n_ap, handle)
@@ -339,10 +358,10 @@ contains
         n_alpha = n_ap + n_app
         !alpha = log(exp(alpha_p) + exp(alpha_pp))
         alpha = alpha_p + alpha_pp
-        if (alpha_pp < 0) then
-          write(*,*) alpha_pp, n_app, j, n_pp, s_pp, logu, theta_plus(1), p_plus(1), theta_minus(1), p_minus(1)
-          stop
-        end if
+        !if (alpha_pp < 0) then
+        !  write(*,*) alpha_pp, n_app, j, n_pp, s_pp, logu, theta_plus(1), p_plus(1), theta_minus(1), p_minus(1)
+        !  stop
+        !end if
 
         if (rand_uni(handle)*(n_p + n_pp) < n_pp) then
           theta_p = theta_pp
@@ -366,33 +385,31 @@ contains
         alpha = alpha_p
       end if
 
-
     end if
-
 
   end subroutine BuildTree
 
 
-  function lnlike_hmc_test(theta)
+  function lnlike_hmc_test(theta) result(lnlike)
     use healpix_types
     implicit none
     real(dp), dimension(:), intent(in)  :: theta
-    real(dp)                            :: lnlike_hmc_test
+    real(dp)                            :: lnlike
 
-    lnlike_hmc_test = -sum(theta**2)/2
+    lnlike = -(1.0_dp/2.0_dp)*(theta(1)**2+theta(2)**2)
 
   end function
 
-  function grad_lnlike_hmc_test(theta)
+  function grad_lnlike_hmc_test(theta) result(grad_lnlike)
     use healpix_types
     implicit none
     real(dp), dimension(:), intent(in)  :: theta
-    real(dp), dimension(size(theta))    :: grad_lnlike_hmc_test
+    real(dp), dimension(size(theta))    :: grad_lnlike
 
-    grad_lnlike_hmc_test = -theta
+    grad_lnlike(1) = -theta(1)
+    grad_lnlike(2) = -theta(2)
 
-  end function
-
+  end function 
 
 
   subroutine Leapfrog(x, p, x_new, p_new, eps, grad_func, mass)
@@ -424,7 +441,7 @@ contains
   end subroutine Leapfrog
 
 
-  function FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, M)
+  function FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, M) result(final_eps)
     !
     ! If you have no idea what the timestep should be, this will give the value
     ! where the change in energy will be roughly 0.5 -- generally not a great
@@ -433,8 +450,8 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     type(planck_rng),                intent(inout) :: handle
-    real(dp), optional, dimension(:),   intent(in) :: M
-    real(dp)                                       :: FindReasonableEpsilon
+    real(dp), optional, dimension(:),   intent(in) :: M    
+    real(dp)                                       :: final_eps
     real(dp)                                       :: eps, npar, pp_over_p
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
     integer(i4b)                                   :: i, a
@@ -470,10 +487,9 @@ contains
     theta_new = theta
     p_new = p
 
-
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
-    pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.5*(sum(p_new**2/mass) - sum(p**2/mass)))
+    pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.d5*(sum(p_new**2/mass) + 0.d5*sum(p**2/mass)))
 
     if (pp_over_p > 0.5) then
       a = 1
@@ -484,14 +500,12 @@ contains
     do 
       eps = eps*2.d0**a
       call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
-      pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.5*(sum(p_new**2/mass) - sum(p**2/mass)))
-      write(*,*) eps, pp_over_p
+      pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.d5*(sum(p_new**2/mass) + 0.d5*sum(p**2/mass)))
+      !write(*,*) eps, pp_over_p
       if (pp_over_p**a < 2.d0**(-a)) exit
     end do
 
-
-    FindReasonableEpsilon = eps
-
+    final_eps = eps
 
   end function FindReasonableEpsilon
 
