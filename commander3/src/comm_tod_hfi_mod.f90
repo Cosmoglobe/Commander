@@ -148,7 +148,7 @@ interface
   end subroutine process_hfi_tod
 
 
-  module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+  module subroutine sample_hfi_baselines(self, tod, scan, handle, chaindir, subtract_s_tot)
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 
@@ -176,6 +176,7 @@ interface
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
     type(planck_rng),                     intent(inout) :: handle
+    character(len=*),                     intent(in)    :: chaindir
     logical(lgt),                         intent(in), optional :: subtract_s_tot
   end subroutine sample_hfi_baselines
 

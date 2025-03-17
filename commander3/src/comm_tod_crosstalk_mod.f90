@@ -53,7 +53,7 @@ contains
 
     allocate(c)
     allocate(c%crosstalk_matrix(size(correlations(1,:)), size(correlations(:,1))))
-    c%crosstalk_matrix = 1.d0 !! ADDED
+    c%crosstalk_matrix = 1.d0
 
   end function xtalk_constructor
  
@@ -124,125 +124,26 @@ contains
 
   end subroutine estimate_crosstalk_matrix
 
-  subroutine remove_crosstalk_signal(self, tod, sd)
-    !  The crosstalk correction is done in Fourier space.
-    !  1. The relative weight of each signal is computed per frequency.
-    !  2. The common mode is estimated using the crosstalk matrix.
-    !  3. The common mode is removed and the signals are converted back in time domain
-
+  subroutine remove_crosstalk_signal(self, sd)
     implicit none
-    class(comm_tod),                            intent(in)      :: tod
     class(comm_crosstalk),                      intent(inout)   :: self
     class(comm_scandata),                       intent(inout)   :: sd
 
-    integer(i4b) :: i, j, k
-    real(dp)     :: denom
-    real(dp),     allocatable, dimension(:)   :: amp
-    real(dp),     allocatable, dimension(:,:) :: w
-    complex(dpc), allocatable, dimension(:,:) :: Ft, crosstalk
+    integer(i4b) :: i, j
+    real(dp), dimension(:,:), allocatable :: corr_tod
 
-    integer(i4b) :: l, n, nomp, err, ntod, ndet
-    integer(i4b) :: nfft
-    integer*8    :: plan_fwd, plan_back
-    real(sp)     :: samprate
-    real(dp)     :: fft_norm
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:,:) :: ps
+    allocate(corr_tod(sd%ntod,sd%ndet))
+    corr_tod = 0.d0
+    call invert_matrix(self%crosstalk_matrix)
 
-    nomp = 1 !omp_get_max_threads()
-    samprate = tod%samprate
-    nfft = 2* sd%ntod
-    fft_norm = sqrt(1.d0 * nfft)
-    n = nfft / 2 + 1
-
-    call timer%start(TOT_FFT)
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-    call timer%stop(TOT_FFT)
-
-    call timer%start(TOT_FFT)
-    allocate(dt(nfft), dv(0:n-1), ps(0:n-1,sd%ndet))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-    call timer%stop(TOT_FFT)
-
-    !allocate(Ft(sd%ntod,sd%ndet))
-    allocate(crosstalk(sd%ntod,sd%ndet))
-    allocate(amp(sd%ndet))
-    allocate(w(sd%ntod,sd%ndet))
-    crosstalk = 0.d0
-
-    !FFT
-    !do i = 1, sd%ndet
-    !   !call fft(sd%tod(:,i),Ft(:,i)) !! TODO
-    !end do
-    do i = 1, sd%ndet
-       dt(1:sd%ntod) = sd%tod(:,i)    
-       dt(2*sd%ntod:sd%ntod+1:-1) = dt(1:sd%ntod)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       do l = 1, n-1
-          ps(l,i) = abs(dv(l)) ** 2 / sd%ntod
+    do i=1, sd%ndet
+       do j=1, sd%ndet
+          corr_tod(:,i) = corr_tod(:,i) + self%crosstalk_matrix(j,i) * sd%tod(:,j)
        end do
     end do
+    sd%tod = corr_tod
 
-    ! Relative weights
-    do j = 1, sd%ntod
-       denom = 1.d-30 ! to avoid dividing by zero
-       do i = 1, sd%ndet
-          amp(i) = ps(j,i) !abs(Ft(j,i))
-          denom = denom + amp(i)
-       end do
-
-       do i = 1, sd%ndet
-          w(j,i) = amp(i) / denom
-       end do
-    end do 
-    
-    ! Computing common components
-    do i = 1, sd%ndet
-       do j = 1, sd%ndet
-          do k = 1, sd%ntod
-             crosstalk(k,i) = crosstalk(k,i) + w(k,i) * self%crosstalk_matrix(k,j) * ps(k,j) !Ft(k,j)
-          end do
-       end do 
-    end do
-
-    ! Removing crosstalk
-    !do i = 1, sd%ndet
-    !   do j = 1, sd%ntod
-    !      Ft(j,i) = Ft(j,i) - crosstalk(j,i)
-    !   end do
-    !   call ifft(Ft(:,i),sd%tod(:,i)) !! TODO   
-    !end do
-
-    do i = 1, sd%ndet
-       call timer%start(TOT_FFT)
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       call timer%stop(TOT_FFT)
-       dt = dt / nfft
-       sd%tod(:,i) = dt(1:sd%ntod)
-    end do
-
-    !deallocate(Ft)
-    deallocate(crosstalk,amp,w)
-    deallocate(dt,dv,ps)
-
-!    integer(i4b) :: i, j
-!    real(dp), dimension(:,:), allocatable :: corr_tod
-!
-!    allocate(corr_tod(sd%ntod,sd%ndet))
-!    corr_tod = 0.d0
-!    call invert_matrix(self%crosstalk_matrix)
-!
-!    do i=1, sd%ndet
-!       do j=1, sd%ndet
-!          corr_tod(:,i) = corr_tod(:,i) + self%crosstalk_matrix(j,i) * sd%tod(:,j)
-!       end do
-!    end do
-!    sd%tod = corr_tod
-!
-!    deallocate(corr_tod)
+    deallocate(corr_tod)
 
   end subroutine remove_crosstalk_signal
 

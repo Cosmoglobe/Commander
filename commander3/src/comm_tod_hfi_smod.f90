@@ -95,7 +95,7 @@ contains
     c%nhorn           = 1
     c%compressed_tod  = .true.
     c%correct_sl      = .false.
-    if(c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
+    if(.true. .or. c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
       c%correct_sl    = .false.
     else
       c%correct_sl    = .true.
@@ -104,6 +104,7 @@ contains
     c%apply_inst_corr = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .false.
+    c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
@@ -211,7 +212,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_zodi, output_zodi_comps
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
@@ -219,13 +220,12 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
+    real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-    integer(i4b)        :: unit, i_tod, i_det !! ADDED
-    character(len=512)  :: fname !! ADDED
+    !integer(i4b)        :: i_det
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -233,8 +233,10 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = .false.                 
+    sample_gain           = .true.                 
     sample_ncorr          = iter > 1 !.true.                
+    sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
+    output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
@@ -248,6 +250,7 @@ contains
     if (self%output_aux_maps > 0 .or. .true.) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
+    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -265,6 +268,10 @@ contains
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
+    if (self%sample_zodi .and. self%subtract_zodi) then
+       allocate(procmask_zodi(0:npix-1))
+       call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
+    end if
     deallocate(m_buf)
 
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
@@ -292,14 +299,14 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-    !! estimate A/B detector crosstalk coeficients  !COMMENTED
-    !!call self%xtalk%estimate_crosstalk_matrix()    !COMMENTED
+    !! estimate A/B detector crosstalk coeficients
+    !!call self%xtalk%estimate_crosstalk_matrix()
 
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan
         ! Skip scan if no accepted data
         if (.not. any(self%scans(i)%d%accept)) cycle
-        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, skip_nonlin=.true., darkdata=.true.)
+        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=.true., darkdata=.true.)
 
 !        if (.true. .and. self%scanid(i) == 5012) then
 !           do i_det = 1, self%ndet
@@ -312,47 +319,16 @@ contains
 !           end do
 !        end if
     
-
-!! ADDED =====================================================
-        if (.false. .and. self%myid == 0 .and. i==1) then
-           call int2string(i,scantext)
-           fname = trim(chaindir) // '/TOD_decomp_' // samptext // '_' // scantext //'_ID_' // myid_text // '.txt'
-           unit = getlun()
-           open(unit, file=trim(fname), recl=512)
-           do i_det = 1, self%ndet
-              do i_tod = 1, self%scans(i)%ntod
-                 write(unit,*) sd%tod(i_tod,i_det)
-              end do
-              write(unit,*) '==='
-           end do
-           close(unit)
-        end if
-
         if (.false.) then 
            ! estimate A/B detector crosstalk coeficients
            if (self%myid == 0 .and. i==1) write(*,*) '   --> Removing crosstalk'
-           call wall_time(t1)
+           !call wall_time(t1)
            call self%xtalk%estimate_crosstalk_matrix(sd)
-           call self%xtalk%remove_crosstalk_signal(self,sd)
-           call wall_time(t2)
-           if (self%myid == 0 .and. i==1) write(*,*) '       Time for removal = ',t2-t1,' sec'
+           call self%xtalk%remove_crosstalk_signal(sd)
+           !call wall_time(t2)
+           !if (self%myid == 0 .and. i==1) write(*,*) '       Time for removal = ',t2-t1,' sec'
         end if
 
-        if (.false. .and. self%myid == 0 .and. i==1) then
-           call int2string(i,scantext)
-           fname = trim(chaindir) // '/TOD_corr_decomp_' // samptext // '_' // scantext //'_ID_' // myid_text // '.txt'
-           unit = getlun()
-           open(unit, file=trim(fname), recl=512)
-           do i_det = 1, self%ndet
-              do i_tod = 1, self%scans(i)%ntod
-                 write(unit,*) sd%tod(i_tod,i_det)
-              end do
-              write(unit,*) '==='
-           end do
-           close(unit)
-        end if
-!! ===========================================================
-        
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
@@ -360,9 +336,9 @@ contains
 
        ! Estimate modulation baselines; separate for odd and even samples
        if (self%first_call) then
-          call sample_hfi_baselines(sd, self, i, handle, subtract_s_tot=.false.)
+          call sample_hfi_baselines(sd, self, i, handle, chaindir, subtract_s_tot=.false.)
        else
-          call sample_hfi_baselines(sd, self, i, handle)
+          call sample_hfi_baselines(sd, self, i, handle, chaindir)
        end if
 
        ! Fix modulation phase
@@ -444,11 +420,11 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
        end if
 
        ! Create dynamic mask
@@ -468,11 +444,11 @@ contains
 
           ! Update scan data with new flagging
           if (sample_rel_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
           else if (sample_abs_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
           else
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
           end if
        end if
 
@@ -570,6 +546,11 @@ contains
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+       do i = 1, zodi_model%n_comps
+          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+       end do
+    endif
 
     ! Clean up
     call binmap%dealloc()
@@ -589,7 +570,7 @@ contains
   end subroutine process_HFI_tod
 
 
-  module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+  module subroutine sample_hfi_baselines(self, tod, scan, handle, chaindir, subtract_s_tot)
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 
@@ -617,9 +598,10 @@ contains
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
     type(planck_rng),                     intent(inout) :: handle
+    character(len=*),                     intent(in)    :: chaindir
     logical(lgt),                         intent(in), optional :: subtract_s_tot
     
-    real(dp) :: eta, A1, A2, x, b1, b2, sgn,gal_mean
+    real(dp) :: eta, A1, A2, x, b1, b2, sgn,gal_mean, bias
     integer(i4b) :: i, j, n
     logical(lgt) :: sub_s
 
@@ -630,7 +612,7 @@ contains
     ! sd = self --- self%s_tot - sky signal model
     ! self%s_tot(self%ntod, self%ndet) - how s_tot structured
     
-    if (tod%scanid(scan) == 500) open(58,file='baseline.dat', recl=1024)
+    if (tod%scanid(scan) == 500) open(58,file=trim(chaindir) // 'baseline.dat', recl=1024)
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        sgn = tod%mod_phase(i,scan)

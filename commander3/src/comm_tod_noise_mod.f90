@@ -67,7 +67,7 @@ contains
     integer(i4b),     dimension(1:,1:), intent(in)     :: pix
     real(sp),         dimension(1:,1:), intent(in)     :: mask, s_sub
     real(sp),         dimension(1:,1:), intent(out)    :: n_corr
-    character(len=*),                   intent(in)     :: chaindir  ! ADDED
+    character(len=*),                   intent(in)     :: chaindir
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
@@ -75,19 +75,19 @@ contains
     character(len=6)  :: scantext
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
+    integer(i4b) :: ll, window, nbin, unbin_start
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
+    real(sp)     :: start_freq, end_freq
     real(dp)     :: power, fft_norm, var1, var2
+    real(dp)     :: l_ref, l_val, ratio_end, alpha_filter
     character(len=1024) :: filename
+    integer(i4b), dimension(1) :: bin_start, bin_end
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
-
-    integer(i4b) :: l80, l20, fit_dim, degree ! ADDED
-    real(dp)     :: factor, sigma_avg ! ADDED
-    real(dp),     allocatable, dimension(:)   :: ys, coeff ! ADDED
-    real(dp),     allocatable, dimension(:,:) :: xs, xTx ! ADDED
+    real(sp),     allocatable, dimension(:) :: bin_l, bin_ps
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -169,9 +169,6 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       
-       !! ADDED =================================================
-
        if (.true.) then
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -181,80 +178,59 @@ contains
           end do
 
           ! PRINT
-          if (.true. .and. self%scanid(scan) >= 5000 .and. self%scanid(scan) <5100) then
+          if (.false. .and. self%scanid(scan) >= 5006 .and. self%scanid(scan) <=5015) then
              call int2string(self%scanid(scan),scantext)
              open(58,file=trim(chaindir) // '/pre_noise_psd' // scantext // '.dat', recl=1024)
              do l = 1, n-1
                 write(58,*) l*(samprate/2)/(n-1), ps(l)
              end do
              close(58)
-
-!             open(58,file=trim(chaindir) // '/pre_d_prime' // scantext // '.dat', recl=1024)
-!             do l = 1, ntod
-!                write(58,*) l, d_prime(l)
-!             end do
-!             close(58)
           end if
+       end if
 
-          ! starting_freq = 80 Hz
-          l80 = n/(samprate/2)*80
-          
-          ! quadratic interpolation from l80
-          fit_dim = n - l80
-          degree = 2    
-          allocate(xs(fit_dim,0:degree),ys(fit_dim))
-          xs = 1.d0
-          do j = 1, degree
-             do l = 1, fit_dim
-                xs(l,j) = ((l80 + l-1)*(samprate/2)/(n-1))**j
-             end do
-          end do
-          ys = ps(l80:n-1)
-          
-          allocate(xTx(0:degree,0:degree),coeff(0:degree))
-          do j = 0, degree
-             do k = 0, degree
-                xTx(k,j) = sum(xs(:,j)*xs(:,k))
-             end do
-             coeff(j) = sum(xs(:,j)*ys)
+       if (.true.) then
+        
+          ! Bin
+          window = 1000
+          nbin = (n-1)/window
+          allocate(bin_l(nbin),bin_ps(nbin))
+
+          k=1
+          do l = (n-1)-window*nbin + 1, n-1
+             j = l - (n-1)+window*nbin
+             if (j>k*window) then
+                k = k+1
+             end if
+             bin_l(k) = bin_l(k) + l*(samprate/2)/(n-1)/window
+             bin_ps(k) = bin_ps(k) + ps(l)/window
           end do
 
-          ! gaussian elimination
-          do j = 0, degree-2
-             do k = j+1, degree
-                factor = xTx(k,j) / xTx(j,j)
-                xTx(k,j:degree) = xTx(k,j:degree) - factor * xTx(j,j:degree)
-                coeff(k) = coeff(k) - factor * coeff(j)
-             end do
-          end do
-          coeff(degree) = coeff(degree) / xTx(degree,degree)
-          do j = degree, 0, -1
-             coeff(j) = (coeff(j) - sum(xTx(j,j+1:degree) * coeff(j+1:degree))) / xTx(j,j)
-          end do
+          ! Estimate steepness of decay in power in the range [84,89.5] Hz
+          start_freq = 84.0
+          end_freq = 89.5
+          bin_start = minloc(abs(bin_l-start_freq))
+          unbin_start = n/(samprate/2)*start_freq
+          l_ref = unbin_start*(samprate/2)/(n-1)
+          bin_end = minloc(abs(bin_l-end_freq))
 
-          deallocate(ys,xTx)
+          ratio_end = bin_ps(bin_end(1))/bin_ps(bin_start(1))
+          alpha_filter = log(ratio_end)/log(bin_l(bin_end(1))/bin_l(bin_start(1)))
 
-          ! Find sigma level to adjust (now average from 20Hz to 80Hz)
-          sigma_avg =  0.d0
-          l20 = n/(samprate/2)*20
-          do l = l20, l80
-             sigma_avg = sigma_avg + ps(l)/(l80 - l20 +1)
+          ! Deconvolving (f/f_ref)**alpha filter
+          do l = unbin_start, n-1
+             l_val = l*(samprate/2)/(n-1)
+             l_ref = unbin_start*(samprate/2)/(n-1)
+             dv(l) = dv(l) / sqrt((l_val/l_ref)**alpha_filter)
           end do
 
-!          if (self%myid==0) write(*,*) 'Noise level: sigma_avg = ',sigma_avg !! ADDED
-
-          ! Filter deconvolution
-          do l = l80, n-1
-             dv(l) = dv(l) * sqrt(sigma_avg / sum(xs(l-l80+1,:) * coeff))
-          end do
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
           dt          = dt / nfft
           d_prime(:) = dt(1:ntod)
 
-          deallocate(xs,coeff)
+          deallocate(bin_l, bin_ps)
 
           ! PRINT
-          if (.true. .and. self%scanid(scan) >= 5000 .and. self%scanid(scan) < 5100) then
+          if (.false. .and. self%scanid(scan) >= 5006 .and. self%scanid(scan) <= 5015) then
              do l = 1, n-1
                 ps(l) = abs(dv(l)) ** 2 / ntod
              end do
@@ -264,17 +240,9 @@ contains
                 write(58,*) l*(samprate/2)/(n-1), ps(l)
              end do
              close(58)
-
-!             open(58,file=trim(chaindir) // '/post_d_prime' // scantext // '.dat', recl=1024)
-!             do l = 1, ntod
-!                write(58,*) l, d_prime(l)
-!             end do
-!             close(58)
           end if
 
        end if 
-       !! =======================================================
-
 
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
