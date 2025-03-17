@@ -74,7 +74,7 @@ contains
      integer(i4b), intent(in) :: samp_group
       
       real(dp) :: chisq_prior
-      integer(i4b) :: i, j
+      integer(i4b) :: i, j, ind1, ind2
       logical(lgt) :: prior_is_violated
 
       chisq_prior = 0.d0
@@ -97,11 +97,20 @@ contains
          j = j+1
       end do
 
+      ! Check that sum of phase function weights is smaller than 1
       if (trim(zodi_model%phasefunc_type) == 'Hong') then
-         ! Check that sum of weights is smaller than 1
-         if (params(4)+params(5) > 1.d0) then
-            chisq_prior = 1.d30
-            return
+         ind1 = zodi_model%get_par_ind(param="w2")
+         if (zodi_model%theta_stat(ind1,samp_group) == 0) then
+            ! Find index of w2 in current sampgroup; assume both w2 and w3 are fitted
+            j = 1
+            do i = 1, ind1-1
+               if (zodi_model%theta_stat(i,samp_group) == 0) j = j+1
+            end do
+            if (params(j)+params(j+1) > 1.d0) then
+               !write(*,*) 'Error in phase function prior', params(j), params(j+1)
+               chisq_prior = 1.d30
+               return
+            end if
          end if
       end if
     end function get_chisq_priors
@@ -644,7 +653,7 @@ contains
       call zodi_model%model_to_params(theta_old, samp_group)
 !!$      if (cpar%myid == cpar%root) then
 !!$         do i = 1, npar
-!!$            write(*,*) i, theta_old(i)
+!!$            write(*,*) 'a', i, theta_old(i)
 !!$         end do
 !!$      end if
 !!$      call mpi_finalize(ierr)
@@ -652,7 +661,7 @@ contains
 
       ! Enforce priors; rms = 0
       call randomize_zodi_init(theta_old, samp_group, cpar, handle, rms=0.d0)
-      
+
       theta_prev = 0.d0
       chisq_prev = 0.d0
       if (cpar%myid == cpar%root) then
@@ -677,6 +686,7 @@ contains
       if (cpar%myid == cpar%root) then
          ! Perform search
          call powell(theta, lnL_zodi, ierr, tolerance=1d-5)
+         if (ierr /= 0) write(*,*) 'powell failed, ierr =', ierr
          chisq_new = lnL_zodi(theta)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)

@@ -121,6 +121,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_lb_mod.f90 \
 	   comm_tod_dirbe_mod.f90 \
 	   comm_tod_hfi_mod.f90 \
+	      comm_tod_hfi_smod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
 	   comm_timing_mod.f90 \
@@ -244,6 +245,7 @@ comm_tod_driver_mod.o       : comm_tod_mod.o comm_tod_gain_mod.o comm_tod_noise_
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o
 comm_tod_gain_smod.o        : comm_tod_gain_mod.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_tod_cray_mod.o comm_tod_crosstalk_mod.o
+comm_tod_hfi_smod.o         : comm_tod_hfi_mod.o
 comm_tod_inst_mod.o         : comm_tod_mod.o comm_tod_lfi_mod.o comm_tod_wmap_mod.o comm_tod_hfi_mod.o comm_tod_spider_mod.o comm_tod_dirbe_mod.o comm_tod_lb_mod.o
 comm_tod_jump_mod.o         : comm_utils.o
 comm_tod_lb_mod.o           : comm_tod_mod.o comm_tod_driver_mod.o comm_conviqt_mod.o

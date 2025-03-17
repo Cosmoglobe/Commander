@@ -283,10 +283,10 @@ contains
        allocate(data(n)%bp(0:data(n)%ndet))      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
+             data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(cpar%ds_bpfile(i), &
+            call read_bandpass(trim(adjustl(cpar%ds_bpfile(i))), &
                               & trim(data(n)%tod%label(j)), &
                               & data(n)%bp(1)%p%threshold, &
                               & n_dummy, &

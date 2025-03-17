@@ -105,7 +105,11 @@ contains
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
-          call add_to_complist(c)
+          if(associated(c)) then
+            call add_to_complist(c)
+          else
+            if(cpar%myid == 0) write(*,*) "Component failed to initialize: "//trim(cpar%cs_type(i))
+          end if
        case ("ptsrc")
           c => comm_ptsrc_comp(cpar, ncomp, i)
           call add_to_complist(c)

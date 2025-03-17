@@ -225,7 +225,7 @@ contains
          ! Emissivity and albedo
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
-            zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
+            zodi_model%theta_prior(:,ind+j) = [0.d0, 10.d0, 1.d0, -1.d0] ! Emissivity
             zodi_model%theta_scale(ind+j,:)   = [1.d0,0.1d0]
             zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+j)  = trim(zodi_model%comp_labels(i))//':em@'//trim(band_labels(j))

@@ -27,50 +27,7 @@ module comm_tod_driver_mod
   contains
     procedure init_singlehorn => init_det_data_singlehorn
     procedure dealloc         => dealloc_det_data
-
   end type comm_detdata
-
-  ! Class for uncompressed data for a given scan
-  type :: comm_scandata
-     integer(i4b) :: ntod, ndet, nhorn, ndelta
-     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
-     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
-     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
-     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
-     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
-     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
-     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
-     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
-     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
-     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
-     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
-     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
-     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
-     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
-     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
-     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
-     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
-     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
-     integer(i4b) :: band                                           ! Band ID
-   contains
-     procedure  :: init_singlehorn   => init_scan_data_singlehorn
-     procedure  :: init_differential => init_scan_data_differential
-     procedure  :: dealloc           => dealloc_scan_data
-  end type comm_scandata
-
 
 contains
 
@@ -79,7 +36,7 @@ contains
   !  Scan data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_scan_data_singlehorn(sd, tod, scan, map_sky, map_gain, procmask, procmask2, procmask_zodi, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, darkdata)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, skip_zodi,  darkdata)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -93,10 +50,11 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
     logical(lgt),                              intent(in),   optional :: skip_nonlin
+    logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
     integer(i4b) :: i, j, k, ndelta
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -110,6 +68,7 @@ contains
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
     skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
     darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
  
     init_s_bp_prop_ = .false.
@@ -166,6 +125,13 @@ contains
        call tod%decompress_pointing_and_flags(scan, j, sd%pix(:,j,:), &
             & sd%psi(:,j,:), sd%flag(:,j))
     end do
+
+!!$    open(58,file='decomp.dat', recl=1024)
+!!$    do j = 1, sd%ntod
+!!$       write(58,*) j, sd%pix(j,1,1), sd%flag(j,1)
+!!$    end do
+!!$    close(58)
+
 
     if(darkdata_) then
       do j=1, tod%ndark
@@ -266,9 +232,12 @@ contains
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
-       call timer%start(TOD_ZODI, tod%band)
-       if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
-       do j = 1, sd%ndet
+       if (skip_zodi_) then
+          sd%s_zodi = 0.
+       else
+          call timer%start(TOD_ZODI, tod%band)
+          if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
+          do j = 1, sd%ndet
 !!$          call get_zodi_emission(&
 !!$            & tod=tod, &
 !!$            & pix=self%pix(:, j, 1), &
@@ -285,7 +254,7 @@ contains
 !!$            & emissivity=tod%zodi_emissivity, &
 !!$            & albedo=tod%zodi_albedo &
 !!$            &)
-          call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
+             call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
 !!$          if (tod%myid == 0) then
 !!$             open(58,file='zodi.dat')
 !!$             do k =  1, size(self%s_zodi(:,j))
@@ -295,8 +264,9 @@ contains
 !!$          end if
 !!$          call mpi_finalize(k)
 !!$          stop
-       end do
-       call timer%stop(TOD_ZODI, tod%band)
+          end do
+          call timer%stop(TOD_ZODI, tod%band)
+       end if
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -362,7 +332,7 @@ contains
     end do
 
     ! Apply non-linearity corrections
-    !if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd)
+    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd)
     
     !call update_status(status, "todinit_stot")
 
@@ -770,17 +740,20 @@ contains
 
 
     do i = 1, tod%nscan
-       if (.not. any(tod%scans(i)%d%accept)) cycle
+       if (.not. any(tod%scans(i)%d%accept)) then
+          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          cycle
+       end if
        call wall_time(t1)
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
        if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
+          call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
-
+       
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
@@ -818,7 +791,8 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
-       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampel tod'!(mode)
+
+       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
@@ -912,7 +886,7 @@ contains
 
        ! Prepare data
        if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        end if
@@ -1057,6 +1031,12 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
        if (tod%compressed_tod) then
+!!$          write(*,*) 'calib g', tod%scanid(scan), inv_gain
+!!$          write(*,*) 'calib d', tod%scanid(scan), maxval(abs(sd%tod(:,j)))
+!!$          write(*,*) 'calib n', tod%scanid(scan), maxval(abs(sd%n_corr(:,j)))
+!!$          write(*,*) 'calib t', tod%scanid(scan), maxval(abs(sd%s_tot(:,j)))
+!!$          write(*,*) 'calib s', tod%scanid(scan), maxval(abs(sd%s_sky(:,j)))
+!!$          write(*,*) 'calib b', tod%scanid(scan), maxval(abs(sd%s_bp(:,j)))
         d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
