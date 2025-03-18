@@ -109,7 +109,7 @@ contains
                    cycle
                 end if
              end if
-             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
+             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%bp(j)%p%RJ2data
              !if (.not. associated(self%F_int(k,i,j)%p)) then
                 self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
              !else

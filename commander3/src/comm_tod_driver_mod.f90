@@ -36,7 +36,7 @@ contains
   !  Scan data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_scan_data_singlehorn(sd, tod, scan, map_sky, map_gain, procmask, procmask2, procmask_zodi, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, darkdata)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, skip_zodi,  darkdata)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -50,10 +50,11 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
     logical(lgt),                              intent(in),   optional :: skip_nonlin
+    logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
     integer(i4b) :: i, j, k, ndelta
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -67,6 +68,7 @@ contains
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
     skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
     darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
  
     init_s_bp_prop_ = .false.
@@ -230,9 +232,12 @@ contains
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
-       call timer%start(TOD_ZODI, tod%band)
-       if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
-       do j = 1, sd%ndet
+       if (skip_zodi_) then
+          sd%s_zodi = 0.
+       else
+          call timer%start(TOD_ZODI, tod%band)
+          if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
+          do j = 1, sd%ndet
 !!$          call get_zodi_emission(&
 !!$            & tod=tod, &
 !!$            & pix=self%pix(:, j, 1), &
@@ -249,7 +254,7 @@ contains
 !!$            & emissivity=tod%zodi_emissivity, &
 !!$            & albedo=tod%zodi_albedo &
 !!$            &)
-          call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
+             call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
 !!$          if (tod%myid == 0) then
 !!$             open(58,file='zodi.dat')
 !!$             do k =  1, size(self%s_zodi(:,j))
@@ -259,8 +264,9 @@ contains
 !!$          end if
 !!$          call mpi_finalize(k)
 !!$          stop
-       end do
-       call timer%stop(TOD_ZODI, tod%band)
+          end do
+          call timer%stop(TOD_ZODI, tod%band)
+       end if
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -734,7 +740,10 @@ contains
 
 
     do i = 1, tod%nscan
-       if (.not. any(tod%scans(i)%d%accept)) cycle
+       if (.not. any(tod%scans(i)%d%accept)) then
+          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          cycle
+       end if
        call wall_time(t1)
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)

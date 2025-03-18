@@ -252,7 +252,7 @@ comm_tod_lb_mod.o           : comm_tod_mod.o comm_tod_driver_mod.o comm_conviqt_
 comm_tod_lfi_mod.o          : comm_conviqt_mod.o comm_tod_driver_mod.o
 comm_tod_lfi_smod.o         : comm_tod_lfi_mod.o
 comm_tod_mapmaking_mod.o    : comm_tod_mod.o comm_shared_arr_mod.o comm_map_mod.o
-comm_tod_mod.o              : comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_cray_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o comm_utils.o
+comm_tod_mod.o              : comm_bp_mod.o comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_cray_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o comm_utils.o
 comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o comm_tod_noise_psd_mod.o comm_status_mod.o
 comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_map_mod.o

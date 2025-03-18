@@ -50,6 +50,9 @@ program commander
   real(dp) :: time_step
   integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
+  real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
+  integer(i4b) :: ntot, npar
+  
   bands_to_sample = (/1,2/)
   bands_to_calibrate_against= (/1,2/)
 
@@ -208,6 +211,21 @@ program commander
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
   end if
 
+!!$  samp_group = 1
+!!$  npar = count(zodi_model%theta_stat(:,samp_group)==0)
+!!$  allocate(theta_old(npar))
+!!$  call zodi_model%model_to_params(theta_old, samp_group)
+!!$  if (cpar%myid == cpar%root) then
+!!$     do i = 1, npar
+!!$        write(*,*) i, theta_old(i)
+!!$     end do
+!!$  end if
+!!$  call mpi_finalize(ierr)
+!!$  stop
+
+
+
+  
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
   
@@ -380,8 +398,6 @@ program commander
 
       ! Sample non-stationary zodi components with geometric 3D model
       select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("mh")
-         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
             if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
@@ -389,9 +405,10 @@ program commander
       end select
 
       ! Sample stationary components
+      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
       if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
       if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
-      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
+
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&

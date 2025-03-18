@@ -221,6 +221,7 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
+    real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
@@ -240,6 +241,9 @@ contains
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
+    !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
+    flag_threshold     = [  -1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
+    
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta
@@ -421,8 +425,8 @@ contains
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                  & [-5.,5.], sd%mask(:,j), sd%flag(:,j), .false., [.true.,.true.,.true.,.true.,.false.,.true.,.false.,.false.])
+             call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                  & sd%mask(:,j), sd%flag(:,j), flag_threshold)
           end do
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
