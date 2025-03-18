@@ -949,7 +949,9 @@ contains
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    
     self%gain0(0) = sum(self%gain0)/sum(ns)
+
     where (ns > 0)
        self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
@@ -1630,13 +1632,17 @@ contains
     real(dp)           :: mu
     character(len=6)   :: itext
     character(len=512) :: path
-    real(dp), allocatable, dimension(:,:,:) :: output
-    real(dp), allocatable, dimension(:)     :: mjds
+    real(dp), allocatable, dimension(:,:,:) :: output, condensed_output
+    real(dp), allocatable, dimension(:)     :: mjds, condensed_mjds
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
-    allocate(output(self%nscan_tot,self%ndet,npar))
-    allocate(  mjds(self%nscan_tot))
+    allocate(output(self%last_scan,self%ndet,npar+1))
+    allocate(  mjds(self%last_scan))
+
+    allocate(condensed_output(self%nscan_tot, self%ndet,npar+1))
+    allocate(condensed_mjds(self%nscan_tot))
+
 
     ! Collect all parameters
     output = 0.d0
@@ -1644,12 +1650,13 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
-          output(k,j,1)             = self%scans(i)%d(j)%gain
-          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)             = self%scans(i)%d(j)%chisq
-          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+          output(k,j,1)             = k
+          output(k,j,2)             = self%scans(i)%d(j)%gain
+          output(k,j,3)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,4)             = self%scans(i)%d(j)%chisq
+          output(k,j,5:4+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
           if (self%baseline_order >= 0) then
-             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+             output(k,j,5+self%n_xi:npar+1) = self%scans(i)%d(j)%baseline
           end if
           if (j == 1) then
              mjds(k)                = self%scans(i)%t0(1)
@@ -1697,6 +1704,17 @@ contains
           end do
        end do
 
+       ! cut missing scan ids from output and mjd before we write it to disk
+       j = 1
+       do i = 1, self%last_scan
+         if(mjds(i) > 0) then !this scanid exists
+           condensed_output(j,:,:) = output(i,:,:)
+           condensed_mjds(j) = mjds(i)
+           j = j+1
+         end if
+       end do
+
+
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
@@ -1710,11 +1728,12 @@ contains
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
        !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
-       call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
-       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
-       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:3+self%n_xi))
-       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    mjds)
+       call write_hdf(chainfile, trim(adjustl(path))//'scanid', condensed_output(:,:,1))
+       call write_hdf(chainfile, trim(adjustl(path))//'gain',   condensed_output(:,:,2))
+       call write_hdf(chainfile, trim(adjustl(path))//'accept', condensed_output(:,:,3))
+       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  condensed_output(:,:,4))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   condensed_output(:,:,5:4+self%n_xi))
+       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    condensed_mjds)
        if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
@@ -1733,7 +1752,7 @@ contains
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 
-    deallocate(output, mjds)
+    deallocate(output, mjds, condensed_output, condensed_mjds)
 
   end subroutine dumpToHDF
 
@@ -3266,7 +3285,7 @@ contains
      nmax        = 1000
      gain        = self%scans(scan)%d(det)%gain
 
-     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
+     !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
      
      ! Generate dynamic mask
      allocate(mask_dyn(ntod))
@@ -3310,7 +3329,7 @@ contains
               ncut        = ncut + 1
            end if
         end do
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      ! Single sample outlier cut; potentially iterate in order to adjust the threshold rms
@@ -3360,7 +3379,7 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(cut)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
      
      if (threshold(4) > 0.) then
@@ -3387,7 +3406,7 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      if (threshold(5) > 0.) then
@@ -3414,7 +3433,7 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
 !!$     open(58, file='var4.dat')
@@ -3447,7 +3466,7 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      if (threshold(7) > 0.) then
@@ -3473,7 +3492,8 @@ contains
            flag(ntod)     = flag(ntod) + flag_dyn
            ncut           = ncut + 1
         end if
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !     close(58)
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      if (threshold(8) > 0.) then
@@ -3497,7 +3517,7 @@ contains
            end if
         end do
         if (output_scan == self%scanid(scan)) close(58)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      if (output_scan == self%scanid(scan)) then
@@ -3550,7 +3570,7 @@ contains
            end do
         end if
 
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
      end if
 
      if (output_scan == self%scanid(scan)) then

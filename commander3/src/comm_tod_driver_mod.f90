@@ -629,7 +629,6 @@ contains
     if (allocated(dd%scans)) deallocate(dd%scans)
     if (allocated(dd%ntod))  deallocate(dd%ntod) 
     if (allocated(dd%tod))   deallocate(dd%tod)
-
   end subroutine dealloc_det_data
 
   ! initializes a det_data structure for a single detector over the entire flight
@@ -640,7 +639,15 @@ contains
     class(comm_tod),                           intent(inout)          :: tod
     integer(i4b),                              intent(in)             :: det
 
+    integer(i4b) :: i
+    
+    dd%nscan = tod%nscan
+    allocate(dd%ntod(dd%nscan))
 
+    do i = 1, tod%nscan
+      ! decompress tod into dd%tod array
+      dd%ntod(i) = tod%scans(i)%ntod
+    end do
 
   end subroutine init_det_data_singlehorn
 
@@ -656,6 +663,8 @@ contains
     integer(i4b),                              intent(in)             :: scan
     integer(i4b),                              intent(in)             :: det
 
+    allocate(sd%tod(det, dd%ntod(scan)))
+    allocate(sd%s_inst(det, dd%ntod(scan)))
 
   end subroutine populate_sd_from_dd
 
@@ -940,12 +949,12 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
-          write(*, fmt='(a, i4, a, i8, a, i8)') ' | Reject scan = ', &
+          write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
+          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        end if
