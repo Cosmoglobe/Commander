@@ -5,7 +5,6 @@ module zodi_hmc_mod
 
  contains
 
-
    subroutine minimize_zodi_with_powell(cpar, iter, handle, samp_group)
       implicit none 
       type(comm_params), intent(in)      :: cpar
@@ -86,15 +85,28 @@ module zodi_hmc_mod
       theta = theta_new/scale
 
       if (cpar%myid == cpar%root) then
+         
          ! Perform search
-         call powell(theta, lnL_zodi, ierr, tolerance=1d-5)
+         if (trim(cpar%zs_samp_method(samp_group))=='powell') then
+            call powell(theta, lnL_zodi, ierr, tolerance=1d-5)  
+            write (*,*) 'yee powell'
+            stop
+         else if (trim(cpar%zs_samp_method(samp_group))=='hmc') then 
+            call hmc(theta, lnL_zodi, grad_lnL_zodi, ierr, tolerance=1d-5)
+            write (*,*) 'yee hmc'
+            stop
+         else
+            write(*,*) 'Unsupported zs_samp_method=', trim(cpar%zs_samp_method(samp_group))
+            stop
+         end if
+
          chisq_new = lnL_zodi(theta)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
 
          ! Apply approximate Metropolis rule, using reduced chisq instead of chisq
          if (chisq_new < chisq_old) then
-            accept = .true. 
+            accept = .true.
          else
             accept = rand_uni(handle) < exp(-0.5d0*(chisq_new-chisq_old)/0.02d0)
          end if
@@ -136,204 +148,171 @@ module zodi_hmc_mod
     contains
 
       function lnL_zodi(p)
-      use healpix_types
-      implicit none
-      real(dp), dimension(:), intent(in), optional :: p
-      real(dp)                                     :: lnL_zodi
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                                     :: lnL_zodi
 
-      real(dp), allocatable :: theta(:)
-      real(dp) :: chisq, chisq_tot, box_width, t1, t2, t3, t4, mono
-      integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot
-      logical(lgt) :: accept
-      logical(lgt), dimension(numband) :: update_band
-      character(len=4) :: scan_str
-      type(hdf_file) :: tod_file
+         real(dp), allocatable :: theta(:)
+         real(dp) :: chisq, chisq_tot, box_width, t1, t2, t3, t4, mono
+         integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot
+         logical(lgt) :: accept
+         logical(lgt), dimension(numband) :: update_band
+         character(len=4) :: scan_str
+         type(hdf_file) :: tod_file
 
-      call wall_time(t1)
-      
-      allocate(theta(npar))
-      if (cpar%myid_chain == 0) then
-         flag = 1
-         call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
-         theta = p*scale
-      end if
-      call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
+         call wall_time(t1)   !what is this?
+         
+         allocate(theta(npar))
+         if (cpar%myid_chain == 0) then
+            flag = 1
+            call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
+            theta = p*scale
+         end if
+         call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
-      ! Check which parameters have changed
-      update_band = .true.
-   !!$      update_band = .false.
-   !!$      j = 0
-   !!$      do i = 1, zodi_model%npar_tot
-   !!$         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
-   !!$         j = j+1
-   !!$         if (theta(j) /= theta_prev(j)) then
-   !!$            !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
-   !!$            if (zodi_model%theta2band(i) == 0) then
-   !!$               update_band = .true.
-   !!$               exit
-   !!$            else
-   !!$               update_band(zodi_model%theta2band(i)) = .true.
-   !!$            end if
-   !!$         end if
-   !!$      end do
-      !if (data(1)%tod%myid == 0) write(*,*) data(1)%tod%myid, ' -- update =', update_band, all(theta == theta_prev)
+         ! Check which parameters have changed
+         update_band = .true.
+   
+         ! Check priors
+         if (cpar%myid_chain == 0) then
+            chisq_tot = get_chisq_priors(theta, samp_group)
+            accept    = chisq_tot < 1.d30
+         else
+            chisq_tot = 0.d0
+         end if
+         call mpi_bcast(accept, 1, MPI_LOGICAL, 0, data(1)%tod%comm, ierr)
 
-      ! Check priors
-      if (cpar%myid_chain == 0) then
-         chisq_tot = get_chisq_priors(theta, samp_group)
-         accept    = chisq_tot < 1.d30
-      else
-         chisq_tot = 0.d0
-      end if
-      call mpi_bcast(accept, 1, MPI_LOGICAL, 0, data(1)%tod%comm, ierr)
-
-      if (.not. accept) then
-         deallocate(theta)
-         lnL_zodi = 1.d30
-         return
-      end if
-
-      call params_to_model(zodi_model, theta, samp_group)
-      if (cpar%myid_chain == 0) call print_zodi_model(theta, samp_group)
-
-      ndof = 0
-      do i = 1, numband
-         if (data(i)%tod_type == "none") cycle
-         if (.not. data(i)%tod%sample_zodi) cycle
-         if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
-         ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
-         if (chisq_tot >= 1.d30) exit
-
-         ndet = data(i)%tod%ndet
-         nscan = data(i)%tod%nscan
-
-         if (.not. update_band(i)) then
-            !write(*,*) 'skipping', i, chisq_prev(i)
-            if (cpar%myid_chain == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
-            chisq_tot = chisq_tot + chisq_prev(i)
-            do scan = 1, nscan
-               do j = 1, ndet
-                  if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-                  ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               end do
-            end do
-            cycle
+         if (.not. accept) then
+            deallocate(theta)
+            lnL_zodi = 1.d30
+            return
          end if
 
-         ! Get monopole
-         mono = band_monopole(i) !get_monopole_amp(data(i)%label)
-   !!$         if (data(1)%tod%myid == 0) then
-   !!$            write(*,*) 'theta =', theta
-   !!$            write(*,*) 'mono =', mono
-   !!$         end if
+         !overwrite to the background table
+         call params_to_model(zodi_model, theta, samp_group)
+         if (cpar%myid_chain == 0) call print_zodi_model(theta, samp_group)
 
-         box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+         ndof = 0
+         do i = 1, numband
+            if (data(i)%tod_type == "none") cycle
+            if (.not. data(i)%tod%sample_zodi) cycle
+            if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
+            ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
+            if (chisq_tot >= 1.d30) exit
 
-         ! Make sure that the zodi cache is cleared before each new band
-         call data(i)%tod%clear_zodi_cache()
+            ndet = data(i)%tod%ndet
+            nscan = data(i)%tod%nscan
 
-         ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-         chisq_prev(i) = 0.d0
-         do scan = 1, nscan
-            ! Skip scan if no accepted data
-            do j = 1, ndet
-               if (.not. data(i)%tod%scans(scan)%d(j)%accept) then
-                  !write(*,*) '   Scan rejected:', data(i)%tod%scanid(scan), data(1)%tod%myid
-                  cycle
-               end if
-
-               call wall_time(t3)
-               call get_zodi_emission(&
-                   & tod=data(i)%tod, &
-                   & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-                   & scan=scan, &
-                   & det=j, &
-                   & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                   & model=zodi_model, &
-                   & use_lowres_pointing=.true. &
-                   &)
-               call wall_time(t4)
-               !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
-               call get_s_zodi(i, &
-                   & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                   & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                   &)
-               call wall_time(t3)
-               !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
-
-               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'tod  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_tod))
-               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'sky  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_sky))
-               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'zodi ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_zodi))
-               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'mono ', mono
-               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-               chisq = sum( &
-                  & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
-                  &   - data(i)%tod%scans(scan)%d(j)%gain * &
-                  &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky &
-                  &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                  &   + mono) &
-                  & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
-                  &)
-               chisq_tot     = chisq_tot     + chisq
-               chisq_prev(i) = chisq_prev(i) + chisq
-               call wall_time(t4)
-               !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
-
-   !!$               write(*,*) 'a', i, scan!, allocated(data(i)%tod%scans(scan)%d(j)%downsa1mp_tod)
-   !!$               write(*,*) 'b', j!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               !write(*,*) 'do not remove -- memory corruption bug "fix"', ndof!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               if (chisq_tot >= 1.d30) exit
-               ! call int2string(data(i)%tod%scanid(scan), scan_str)
-               ! call open_hdf_file(trim(adjustl("/mn/stornext/u3/metins/dirbe/chains/chains_downsamp/dtodlnl_"//scan_str//".h5")), tod_file, 'w')
-               ! call write_hdf(tod_file, '/dtod', data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               ! call write_hdf(tod_file, '/dzodi', data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
-               ! call write_hdf(tod_file, '/dsky', data(i)%tod%scans(scan)%d(j)%downsamp_sky)
-               ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
-               ! call close_hdf_file(tod_file)
-
-               !if (.false. .and. data(1)%tod%myid == 0 .and. scan == 1) then
-               if (cpar%zs_output_tod_res) then
-                  call int2string(data(i)%tod%scanid(scan), scan_str)
-                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-                  open(58,file=trim(cpar%outdir)//'/todres_'//trim(data(i)%tod%freq)//'_'//scan_str//'.dat', recl=2048)
-                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%gain * &
-                          &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                          &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
-                          &   + mono)
+            if (.not. update_band(i)) then
+               if (cpar%myid_chain == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
+               chisq_tot = chisq_tot + chisq_prev(i)
+               do scan = 1, nscan
+                  do j = 1, ndet
+                     if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+                     ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                   end do
-                  close(58)
-               end if
-               call wall_time(t3)
-               !if (data(1)%tod%myid == 10) write(*,*) ' CPU4 = ', t3-t4
+               end do
+               cycle
+            end if
 
+            ! Get monopole
+            mono = band_monopole(i) !get_monopole_amp(data(i)%label)
+
+            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+
+            ! Make sure that the zodi cache is cleared before each new band
+            call data(i)%tod%clear_zodi_cache()
+
+            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+            chisq_prev(i) = 0.d0
+            do scan = 1, nscan
+               ! Skip scan if no accepted data
+               do j = 1, ndet
+                  if (.not. data(i)%tod%scans(scan)%d(j)%accept) then
+                     cycle
+                  end if
+
+                  !difference between get_zodi_emission and get_s_zodi?
+                  !I will need to evaluate zodi with only n0 as a free parameter, I don't know which function to use
+                  call wall_time(t3)
+                  call get_zodi_emission(&
+                      & tod=data(i)%tod, &
+                      & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
+                      & scan=scan, &
+                      & det=j, &
+                      & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &  !by changeing these arguments can I get zodi(n0; k98)?
+                      & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                      & model=zodi_model, &
+                      & use_lowres_pointing=.true. &
+                      &)
+
+                  call wall_time(t4)
+                  call get_s_zodi(i, &
+                      & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                      & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+                      & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
+                      &)
+
+                  call wall_time(t3)
+                  chisq = sum( &    !what does this do? because I will need single components of this sum, can I just use them or do I havw to sum something?
+                     & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
+                     &   - data(i)%tod%scans(scan)%d(j)%gain * &
+                     &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky &
+                     &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi &   !this is the zodi part of the model, right?
+                     &   + mono) &
+                     & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &   !this is sigma, right? 
+                     &)
+                  chisq_tot     = chisq_tot     + chisq
+                  chisq_prev(i) = chisq_prev(i) + chisq
+                  call wall_time(t4)
+
+                  ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                  if (chisq_tot >= 1.d30) exit
+                  if (cpar%zs_output_tod_res) then
+                     call int2string(data(i)%tod%scanid(scan), scan_str)
+                     open(58,file=trim(cpar%outdir)//'/todres_'//trim(data(i)%tod%freq)//'_'//scan_str//'.dat', recl=2048)
+                     do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                        write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+                             &   - data(i)%tod%scans(scan)%d(j)%gain * &
+                             &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
+                             &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
+                             &   + mono)
+                     end do
+                     close(58)
+                  end if
+                  call wall_time(t3)
+                  
+               end do
             end do
          end do
-      end do
 
-      !write(*,*) data(1)%tod%myid, ' -- recomputed =', chisq_prev
+         ! Reduce chisq to root process
+         call mpi_reduce(chisq_tot, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
+         call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
+         call wall_time(t4)
+         
+         if (cpar%myid_chain == 0) then
+            lnL_zodi = chisq/ndof_tot  !why chisq and not chisq_tot?
+            call wall_time(t2)
+            if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+            write(*,*)
+            write(unit,*) chisq/ndof_tot, real(theta,sp)
+         end if
 
-      ! Reduce chisq to root process
-      call mpi_reduce(chisq_tot, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
-      call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
+         theta_prev = theta
+      end function lnL_zodi
 
-      call wall_time(t4)
-      !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
+      function grad_lnL_zodi(p)
 
-      if (cpar%myid_chain == 0) then
-         lnL_zodi = chisq/ndof_tot
-         call wall_time(t2)
-         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
-         write(*,*)
-         write(unit,*) chisq/ndof_tot, real(theta,sp)
-      end if
+      !Currently the only free parameter is n0 which is linear in the model, this means 
+      !grad(lnL_zodi)=d(lnL_zodi)/dno=d(chisq)/dno=-(2/sigma)*sqrt(chisq)*zodi_model(n0=1)
+      !and here lnL_zodi is the k98 model with only the density parameter n0 as something that I sample
 
-      theta_prev = theta
-   end function
+      
+
+      
+      end function grad_lnL_zodi
 
    end subroutine minimize_zodi_with_powell
 

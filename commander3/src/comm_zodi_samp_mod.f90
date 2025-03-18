@@ -123,7 +123,7 @@ contains
 !!$      allocate(param2band(zodi_model%n_params))
 !!$      param2band = 0 ! Assume for now that all parameters affect all bands
       
-    end subroutine initialize_zodi_samp_mod
+   end subroutine initialize_zodi_samp_mod
 
    function get_boxwidth(samprate_lowres, samprate) result(box_width)
       ! Returns the boxcar width for downsampling the zodi tods

@@ -106,19 +106,19 @@ program commander
 
   
 !-----------------------hmc tests------------------------------
-  if (cpar%myid == cpar%root) then
-      allocate(param_test(2))
-      param_test = 0.5d0
-      !time_step = 0.5_dp
-      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
-      write(*,*) "reasonable epsilon= ", time_step
-      write(*,*) "first", param_test(1)
-      !call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 100000, time_step, handle)
-      write(*,*) "last", param_test(1)
-  end if
-
-  stop
+!  if (cpar%myid == cpar%root) then
+!      allocate(param_test(2))
+!      param_test = 0.5d0
+!      !time_step = 0.5_dp
+!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
+!      write(*,*) "reasonable epsilon= ", time_step
+!      write(*,*) "first", param_test(1)
+!      !call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 100000, time_step, handle)
+!      write(*,*) "last", param_test(1)
+!  end if
+!
+!  stop
 !---------------------------------------------------------------
 
   
@@ -157,8 +157,10 @@ program commander
 
   ! Initialize tod modules
   if (cpar%enable_tod_analysis) then 
-    call initialize_tod_mod(cpar)
-    if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
+      call initialize_tod_mod(cpar)
+      if (cpar%include_tod_zodi) then
+         call initialize_zodi_mod(cpar)
+      end if 
   end if
 
   call define_cg_samp_groups(cpar)

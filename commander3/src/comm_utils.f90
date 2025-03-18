@@ -1448,7 +1448,6 @@ contains
      logical(lgt) :: allow
 
      allow = .false.; if (present(allow_missing)) allow = allow_missing
-
      str1 = str
      call toupper(str1)
      do i = 1, size(arr)
