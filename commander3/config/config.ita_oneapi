@@ -57,7 +57,6 @@ export MPCC := mpiicc
 export F90FLAGS := -fpe0 -mavx2 -fpp -g -O0 -traceback -assume byterecl -qopenmp -parallel -C
 
 #debug
-#
 #export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -fpe0 -check noarg_temp_created -ftrapuv
 
 

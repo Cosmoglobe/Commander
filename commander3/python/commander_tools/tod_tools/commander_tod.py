@@ -31,12 +31,12 @@ import os
 import sys
 
 class commander_tod:
-
-    def __init__(self, outPath, name, version=None, dicts=None, overwrite=False):
+    
+    def __init__(self, outPath, experiment, version=None, dicts=None, overwrite=False):
         self.outPath = outPath
         self.filelists = dicts
         self.version = version
-        self.name = name
+        self.experiment = experiment
         #TODO: something with the version number
         self.overwrite = overwrite
 
@@ -51,20 +51,14 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name and self.name.lower() == 'planck':
+        if self.experiment.lower() == 'lfi':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
         if not self.od:
-            if not self.name:
-                self.outName = os.path.join(self.outPath, sfreq + '.h5')
-            else:
-                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '.h5')
         else:
-            if not self.name:
-                self.outName = os.path.join(self.outPath, sfreq + '_' + str(od).zfill(6) + '.h5')
-            else:
-                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
 
@@ -164,10 +158,25 @@ class commander_tod:
                     dictNum = compArr[1]['dictNum']
                     if dictNum not in self.huffDict.keys():
                         self.huffDict[dictNum] = {}
+
+                    #check for uint issue before differencing
+                    #np.diff maintains data types so this was a mess for uints
+                    if(np.issubdtype(data.dtype, np.unsignedinteger)):
+                        dtypestr = str(data.dtype)
+
+                        dsize = int(dtypestr[4:])
+                        dsize *= 2
+                        dtypestr = 'int' + str(dsize)
+                        #print("Converting unsigned Huffman field " + fieldName + " from " + str(data.dtype) + " to " + dtypestr)
+                        data = data.astype(dtypestr)
+
                     delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
-                    #print("adding " + fieldName + " to dict, contents ", delta[delta != 0], data[data != 0])
+                    #if('flag' in fieldName):
+                    #    for i in range(len(data)):
+                    #        print(data[i], delta[i], ",", end='')
+                    #print("adding " + fieldName + " to dict, contents ", delta[delta!=0])
                     self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
                     writeField = False 
 

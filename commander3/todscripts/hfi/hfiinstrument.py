@@ -25,7 +25,9 @@ import healpy as hp
 import numpy as np
 import math
 import argparse
+import sys
 from astropy.io import fits
+#sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
 from commander_tools.tod_tools.hfi import hfi
 from commander_tools.tod_tools.lfi import lfi
 from commander_tools.tod_tools import commander_instrument as inst
@@ -44,7 +46,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 1
+    version = 3
 
     rimo = fits.open(args.rimo)
     
@@ -52,12 +54,12 @@ def main():
 
     for freq in hfi.freqs:
         bandNo = rimo.index_of('BANDPASS_F' + str(freq))
-        inst_file.add_bandpass(freq, rimo[bandNo].data.field('WAVENUMBER'), rimo[bandNo].data.field('TRANSMISSION'))
+        inst_file.add_hfi_bandpass(freq, rimo[bandNo].data.field('WAVENUMBER'), rimo[bandNo].data.field('TRANSMISSION'))
 
         for det in hfi.dets[freq]:
             prefix = str(freq) + '-' + det
             bandNo = rimo.index_of('bandpass_' + str(freq) + '-' + det)
-            inst_file.add_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+            inst_file.add_hfi_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
             
             beamData, mmax_b = hp.read_alm(os.path.join(args.beam_dir, 'blm_' + str(freq) + '-' + det + '.fits'), return_mmax=True)
 
@@ -74,7 +76,9 @@ def main():
                 slData_B, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'fsl_alms_' + str(freq) + '-' + det + '.fits'), return_mmax=True, hdu=2)
 
                 inst_file.add_alms(prefix, 'sl', lfi.getLmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), lfi.complex2realAlms(slData_E, mmax_s), lfi.complex2realAlms(slData_B, mmax_s))
-
+            else:
+                #we need sidelobe models for 545 and 857
+                inst_file.add_alms(prefix, 'sl', 0, 0, [0], [0], [0])
 
 
             inst_file.add_alms(prefix, 'beam', lfi.getLmax(len(beamData), mmax_b), mmax_b, lfi.complex2realAlms(beamData, mmax_b), None, None)

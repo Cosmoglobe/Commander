@@ -30,6 +30,7 @@ module comm_tod_WMAP_mod
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
    use comm_tod_driver_mod
+   use comm_conviqt_mod
    implicit none
 
    private
@@ -540,11 +541,11 @@ contains
               call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
-                 call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
+                 call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2)
                  call timer%start(TOD_BASELINE, self%band)
-                 call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+                 call sample_baseline_WMAP(self, i, sd%tod, sd%s_tot, sd%mask, handle)
                  call timer%stop(TOD_BASELINE, self%band)
-                 call sd%dealloc
+                 call dealloc_scan_data(sd)
               end do
               self%apply_inst_corr = .true.
 
@@ -609,11 +610,11 @@ contains
                     & real(self%spinaxis(i,:),sp)
             end if
             if (select_data) then 
-               call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+               call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
                  & init_s_bp=bp_corr)
                n_tot = n_tot + sd%ntod/1000
                n_flag = n_flag + sd%ntod/1000
-               call sd%dealloc
+               call dealloc_scan_data(sd)
             end if
             cycle
          end if
@@ -621,26 +622,14 @@ contains
 
          ! Prepare data
          if (sample_rel_bandpass) then
-            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
               & init_s_bp=.true., init_s_bp_prop=.true.)
          else if (sample_abs_bandpass) then
-            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
               & init_s_bp=.true., init_s_sky_prop=.true.)
          else
-            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
-              & init_s_bp=bp_corr)
-         end if
-
-         call timer%start(TOD_ALLOC, self%band)
-         allocate(s_buf(sd%ntod,sd%ndet))
-         call timer%stop(TOD_ALLOC, self%band)
-
-         ! Make simulations or Sample correlated noise
-         if (self%enable_tod_simulations) then
-            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-         else
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
-            !sd%n_corr = 0.
+            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=.true.)
          end if
 
 
@@ -749,7 +738,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          call timer%start(TOD_ALLOC, self%band)
          deallocate(s_buf, d_calib)
          call timer%stop(TOD_ALLOC, self%band)
@@ -1225,7 +1214,7 @@ contains
 
   end subroutine apply_wmap_precond
 
-  subroutine sample_baseline(tod, scan, raw, s_tot, mask, handle)
+  subroutine sample_baseline_WMAP(tod, scan, raw, s_tot, mask, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1271,7 +1260,7 @@ contains
 
     deallocate(x, y)
 
-  end subroutine sample_baseline
+  end subroutine sample_baseline_WMAP
 
   subroutine construct_corrtemp_wmap(self, scan, pix, psi, s)
     !  Construct an WMAP instrument-specific correction template; for now contains baseline

@@ -9,8 +9,12 @@ SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
 SAMPLE_POWSPEC                = .false.
 
+SAMPLE_SOLAR_MAPS             = .false.
+SAMPLE_MOON_MAPS              = .false
+SAMPLE_EARTH_MAPS             = .false.  # Only as a function of elongation
+
 ENABLE_TOD_ANALYSIS           = .true.
-TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
+TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = -1
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
 FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt

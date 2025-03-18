@@ -280,25 +280,27 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
-       ! Initialize bandpass structures; 0 is full freq, j is detector       
+       ! Initialize bandpass structures; 0 is full freq, j is detector
        allocate(data(n)%bp(0:data(n)%ndet))
-      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
+             data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%ds_bpfile(i)), &
-                              & trim(data(n)%tod%label(j)),&
-                              & 0.d0, &
+            call read_bandpass(trim(adjustl(cpar%ds_bpfile(i))), &
+                              & trim(data(n)%tod%label(j)), &
+                              & data(n)%bp(1)%p%threshold, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
-            do k=1, j
-               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+            do k=1, j-1
+               if(size(tau_dummy)==size(data(n)%bp(k)%p%tau0)) then
+                if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
-               else if (k==j-1) then
+                end if
+               end if
+               if(k==j-1) then !if we got through the whole loop above
                   data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
                end if
             end do
@@ -673,7 +675,7 @@ contains
     integer(i4b),      intent(in)    :: band
     character(len=*),  intent(out)   :: mapfile
 
-    integer(i4b)       :: i, n, unit
+    integer(i4b)       :: i, j, n, unit
     character(len=512) :: filename
 
     filename = trim(adjustl(cpar%ds_mapfile(band)))
@@ -698,6 +700,7 @@ contains
     type(comm_params), intent(in)    :: cpar
     
     integer(i4b) :: i, j
+    real(sp)           :: elon
     character(len=512) :: model
     
     ! Initialize solar centric maps
@@ -725,6 +728,61 @@ contains
        end if
     end do
 
+    ! Initialize Moon centric maps
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_moon_allocated = .false.
+       model = cpar%ds_tod_moon_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_moon => data(j)%tod%map_moon
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_moon_allocated = .true.
+          allocate(data(i)%tod%map_moon(0:data(i)%info%npix-1,1))
+          if (trim(cpar%ds_tod_moon_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_moon = 0.d0
+          else
+             call read_map(cpar%ds_tod_moon_init(data(i)%tod%band), data(i)%tod%map_moon)
+          end if
+       end if
+    end do
+
+    ! Initialize Earth elongation profiles
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_earth_allocated = .false.
+       model = cpar%ds_tod_earth_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_earth => data(j)%tod%map_earth
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_earth_allocated = .true.
+          allocate(data(i)%tod%map_earth(1:NBIN_EARTH_ELON))
+          if (trim(cpar%ds_tod_earth_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_earth = 0.d0
+          else
+             open(58,file=trim(cpar%ds_tod_earth_init(data(i)%tod%band)))
+             do j = 1, NBIN_EARTH_ELON
+                read(58,*) elon, data(i)%tod%map_earth(j)
+             end do
+             close(58)
+          end if
+       end if
+    end do
+
+    
   end subroutine initialize_inter_tod_params
 
   
