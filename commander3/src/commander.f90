@@ -24,6 +24,7 @@ program commander
   use comm_zodi_samp_mod
   use comm_sparse_mod
   use hmc_mod
+  use zodi_hmc_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -371,7 +372,7 @@ program commander
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
+            if (iter > 1) call minimize_zodi(cpar, iter, handle, i)
          end do
       end select
 

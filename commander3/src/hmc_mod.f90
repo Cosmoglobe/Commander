@@ -151,7 +151,7 @@ contains
 
   end subroutine hmc
 
-  subroutine nuts(theta, lnlike, grad_lnlike, n_steps, eps, handle, M)
+  subroutine nuts(theta, lnlike, grad_lnlike, n_steps, handle, eps, M)
     ! Algorithm 6 (efficient nuts as in alg 3 plus dual averaging) from Hoffman & Gelman (2014), efficient NUTS with slice sampler
     ! Does not take length as an argument, as it samples until the U-Turn
     ! condition is reached (momentum and (theta_plus - theta_minus) are
@@ -164,7 +164,7 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     integer(i4b),                       intent(in) :: n_steps
-    real(dp),                           intent(inout) :: eps
+    real(dp), optional,                           intent(inout) :: eps
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     interface
@@ -193,6 +193,10 @@ contains
     integer(i4b) :: unit
 
     npar = size(theta)
+
+    if (.not. present(eps)) then
+      eps = FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle) 
+    end if
 
     H_m = 0
     mu = log(10*eps)

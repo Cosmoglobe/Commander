@@ -8,6 +8,9 @@ module comm_zodi_samp_mod
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi
    public minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask
    public apply_zodi_glitch_mask, sample_static_zodi_map!, sample_static_zodi_amps
+  
+   !I need these in zodi_hmc_mod
+   public randomize_zodi_init, get_boxwidth, model_to_params, params_to_model
    
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)

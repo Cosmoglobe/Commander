@@ -1,11 +1,16 @@
 module zodi_hmc_mod
+   use comm_zodi_mod
+   use comm_chisq_mod
    use comm_zodi_samp_mod
    use hmc_mod
    implicit none
 
+   private
+   public minimize_zodi
+
  contains
 
-   subroutine minimize_zodi_with_powell(cpar, iter, handle, samp_group)
+   subroutine minimize_zodi(cpar, iter, handle, samp_group)
       implicit none 
       type(comm_params), intent(in)      :: cpar
       integer(i4b),      intent(in)      :: iter
@@ -21,7 +26,7 @@ module zodi_hmc_mod
       character(len=6) :: sgroup
       character(len=512) :: filename
 
-      if (cpar%myid == 0) print *, "minimizing zodi parameters with powell, samp_group =", samp_group
+      if (cpar%myid == 0) print *, "minimizing zodi parameters with", trim(cpar%zs_samp_method(samp_group)), ", samp_group =", samp_group
 
       npar = count(zodi_model%theta_stat(:,samp_group)==0)
       ntot = zodi_model%npar_tot
@@ -88,11 +93,11 @@ module zodi_hmc_mod
          
          ! Perform search
          if (trim(cpar%zs_samp_method(samp_group))=='powell') then
-            call powell(theta, lnL_zodi, ierr, tolerance=1d-5)  
+            !call powell(theta, lnL_zodi, ierr, tolerance=1d-5)  
             write (*,*) 'yee powell'
             stop
          else if (trim(cpar%zs_samp_method(samp_group))=='hmc') then 
-            call hmc(theta, lnL_zodi, grad_lnL_zodi, ierr, tolerance=1d-5)
+            !call hmc(theta, lnL_zodi, grad_lnL_zodi, ierr, handle) ! tolerance=1d-5)
             write (*,*) 'yee hmc'
             stop
          else
@@ -303,7 +308,7 @@ module zodi_hmc_mod
          theta_prev = theta
       end function lnL_zodi
 
-      function grad_lnL_zodi(p)
+      !function grad_lnL_zodi(p)
 
       !Currently the only free parameter is n0 which is linear in the model, this means 
       !grad(lnL_zodi)=d(lnL_zodi)/dno=d(chisq)/dno=-(2/sigma)*sqrt(chisq)*zodi_model(n0=1)
@@ -312,8 +317,8 @@ module zodi_hmc_mod
       
 
       
-      end function grad_lnL_zodi
+      !end function grad_lnL_zodi
 
-   end subroutine minimize_zodi_with_powell
+   end subroutine minimize_zodi
 
 end module zodi_hmc_mod
