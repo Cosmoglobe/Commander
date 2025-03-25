@@ -155,95 +155,95 @@ def process_file(file_name):  # 処理を行う関数を定義
 
     print(file_name)
 
-    t = np.array(status).reshape(len(status), len(status[0]))  # status
-    status = t.T
-    shtop, calalon, calason, calbon, sinalon, sinason = [], [], [], [], [], []
-    for i in range(100):  # LWの場合は75, SWの場合は100に変更する
-        shtop.append(status[1])
-        calalon.append(status[16])
-        calason.append(status[17])
-        calbon.append(status[18])
-        sinalon.append(status[19])
-        sinason.append(status[20])
-    save_to_file(file_path, month, 'shtop', 'status', shtop)
-    save_to_file(file_path, month, 'calbon', 'status', calbon)
-    save_to_file(file_path, month, 'sinalon', 'status', sinalon)
-    save_to_file(file_path, month, 'sinason', 'status', sinason)
-    for i in range(len(calalon)):
-        new_row = calalon[i].copy()
-        for j in range(len(calalon[i]) - 1):
-            if calalon[i][j] == True and calalon[i][j + 1] == False:
-                if j + 1 < len(new_row):
-                    new_row[j + 1] = True
-                if j + 2 < len(new_row):
-                    new_row[j + 2] = True
-                if j + 3 < len(new_row):
-                    new_row[j + 3] = True
-        calalon[i] = new_row
-    save_to_file(file_path, month, 'calalon_re', 'status', calalon)
+    # t = np.array(status).reshape(len(status), len(status[0]))  # status
+    # status = t.T # (32,1h(ex.60700))
+    # shtop, calalon, calason, calbon, sinalon, sinason = [], [], [], [], [], []
+    # for i in range(100):  # LWの場合は75, SWの場合は100に変更する
+    #     shtop.append(status[1])
+    #     calalon.append(status[16])
+    #     calason.append(status[17])
+    #     calbon.append(status[18])
+    #     sinalon.append(status[19])
+    #     sinason.append(status[20])
+    # save_to_file(file_path, month, 'shtop', 'status', shtop)
+    # save_to_file(file_path, month, 'calbon', 'status', calbon)
+    # save_to_file(file_path, month, 'sinalon', 'status', sinalon)
+    # save_to_file(file_path, month, 'sinason', 'status', sinason)
+    # for i in range(len(calalon)):
+    #     new_row = calalon[i].copy()
+    #     for j in range(len(calalon[i]) - 1):
+    #         if calalon[i][j] == True and calalon[i][j + 1] == False:
+    #             if j + 1 < len(new_row):
+    #                 new_row[j + 1] = True
+    #             if j + 2 < len(new_row):
+    #                 new_row[j + 2] = True
+    #             if j + 3 < len(new_row):
+    #                 new_row[j + 3] = True
+    #     calalon[i] = new_row
+    # save_to_file(file_path, month, 'calalon_re', 'status', calalon)
 
-    for i in range(len(calason)):
-        new_row = calason[i].copy()
-        for j in range(len(calason[i]) - 1):
-            if calason[i][j] == True and calason[i][j + 1] == False:
-                if j + 1 < len(new_row):
-                    new_row[j + 1] = True
-                if j + 2 < len(new_row):
-                    new_row[j + 2] = True
-                if j + 3 < len(new_row):
-                    new_row[j + 3] = True
-                if j + 4 < len(new_row):
-                    new_row[j + 4] = True
-                if j + 5 < len(new_row):
-                    new_row[j + 5] = True
-                if j + 6 < len(new_row):
-                    new_row[j + 6] = True
-                if j + 7 < len(new_row):
-                    new_row[j + 7] = True
-                if j + 8 < len(new_row):
-                    new_row[j + 8] = True
-                if j + 9 < len(new_row):
-                    new_row[j + 9] = True
-        calason[i] = new_row
-    save_to_file(file_path, month, 'calason_re', 'status', calason)
+    # for i in range(len(calason)):
+    #     new_row = calason[i].copy()
+    #     for j in range(len(calason[i]) - 1):
+    #         if calason[i][j] == True and calason[i][j + 1] == False:
+    #             if j + 1 < len(new_row):
+    #                 new_row[j + 1] = True
+    #             if j + 2 < len(new_row):
+    #                 new_row[j + 2] = True
+    #             if j + 3 < len(new_row):
+    #                 new_row[j + 3] = True
+    #             if j + 4 < len(new_row):
+    #                 new_row[j + 4] = True
+    #             if j + 5 < len(new_row):
+    #                 new_row[j + 5] = True
+    #             if j + 6 < len(new_row):
+    #                 new_row[j + 6] = True
+    #             if j + 7 < len(new_row):
+    #                 new_row[j + 7] = True
+    #             if j + 8 < len(new_row):
+    #                 new_row[j + 8] = True
+    #             if j + 9 < len(new_row):
+    #                 new_row[j + 9] = True
+    #     calason[i] = new_row
+    # save_to_file(file_path, month, 'calason_re', 'status', calason)
 
 
-    t = np.array(flag).reshape(len(flag), len(flag[0]))  # flag
-    flag = t.T
-    bad_frame = [flag[0] for _ in range(100)]  # LWの場合は75, SWの場合は100に変更する
-    save_to_file(file_path, month, 'bad_frame', 'flag', bad_frame)
-    in_saa = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
-    save_to_file(file_path, month, 'in_saa', 'flag', in_saa)
-    # near_moon = all 0
-    near_moon = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
-    save_to_file(file_path, month, 'near_moon', 'flag', near_moon)
+    # t = np.array(flag).reshape(len(flag), len(flag[0]))  # flag
+    # flag = t.T  # (8,60700)
+    # bad_frame = [flag[0] for _ in range(100)]  # LWの場合は75, SWの場合は100に変更する
+    # save_to_file(file_path, month, 'bad_frame', 'flag', bad_frame)
+    # in_saa = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
+    # save_to_file(file_path, month, 'in_saa', 'flag', in_saa)
+    # # near_moon = all 0
+    # near_moon = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
+    # save_to_file(file_path, month, 'near_moon', 'flag', near_moon)
 
 
 
     t = np.array(pixel).reshape(len(pixel), (len(pixel[0]) * len(pixel[0][0])))  # pixel_flag
     pixel = t.T
     mtgl_tail,flutter,no_rp_corr,blank,bad,dead,saturate,reset,rstanom,no_diff,gpgl_type1,gpgl_type2,gpgl_type3,gpgl_type4,gpgl_tail,mtgl_type1,mtgl_type2,mtgl_type3,mtgl_type4,no_peri_corr = [],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
-    for i in range(75):  # LWの場合は75, SWの場合は100に変更する
-        bad.append(pixel[0])
-        dead.append(pixel[3])
-        saturate.append(pixel[4])
-        reset.append(pixel[5])
-        rstanom.append(pixel[6])
-        no_diff.append(pixel[7])
-        gpgl_type1.append(pixel[16])
-        gpgl_type2.append(pixel[17])
-        gpgl_type3.append(pixel[18])
-        gpgl_type4.append(pixel[19])
-        gpgl_tail.append(pixel[20])
-        mtgl_type1.append(pixel[21])
-        mtgl_type2.append(pixel[22])
-        mtgl_type3.append(pixel[23])
-        mtgl_type4.append(pixel[24])
-        no_peri_corr.append(pixel[26])
-        mtgl_tail.append(pixel[25])
-        flutter.append(pixel[30])
-        no_rp_corr.append(pixel[8])
-        blank.append(pixel[31])
+    for i in range(100):  # LWの場合は75, SWの場合は100に変更する
+        bad.append(pixel[32*i])
+        dead.append(pixel[32*i+3]) # True->bad
+        saturate.append(pixel[32*i+4])
+        reset.append(pixel[32*i+5])
+        rstanom.append(pixel[32*i+6])
+        no_diff.append(pixel[32*i+7])
+        gpgl_type1.append(pixel[32*i+16])
+        gpgl_type2.append(pixel[32*i+17])
+        gpgl_type3.append(pixel[32*i+18])
+        gpgl_type4.append(pixel[32*i+19])
+        gpgl_tail.append(pixel[32*i+20])
+        mtgl_type1.append(pixel[32*i+21])
+        mtgl_type2.append(pixel[32*i+22])
+        mtgl_type3.append(pixel[32*i+23])
+        mtgl_type4.append(pixel[32*i+24])
+        no_peri_corr.append(pixel[32*i+26])
+        mtgl_tail.append(pixel[32*i+25])
+        flutter.append(pixel[32*i+30])
+        no_rp_corr.append(pixel[32*i+8])
+        blank.append(pixel[32*i+31])
     save_to_file(file_path, month, 'bad', 'pix_flag', bad)
     save_to_file(file_path, month, 'dead', 'pix_flag', dead)
     save_to_file(file_path, month, 'saturate', 'pix_flag', saturate)
@@ -264,31 +264,33 @@ def process_file(file_name):  # 処理を行う関数を定義
     save_to_file(file_path, month, 'no_rp_corr', 'pix_flag', no_rp_corr)
     save_to_file(file_path, month, 'blank', 'pix_flag', blank)
 
-    # # for i in range(len(reset)):  # SWの場合のみ必要、LWの場合はコメントアウトしていい
-    # #     if i >= 60:
-    # #     new_row = reset[i].copy()
-    # #     for j in range(len(reset[i]) - 1):
-    # #         if reset[i][j] == True and reset[i][j + 1] == False:
-    # #             new_row[j + 1] = True
-    # #     reset[i] = new_row
-    # # save_to_file(file_path, month, 'reset_re', 'pix_flag', reset)
+    # reset後のデータの揺らぎを消去するかどうか→commanderで補正して使えるなら消さない方が良い
+    # 上のでreset+3つ消す
+    for i in range(len(reset)):
+        new_row = reset[i].copy()
+        for j in range(len(reset[i]) - 1):
+            if reset[i][j] == True and reset[i][j + 1] == False:
+                if j + 1 < len(new_row):
+                    new_row[j + 1] = True
+                if j + 2 < len(new_row):
+                    new_row[j + 2] = True
+                if j + 3 < len(new_row):
+                    new_row[j + 3] = True
+        reset[i] = new_row
+    save_to_file(file_path, month, 'reset_re', 'pix_flag', reset)
 
-    # for i in range(len(reset)):
-    #     new_row = reset[i].copy()
+    # for i in range(len(reset)):  # SWの場合のみ必要、LWの場合はコメントアウトしていい
+    #     if i >= 60: # WIDE-S in SW
+    #         new_row = reset[i].copy()
     #     for j in range(len(reset[i]) - 1):
     #         if reset[i][j] == True and reset[i][j + 1] == False:
-    #             if j + 1 < len(new_row):
-    #                 new_row[j + 1] = True
-    #             if j + 2 < len(new_row):
-    #                 new_row[j + 2] = True
-    #             if j + 3 < len(new_row):
-    #                 new_row[j + 3] = True
+    #             new_row[j + 1] = True
     #     reset[i] = new_row
-    # save_to_file(file_path, month, 'reset_re_LW', 'pix_flag', reset)
+    # save_to_file(file_path, month, 'reset_re', 'pix_flag', reset)
 
-
+    # # raw data
     # t = np.array(det).reshape(len(det), len(det[0]))  # det
-    # det = t.T
+    # det = t.T # (75,60700)
     # save_to_file(file_path, month, 'det', 'det', det)
 
 
@@ -302,8 +304,8 @@ def process_file(file_name):  # 処理を行う関数を定義
     #             flux[i][j] = 0
     # save_to_file(file_path, month, 'flux_re', 'flux', flux)
 
-
-    # ga = data[6].read()
+    # # 後でちゃんと月考えるよ
+    # ga = data[6].read() # hdu6
     # aa_lun = ga['AA_LUN']  # GADS aa_lun
     # for i in range(len(aa_lun)):
     #     if aa_lun[i] < 21.5:  # ImageData.hでは35deg
@@ -315,34 +317,23 @@ def process_file(file_name):  # 処理を行う関数を定義
     #     lune.append(aa_lun)  # 0: survey/maneuver 1:pointing
     # save_to_file(file_path, month, 'aa_lun2', 'gads', lune)
 
-
-    pr = data[7].read()
-    # radec = pr['RA']  # PR RA
-    # for i in range(len(radec)):
-    #     if radec[i] == 0:
-    #         radec[i] = 1
-    #     else:
-    #         radec[i] = 0
-    # lune = []
-    # for i in range(75):  # LWの場合は75, SWの場合は100に変更する
-    #     lune.append(radec)  # 0: survey/maneuver 1:pointing
-    # save_to_file(file_path, month, 'radec', 'gads', lune)
-
-    aa_lun = ga['AA_LUN']  # GADS aa_lun
-    for i in range(len(aa_lun)):
-        if aa_lun[i] < 21.5:  # ImageData.hでは35deg
-            aa_lun[i] = 1
-        else:
-            aa_lun[i] = 0
-    lune = []
-    for i in range(75):  # LWの場合は75, SWの場合は100に変更する
-        lune.append(aa_lun)  # 0: survey/maneuver 1:pointing
-    save_to_file(file_path, month, 'aa_lun2', 'gads', lune)
+    # # ra,decの時にやってあるからここでは必要ない
+    # # pr = data[7].read()
+    # # radec = pr['RA']  # PR RA
+    # # for i in range(len(radec)):
+    # #     if radec[i] == 0:
+    # #         radec[i] = 1
+    # #     else:
+    # #         radec[i] = 0
+    # # lune = []
+    # # for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+    # #     lune.append(radec)  # 0: survey/maneuver 1:pointing
+    # # save_to_file(file_path, month, 'radec', 'gads', lune)
 
 
 def save_to_file(file_path, month, suffix, direc, data):  # ファイルの保存を行う関数
     result_file_name = file_path.replace('_gb.fits.gz', f'_{suffix}.pkl').replace(
-        f'akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}', f'akari_TSD_pkl/{direc}/all')
+        f'akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}', f'akari_TSD_pkl/revise/{direc}/all')
     with open(result_file_name, 'wb') as p:  # suffixだけではなくて、ディレクトリとファイル名を別に選択させる
         pickle.dump(data, p)
 
@@ -351,7 +342,7 @@ if __name__ == '__main__':
     months = ['2006_04','2006_05','2006_06','2006_07','2006_08','2006_09','2006_10','2006_11','2006_12','2007_01','2007_02','2007_03','2007_04','2007_05','2007_06','2007_07','2007_08']
     for month in months:
         path_add = str(directory) + str(month)
-        files = [f for f in os.listdir(path_add) if f.startswith('FIS_LW_')]  # LW,SWを変更 -> 上にも変更点がある
+        files = [f for f in os.listdir(path_add) if f.startswith('FIS_SW_')]  # LW,SWを変更 -> 上にも変更点がある
 
         with Pool(processes=100) as pool:
             pool.map(process_file, files)
@@ -365,12 +356,7 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
-
-
+# 月ちゃんとやる
 # def moonag(mjd):
 #     """
 #     月の計算に必要な各角度・パラメータを算出する。
