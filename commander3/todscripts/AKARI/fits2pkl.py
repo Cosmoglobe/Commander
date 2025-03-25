@@ -218,14 +218,14 @@ def process_file(file_name):  # 処理を行う関数を定義
     # near_moon = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
     # save_to_file(file_path, month, 'near_moon', 'flag', near_moon)
 
-
-
     t = np.array(pixel).reshape(len(pixel), (len(pixel[0]) * len(pixel[0][0])))  # pixel_flag
     pixel = t.T
     mtgl_tail,flutter,no_rp_corr,blank,bad,dead,saturate,reset,rstanom,no_diff,gpgl_type1,gpgl_type2,gpgl_type3,gpgl_type4,gpgl_tail,mtgl_type1,mtgl_type2,mtgl_type3,mtgl_type4,no_peri_corr = [],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
     for i in range(100):  # LWの場合は75, SWの場合は100に変更する
+# On March 25, 2025, a bug was found in "comander3/tod/scriopts/AKARI/fits2pkl.py". This program creates pkl from AKARI TSD (TOD) considering flags. There are two types of the flags, one is for an exposure (applicable to the entire pixels) and the other one for each pixel ("pixel flag").  Each pixel flag has 32 types, either 0 (use the pixel) or 1 (not to use the pixel). The bug was in setting the pixel flag, such that the first pixel flag (either 0 or 1) was set to  the enter pixels (75 pixels for LW,  100 pixels for SW) regardless of other pixel flag values. Consequently, when the first pixel flag was 0, all the pixels were  used; when the first pixel flag was 1, all the pixels were NOT used.  Presumably this is the reason that SW image was originally NOT made at all,  because the 1st pixel of SW is a dead pixel (flag=1). 
+# Before the bug fix on March 25 2025, 32*i was missing in the following lines.
         bad.append(pixel[32*i])
-        dead.append(pixel[32*i+3]) # True->bad
+        dead.append(pixel[32*i+3])
         saturate.append(pixel[32*i+4])
         reset.append(pixel[32*i+5])
         rstanom.append(pixel[32*i+6])
@@ -244,6 +244,7 @@ def process_file(file_name):  # 処理を行う関数を定義
         flutter.append(pixel[32*i+30])
         no_rp_corr.append(pixel[32*i+8])
         blank.append(pixel[32*i+31])
+# Before the bug fix on March 25 2025, 32*i was missing in the preceding lines.
     save_to_file(file_path, month, 'bad', 'pix_flag', bad)
     save_to_file(file_path, month, 'dead', 'pix_flag', dead)
     save_to_file(file_path, month, 'saturate', 'pix_flag', saturate)
