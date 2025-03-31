@@ -19,7 +19,315 @@ from pathlib import Path
 from datetime import datetime, timezone
 start = time.time()
 
-def moonag(mjd):
+# # # IDLで作成したtxtファイルをpklファイルに変換する
+# # # lat
+# # def process_file(file_path, month):
+# #     print(file_path)
+# #     with open(file_path) as f:
+# #         l = [s.rstrip() for s in f.readlines()]
+# #     data_str = []
+# #     data_2dlist = []
+# #     lat = []
+# #     for a in range(len(l)):
+# #         if l[a] == ' ':
+# #             pass
+# #         else:
+# #             data_str.append(l[a])
+# #     for m in range(len(l)):
+# #         data_2dlist.append([float(num) for num in data_str[m].split()])
+# #     lat_list = list(itertools.chain.from_iterable(data_2dlist))
+# #     for y in range(100):  # LW,SWで変更点あり
+# #         lat.append(lat_list[y::100])  # LW,SWで変更点あり
+# #     result_file_name = file_path.replace('.txt', '.pkl')
+# #     with open(result_file_name, 'wb') as p:
+# #         pickle.dump(lat, p)
+
+# # def main():
+# #     month = '2007_01'
+# #     directory_path = f'/mn/stornext/d23/cmbco/cg/AKARI/test/lat/all'
+# #     txt_files = glob.glob(os.path.join(directory_path, 'FIS_SW_*.txt'))  # LW,SWで変更点あり
+# #     txt_files = sorted(txt_files)
+# #     with Pool(processes=25) as pool:
+# #         pool.starmap(process_file, [(file_path, month) for file_path in txt_files])
+# #     end = time.time()
+# #     time_diff = end - start
+# #     print(time_diff)
+
+# # if __name__ == '__main__':
+# #     main()
+# # # end #
+
+# # # lon
+# # def process_file(file_path, month):
+# #     print(file_path)
+# #     with open(file_path) as f:
+# #         l = [s.rstrip() for s in f.readlines()]
+# #     data_str = []
+# #     data_2dlist = []
+# #     lat = []
+# #     for a in range(len(l)):
+# #         if l[a] == ' ':
+# #             pass
+# #         else:
+# #             data_str.append(l[a])
+# #     for m in range(len(l)):
+# #         data_2dlist.append([float(num) for num in data_str[m].split()])
+# #     lat_list = list(itertools.chain.from_iterable(data_2dlist))
+# #     for y in range(100):  # LW,SWで変更点あり
+# #         lat.append(lat_list[y::100])  # LW,SWで変更点あり
+# #     result_file_name = file_path.replace('.txt', '.pkl')
+# #     with open(result_file_name, 'wb') as p:
+# #         pickle.dump(lat, p)
+
+# # def main():
+# #     month = '2006_05'
+# #     directory_path = f'/mn/stornext/d23/cmbco/cg/AKARI/test/lon/all'
+# #     txt_files = glob.glob(os.path.join(directory_path, 'FIS_SW_*.txt'))  # LW,SWで変更点あり
+# #     txt_files = sorted(txt_files)
+# #     with Pool(processes=25) as pool:
+# #         pool.starmap(process_file, [(file_path, month) for file_path in txt_files])
+# #     end = time.time()
+# #     time_diff = end - start
+# #     print(time_diff)
+
+# # if __name__ == '__main__':
+# #     main()
+# # # end #
+
+
+
+
+
+# # # 「あかり」FISデータから直接、各種データを読み込みpklファイルとして保存する
+# # # monthとLW,SWは別のターミナルで実行させる
+# def process_file(file_name):  # 処理を行う関数を定義
+#     file_path = os.path.join(path_add, file_name)
+#     data = fitsio.FITS(file_path)
+#     # d = data[1].read()
+#     # status = d['STATUS']
+#     # flag = d['FLAG']
+#     # pixel = d['PIX_FLAG']
+#     # det = d['DET']
+#     # flux = d['FLUX']
+
+#     print(file_name)
+
+#     # t = np.array(status).reshape(len(status), len(status[0]))  # status
+#     # status = t.T
+#     # shtop, calalon, calason, calbon, sinalon, sinason = [], [], [], [], [], []
+#     # for i in range(100):  # LWの場合は75, SWの場合は100に変更する
+#     #     # shtop.append(status[1])
+#     #     calalon.append(status[16])
+#     #     calason.append(status[17])
+#     #     # calbon.append(status[18])
+#     #     # sinalon.append(status[19])
+#     #     # sinason.append(status[20])
+#     # # save_to_file(file_path, month, 'shtop', 'status', shtop)
+#     # # save_to_file(file_path, month, 'calbon', 'status', calbon)
+#     # # save_to_file(file_path, month, 'sinalon', 'status', sinalon)
+#     # # save_to_file(file_path, month, 'sinason', 'status', sinason)
+#     # for i in range(len(calalon)):
+#     #     new_row = calalon[i].copy()
+#     #     for j in range(len(calalon[i]) - 1):
+#     #         if calalon[i][j] == True and calalon[i][j + 1] == False:
+#     #             if j + 1 < len(new_row):
+#     #                 new_row[j + 1] = True
+#     #             if j + 2 < len(new_row):
+#     #                 new_row[j + 2] = True
+#     #             if j + 3 < len(new_row):
+#     #                 new_row[j + 3] = True
+#     #     calalon[i] = new_row
+#     # save_to_file(file_path, month, 'calalon_re', 'status', calalon)
+#     # for i in range(len(calason)):
+#     #     new_row = calason[i].copy()
+#     #     for j in range(len(calason[i]) - 1):
+#     #         if calason[i][j] == True and calason[i][j + 1] == False:
+#     #             if j + 1 < len(new_row):
+#     #                 new_row[j + 1] = True
+#     #             if j + 2 < len(new_row):
+#     #                 new_row[j + 2] = True
+#     #             if j + 3 < len(new_row):
+#     #                 new_row[j + 3] = True
+#     #             if j + 4 < len(new_row):
+#     #                 new_row[j + 4] = True
+#     #             if j + 5 < len(new_row):
+#     #                 new_row[j + 5] = True
+#     #             if j + 6 < len(new_row):
+#     #                 new_row[j + 6] = True
+#     #             if j + 7 < len(new_row):
+#     #                 new_row[j + 7] = True
+#     #             if j + 8 < len(new_row):
+#     #                 new_row[j + 8] = True
+#     #             if j + 9 < len(new_row):
+#     #                 new_row[j + 9] = True
+#     #     calason[i] = new_row
+#     # save_to_file(file_path, month, 'calason_re', 'status', calason)
+
+
+
+#     # t = np.array(flag).reshape(len(flag), len(flag[0]))  # flag
+#     # flag = t.T
+#     # # bad_frame = [flag[0] for _ in range(100)]  # LWの場合は75, SWの場合は100に変更する
+#     # # save_to_file(file_path, month, 'bad_frame', 'flag', bad_frame)
+#     # in_saa = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
+#     # save_to_file(file_path, month, 'in_saa', 'flag', in_saa)
+#     # near_moon = [flag[0] for _ in range(75)]  # LWの場合は75, SWの場合は100に変更する
+#     # save_to_file(file_path, month, 'near_moon', 'flag', near_moon)
+
+
+
+#     # t = np.array(pixel).reshape(len(pixel), (len(pixel[0]) * len(pixel[0][0])))  # pixel_flag
+#     # pixel = t.T
+#     # mtgl_tail,flutter,no_rp_corr,blank,bad,dead,saturate,reset,rstanom,no_diff,gpgl_type1,gpgl_type2,gpgl_type3,gpgl_type4,gpgl_tail,mtgl_type1,mtgl_type2,mtgl_type3,mtgl_type4,no_peri_corr = [],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]
+#     # for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+#     #     # bad.append(pixel[0])
+#     #     # dead.append(pixel[3])
+#     #     # saturate.append(pixel[4])
+#     #     reset.append(pixel[5])
+#     #     # rstanom.append(pixel[6])
+#     #     # no_diff.append(pixel[7])
+#     #     # gpgl_type1.append(pixel[16])
+#     #     # gpgl_type2.append(pixel[17])
+#     #     # gpgl_type3.append(pixel[18])
+#     #     # gpgl_type4.append(pixel[19])
+#     #     # gpgl_tail.append(pixel[20])
+#     #     # mtgl_type1.append(pixel[21])
+#     #     # mtgl_type2.append(pixel[22])
+#     #     # mtgl_type3.append(pixel[23])
+#     #     # mtgl_type4.append(pixel[24])
+#     #     # no_peri_corr.append(pixel[26])
+#     #     # mtgl_tail.append(pixel[25])
+#     #     # flutter.append(pixel[30])
+#     #     # no_rp_corr.append(pixel[8])
+#     #     # blank.append(pixel[31])
+#     # # save_to_file(file_path, month, 'bad', 'pix_flag', bad)
+#     # # save_to_file(file_path, month, 'dead', 'pix_flag', dead)
+#     # # save_to_file(file_path, month, 'saturate', 'pix_flag', saturate)
+#     # # save_to_file(file_path, month, 'rstanom', 'pix_flag', rstanom)
+#     # # save_to_file(file_path, month, 'no_diff', 'pix_flag', no_diff)
+#     # # save_to_file(file_path, month, 'gpgl_type1', 'pix_flag', gpgl_type1)
+#     # # save_to_file(file_path, month, 'gpgl_type2', 'pix_flag', gpgl_type2)
+#     # # save_to_file(file_path, month, 'gpgl_type3', 'pix_flag', gpgl_type3)
+#     # # save_to_file(file_path, month, 'gpgl_type4', 'pix_flag', gpgl_type4)
+#     # # save_to_file(file_path, month, 'gpgl_tail', 'pix_flag', gpgl_tail)
+#     # # save_to_file(file_path, month, 'mtgl_type1', 'pix_flag', mtgl_type1)
+#     # # save_to_file(file_path, month, 'mtgl_type2', 'pix_flag', mtgl_type2)
+#     # # save_to_file(file_path, month, 'mtgl_type3', 'pix_flag', mtgl_type3)
+#     # # save_to_file(file_path, month, 'mtgl_type4', 'pix_flag', mtgl_type4)
+#     # # save_to_file(file_path, month, 'no_peri_corr', 'pix_flag', no_peri_corr)
+#     # # save_to_file(file_path, month, 'mtgl_tail', 'pix_flag', mtgl_tail)
+#     # # save_to_file(file_path, month, 'flutter', 'pix_flag', flutter)
+#     # # save_to_file(file_path, month, 'no_rp_corr', 'pix_flag', no_rp_corr)
+#     # # save_to_file(file_path, month, 'blank', 'pix_flag', blank)
+
+#     # # for i in range(len(reset)):  # SWの場合のみ必要、LWの場合はコメントアウトしていい
+#     # #     if i >= 60:
+#     # #     new_row = reset[i].copy()
+#     # #     for j in range(len(reset[i]) - 1):
+#     # #         if reset[i][j] == True and reset[i][j + 1] == False:
+#     # #             new_row[j + 1] = True
+#     # #     reset[i] = new_row
+#     # # save_to_file(file_path, month, 'reset_re', 'pix_flag', reset)
+
+#     # for i in range(len(reset)):
+#     #     new_row = reset[i].copy()
+#     #     for j in range(len(reset[i]) - 1):
+#     #         if reset[i][j] == True and reset[i][j + 1] == False:
+#     #             if j + 1 < len(new_row):
+#     #                 new_row[j + 1] = True
+#     #             if j + 2 < len(new_row):
+#     #                 new_row[j + 2] = True
+#     #             if j + 3 < len(new_row):
+#     #                 new_row[j + 3] = True
+#     #     reset[i] = new_row
+#     # save_to_file(file_path, month, 'reset_re_LW', 'pix_flag', reset)
+
+
+#     # t = np.array(det).reshape(len(det), len(det[0]))  # det
+#     # det = t.T
+#     # save_to_file(file_path, month, 'det', 'det', det)
+
+
+#     # t = np.array(flux).reshape(len(flux), len(flux[0]))  # flux
+#     # flux = t.T
+#     # for i in range(len(flux)):
+#     #     for j in range(len(flux[0])):
+#     #         if -100 < flux[i][j] < 500e3:
+#     #             pass
+#     #         else:
+#     #             flux[i][j] = 0
+#     # save_to_file(file_path, month, 'flux_re', 'flux', flux)
+
+
+#     # ga = data[6].read()
+#     # aa_lun = ga['AA_LUN']  # GADS aa_lun
+#     # for i in range(len(aa_lun)):
+#     #     if aa_lun[i] < 21.5:  # ImageData.hでは35deg
+#     #         aa_lun[i] = 1
+#     #     else:
+#     #         aa_lun[i] = 0
+#     # lune = []
+#     # for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+#     #     lune.append(aa_lun)  # 0: survey/maneuver 1:pointing
+#     # save_to_file(file_path, month, 'aa_lun2', 'gads', lune)
+
+
+#     pr = data[7].read()
+#     # radec = pr['RA']  # PR RA
+#     # for i in range(len(radec)):
+#     #     if radec[i] == 0:
+#     #         radec[i] = 1
+#     #     else:
+#     #         radec[i] = 0
+#     # lune = []
+#     # for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+#     #     lune.append(radec)  # 0: survey/maneuver 1:pointing
+#     # save_to_file(file_path, month, 'radec', 'gads', lune)
+
+#     aa_lun = ga['AA_LUN']  # GADS aa_lun
+#     for i in range(len(aa_lun)):
+#         if aa_lun[i] < 21.5:  # ImageData.hでは35deg
+#             aa_lun[i] = 1
+#         else:
+#             aa_lun[i] = 0
+#     lune = []
+#     for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+#         lune.append(aa_lun)  # 0: survey/maneuver 1:pointing
+#     save_to_file(file_path, month, 'aa_lun2', 'gads', lune)
+
+
+# def save_to_file(file_path, month, suffix, direc, data):  # ファイルの保存を行う関数
+#     result_file_name = file_path.replace('_gb.fits.gz', f'_{suffix}.pkl').replace(
+#         f'akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}', f'akari_TSD_pkl/{direc}/all')
+#     with open(result_file_name, 'wb') as p:  # suffixだけではなくて、ディレクトリとファイル名を別に選択させる
+#         pickle.dump(data, p)
+
+# if __name__ == '__main__':
+#     directory = '/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/'
+#     months = ['2006_04','2006_05','2006_06','2006_07','2006_08','2006_09','2006_10','2006_11','2006_12','2007_01','2007_02','2007_03','2007_04','2007_05','2007_06','2007_07','2007_08']
+#     for month in months:
+#         path_add = str(directory) + str(month)
+#         files = [f for f in os.listdir(path_add) if f.startswith('FIS_LW_')]  # LW,SWを変更 -> 上にも変更点がある
+
+#         with Pool(processes=50) as pool:
+#             pool.map(process_file, files)
+
+#     end = time.time()
+#     time_diff = end - start
+#     print(time_diff)
+
+#     print("done "+str(month))
+
+
+
+
+
+
+
+
+
+
+def moonag(mjd, DEG2RAD):
     """
     月の計算に必要な各角度・パラメータを算出する。
     (mjd: Modified Julian Date)
@@ -231,7 +539,7 @@ def moonth(ta, a, b, c, d, e, g, j, l, m, n, v, w):
     return mx, my, mz
 
 
-def at_moon(mjd):
+def at_moon(mjd, EARTH_RADIUS, MOON_RADIUS, DEG2RAD, TWO_PI):
     """
     月の位置を計算する関数
       入力:
@@ -242,7 +550,7 @@ def at_moon(mjd):
          phase: 月の位相 [radian] (0:new, pi:full)
          dist: 月までの距離 [km]
     """
-    ta, a, b, c, d, e, g, j, l, m, n, v, w = moonag(mjd)
+    ta, a, b, c, d, e, g, j, l, m, n, v, w = moonag(mjd, DEG2RAD)
     mx, my, mz = moonth(ta, a, b, c, d, e, g, j, l, m, n, v, w)
     
     # 以下の計算は元コードの通り
@@ -270,7 +578,7 @@ def at_moon(mjd):
     return pos, size, phase, dist
 
 
-def precession_rm(mjd):
+def precession_rm(mjd, MJD_J2000, DEG2RAD):
     """
     与えられたMJDの歳差補正回転行列を計算する
     """
@@ -308,21 +616,21 @@ def mat_vec_mult(mat, vec):
     return [sum(mat[i][j] * vec[j] for j in range(3)) for i in range(3)]
 
 
-def at_precess_rm(mjd0, mjd):
+def at_precess_rm(mjd0, mjd, MJD_J2000, DEG2RAD):
     """
     MJD0 から MJD への歳差補正回転行列を計算する
     """
-    rm_a_to_2000 = precession_rm(mjd0)
-    rm_b_to_2000 = precession_rm(mjd)
+    rm_a_to_2000 = precession_rm(mjd0, MJD_J2000, DEG2RAD)
+    rm_b_to_2000 = precession_rm(mjd, MJD_J2000, DEG2RAD)
     rm_2000_to_b = [[rm_b_to_2000[j][i] for j in range(3)] for i in range(3)]  # 転置で逆行列
     return mat_mult(rm_a_to_2000, rm_2000_to_b)
 
 
-def at_precession(mjd0, x0, mjd):
+def at_precession(mjd0, x0, mjd, MJD_J2000, DEG2RAD):
     """
     MJD0 の時点での赤道座標 x0 を、MJD における赤道座標に変換する
     """
-    rm = at_precess_rm(mjd0, mjd)
+    rm = at_precess_rm(mjd0, mjd, MJD_J2000, DEG2RAD)
     return mat_vec_mult(rm, x0)
 
 
@@ -450,7 +758,7 @@ def at_mj_date(mjd):
     return f"MJD={mjd}"
 
 
-def at_set_element(filename, mjd0, kchk):
+def at_set_element(filename, mjd0, kchk, atElement, DEG2RAD, EARTH_RADIUS, TWO_PI):
 # ----------------------------
 # at_set_element: 軌道要素ファイルからatElementを設定する関数  
 # filename: 軌道要素ファイルのパス  
@@ -610,7 +918,7 @@ def at_set_element(filename, mjd0, kchk):
     return atElement
 
 
-def at_vect_to_pol(x):
+def at_vect_to_pol(x, TWO_PI):
     """
     直交座標系ベクトル x を極座標系に変換する。
     入力:
@@ -703,7 +1011,7 @@ def angle(coord1, coord2):
 # それ以外で、21.5°以上34°未満の場合、さらに以下のいずれかの条件で False に
 # 三つのパターンのうち、少なくとも一つで「距離」計算の結果が設定された上下限の間に入る。
 # もしくは、moon_avoid が 23.0°～26.5°の範囲にあり、かつ算出された位相角が 27°～63°の間にある。
-def calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, sample, image_param):
+def calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, sample, image_param, DEG2RAD, RAD2DEG):
     test = []
     # 角度の定義
     moon20 = 21.5 * DEG2RAD
@@ -785,14 +1093,13 @@ def save_to_file(file_path, month, suffix, direc, data):  # ファイルの保�
 
 
 
-
-
-month = "2006_04"
-dir_path = f"/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}/FIS_LW*"
-file_path = glob.glob(dir_path)
-filename = "/mn/stornext/d23/cmbco/cg/AKARI/code/FISimage/diffuse/trunk/src/atFunctions/2.8/data/orbit.data"
-for files in file_path:
-    data = fitsio.FITS(files)
+def make_moon(files):
+    # month = "2006_04"
+    # dir_path = f"/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}/FIS_SW*"
+    # file_path = glob.glob(dir_path)
+    filename = "/mn/stornext/d23/cmbco/cg/AKARI/code/FISimage/diffuse/trunk/src/atFunctions/2.8/data/orbit.data"
+    file_path = os.path.join(path_add, files)
+    data = fitsio.FITS(file_path)
     d = data[1].read()
     dd = data[7].read()
     aftime = d['AFTIME']
@@ -836,15 +1143,15 @@ for files in file_path:
         mjd.append(result_mjd)
 
     for j in range(len(ra)):
-        pos, size, phase, dist = at_moon(mjd[j])
+        pos, size, phase, dist = at_moon(mjd[j], EARTH_RADIUS, MOON_RADIUS, DEG2RAD, TWO_PI)
 
         mjd0 = t0  # 元の MJD
         mjd1 = mjd[j]  # 変換先の MJD
         x0 = pos  # サンプルベクトル
-        x1 = at_precession(mjd0, x0, mjd1)
+        x1 = at_precession(mjd0, x0, mjd1, MJD_J2000, DEG2RAD)
 
         kchk = 0
-        atElement = at_set_element(filename, mjd0, kchk)
+        atElement = at_set_element(filename, mjd0, kchk, atElement, DEG2RAD, EARTH_RADIUS, TWO_PI)
 
         sat_xyz = at_sat_pos(mjd[j], atElement)
 
@@ -852,7 +1159,7 @@ for files in file_path:
         for i in range(len(sat_xyz)):
             moonpos.append((-1 * sat_xyz[i]) + pos[i])
 
-        moon = at_vect_to_pol(moonpos)
+        moon = at_vect_to_pol(moonpos, TWO_PI)
         moon_eq = [moon['lon'], moon['lat']]
 
         m_ecliptic = equatorial2ecliptic(MJD_J2000, moon_eq)  # 実際の月の位置
@@ -861,24 +1168,27 @@ for files in file_path:
         ecliptic = equatorial2ecliptic(MJD_J2000, radec)
         moon_avoid = angle(ecliptic, m_ecliptic)
 
-        flag_test = calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, j, image_param[j])
+        flag_test = calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, j, image_param[j], DEG2RAD, RAD2DEG)
         obsflag[j] = flag_test[0]
 
     lune = []
-    for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+    for i in range(100):  # If LW: 75, elif SW: 100
         lune.append(obsflag)  # 0: survey/maneuver 1:pointing
-    save_to_file(files, month, 'near_moon', 'flag', lune)
+    save_to_file(file_path, month, 'near_moon', 'flag', lune)
 
     end = time.time()
     time_diff = end - start
-    print(time_diff)
+    print(time_diff, files)
 
+if __name__ == '__main__':
+    directory = '/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/'
+    months = ['2006_04', '2006_05','2006_06','2006_07','2006_08','2006_09','2006_10','2006_11','2006_12','2007_01','2007_02','2007_03','2007_04','2007_05','2007_06','2007_07','2007_08']
+    for month in months:
+        path_add = str(directory) + str(month)
+        files = [f for f in os.listdir(path_add) if f.startswith('FIS_SW_')]  # LW or SW
 
-
-
-
-
-
+        with Pool(processes=100) as pool:
+            pool.map(make_moon, files)
 
 
 
