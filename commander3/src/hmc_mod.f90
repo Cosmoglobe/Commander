@@ -171,7 +171,7 @@ contains
        function lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
          real(dp)                           :: lnlike
        end function lnlike
 
@@ -196,6 +196,7 @@ contains
 
     if (.not. present(eps)) then
       eps = FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle) 
+      write(*,*) "ReasonableEpsilon= ", eps
     end if
 
     H_m = 0
@@ -275,10 +276,7 @@ contains
         eps = exp(logepsbar)
       end if
 
-      if ((mod(k, 10)==0) .or. (k < 10)) then
-        write(unit, *)  k, '  | ', theta(1), '  | ', p(1), '  | ', theta(2), '  | ', p(2), '  | ', lnlike_hmc_test(theta), '  | ', grad_lnlike_hmc_test(theta)
-      end if
-
+      write(*,*) "Last = ", theta(1)
     end do
   end subroutine nuts
 
@@ -298,7 +296,7 @@ contains
        function lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
          real(dp)                           :: lnlike
        end function lnlike
 
@@ -463,7 +461,7 @@ contains
        function lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
          real(dp)                           :: lnlike
        end function lnlike
 

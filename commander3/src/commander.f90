@@ -169,7 +169,6 @@ program commander
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
 
-
   ! Precompute zodi lookups
   if (cpar%enable_tod_analysis .and. cpar%include_tod_zodi) then
      do i = 1, numband
@@ -189,7 +188,6 @@ program commander
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
-
   
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
@@ -234,6 +232,7 @@ program commander
 
   ! Prepare chains
   call init_chain_file(cpar, first_sample)
+
   !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
@@ -328,6 +327,7 @@ program commander
         ! is off
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
+        !qua!!
         call timer%stop(TOT_TODPROC)
      end if
 
@@ -372,7 +372,8 @@ program commander
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            if (iter > 1) call minimize_zodi(cpar, iter, handle, i)
+            !if (iter > 1) call minimize_zodi(cpar, iter, handle, i)
+            call minimize_zodi(cpar, iter, handle, i)
          end do
       end select
 
@@ -576,7 +577,6 @@ contains
           end select
           c => c%nextComp()
        end do
-
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar

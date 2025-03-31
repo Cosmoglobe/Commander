@@ -210,6 +210,7 @@ contains
           do i = 1, tod%nscan
              k        = tod%scanid(i)
              if (.not. tod%scans(i)%d(j)%accept) cycle
+             write(*,*) g(k,j,2)
              tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2)
              if (trim(tod%operation)=='sample') tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + rand_gauss(handle)/sqrt(g(k,j,2))
              tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
@@ -295,6 +296,9 @@ contains
              call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), &
                   & tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           else
+            if (tod%myid == 0) then
+               write(*, *) g(:, j, 2)
+            end if
              call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, 1000*tod%gain_sigma_0(j), tod%gain_alpha(j), &
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
@@ -796,6 +800,7 @@ contains
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 0, n-1
+         write(*,*) i, "|", inv_N_corr(i) + maxval(inv_N_wn2)!QUESTOENULLOSEI0
          precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
          !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)

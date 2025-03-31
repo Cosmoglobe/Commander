@@ -751,7 +751,7 @@ contains
    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
    character(len=100000)                         :: det_buf
    character(len=128), dimension(:), allocatable :: dets
-   
+
     ! Read common fields
     allocate(self%polang(self%ndet))
     allocate(self%mbang(self%ndet))

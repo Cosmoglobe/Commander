@@ -307,7 +307,7 @@ contains
          sample_gain        =  iter > 1
          only_solar_mask    = .true.
       end if
-      !sample_gain = .false.
+      sample_gain = .false.
 
       ! Initialize local variables
       ndelta          = size(delta,3)
