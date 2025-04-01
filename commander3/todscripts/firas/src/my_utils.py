@@ -215,20 +215,16 @@ def ifg_to_spec(
     # print("spec after rfft:", spec)
 
     # etf from the pipeline
-    print("size of spec:", spec.shape)
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-    #           # print("etf:", etf)
 
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    # print('etf: forward')
     spec = spec / etf
-    # print(etf, spec)
     spec = spec / spec_norm
 
     spec_len = len(ifg[0]) // 2 + 1
@@ -261,8 +257,6 @@ def ifg_to_spec(
         rho=rho,
         T0=T0,
     )
-
-    print(tau)
 
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
 

@@ -6,6 +6,13 @@ import numpy as np
 sys.path.append('..')
 import h5py
 import my_utils as mu
+from astropy import units as u
+from astropy.io import fits
+from astropy.modeling.models import BlackBody
+
+sys.path.append('..')
+import h5py
+import my_utils as mu
 from astropy.io import fits
 from utils.config import gen_nyquistl
 
@@ -30,6 +37,15 @@ scan_modes = {'ss':0, 'sf': 1, 'ls': 2, 'lf':3, 'fs': 4, 'fl':5}
 ch = 'll'
 sm = 'ss'
 
+
+# ch = 'rh'
+# sm = 'lf'
+
+if sm == 'lf':
+    SM = 'FA'
+else:
+    SM = sm.upper()
+
 channel = channels[ch] 
 scan_mode = scan_modes[sm]
 
@@ -44,13 +60,20 @@ xcal_poss = sdf[f'fdq_sdf_{ch}/dq_data/xcal_pos'][()]
 sweepss = sdf[f'fdq_sdf_{ch}/sci_head/sc_head11'][()]
 
 
+
 eng_times = sdf[f'fdq_sdf_{ch}/dq_data/eng_time'][()]
 
 
-pub_model = fits.open(f'/mn/stornext/d16/cmbco/ola/firas/pub_calibration_model/FIRAS_CALIBRATION_MODEL_{ch.upper()}{sm.upper()}.FITS')
+pub_model = fits.open(f'FIRAS_CALIBRATION_MODEL_{ch.upper()}{SM}.FITS')
+NU_ZERO =            pub_model[0].header['NU_ZERO']
+DELTA_NU=            pub_model[0].header['DELTA_NU']
+NUM_FREQ=            pub_model[0].header['NUM_FREQ']
+
+nu = np.arange(NUM_FREQ)*DELTA_NU + NU_ZERO
+nu *= u.GHz
 
 apod = pub_model[1].data['APODIZAT'][0]
-# apod = np.ones_like(apod)
+apod = np.ones_like(apod)
 etf = pub_model[1].data['RELEX_GA'][0] + 1j*pub_model[1].data['IELEX_GA'][0]
 otf = pub_model[1].data['RTRANSFE'][0] + 1j*pub_model[1].data['ITRANSFE'][0]
 
@@ -68,17 +91,70 @@ C3 = pub_model[1].data["BOLPARM7"][0]
 C1 = pub_model[1].data["BOLPARM6"][0]
 
 ical_emiss = pub_model[1].data['RICAL'][0] + 1j*pub_model[1].data['IICAL'][0]
+
+
+bolom_emiss = pub_model[1].data['RBOLOMET'][0] + 1j*pub_model[1].data['IBOLOMET'][0]
 refhorn_emiss = pub_model[1].data['RREFHORN'][0] + 1j*pub_model[1].data['IREFHORN'][0]
 skyhorn_emiss = pub_model[1].data['RSKYHORN'][0] + 1j*pub_model[1].data['ISKYHORN'][0]
 dihedral_emiss = pub_model[1].data['RDIHEDRA'][0] + 1j*pub_model[1].data['IDIHEDRA'][0]
+struct_emiss = pub_model[1].data['RSTRUCTU'][0] + 1j*pub_model[1].data['ISTRUCTU'][0]
+
+
+otf = otf[:NUM_FREQ]
+etf = etf[:NUM_FREQ]
+bolom_emiss = bolom_emiss[:NUM_FREQ]
+refhorn_emiss = refhorn_emiss[:NUM_FREQ]
+skyhorn_emiss = skyhorn_emiss[:NUM_FREQ]
+dihedral_emiss = dihedral_emiss[:NUM_FREQ]
+ical_emiss = ical_emiss[:NUM_FREQ]
+struct_emiss = struct_emiss[:NUM_FREQ]
+
+
+plt.figure()
+plt.plot(nu, refhorn_emiss, label='Refhorn')
+plt.plot(nu, skyhorn_emiss, label='Skyhorn')
+plt.plot(nu, dihedral_emiss, label='Dihedral')
+plt.plot(nu, bolom_emiss, label='Bolom')
+plt.plot(nu, struct_emiss, label='Struct')
+plt.legend(loc='best')
+plt.xlabel('Freq [GHz]')
+plt.title('Emissivities, real')
+plt.savefig('emiss_real.png', bbox_inches='tight')
+plt.plot(nu, ical_emiss, label='ICAL')
+plt.legend(loc='best')
+plt.savefig('emiss_real_wical.png', bbox_inches='tight')
+plt.close('all')
+
+plt.figure()
+plt.plot(nu, refhorn_emiss.imag, label='Refhorn')
+plt.plot(nu, skyhorn_emiss.imag, label='Skyhorn')
+plt.plot(nu, dihedral_emiss.imag, label='Dihedral')
+plt.plot(nu, bolom_emiss.imag, label='Bolom')
+plt.plot(nu, struct_emiss.imag, label='Struct')
+plt.legend(loc='best')
+plt.xlabel('Freq [GHz]')
+plt.title('Emissivities, imag')
+plt.savefig('emiss_imag.png', bbox_inches='tight')
+
+plt.plot(nu, ical_emiss.imag, label='ICAL')
+plt.legend(loc='best')
+plt.savefig('emiss_imag_wical.png', bbox_inches='tight')
 
 ind = np.arange(100_000,100_050)
 ind = np.arange(54_825,54_875)
 ind = np.arange(529_025,529_100)
 #ind = np.arange(529_000,529_100)
 
-ind = np.arange(54_800, 55_000)
+#ind = np.arange(54_800, 55_000)
 
+ind = np.arange(529_000,529_500)
+#ind = np.arange(1_000,530_000)
+
+#ind = np.arange(114_400,116_400)
+#ind = np.arange(170_001,190_000)
+#ind = np.arange(500_000,530_000)
+#ind = np.arange(186_250,187_500)
+#ind = np.arange(len(mtm_speeds))
 
 channel = 3
 mtm_speed = mtm_speeds[ind]
@@ -88,7 +164,11 @@ gain = gains[ind]
 xcal_pos = xcal_poss[ind]
 adds_per_group = adds_per_groups[ind]
 eng_time = eng_times[ind]
+sci_time = sci_times[ind]
 ifg = ifgs[ind].astype('float32')
+
+
+
 
 
 
@@ -96,8 +176,10 @@ ifg = ifgs[ind].astype('float32')
 
 #print('xcal position 1 means in sky horn, 2 means out of horn, 3 is moving, 0 is error.')
 #print(np.unique(xcal_pos))
-
-bla = (mtm_speed == 0) & (mtm_length == 0)
+#asdf
+#bla = (mtm_speed == 0) & (mtm_length == 0) & ((sweeps == 16) | (sweeps == 4)) & (adds_per_group > 0) & (adds_per_group < 13)
+bla = ((sweeps == 16) | (sweeps == 4)) & (adds_per_group > 0) & (adds_per_group < 13) & (xcal_pos == 1)
+bla = bla & (mtm_length == 0) & (mtm_length == 0)
 mtm_speed = mtm_speed[bla]
 mtm_length = mtm_length[bla]
 sweeps = sweeps[bla]
@@ -105,50 +187,129 @@ gain = gain[bla]
 xcal_pos = xcal_pos[bla]
 adds_per_group = adds_per_group[bla]
 eng_time = eng_time[bla]
+sci_time = sci_time[bla]
 ifg = ifg[bla]
 
-
 eng_time_array = eng['ct_head/time'][()]
-bol_cmd_biass = eng['en_stat/bol_cmd_bias'][()]
+bol_cmd_biass = eng['en_stat/bol_cmd_bias'][()].astype(int)
 bol_volts = eng['en_analog/group1/bol_volt'][()]
 
+bol_cmd_biass[bol_cmd_biass < 0] += 256
+bol_cmd_biass = np.double(bol_cmd_biass) / 25.5
 
-icals = eng['en_analog/grt/a_lo_ical'][()]
-xcals = eng['en_analog/grt/a_lo_xcal_cone'][()]
-skyhorn = eng['en_analog/grt/a_lo_skyhorn'][()]
-refhorn = eng['en_analog/grt/a_lo_refhorn'][()]
-dihedral = eng['en_analog/grt/a_lo_dihedral'][()]
 
+icals = eng['en_analog/grt/b_lo_ical'][()]
+xcals = eng['en_analog/grt/b_lo_xcal_cone'][()]
+skyhorn = eng['en_analog/grt/b_lo_skyhorn'][()]
+refhorn = eng['en_analog/grt/b_lo_refhorn'][()]
+dihedral = eng['en_analog/grt/b_lo_dihedral'][()]
+# lh, ll, rh, rl is the order here.
+bol_assem_temps = eng['en_analog/grt/b_lo_bol_assem'][:,1]
+struct = eng['en_analog/grt/b_lo_mirror'][()]
+
+stat_word_5 = eng['en_stat/stat_word_5'][()]
+stat_word_9 = eng['en_stat/stat_word_9'][()]
+stat_word_13 = eng['en_stat/stat_word_13'][()]
+stat_word_16 = eng['en_stat/stat_word_16'][()]
+lvdt_stats = eng['en_stat/lvdt_stat'][()]
+lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
+
+filter_bad = mu.filter_junk(stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b)
+filter_bad = np.logical_and(filter_bad, (xcals[:,0] < 3))
+filter_bad = np.logical_and(filter_bad, (icals[:,0] < 3))
+
+icals_a_lo = eng['en_analog/grt/a_lo_ical'][()]
+xcals_cone_a_lo = eng['en_analog/grt/a_lo_xcal_cone'][()]
+xcals_tip_a_lo = eng['en_analog/grt/a_lo_xcal_tip'][()]
+skyhorn_a_lo = eng['en_analog/grt/a_lo_skyhorn'][()]
+refhorn_a_lo = eng['en_analog/grt/a_lo_refhorn'][()]
+dihedral_a_lo = eng['en_analog/grt/a_lo_dihedral'][()]
+collimator_a_lo = eng['en_analog/grt/a_lo_collimator'][()]
+mirror_a_lo = eng['en_analog/grt/a_lo_mirror'][()]
+
+icals_a_hi = eng['en_analog/grt/a_hi_ical'][()]
+xcals_cone_a_hi = eng['en_analog/grt/a_hi_xcal_cone'][()]
+xcals_tip_a_hi = eng['en_analog/grt/a_hi_xcal_tip'][()]
+skyhorn_a_hi = eng['en_analog/grt/a_lo_skyhorn'][()]
+refhorn_a_hi = eng['en_analog/grt/a_lo_refhorn'][()]
+dihedral_a_hi = eng['en_analog/grt/a_lo_dihedral'][()]
+collimator_a_hi = eng['en_analog/grt/a_lo_collimator'][()]
+mirror_a_hi = eng['en_analog/grt/a_lo_mirror'][()]
+
+icals_b_lo = eng['en_analog/grt/b_lo_ical'][()]
+xcals_cone_b_lo = eng['en_analog/grt/b_lo_xcal_cone'][()]
+xcals_tip_b_lo = eng['en_analog/grt/b_lo_xcal_tip'][()]
+skyhorn_b_lo = eng['en_analog/grt/b_lo_skyhorn'][()]
+refhorn_b_lo = eng['en_analog/grt/b_lo_refhorn'][()]
+dihedral_b_lo = eng['en_analog/grt/b_lo_dihedral'][()]
+collimator_b_lo = eng['en_analog/grt/b_lo_collimator'][()]
+mirror_b_lo = eng['en_analog/grt/b_lo_mirror'][()]
+
+icals_b_hi = eng['en_analog/grt/b_hi_ical'][()]
+xcals_cone_b_hi = eng['en_analog/grt/b_hi_xcal_cone'][()]
+xcals_tip_b_hi = eng['en_analog/grt/b_hi_xcal_tip'][()]
+skyhorn_b_hi = eng['en_analog/grt/b_lo_skyhorn'][()]
+refhorn_b_hi = eng['en_analog/grt/b_lo_refhorn'][()]
+dihedral_b_hi = eng['en_analog/grt/b_lo_dihedral'][()]
+collimator_b_hi = eng['en_analog/grt/b_lo_collimator'][()]
+mirror_b_hi = eng['en_analog/grt/b_lo_mirror'][()]
 
 en_xcal = eng['en_xcal/pos'][()]
 
 
-#inds = (en_xcal[:,0] == 1) & (en_xcal[:,1] == 1)
-#
-fig, axes = plt.subplots(sharex=True, nrows=3)
+
+
+print('median subtracting')
+inds = np.arange(512)
+# do a polynomial fit instead
+#for i in range(len(ifg)):
+#    poly = np.polyfit(inds, ifg[i], 4)
+#    #print(poly)
+#    ifg[i] -= np.poly1d(poly)(inds)
+ifg -= np.median(ifg, axis=1)[:,None]
+print('Median subtracted')
+
+
+#fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
+#axs = axes.flatten()
+#axs[0].plot(sci_time, adds_per_group, '.')
+#axs[0].set_title('Adds Per Group')
+#axs[1].plot(sci_time, sweeps, '.')
+#axs[1].set_title('Sweeps')
+
+inds = (eng_time_array > sci_time.min()) & (eng_time_array < sci_time.max())
 
 
 
-#secax = axes[0].secondary_xaxis('top', functions=(deg2rad, rad2deg))
-axes[0].plot(eng_time_array,icals)
-axes[0].plot(eng_time_array,xcals)
-
-axes[1].plot(eng_time_array, en_xcal[:,0])
-axes[1].plot(eng_time_array, en_xcal[:,1])
-
-axes[2].plot(sci_times,mtm_speeds)
-axes[2].plot(sci_times,mtm_lengths)
-plt.show()
-
-
+#   plt.figure()
+#   plt.plot(eng_time_array[inds], filter_bad[inds])
+#   plt.xlim(eng_time_array[inds].min(), eng_time_array[inds].max())
 eng_inds = []
 eng_time_values = np.arange(len(eng_time_array))
-for i in range(len(eng_time)):
+print(ifg[:,0].shape)
+from tqdm import tqdm
+
+for i in tqdm(range(len(eng_time))):
     eng_ind_matches = eng_time_values[eng_time_array==eng_time[i]]
     if len(eng_ind_matches) == 1:
         eng_inds.append(eng_ind_matches[0])
+        if not filter_bad[eng_ind_matches[0]]: 
+            ifg[i] = np.nan
     else:
         eng_inds.append(eng_inds[-1])
+
+#st = sci_time[np.isfinite(ifg[:,0])]
+#ifg = ifg[np.isfinite(ifg[:,0])]
+#XX,YY = np.meshgrid(st, np.arange(512))
+
+plt.figure()
+plt.pcolormesh(ifg.T, vmin=-50, vmax=50, cmap='RdBu_r')
+plt.colorbar(label='Counts')
+plt.title('LLSS IFGs, median-subtracted')
+plt.savefig('ifgs_medsub.png', bbox_inches='tight')
+
+
+plt.close('all')
 #eng_inds = eng_time_array == eng_time
 
 
@@ -159,6 +320,46 @@ icals = icals[eng_inds]
 xcals = xcals[eng_inds]
 skyhorn = skyhorn[eng_inds]
 refhorn = refhorn[eng_inds]
+
+icals_a_lo = icals_a_lo[eng_inds]
+icals_a_hi = icals_a_hi[eng_inds]
+icals_b_lo = icals_b_lo[eng_inds]
+icals_b_hi = icals_b_hi[eng_inds]
+
+xcals_cone_a_lo = xcals_cone_a_lo[eng_inds]
+xcals_cone_a_hi = xcals_cone_a_hi[eng_inds]
+xcals_cone_b_lo = xcals_cone_b_lo[eng_inds]
+xcals_cone_b_hi = xcals_cone_b_hi[eng_inds]
+
+xcals_tip_a_lo = xcals_tip_a_lo[eng_inds]
+xcals_tip_a_hi = xcals_tip_a_hi[eng_inds]
+xcals_tip_b_lo = xcals_tip_b_lo[eng_inds]
+xcals_tip_b_hi = xcals_tip_b_hi[eng_inds]
+
+skyhorn_a_lo = skyhorn_a_lo[eng_inds]
+skyhorn_a_hi = skyhorn_a_hi[eng_inds]
+skyhorn_b_lo = skyhorn_b_lo[eng_inds]
+skyhorn_b_hi = skyhorn_b_hi[eng_inds]
+
+refhorn_a_lo = refhorn_a_lo[eng_inds]
+refhorn_a_hi = refhorn_a_hi[eng_inds]
+refhorn_b_lo = refhorn_b_lo[eng_inds]
+refhorn_b_hi = refhorn_b_hi[eng_inds]
+
+dihedral_a_lo = dihedral_a_lo[eng_inds]
+dihedral_a_hi = dihedral_a_hi[eng_inds]
+dihedral_b_lo = dihedral_b_lo[eng_inds]
+dihedral_b_hi = dihedral_b_hi[eng_inds]
+
+collimator_a_lo = collimator_a_lo[eng_inds]
+collimator_a_hi = collimator_a_hi[eng_inds]
+collimator_b_lo = collimator_b_lo[eng_inds]
+collimator_b_hi = collimator_b_hi[eng_inds]
+
+mirror_a_lo = mirror_a_lo[eng_inds]
+mirror_a_hi = mirror_a_hi[eng_inds]
+mirror_b_lo = mirror_b_lo[eng_inds]
+mirror_b_hi = mirror_b_hi[eng_inds]
 
 
 fnyq = gen_nyquistl(
@@ -172,8 +373,20 @@ fnyq_hz = fnyq['hz'][frec]
 
 
 
-for i in range(len(ifg)):
-    ifg[i] -= np.median(ifg[i])
+
+
+fig, axes = plt.subplots(sharex=True, nrows=2, ncols=4)
+axs = axes.flatten()
+axs[0].plot(icals_a_lo)
+axs[1].plot(xcals_cone_a_lo)
+axs[2].plot(xcals_tip_a_lo)
+axs[3].plot(skyhorn_a_lo)
+axs[4].plot(refhorn_a_lo)
+axs[5].plot(dihedral_a_lo)
+axs[6].plot(collimator_a_lo)
+axs[6].plot(mirror_a_lo)
+
+
 
 
 plt.figure()
@@ -204,19 +417,18 @@ afreq_out, spec_out = mu.ifg_to_spec(ifg,
                           mtm_length,gain,sweeps,
                           apod)
 
-NU_ZERO =            68.020812
-DELTA_NU=            13.604162
 
 spec_out[~np.isfinite(spec_out)] = 0
 
 fig, axes = plt.subplots(sharex=True, nrows=2)
 freq = np.arange(len(spec_out[0]))*DELTA_NU
 for i in range(len(spec_out)):
-    axes[0].plot(freq, spec_out[i].real, 'k', alpha=0.1)
-    axes[1].plot(freq, spec_out[i].imag, 'k', alpha=0.1)
+    axes[0].plot(freq, spec_out[i].real, 'k', alpha=0.05)
+    axes[1].plot(freq, spec_out[i].imag, 'k', alpha=0.05)
 axes[1].set_xlabel('Frequency (Ghz')
 plt.suptitle('Calibrated spectra (real/imag)')
 axes[0].set_xlim([0, 700])
+plt.savefig('calibrated_spectra.png', bbox_inches='tight')
 
 
 plt.figure()
@@ -224,38 +436,54 @@ plt.plot(xcals, label='XCAL')
 plt.plot(icals, label='ICAL')
 plt.legend(loc='best')
 plt.xlabel('Time [sample]')
+plt.ylabel('b, lo temp')
+plt.savefig('temps.png', bbox_inches='tight')
 
 
-from astropy import units as u
-from astropy.modeling.models import BlackBody
-
-fig, axes = plt.subplots(sharex=True, nrows=3, sharey=False)
-nu = np.arange(len(ical_emiss))*DELTA_NU + NU_ZERO
-nu *= u.GHz
-spec_th = np.zeros_like(spec_out)
-spec_xcal = np.zeros_like(spec_out)
-spec_ical = np.zeros_like(spec_out)
-spec_skyh = np.zeros_like(spec_out)
-spec_refh = np.zeros_like(spec_out)
-spec_dih = np.zeros_like(spec_out)
-for i in range(len(xcals)):
+#plt.close('all')
+fig, axes = plt.subplots(sharex=True, nrows=2, sharey=True, figsize=(12, 6))
+print(nu)
+print(nu.shape)
+#spec_th = np.zeros((len(xcals)//10, len(spec_out[0])), dtype=complex)
+spec_th = np.zeros((len(xcals), len(spec_out[0])), dtype=complex)
+print('spec_th.shape')
+print(spec_th.shape)
+spec_xcal = np.zeros_like(spec_th)
+spec_ical = np.zeros_like(spec_th)
+spec_skyh = np.zeros_like(spec_th)
+spec_refh = np.zeros_like(spec_th)
+spec_dih = np.zeros_like(spec_th)
+spec_bol = np.zeros_like(spec_th)
+spec_struct = np.zeros_like(spec_th)
+print('xcals[i], icals[i], refhorn[i], skyhorn[i], bol_assem_temps[i], struct[i]')
+for i in tqdm(range(len(spec_th))):
+    if i == 0:
+        print(xcals[i], icals[i], refhorn[i], skyhorn[i], bol_assem_temps[i], struct[i])
     bb_xcal = BlackBody(temperature=xcals[i]*u.K)
     bb_ical = BlackBody(temperature=icals[i]*u.K)
     bb_refhorn = BlackBody(temperature=refhorn[i]*u.K)
     bb_skyhorn = BlackBody(temperature=skyhorn[i]*u.K)
     bb_dihedr = BlackBody(temperature=dihedral[i]*u.K)
+    bb_bolassem = BlackBody(temperature=bol_assem_temps[i]*u.K)
+
+    # "Structure" is "mirror and colliamator"?
+    bb_struct = BlackBody(temperature=struct[i]*u.K)
 
     if i == 0:
-        axes[0].plot(nu, (bb_xcal(nu)).to('MJy/sr'), label='XCAL')
-        axes[0].plot(nu, (bb_ical(nu)*ical_emiss).to('MJy/sr')/otf, label='ICAL')
+        #axes[0].plot(nu, (bb_xcal(nu)).to('MJy/sr'), label='XCAL')
+        #axes[0].plot(nu, (bb_ical(nu)*ical_emiss).to('MJy/sr')/otf, label='ICAL')
         axes[0].plot(nu, (bb_skyhorn(nu)*skyhorn_emiss).to('MJy/sr')/otf, label='SKYHORN')
         axes[0].plot(nu, (bb_refhorn(nu)*refhorn_emiss).to('MJy/sr')/otf, label='REFHORN')
         axes[0].plot(nu, (bb_dihedr(nu)*dihedral_emiss).to('MJy/sr')/otf, label='MIRROR')
+        axes[0].plot(nu, (bb_bolassem(nu)*bolom_emiss).to('MJy/sr')/otf, label='BOL')
+        axes[0].plot(nu, (bb_struct(nu)*struct_emiss).to('MJy/sr')/otf, label='STRUCT')
     # Equation (14) of the Explanatory Supplement.
     R = (bb_ical(nu)*ical_emiss \
             + bb_refhorn(nu)*refhorn_emiss \
             + bb_skyhorn(nu)*skyhorn_emiss \
             + bb_dihedr(nu)*dihedral_emiss \
+            + bb_bolassem(nu)*bolom_emiss \
+            + bb_struct(nu)*struct_emiss \
             ).to('MJy/sr')/otf
     R[~np.isfinite(R)] = 0
     # Equation (13) of the Explanatory Supplement, without phase correction.
@@ -263,21 +491,25 @@ for i in range(len(xcals)):
     S_sky = D - R.value
     theory = R +  bb_xcal(nu).to('MJy/sr')
     axes[1].plot(nu, D, color='k', alpha=0.1)
-    #axes[1].plot(nu, theory, alpha=0.1, color='r', zorder=5)
-    axes[1].set_ylim([-500, 500])
+    axes[1].plot(nu, theory, alpha=0.1, color='r', zorder=5)
+    axes[1].set_ylim([-25, 25])
     axes[1].set_title('Calibrated spectra')
 
-    axes[2].plot(nu, theory.real, color='k', alpha=0.1)
-    #axes[2].plot(nu, theory.imag, alpha=0.1, color='r', zorder=5)
-    #axes[2].set_ylim([-500, 500])
-    axes[2].set_title('Theory spectra')
+    #axes[2].plot(nu, theory.real, color='k', alpha=0.1)
+    #axes[2].set_title('Theory spectra')
+    #axes[2].set_ylim([-25, 25])
 
-    spec_th[i][5:len(otf) + 5] = theory.to('MJy/sr')
-    spec_xcal[i][5:len(otf) + 5] = (bb_xcal(nu)).to('MJy/sr')
-    spec_ical[i][5:len(otf) + 5] = (bb_ical(nu)*ical_emiss).to('MJy/sr')/otf
-    spec_skyh[i][5:len(otf) + 5] = (bb_skyhorn(nu)*skyhorn_emiss).to('MJy/sr')/otf
-    spec_refh[i][5:len(otf) + 5] = (bb_refhorn(nu)*refhorn_emiss).to('MJy/sr')/otf
-    spec_dih[i][5:len(otf) + 5] = (bb_dihedr(nu)*dihedral_emiss).to('MJy/sr')/otf
+    offset = np.round(NU_ZERO/DELTA_NU).astype(int)
+
+    spec_th[i][offset:offset+NUM_FREQ] = theory.to('MJy/sr')
+
+    spec_xcal[i][offset:offset+NUM_FREQ] = (bb_xcal(nu)).to('MJy/sr')
+    spec_ical[i][offset:offset+NUM_FREQ] = (bb_ical(nu)*ical_emiss).to('MJy/sr')/otf
+    spec_skyh[i][offset:offset+NUM_FREQ] = (bb_skyhorn(nu)*skyhorn_emiss).to('MJy/sr')/otf
+    spec_refh[i][offset:offset+NUM_FREQ] = (bb_refhorn(nu)*refhorn_emiss).to('MJy/sr')/otf
+    spec_dih[i][offset:offset+NUM_FREQ] = (bb_dihedr(nu)*dihedral_emiss).to('MJy/sr')/otf
+    spec_bol[i][offset:offset+NUM_FREQ] = (bb_bolassem(nu)*bolom_emiss).to('MJy/sr')/otf
+    spec_struct[i][offset:offset+NUM_FREQ] = (bb_struct(nu)*struct_emiss).to('MJy/sr')/otf
 
 
 #axes[1].plot(nu, theory*0 + np.nan, color='r', label='Model')
@@ -286,32 +518,60 @@ axes[0].legend()
 axes[-1].set_xlabel('Frequency, GHz')
 axes[0].set_xlim([0, 700])
 
+plt.savefig('calibrated_versus_model.png', bbox_inches='tight')
+
 spec_th[~np.isfinite(spec_th)] = 0
 spec_ical[~np.isfinite(spec_ical)] = 0
 spec_ical[~np.isfinite(spec_ical)] = 0
 
+plt.show()
 
 
-ifg_th = mu.spec_to_ifg(spec_th, mtm_speed, channel, adds_per_group,
-                        bol_cmd_bias, bol_volt, fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain,sweeps, apod)
+ifg_th = mu.spec_to_ifg(spec_th, mtm_speed, channel, adds_per_group[:len(spec_th)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
 ifg_th[~np.isfinite(ifg_th)] = 0
 
-ifg_xcal = mu.spec_to_ifg(spec_xcal, mtm_speed, channel, adds_per_group,
-                        bol_cmd_bias, bol_volt, fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain,sweeps, apod)
+
+ifg_xcal = mu.spec_to_ifg(spec_xcal, mtm_speed, channel, adds_per_group[:len(spec_xcal)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
 ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
-ifg_ical = mu.spec_to_ifg(spec_ical, mtm_speed, channel, adds_per_group,
-                        bol_cmd_bias, bol_volt, fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain,sweeps, apod)
+ifg_ical = mu.spec_to_ifg(spec_ical, mtm_speed, channel, adds_per_group[:len(spec_ical)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_ical[~np.isfinite(ifg_ical)] = 0
 
-plt.figure()
-plt.plot(ifg_xcal[0], label='XCAL IFG')
-plt.plot(ifg_ical[0], label='ICAL IFG')
-plt.plot(ifg_th[0], label='Total IFG')
-plt.xlabel('Samples')
-plt.legend(loc='best')
+
+ifg_skyh = mu.spec_to_ifg(spec_skyh, mtm_speed, channel, adds_per_group[:len(spec_skyh)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_skyh[~np.isfinite(ifg_skyh)] = 0
+
+ifg_refh = mu.spec_to_ifg(spec_refh, mtm_speed, channel, adds_per_group[:len(spec_refh)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_refh[~np.isfinite(ifg_refh)] = 0
+
+
+ifg_dih = mu.spec_to_ifg(spec_dih, mtm_speed, channel, adds_per_group[:len(spec_dih)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_dih[~np.isfinite(ifg_dih)] = 0
+
+
+ifg_struct = mu.spec_to_ifg(spec_struct, mtm_speed, channel, adds_per_group[:len(spec_struct)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_struct[~np.isfinite(ifg_struct)] = 0
+
+ifg_bol = mu.spec_to_ifg(spec_bol, mtm_speed, channel, adds_per_group[:len(spec_bol)],
+                        bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
+                        Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)
+ifg_bol[~np.isfinite(ifg_bol)] = 0
+
+'''
 
 
 
@@ -321,38 +581,81 @@ plt.plot(spec_ical[0], label='ICAL')
 plt.plot(spec_th[0], label='Theory')
 plt.xlabel('Frequency [GHz]')
 plt.legend(loc='best')
-plt.show()
+#plt.show()
+
+#plt.close('all')
+
+'''
 
 plt.figure()
-plt.pcolormesh(ifg, vmin=-50, vmax=50, cmap='RdBu_r')
-plt.title('Data')
+plt.plot(ifg_xcal[0], label='XCAL IFG')
+plt.plot(ifg_ical[0], label='ICAL IFG')
+plt.plot(ifg_th[0], label='Total IFG')
+plt.xlabel('Samples')
+plt.legend(loc='best')
 
 plt.figure()
-plt.pcolormesh(ifg_th, vmin=-50, vmax=50, cmap='RdBu_r')
+plt.pcolormesh(ifg_th.T, vmin=-50, vmax=50, cmap='RdBu_r')
+plt.colorbar(label='ADU')
 plt.title('Theory')
 
 plt.figure()
-plt.title('Model, real')
-plt.pcolormesh(spec_th.real, vmin=-10, vmax=10)
-plt.figure()
-plt.title('Model, imag')
-plt.pcolormesh(spec_th.imag, vmin=-10, vmax=10)
+plt.pcolormesh(ifg_xcal.T, vmin=-400, vmax=400, cmap='RdBu_r')
+plt.colorbar(label='ADU')
+plt.title('XCAL')
 
 plt.figure()
-plt.title('Data, real')
-plt.pcolormesh(spec_out.real, vmin=-1e2, vmax=1e2)
-plt.figure()
-plt.pcolormesh(spec_out.imag, vmin=-1e2, vmax=1e2)
-plt.title('Data, imag')
+plt.pcolormesh(ifg_ical.T, vmin=-400, vmax=400, cmap='RdBu_r')
+plt.colorbar(label='ADU')
+plt.title('ICAL')
 
 
-plt.figure()
-plt.title('Data - Model, real')
-plt.pcolormesh(spec_out.real - spec_th.real, vmin=-1e2, vmax=1e2)
-plt.figure()
-plt.title('Data - Model, imag')
-plt.pcolormesh(spec_out.imag - spec_th.imag, vmin=-1e2, vmax=1e2)
+plt.figure(figsize=(12, 8))
+ifg_med = np.nanmedian(ifg, axis=0)
+ifg_th  = np.nanmedian(ifg_th, axis=0)
+ifg_skyh  = np.nanmedian(ifg_skyh, axis=0)
+ifg_refh  = np.nanmedian(ifg_refh, axis=0)
+ifg_dih  = np.nanmedian(ifg_dih, axis=0)
+ifg_struct  = np.nanmedian(ifg_struct, axis=0)
+ifg_bol  = np.nanmedian(ifg_bol, axis=0)
 
+plt.plot(ifg_med)
+plt.plot(ifg_skyh, label='Skyhorn')
+plt.plot(ifg_refh, label='Refhorn')
+plt.plot(ifg_struct, label='Struct')
+plt.plot(ifg_dih, label='Dih')
+plt.plot(ifg_bol, label='Bol')
+plt.ylim([-70, 50])
+plt.title(r'Default, with bolassem')
+plt.legend()
+plt.savefig('theory_versus_med.png')
+
+plt.close('all')
+#plt.show()
+
+
+plt.plot(ifg_med, label='Median of IFGs')
+plt.plot(ifg_th, label='Model of emitters')
+plt.xlabel('Sample')
+plt.ylabel('ADU (median-subtracted)')
+plt.ylim([-100, 75])
+plt.legend()
+plt.savefig('theory_versus_med.png')
+
+plt.figure()
+plt.plot(nu, np.nanmedian(spec_out.real, axis=0)[offset:offset+NUM_FREQ], color='C0', label='Data')
+plt.plot(nu, np.nanmedian(spec_th.real, axis=0)[offset:offset+NUM_FREQ], color='C1', label='Model')
+plt.xlabel('Frequency [GHz]')
+plt.ylabel(r'$\Delta I_\nu$ [MJy/sr]')
+plt.legend(loc='best')
+
+plt.figure()
+plt.plot(nu, np.nanmedian(spec_out.real, axis=0)[offset:offset+NUM_FREQ], color='k', linewidth=5)
+plt.plot(nu, np.nanmedian(spec_skyh.real, axis=0)[offset:offset+NUM_FREQ])
+plt.plot(nu, np.nanmedian(spec_refh.real, axis=0)[offset:offset+NUM_FREQ])
+plt.plot(nu, np.nanmedian(spec_dih.real, axis=0)[offset:offset+NUM_FREQ])
+plt.plot(nu, np.nanmedian(spec_struct.real, axis=0)[offset:offset+NUM_FREQ])
+#spec_skyh  spec_refh  spec_dih  spec_struct 
 
 
 #plt.show()
