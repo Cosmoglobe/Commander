@@ -19,7 +19,7 @@ def planck(freq, temp):
     return b
 
 
-def dust(nu, nu0, beta, T):
+def dust(nu, tau, nu0, beta, T):
     """
     Returns the dust SED in units of MJy/sr.
     Input frequencies in GHz and temperature in K.
@@ -46,12 +46,14 @@ def dust(nu, nu0, beta, T):
     nu = np.array(nu)
     nu0 = np.array(nu0)
 
-    gamma = h / (k_B * T)
-    sed = np.array(
-        (nu / nu0) ** (beta + 1)
-        * (np.exp(gamma * nu0 * 1e6) - 1)
-        / (np.exp(gamma * nu * 1e6) - 1)
-    )
+    # gamma = h / (k_B * T)
+    # sed = np.array(
+    #     (nu / nu0) ** (beta + 1)
+    #     * (np.exp(gamma * nu0 * 1e6) - 1)
+    #     / (np.exp(gamma * nu * 1e6) - 1)
+    # )
+    sed = tau * planck(nu, np.array(T)) * (nu / nu0) ** beta
+    print(f"sed shape: {sed.shape}")
 
     sed[sed == np.inf] = (
         0  # forcing to ignore the 0 frequency which is calculated to be inf

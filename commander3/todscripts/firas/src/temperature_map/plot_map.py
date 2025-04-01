@@ -9,7 +9,8 @@ from pathlib import Path
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from globals import COORDINATES, OFFSET, PROCESSED_DATA_PATH, T_CMB
+from globals import COORDINATES, NSIDE, OFFSET, PROCESSED_DATA_PATH, T_CMB
+from healpy.rotator import Rotator
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -42,9 +43,23 @@ for channel in channels.keys():
             sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
             scan[mode] = data[f"scan_{mode}"]
             if COORDINATES == "G":
-                pix_gal[mode] = data[f"pix_gal_{mode}"]
+                if NSIDE == 32:
+                    pix_gal[mode] = data[f"pix_gal_{mode}"]
+                else:
+                    gal_lat = data[f"gal_lat_{mode}"]
+                    gal_lon = data[f"gal_lon_{mode}"]
+                    pix_gal[mode] = hp.ang2pix(NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
             elif COORDINATES == "E":
-                pix_ecl[mode] = data[f"pix_ecl_{mode}"]
+                if NSIDE == 32:
+                    pix_ecl[mode] = data[f"pix_ecl_{mode}"]
+                else:
+                    # rotate gal lat and lon to ecliptic
+                    r = Rotator(coord=['G','E'])
+                    gal_lat = data[f"gal_lat_{mode}"]
+                    gal_lon = data[f"gal_lon_{mode}"]
+                    ecl_lat, ecl_lon = r(gal_lat, gal_lon)
+                    pix_ecl[mode] = hp.ang2pix(NSIDE, ecl_lon, ecl_lat, lonlat=True)
+
 
 nu0 = {"ss": 68.020812, "lf": 23.807283}
 dnu = {"ss": 13.604162, "lf": 3.4010405}
@@ -88,8 +103,6 @@ for channel in channels.keys():
             plt.savefig(f"{save_path}plots/sky_over_time/{f"{channel}_{mode}"}.png")
             plt.clf()
 
-
-NSIDE = 32
 npix = hp.nside2npix(NSIDE)
 
 # for freq in range(len(f_ghz)):

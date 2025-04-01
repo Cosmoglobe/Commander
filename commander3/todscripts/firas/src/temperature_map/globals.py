@@ -4,8 +4,9 @@ T_CMB = 2.72548  # Fixsen 2009
 # analysis parameters
 OFFSET = 0.5
 
-# plotting parameters
+# map parameters
 COORDINATES = "G"
+NSIDE = 16
 
 # data paths
 if OFFSET == 0:

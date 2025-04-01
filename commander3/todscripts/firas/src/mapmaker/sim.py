@@ -1,6 +1,7 @@
 import time
 
 import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from funcs import dust
@@ -29,9 +30,10 @@ def sim_dust():
     #                 nf[f"{channel}_{mode}"],
     #             )
 
-    nu0_dust = 545  # Planck
-    beta_dust = 1.55
-    t_dust = 23
+    nu0_dust = 353  # Planck
+    beta_dust = 1.62
+    t_dust = 19.7
+    tau_dust = 9.6e-7
 
     # calculate dust at each frequency
     # for freq in f_ghz["rh_ss"]:
@@ -41,9 +43,13 @@ def sim_dust():
     #     plt.clf()
     #     plt.close()
 
-    frequencies = np.linspace(0, 13.604162/2 * SPEC_SIZE, SPEC_SIZE)
+    dnu = 13.604162
+    frequencies = np.linspace(0, dnu * SPEC_SIZE, SPEC_SIZE)
+    print(f"frequencies: {frequencies}")
 
-    signal = dust(frequencies, nu0_dust, beta_dust, t_dust)
+    signal = dust(frequencies, tau_dust, nu0_dust, beta_dust, t_dust)
+    plt.plot(frequencies, signal)
+    plt.show()
 
     return dust_map_downgraded_mjy, frequencies, signal
 
@@ -56,8 +62,38 @@ def sim_dust():
 if __name__ == "__main__":
 
     dust_map_downgraded_mjy, frequencies, signal = sim_dust()
+    # check signal for nans
+    print(f"Number of nans in signal: {np.isnan(signal).sum()}")
+    print(f"shape of signal: {signal.shape}")
+    # print(f"signal: {signal}")
+    signal = np.nan_to_num(signal)
+    print(f"sizes: {dust_map_downgraded_mjy.shape} and {signal.shape}")
+    spec = dust_map_downgraded_mjy[:, np.newaxis] * signal[np.newaxis, :]
+    spec_complex = np.zeros_like(spec, dtype=complex)
+    x = np.linspace(0, 1.76, SPEC_SIZE)
+    print(f"shape of spec: {spec.shape} and of x: {x.shape} and exp shape: {np.exp(1j * np.pi * (x - 1.22)).shape}")
+    spec_complex = spec * np.exp(1j * np.pi * (x - 1.22))
 
-    ifg = np.zeros((len(dust_map_downgraded_mjy), IFG_SIZE))
+    # visualise spec_complex
+    plt.imshow(np.abs(spec_complex), aspect="auto")
+    plt.colorbar()
+    plt.show()
+
+    # plot some spec_complex
+    for i in range(0, len(spec_complex), 100):  
+        plt.plot(np.abs(spec_complex[i]), color="black", alpha=0.5)
+        plt.plot(spec[i], color="red", alpha=0.5)
+    plt.show()
+
+    # plot real and imag parts of spec_complex
+    fig, ax = plt.subplots(2, 1)
+    for i in range(0, len(spec_complex), 100):
+        ax[0].plot(np.real(spec_complex[i]), color="black", alpha=0.5)
+        ax[1].plot(np.imag(spec_complex[i]), color="red", alpha=0.5)
+    plt.show()
+
+    # ifg = np.zeros((len(dust_map_downgraded_mjy), IFG_SIZE))
+    # check ifg for nans
     x = np.linspace(
         0, 1.76, IFG_SIZE
     )  # cm - does this make sense? sky frequencies are cropped but how does that relate to space?
@@ -69,23 +105,55 @@ if __name__ == "__main__":
     # time ifg making
     time_start = time.time()
 
+    frequencies_icm = (frequencies * u.GHz).to(1 / u.cm, equivalencies=u.spectral()).value
     # x = np.linspace(0, 1.76, 512)
-    for i in range(len(dust_map_downgraded_mjy)):
-        for j, freq in enumerate(frequencies):
-            ifg[i, j] = np.sum(
-                # dust_map_downgraded_mjy[i] *
-                signal[j]
-                * np.cos(
-                    2
-                    * np.pi
-                    * (frequencies * u.GHz).to(1 / u.cm, equivalencies=u.spectral()).value
-                    * (x[j] - 1.22)
-                    # * x[j]
-                )
-            )
+    # for i in range(len(dust_map_downgraded_mjy)):
+    #     for j in range(IFG_SIZE):
+    #         ifg[i, j] = np.sum(
+    #             # dust_map_downgraded_mjy[i] *
+    #             signal
+    #             * np.cos(
+    #                 2
+    #                 * np.pi
+    #                 * frequencies_icm
+    #                 * (x[j] - 1.22)
+    #                 # * x[j]
+    #             )
+    #         )
 
-        # ifg[i] = np.fft.irfft(dust_map_downgraded_mjy[i] * signal)
-        ifg[i] = dust_map_downgraded_mjy[i] * ifg[i]
+    #     # check ifg[i] for nans
+    #     # print(f"Number of nans in IFGs 2: {np.isnan(ifg[i]).sum()}")
+    #     # ifg[i] = np.fft.irfft(dust_map_downgraded_mjy[i] * signal)
+    #     ifg[i] = dust_map_downgraded_mjy[i] * ifg[i]
+
+    # dft matrix
+    # W = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    # W[0, :] = 1
+    # W[:, 0] = 1
+    # omega = np.exp(-2j * np.pi / IFG_SIZE)
+    # for xi in range(1, IFG_SIZE):
+    #     for nui in range(1, SPEC_SIZE):
+    #         W[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # W = W / np.sqrt(IFG_SIZE)
+
+    F = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+
+    # unit vector hammering method
+    for i in range(SPEC_SIZE):
+        x = np.zeros(SPEC_SIZE)
+        x[i] = 1
+        y = np.fft.fft(x, n = IFG_SIZE)
+        print(f"y: {y.shape}")
+        F[:, i] = y
+
+    print(f"F: {F}")
+    # ifg = np.dot(F, spec_complex.T).T
+    print(f"shapes: {F.shape} and {spec_complex.shape}")
+    ifg = np.dot(F, spec_complex.T).T
+    print(f"ifg shape: {ifg.shape}")
+
+    # check for nans
+    print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")
 
     # save ifg products in a npz file
     np.savez("tests/ifgs.npz", ifg=ifg)

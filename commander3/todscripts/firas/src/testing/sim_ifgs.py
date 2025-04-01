@@ -1,12 +1,14 @@
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-sys.path.append('..')
-import my_utils as mu
-import h5py
-from astropy.io import fits
 
+sys.path.append('..')
+import h5py
+import my_utils as mu
+from astropy.io import fits
 from utils.config import gen_nyquistl
+
 
 def convert_gain(gain_array):
     conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
@@ -17,8 +19,8 @@ def convert_gain(gain_array):
 
     return gain_array
 
-sdf = h5py.File('../engineering_timing/fdq_sdf_new.h5')
-eng = h5py.File('../engineering_timing/fdq_eng_new.h5')
+sdf = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5')
+eng = h5py.File('/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5')
 
 
 channels = {'ll':3, 'lh':2, 'rl':1, 'rh':0}
@@ -45,7 +47,7 @@ sweepss = sdf[f'fdq_sdf_{ch}/sci_head/sc_head11'][()]
 eng_times = sdf[f'fdq_sdf_{ch}/dq_data/eng_time'][()]
 
 
-pub_model = fits.open(f'FIRAS_CALIBRATION_MODEL_{ch.upper()}{sm.upper()}.FITS')
+pub_model = fits.open(f'/mn/stornext/d16/cmbco/ola/firas/pub_calibration_model/FIRAS_CALIBRATION_MODEL_{ch.upper()}{sm.upper()}.FITS')
 
 apod = pub_model[1].data['APODIZAT'][0]
 # apod = np.ones_like(apod)
@@ -224,8 +226,8 @@ plt.legend(loc='best')
 plt.xlabel('Time [sample]')
 
 
-from astropy.modeling.models import BlackBody
 from astropy import units as u
+from astropy.modeling.models import BlackBody
 
 fig, axes = plt.subplots(sharex=True, nrows=3, sharey=False)
 nu = np.arange(len(ical_emiss))*DELTA_NU + NU_ZERO
