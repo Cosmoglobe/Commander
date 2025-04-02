@@ -2,7 +2,8 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+import sys
+import os
 sys.path.append('..')
 import h5py
 import my_utils as mu
@@ -16,6 +17,15 @@ import my_utils as mu
 from astropy.io import fits
 from utils.config import gen_nyquistl
 
+sys.path.append('../utils')
+import dataio2 as dataio
+
+dt_float = '<f4'
+dt_fex_dtrf = np.dtype([('trans', dt_float, (128,))])
+
+fn = os.path.join('../../reference', 'FEX_DTRF.DAT')
+dtrf = np.fromfile(fn, dtype=dt_fex_dtrf)
+dataio.fix_floats(dtrf)
 
 def convert_gain(gain_array):
     conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
@@ -37,9 +47,13 @@ scan_modes = {'ss':0, 'sf': 1, 'ls': 2, 'lf':3, 'fs': 4, 'fl':5}
 ch = 'll'
 sm = 'ss'
 
+if ch == 'rl':
+    vlim = 25
+else:
+    vlim = 50
 
-# ch = 'rh'
-# sm = 'lf'
+dtrf_rec = 4*(channels[ch] % 2) + scan_modes[sm]
+dtrf = dtrf[dtrf_rec]['trans']
 
 if sm == 'lf':
     SM = 'FA'
@@ -140,23 +154,34 @@ plt.plot(nu, ical_emiss.imag, label='ICAL')
 plt.legend(loc='best')
 plt.savefig('emiss_imag_wical.png', bbox_inches='tight')
 
-ind = np.arange(100_000,100_050)
-ind = np.arange(54_825,54_875)
-ind = np.arange(529_025,529_100)
+
+
+#ind = np.arange(100_000,100_050)
+#ind = np.arange(54_825,54_875)
+#ind = np.arange(529_025,529_100)
 #ind = np.arange(529_000,529_100)
-
 #ind = np.arange(54_800, 55_000)
-
-ind = np.arange(529_000,529_500)
+#ind = np.arange(529_000,529_500)
 #ind = np.arange(1_000,530_000)
-
 #ind = np.arange(114_400,116_400)
 #ind = np.arange(170_001,190_000)
 #ind = np.arange(500_000,530_000)
 #ind = np.arange(186_250,187_500)
+#ind = (sci_times >= 41388576263040000) & (sci_times <=  41388591833040000)
+#ind = (sci_times >= 41368283125490000) & (sci_times <=  41368310345490000)
+#ind = (sci_times >= 41574623643910000) & (sci_times <=  41574664691410000)
+#ind = (sci_times >= 41574611466410000) & (sci_times <=  41574664691410000)
+#ind = (sci_times >= 41368269705490000) & (sci_times <=  41368386867990000)
+ind = (sci_times >= 41574611466410000) & (sci_times <=  41574863373910000)
+#ind = (sci_times >= 41343263867990000) & (sci_times <=  41575135098910000)
+#ind = (sci_times >= 41395256823040000) & (sci_times <=  41396228620540000)
+#ind = (sci_times >= 41420713625600000) & (sci_times <=  41429869793310000)
+#ind = (sci_times >= 41560892368760000) & (sci_times <=  41575135098910000)
+#ind = (sci_times >= 41427926118270000) & (sci_times <=  41428695853310000)
+
+
 #ind = np.arange(len(mtm_speeds))
 
-channel = 3
 mtm_speed = mtm_speeds[ind]
 mtm_length = mtm_lengths[ind]
 sweeps = sweepss[ind]
@@ -266,16 +291,33 @@ inds = np.arange(512)
 #    poly = np.polyfit(inds, ifg[i], 4)
 #    #print(poly)
 #    ifg[i] -= np.poly1d(poly)(inds)
+meds = np.median(ifg, axis=1)
 ifg -= np.median(ifg, axis=1)[:,None]
 print('Median subtracted')
 
+# Assume that the DTRF is a linear scaling.
+# Digital transient response function
 
-#fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
-#axs = axes.flatten()
-#axs[0].plot(sci_time, adds_per_group, '.')
-#axs[0].set_title('Adds Per Group')
-#axs[1].plot(sci_time, sweeps, '.')
-#axs[1].set_title('Sweeps')
+'''
+ifg_trunc = ifg[:,:128]
+a = ifg_trunc.dot(dtrf)
+ifg[:,:128] -= np.outer(a, dtrf)
+'''
+
+# Remove fourth order legendre polynomial
+xvals = np.linspace(-1, 1, num=512)
+for i in range(len(ifg)):
+    if i == 0:
+        plt.figure()
+        plt.plot(ifg[i])
+    coeffs = np.polynomial.legendre.legfit(xvals[20:], ifg[i,20:], 4)
+    ifg[i] -= np.polynomial.legendre.legval(xvals, coeffs)
+    if i == 0:
+        plt.plot(ifg[i])
+        plt.plot(np.polynomial.legendre.legval(xvals, coeffs))
+        plt.show()
+
+
 
 inds = (eng_time_array > sci_time.min()) & (eng_time_array < sci_time.max())
 
@@ -303,10 +345,22 @@ for i in tqdm(range(len(eng_time))):
 #XX,YY = np.meshgrid(st, np.arange(512))
 
 plt.figure()
-plt.pcolormesh(ifg.T, vmin=-50, vmax=50, cmap='RdBu_r')
+plt.pcolormesh(ifg.T, vmin=-vlim, vmax=vlim, cmap='RdBu_r')
 plt.colorbar(label='Counts')
-plt.title('LLSS IFGs, median-subtracted')
-plt.savefig('ifgs_medsub.png', bbox_inches='tight')
+plt.title(f'{ch.upper()}{sm.upper()} IFGs, median-subtracted')
+plt.savefig(f'ifgs_medsub_{channel}.png', bbox_inches='tight')
+
+
+fig, axes = plt.subplots(sharex=True, nrows=2)
+axes[0].plot(np.nanmedian(ifg.T, axis=1))
+axes[0].set_title(f'{ch.upper()}{sm.upper()} IFGs, median-subtracted')
+axes[1].plot(dtrf)
+plt.savefig(f'ifg_med_{channel}.png', bbox_inches='tight')
+
+
+
+
+plt.show()
 
 
 plt.close('all')
@@ -492,7 +546,7 @@ for i in tqdm(range(len(spec_th))):
     theory = R +  bb_xcal(nu).to('MJy/sr')
     axes[1].plot(nu, D, color='k', alpha=0.1)
     axes[1].plot(nu, theory, alpha=0.1, color='r', zorder=5)
-    axes[1].set_ylim([-25, 25])
+    axes[1].set_ylim([-vlim/2, vlim/2])
     axes[1].set_title('Calibrated spectra')
 
     #axes[2].plot(nu, theory.real, color='k', alpha=0.1)
@@ -595,19 +649,10 @@ plt.xlabel('Samples')
 plt.legend(loc='best')
 
 plt.figure()
-plt.pcolormesh(ifg_th.T, vmin=-50, vmax=50, cmap='RdBu_r')
+plt.pcolormesh(ifg_th.T, vmin=-vlim, vmax=vlim, cmap='RdBu_r')
 plt.colorbar(label='ADU')
 plt.title('Theory')
 
-plt.figure()
-plt.pcolormesh(ifg_xcal.T, vmin=-400, vmax=400, cmap='RdBu_r')
-plt.colorbar(label='ADU')
-plt.title('XCAL')
-
-plt.figure()
-plt.pcolormesh(ifg_ical.T, vmin=-400, vmax=400, cmap='RdBu_r')
-plt.colorbar(label='ADU')
-plt.title('ICAL')
 
 
 plt.figure(figsize=(12, 8))
@@ -625,7 +670,7 @@ plt.plot(ifg_refh, label='Refhorn')
 plt.plot(ifg_struct, label='Struct')
 plt.plot(ifg_dih, label='Dih')
 plt.plot(ifg_bol, label='Bol')
-plt.ylim([-70, 50])
+plt.ylim([-vlim, vlim])
 plt.title(r'Default, with bolassem')
 plt.legend()
 plt.savefig('theory_versus_med.png')
@@ -638,7 +683,7 @@ plt.plot(ifg_med, label='Median of IFGs')
 plt.plot(ifg_th, label='Model of emitters')
 plt.xlabel('Sample')
 plt.ylabel('ADU (median-subtracted)')
-plt.ylim([-100, 75])
+plt.ylim([-vlim*1.1, vlim*1.1])
 plt.legend()
 plt.savefig('theory_versus_med.png')
 
