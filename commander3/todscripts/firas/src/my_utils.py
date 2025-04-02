@@ -110,7 +110,7 @@ def clean_ifg(
 
     # roll
     peak_pos = 360
-    ifg = np.roll(ifg, -peak_pos)
+    ifg = np.roll(ifg, -peak_pos, axis=1)
 
     # print("ifg shape after roll:", ifg.shape)
 
@@ -129,7 +129,7 @@ def unclean_ifg(
     ifg = ifg * gain * sweeps
 
     peak_pos = 360
-    ifg = np.roll(ifg, peak_pos)
+    ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod
     ifg[:, apod < 0.1] = np.nan
@@ -450,9 +450,7 @@ def filter_junk(
     stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
 ):
     filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217)
-    print("filter1:", np.count_nonzero(filter1))
     filter2 = stat_word_9 != 15414
-    print("filter2:", np.count_nonzero(filter2))
     filter3 = (
         (stat_word_13 != 17345)
         & (stat_word_13 != 17393)
@@ -467,7 +465,6 @@ def filter_junk(
         & (stat_word_13 != 60465)
         & (stat_word_13 != 60593)
     )
-    print("filter3:", np.count_nonzero(filter3))
     filter4 = (
         (stat_word_16 != 0)
         & (stat_word_16 != 14372)  # makes the hole?
@@ -476,7 +473,6 @@ def filter_junk(
         & (stat_word_16 != 52992)
         & (stat_word_16 != 53056)
     )
-    print("filter4:", np.count_nonzero(filter4))
     filter5 = (
         (lvdt_stat_a != 1)
         & (lvdt_stat_a != 2)
@@ -493,7 +489,6 @@ def filter_junk(
         & (lvdt_stat_a != 47)
         & (lvdt_stat_a != 49)
     )
-    print("filter5:", np.count_nonzero(filter5))
     filter6 = (
         (lvdt_stat_b != -127)
         & (lvdt_stat_b != -124)
@@ -521,7 +516,6 @@ def filter_junk(
         & (lvdt_stat_b != 111)
         & (lvdt_stat_b != 121)
     )
-    print("filter6:", np.count_nonzero(filter6))
 
     return filter1 & filter2 & filter3 & filter4 & filter5 & filter6
 
