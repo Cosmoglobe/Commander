@@ -9,7 +9,9 @@ from pathlib import Path
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from globals import COORDINATES, NSIDE, OFFSET, PROCESSED_DATA_PATH, T_CMB
+from astropy.io import fits
+from globals import (COORDINATES, FITS, NSIDE, OFFSET, PNG,
+                     PROCESSED_DATA_PATH, T_CMB)
 from healpy.rotator import Rotator
 
 current = os.path.dirname(os.path.realpath(__file__))
@@ -19,6 +21,7 @@ from my_utils import planck
 
 user = os.environ["USER"]
 save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
+fits_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
 
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
@@ -109,6 +112,11 @@ npix = hp.nside2npix(NSIDE)
 hpxmap = {}
 data_density = {}
 
+curr_path = f"{fits_path}maps/hit_maps/{folder}/"
+# check if curr_path exists and create it if it doesn't
+if not os.path.exists(curr_path):
+    os.makedirs(curr_path)
+
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
@@ -131,19 +139,27 @@ for channel in channels.keys():
                     data_density[f"{channel}_{mode}"][pix_ecl[mode][i]] += 1
 
             # plot hit map
-            hp.mollview(
-                data_density[f"{channel}_{mode}"],
-                title=f"Hit map for {channel.upper()}{mode.upper()}",
-                unit="hits",
-                norm="hist",
-            )
-            Path.mkdir(
-                Path(f"{save_path}maps/hit_maps/{folder}"), parents=True, exist_ok=True
-            )
-            plt.savefig(
-                f"{save_path}maps/hit_maps/{folder}/{f"{channel}_{mode}_offset{OFFSET}"}.png"
-            )
-            plt.close()
+            if PNG:
+                hp.mollview(
+                    data_density[f"{channel}_{mode}"],
+                    title=f"Hit map for {channel.upper()}{mode.upper()}",
+                    unit="hits",
+                    norm="hist",
+                )
+                Path.mkdir(
+                    Path(f"{save_path}maps/hit_maps/{folder}"), parents=True, exist_ok=True
+                )
+                plt.savefig(
+                    f"{save_path}maps/hit_maps/{folder}/{f"{channel}_{mode}_offset{OFFSET}_nside{NSIDE}"}.png"
+                )
+                plt.close()
+            if FITS:
+                # hp.write_map(
+                #     f"{curr_path}{f"{channel}_{mode}_offset{OFFSET}_nside{NSIDE}"}.fits",
+                #     data_density[f"{channel}_{mode}"],
+                #     overwrite=True,
+                # )
+                fits.writeto(f"{curr_path}{f"{channel}_{mode}_offset{OFFSET}_nside{NSIDE}"}.fits", data_density[f"{channel}_{mode}"], overwrite=True)
 # for i in range(len(pix_terr)):
 #     hpxmap[pix_terr[i]] += np.abs(sky[i])
 #     data_density[pix_terr[i]] += 1
@@ -176,20 +192,31 @@ for channel in channels.keys():
         )
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
-                hp.mollview(
-                    m[f"{channel}_{mode}"][:, freq],
-                    # coord="G",
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
-                    unit="MJy/sr",
-                    # norm="hist",
-                    min=0,
-                    max=200,
-                )
-                # hp.graticule(coord="G")
-                plt.savefig(
-                    f"{save_path}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_offset{OFFSET}.png"
-                )
-                plt.close()
+                if PNG:
+                    hp.mollview(
+                        m[f"{channel}_{mode}"][:, freq],
+                        # coord="G",
+                        title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                        unit="MJy/sr",
+                        # norm="hist",
+                        min=0,
+                        max=200,
+                    )
+                    # hp.graticule(coord="G")
+                    plt.savefig(
+                        f"{save_path}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_offset{OFFSET}_nside{NSIDE}.png"
+                    )
+                    plt.close()
+                if FITS:
+                    curr_path = f"{fits_path}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/"
+                    if not os.path.exists(curr_path):
+                        os.makedirs(curr_path)
+                    # hp.write_map(
+                    #     f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits",
+                    #     m[f"{channel}_{mode}"][:, freq],
+                    #     overwrite=True,
+                    # )
+                    fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits", m[f"{channel}_{mode}"][:, freq], overwrite=True)
 
 print("plotting joint map")
 
@@ -221,20 +248,31 @@ m_joint[joint_mask] = np.nan  # hp.UNSEEN
 
 Path(f"{save_path}maps/joint/{folder}").mkdir(parents=True, exist_ok=True)
 for freq in range(len(f_ghz["ll_lf"])):
-    hp.mollview(
-        m_joint[:, freq],
-        # coord="G",
-        title=f"{int(f_ghz['ll_lf'][freq]):04d} GHz",
-        unit="MJy/sr",
-        # norm="hist",
-        min=0,
-        max=200,
-    )
-    # hp.graticule(coord="G")
-    plt.savefig(
-        f"{save_path}maps/joint/{folder}/{int(f_ghz['ll_lf'][freq]):04d}_offset{OFFSET}.png"
-    )
-    plt.close()
+    if PNG:
+        hp.mollview(
+            m_joint[:, freq],
+            # coord="G",
+            title=f"{int(f_ghz['ll_lf'][freq]):04d} GHz",
+            unit="MJy/sr",
+            # norm="hist",
+            min=0,
+            max=200,
+        )
+        # hp.graticule(coord="G")
+        plt.savefig(
+            f"{save_path}maps/joint/{folder}/{int(f_ghz['ll_lf'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.png"
+        )
+        plt.close()
+    if FITS:
+        curr_path = f"{fits_path}maps/joint/{folder}/"
+        if not os.path.exists(curr_path):
+            os.makedirs(curr_path)
+        # hp.write_map(
+        #     f"{curr_path}{int(f_ghz['ll_lf'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits",
+        #     m_joint[:, freq],
+        #     overwrite=True,
+        # )
+        fits.writeto(f"{curr_path}{int(f_ghz['ll_lf'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits", m_joint[:, freq], overwrite=True)
 
 # high frequencies
 joint_map = hpxmap["lh_ss"] + hpxmap["rh_ss"]
@@ -252,23 +290,33 @@ m_joint[~joint_mask] = (
 m_joint[joint_mask] = np.nan  # hp.UNSEEN
 
 # print(f"shape of m_joint after mask: {m_joint.shape}")
-
+curr_path = f"{fits_path}maps/joint/{folder}/"
+if not os.path.exists(curr_path):
+    os.makedirs(curr_path)
 for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
-    # print(f"plotting {freq}: {int(f_ghz['lh_ss'][freq])}")
-    hp.mollview(
-        m_joint[:, (freq - len(f_ghz["ll_ss"]))],
-        # coord="G",
-        title=f"{int(f_ghz['lh_ss'][freq]):04d} GHz",
-        unit="MJy/sr",
-        # norm="hist",
-        min=0,
-        max=200,
-    )
-    # hp.graticule(coord="G")
-    plt.savefig(
-        f"{save_path}maps/joint/{folder}/{int(f_ghz['lh_ss'][freq]):04d}_offset{OFFSET}.png"
-    )
-    plt.close()
+    if PNG:
+        # print(f"plotting {freq}: {int(f_ghz['lh_ss'][freq])}")
+        hp.mollview(
+            m_joint[:, (freq - len(f_ghz["ll_ss"]))],
+            # coord="G",
+            title=f"{int(f_ghz['lh_ss'][freq]):04d} GHz",
+            unit="MJy/sr",
+            # norm="hist",
+            min=0,
+            max=200,
+        )
+        # hp.graticule(coord="G")
+        plt.savefig(
+            f"{save_path}maps/joint/{folder}/{int(f_ghz['lh_ss'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.png"
+        )
+        plt.close()
+    if FITS:
+        # hp.write_map(
+        #     f"{curr_path}{int(f_ghz['lh_ss'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits",
+        #     m_joint[:, (freq - len(f_ghz["ll_ss"]))],
+        #     overwrite=True,
+        # )
+        fits.writeto(f"{curr_path}{int(f_ghz['lh_ss'][freq]):04d}_offset{OFFSET}_nside{NSIDE}.fits", m_joint[:, (freq - len(f_ghz["ll_ss"]))], overwrite=True)
 
 print("plotting up/down scan map")
 
@@ -323,30 +371,47 @@ for channel in channels.keys():
             m_down[mask_down] = np.nan
 
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
-                hp.mollview(
-                    m_up[:, freq],
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
-                    unit="MJy/sr",
-                    min=0,
-                    max=200,
-                )
-                plt.savefig(
-                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up_offset{OFFSET}.png"
-                )
-                plt.close()
+                if PNG:
+                    hp.mollview(
+                        m_up[:, freq],
+                        title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
+                        unit="MJy/sr",
+                        min=0,
+                        max=200,
+                    )
+                    plt.savefig(
+                        f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up_offset{OFFSET}_nside{NSIDE}.png"
+                    )
+                    plt.close()
 
-                hp.mollview(
-                    m_down[:, freq],
-                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
-                    unit="MJy/sr",
-                    min=0,
-                    max=200,
-                )
-                # hp.graticule(coord="G")
-                plt.savefig(
-                    f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down_offset{OFFSET}.png"
-                )
-                plt.close()
+                    hp.mollview(
+                        m_down[:, freq],
+                        title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
+                        unit="MJy/sr",
+                        min=0,
+                        max=200,
+                    )
+                    # hp.graticule(coord="G")
+                    plt.savefig(
+                        f"{save_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down_offset{OFFSET}_nside{NSIDE}.png"
+                    )
+                    plt.close()
+                if FITS:
+                    curr_path = f"{fits_path}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/"
+                    if not os.path.exists(curr_path):
+                        os.makedirs(curr_path)
+                    # hp.write_map(
+                    #     f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_up_offset{OFFSET}_nside{NSIDE}.fits",
+                    #     m_up[:, freq],
+                    #     overwrite=True,
+                    # )
+                    # hp.write_map(
+                    #     f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_down_offset{OFFSET}_nside{NSIDE}.fits",
+                    #     m_down[:, freq],
+                    #     overwrite=True,
+                    # )
+                    fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_up_offset{OFFSET}_nside{NSIDE}.fits", m_up[:, freq], overwrite=True)
+                    fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_down_offset{OFFSET}_nside{NSIDE}.fits", m_down[:, freq], overwrite=True)
 
 # print("Calculating temperature map")
 
