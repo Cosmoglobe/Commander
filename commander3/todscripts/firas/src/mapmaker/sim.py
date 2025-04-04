@@ -30,10 +30,13 @@ def sim_dust():
     #                 nf[f"{channel}_{mode}"],
     #             )
 
-    nu0_dust = 353  # Planck
-    beta_dust = 1.62
-    t_dust = 19.7
-    tau_dust = 9.6e-7
+    nu0_dust = 545 * u.GHz # Planck 2015
+    # beta_dust = 1.51
+    # t_dust = 19.6
+    # tau_dust = 9.6e-7
+    A_d = 163 * u.uK
+    T_d = 21 * u.K
+    beta_d = 1.53
 
     # calculate dust at each frequency
     # for freq in f_ghz["rh_ss"]:
@@ -44,10 +47,14 @@ def sim_dust():
     #     plt.close()
 
     dnu = 13.604162
-    frequencies = np.linspace(0, dnu * SPEC_SIZE, SPEC_SIZE)
-    print(f"frequencies: {frequencies}")
+    frequencies = np.linspace(1e-5, dnu * SPEC_SIZE, SPEC_SIZE) * u.GHz
+    # print(f"frequencies: {frequencies}")
 
-    signal = dust(frequencies, tau_dust, nu0_dust, beta_dust, t_dust)
+    # signal = dust(frequencies, tau_dust, nu0_dust, beta_dust, t_dust)
+    signal = dust(frequencies, A_d, nu0_dust, beta_d, T_d)
+    # check for invalid value encountered in divide
+    signal = np.nan_to_num(signal)
+    
     plt.plot(frequencies, signal)
     plt.show()
 
@@ -69,32 +76,28 @@ if __name__ == "__main__":
     signal = np.nan_to_num(signal)
     print(f"sizes: {dust_map_downgraded_mjy.shape} and {signal.shape}")
     spec = dust_map_downgraded_mjy[:, np.newaxis] * signal[np.newaxis, :]
-    spec_complex = np.zeros_like(spec, dtype=complex)
-    x = np.linspace(0, 1.76, SPEC_SIZE)
-    print(f"shape of spec: {spec.shape} and of x: {x.shape} and exp shape: {np.exp(1j * np.pi * (x - 1.22)).shape}")
-    spec_complex = spec * np.exp(1j * np.pi * (x - 1.22))
 
     # visualise spec_complex
-    plt.imshow(np.abs(spec_complex), aspect="auto")
+    plt.imshow(np.abs(spec.value), aspect="auto")
     plt.colorbar()
     plt.show()
 
     # plot some spec_complex
-    for i in range(0, len(spec_complex), 100):  
-        plt.plot(np.abs(spec_complex[i]), color="black", alpha=0.5)
+    for i in range(0, len(spec), 100):  
+        plt.plot(np.abs(spec[i]), color="black", alpha=0.5)
         plt.plot(spec[i], color="red", alpha=0.5)
     plt.show()
 
     # plot real and imag parts of spec_complex
     fig, ax = plt.subplots(2, 1)
-    for i in range(0, len(spec_complex), 100):
-        ax[0].plot(np.real(spec_complex[i]), color="black", alpha=0.5)
-        ax[1].plot(np.imag(spec_complex[i]), color="red", alpha=0.5)
+    for i in range(0, len(spec), 100):
+        ax[0].plot(np.real(spec[i]), color="black", alpha=0.5)
+        ax[1].plot(np.imag(spec[i]), color="red", alpha=0.5)
     plt.show()
 
     # ifg = np.zeros((len(dust_map_downgraded_mjy), IFG_SIZE))
     # check ifg for nans
-    x = np.linspace(
+    x_cm = np.linspace(
         0, 1.76, IFG_SIZE
     )  # cm - does this make sense? sky frequencies are cropped but how does that relate to space?
     # nu_icm = (f_ghz["rh_ss"] * u.GHz).to(1 / u.cm, equivalencies=u.spectral()).value  # cm-1
@@ -105,7 +108,7 @@ if __name__ == "__main__":
     # time ifg making
     time_start = time.time()
 
-    frequencies_icm = (frequencies * u.GHz).to(1 / u.cm, equivalencies=u.spectral()).value
+    frequencies_icm = (frequencies).to(1 / u.cm, equivalencies=u.spectral()).value
     # x = np.linspace(0, 1.76, 512)
     # for i in range(len(dust_map_downgraded_mjy)):
     #     for j in range(IFG_SIZE):
@@ -136,27 +139,39 @@ if __name__ == "__main__":
     #         W[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
     # W = W / np.sqrt(IFG_SIZE)
 
-    F = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
+    IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
 
     # unit vector hammering method
+    for i in range(IFG_SIZE):
+        x = np.zeros(IFG_SIZE)
+        x[i] = 1
+        y = np.fft.rfft(x, n = IFG_SIZE)
+        print(f"y: {y.shape}")
+        F[:, i] = y
+    
     for i in range(SPEC_SIZE):
         x = np.zeros(SPEC_SIZE)
         x[i] = 1
-        y = np.fft.fft(x, n = IFG_SIZE)
+        y = np.fft.irfft(x, n = IFG_SIZE)
         print(f"y: {y.shape}")
-        F[:, i] = y
+        IF[:, i] = y
 
     print(f"F: {F}")
     # ifg = np.dot(F, spec_complex.T).T
-    print(f"shapes: {F.shape} and {spec_complex.shape}")
-    ifg = np.dot(F, spec_complex.T).T
+    print(f"shapes: {F.shape} and {spec.shape}")
+    ifg = np.dot(IF, spec.T).T
     print(f"ifg shape: {ifg.shape}")
+
+    # add phase to ifg
+    # ifg = ifg * np.exp(1j * np.pi * (x_cm - 1.22))
+    ifg = np.roll(ifg, 360, axis=1)
 
     # check for nans
     print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")
 
     # save ifg products in a npz file
-    np.savez("tests/ifgs.npz", ifg=ifg)
+    np.savez("tests/ifgs.npz", ifg=ifg.value)
 
     time_end = time.time()
     print(f"Time elapsed for IFGs: {(time_end - time_start)/60} minutes")

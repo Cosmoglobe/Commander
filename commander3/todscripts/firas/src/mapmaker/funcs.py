@@ -1,3 +1,5 @@
+import astropy.constants as const
+import astropy.units as u
 import numpy as np
 
 
@@ -19,7 +21,7 @@ def planck(freq, temp):
     return b
 
 
-def dust(nu, tau, nu0, beta, T):
+def dust(nu, A_d, nu_0, beta_d, T_d):
     """
     Returns the dust SED in units of MJy/sr.
     Input frequencies in GHz and temperature in K.
@@ -40,11 +42,11 @@ def dust(nu, tau, nu0, beta, T):
     float
         Dust SED in MJy/sr.
     """
-    h = 6.62607015e-34  # J Hz−1
-    k_B = 1.380649e-23  # J K-1
+    # h = 6.62607015e-34  # J Hz−1
+    # k_B = 1.380649e-23  # J K-1
 
-    nu = np.array(nu)
-    nu0 = np.array(nu0)
+    # nu = np.array(nu)
+    # nu0 = np.array(nu0)
 
     # gamma = h / (k_B * T)
     # sed = np.array(
@@ -52,10 +54,13 @@ def dust(nu, tau, nu0, beta, T):
     #     * (np.exp(gamma * nu0 * 1e6) - 1)
     #     / (np.exp(gamma * nu * 1e6) - 1)
     # )
-    sed = tau * planck(nu, np.array(T)) * (nu / nu0) ** beta
-    print(f"sed shape: {sed.shape}")
+    # sed = tau * planck(nu, np.array(T)) * (nu / nu0) ** beta
+    # print(f"sed shape: {sed.shape}")
 
-    sed[sed == np.inf] = (
-        0  # forcing to ignore the 0 frequency which is calculated to be inf
-    )
-    return sed
+    gamma = const.h / (const.k_B * T_d)
+    s_d = (A_d * (nu/nu_0)**(beta_d+1) * (np.exp(gamma * nu_0) - 1)/(np.exp(gamma * nu) - 1)).to(u.MJy/u.sr, equivalencies=u.brightness_temperature(nu_0))
+    
+    # sed[sed == np.inf] = (
+    #     0  # forcing to ignore the 0 frequency which is calculated to be inf
+    # )
+    return s_d
