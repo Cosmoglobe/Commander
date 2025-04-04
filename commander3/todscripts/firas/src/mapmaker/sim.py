@@ -130,37 +130,26 @@ if __name__ == "__main__":
     #     ifg[i] = dust_map_downgraded_mjy[i] * ifg[i]
 
     # dft matrix
-    # W = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
-    # W[0, :] = 1
-    # W[:, 0] = 1
-    # omega = np.exp(-2j * np.pi / IFG_SIZE)
-    # for xi in range(1, IFG_SIZE):
-    #     for nui in range(1, SPEC_SIZE):
-    #         W[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    # W = W / np.sqrt(IFG_SIZE)
+    IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    IW[0, :] = 1
+    IW[:, 0] = 1
+    omega = np.exp(-2j * np.pi / IFG_SIZE)
+    for xi in range(1, IFG_SIZE):
+        for nui in range(1, SPEC_SIZE):
+            IW[xi, nui] = omega ** (-(xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    IW = IW / np.sqrt(IFG_SIZE)
 
-    F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
-    IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
-
-    # unit vector hammering method
-    for i in range(IFG_SIZE):
-        x = np.zeros(IFG_SIZE)
-        x[i] = 1
-        y = np.fft.rfft(x, n = IFG_SIZE)
-        print(f"y: {y.shape}")
-        F[:, i] = y
+    # IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
     
-    for i in range(SPEC_SIZE):
-        x = np.zeros(SPEC_SIZE)
-        x[i] = 1
-        y = np.fft.irfft(x, n = IFG_SIZE)
-        print(f"y: {y.shape}")
-        IF[:, i] = y
+    # for i in range(SPEC_SIZE):
+    #     x = np.zeros(SPEC_SIZE)
+    #     x[i] = 1
+    #     y = np.fft.irfft(x, n = IFG_SIZE)
+    #     print(f"y: {y.shape}")
+    #     IF[:, i] = y
 
-    print(f"F: {F}")
     # ifg = np.dot(F, spec_complex.T).T
-    print(f"shapes: {F.shape} and {spec.shape}")
-    ifg = np.dot(IF, spec.T).T
+    ifg = np.dot(IW, spec.T).T
     print(f"ifg shape: {ifg.shape}")
 
     # add phase to ifg

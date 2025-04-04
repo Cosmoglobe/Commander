@@ -60,39 +60,27 @@ if __name__ == "__main__":
     d = np.load("tests/ifgs.npz")['ifg']
     # find where nans are in d
     # print(f"d: {d}")
-    N = np.identity(IFG_SIZE) # as we are doing this per pixel, this should be npoints x npoints
-    # P = np.zeros((IFG_SIZE, SPEC_SIZE))
-    # for xi in range(IFG_SIZE):
-    #     for nui in range(SPEC_SIZE):
-    #         P[xi, nui] = dnu * np.cos(2 * np.pi * frequencies_icm[nui] * (x[xi] - 1.22)) # for SS
+    N = np.identity(SPEC_SIZE) # as we are doing this per pixel, this should be npoints x npoints
 
     # alternatively for making the discrete fourier transform matrix apparently it should be done like this: https://en.wikipedia.org/wiki/DFT_matrix
-    # W = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
-    # W[0, :] = 1
-    # W[:, 0] = 1
-    # omega = np.exp(-2j * np.pi / IFG_SIZE)
-    # for xi in range(1, IFG_SIZE):
-    #     for nui in range(1, SPEC_SIZE):
-    #         W[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    # W = W / np.sqrt(IFG_SIZE)
+    W = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
+    W[0, :] = 1
+    W[:, 0] = 1
+    omega = np.exp(-2j * np.pi / IFG_SIZE)
+    for xi in range(1, IFG_SIZE):
+        for nui in range(1, SPEC_SIZE):
+            W[nui, xi] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    W = W / np.sqrt(IFG_SIZE)
 
-    F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
-    IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    # F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
 
-    # unit vector hammering method
-    for i in range(IFG_SIZE):
-        x = np.zeros(IFG_SIZE)
-        x[i] = 1
-        y = np.fft.rfft(x, n = IFG_SIZE)
-        print(f"y: {y.shape}")
-        F[:, i] = y
-    
-    for i in range(SPEC_SIZE):
-        x = np.zeros(SPEC_SIZE)
-        x[i] = 1
-        y = np.fft.irfft(x, n = IFG_SIZE)
-        print(f"y: {y.shape}")
-        IF[:, i] = y
+    # # unit vector hammering method
+    # for i in range(IFG_SIZE):
+    #     x = np.zeros(IFG_SIZE)
+    #     x[i] = 1
+    #     y = np.fft.rfft(x, n = IFG_SIZE)
+    #     print(f"y: {y.shape}")
+    #     F[:, i] = y
 
     # m = np.zeros((d.shape[0], SPEC_SIZE))
     # for pixel in range(d.shape[0]):
@@ -101,7 +89,7 @@ if __name__ == "__main__":
     #     m[pixel] = solve_m(F, N, d[pixel])
 
     # the simplest way to get maps from d = Pm is using P-1d = m
-    m = np.dot(F, d.T).T
+    m = np.dot(W, d.T).T
     print(f"m: {m.shape}")
         
     # save map output
