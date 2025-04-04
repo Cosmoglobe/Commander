@@ -133,10 +133,10 @@ if __name__ == "__main__":
     IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
     IW[0, :] = 1
     IW[:, 0] = 1
-    omega = np.exp(-2j * np.pi / IFG_SIZE)
+    omega = np.exp(2j * np.pi / IFG_SIZE)
     for xi in range(1, IFG_SIZE):
         for nui in range(1, SPEC_SIZE):
-            IW[xi, nui] = omega ** (-(xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+            IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
     IW = IW / np.sqrt(IFG_SIZE)
 
     # IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)

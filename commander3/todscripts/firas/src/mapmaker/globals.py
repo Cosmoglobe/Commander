@@ -1,5 +1,5 @@
 IFG_SIZE = 512
-SPEC_SIZE = 257
+SPEC_SIZE = 512
 
 PNG = True
 FITS = False

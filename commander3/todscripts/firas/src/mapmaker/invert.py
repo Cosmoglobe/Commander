@@ -39,12 +39,23 @@ def solve_m(P, N, d):
     # print(f"P_T_N_inv: {P_T_N_inv.shape}")
     P_T_N_inv_P = np.dot(P_T_N_inv, P)
     # print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
+
+    # print all sizes
+    print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
+    print(f"P_T_N_inv: {P_T_N_inv.shape}")
+    print(f"N_inv: {N_inv.shape}")
+    print(f"P: {P.shape}")
+    print(f"d: {d.shape}")
     
     assert np.allclose(P_T_N_inv_P, np.transpose(P_T_N_inv_P)), "P_T_N_inv_P is not symmetric"
 
     P_T_N_inv_d = np.dot(P_T_N_inv, d)
     P_T_N_inv_P_inv = np.linalg.inv(P_T_N_inv_P)
     m = np.dot(P_T_N_inv_P_inv, P_T_N_inv_d)
+
+    # print the rest of the shapes
+    print(f"P_T_N_inv_d: {P_T_N_inv_d.shape}")
+    print(f"m: {m.shape}")
     return m
 
 if __name__ == "__main__":
@@ -60,7 +71,7 @@ if __name__ == "__main__":
     d = np.load("tests/ifgs.npz")['ifg']
     # find where nans are in d
     # print(f"d: {d}")
-    N = np.identity(SPEC_SIZE) # as we are doing this per pixel, this should be npoints x npoints
+    N = np.identity(IFG_SIZE) # as we are doing this per pixel, this should be npoints x npoints
 
     # alternatively for making the discrete fourier transform matrix apparently it should be done like this: https://en.wikipedia.org/wiki/DFT_matrix
     W = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
@@ -72,6 +83,15 @@ if __name__ == "__main__":
             W[nui, xi] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
     W = W / np.sqrt(IFG_SIZE)
 
+    IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    IW[0, :] = 1
+    IW[:, 0] = 1
+    omega = np.exp(2j * np.pi / IFG_SIZE)
+    for xi in range(1, IFG_SIZE):
+        for nui in range(1, SPEC_SIZE):
+            IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    IW = IW / np.sqrt(IFG_SIZE)
+
     # F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
 
     # # unit vector hammering method
@@ -82,15 +102,14 @@ if __name__ == "__main__":
     #     print(f"y: {y.shape}")
     #     F[:, i] = y
 
-    # m = np.zeros((d.shape[0], SPEC_SIZE))
-    # for pixel in range(d.shape[0]):
-    #     print(f"solving for pixel {pixel}")
-    #     # m[pixel] = solve_m(P, N, d[pixel])
-    #     m[pixel] = solve_m(F, N, d[pixel])
+    m = np.zeros((d.shape[0], SPEC_SIZE))
+    for pixel in range(d.shape[0]):
+        print(f"solving for pixel {pixel}")
+        # m[pixel] = solve_m(P, N, d[pixel])
+        m[pixel] = solve_m(IW, N, d[pixel])
 
     # the simplest way to get maps from d = Pm is using P-1d = m
-    m = np.dot(W, d.T).T
-    print(f"m: {m.shape}")
+    # m = np.dot(W, d.T).T
         
     # save map output
     np.savez("tests/m_invert.npz", m=m)
