@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     # add phase to ifg
     # ifg = ifg * np.exp(1j * np.pi * (x_cm - 1.22))
-    ifg = np.roll(ifg, 360, axis=1)
+    # ifg = np.roll(ifg, 360, axis=1)
 
     # check for nans
     print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")

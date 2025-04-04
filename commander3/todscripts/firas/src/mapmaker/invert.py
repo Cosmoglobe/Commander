@@ -76,15 +76,23 @@ if __name__ == "__main__":
     #         W[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
     # W = W / np.sqrt(IFG_SIZE)
 
-    F = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
+    IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
 
     # unit vector hammering method
+    for i in range(IFG_SIZE):
+        x = np.zeros(IFG_SIZE)
+        x[i] = 1
+        y = np.fft.rfft(x, n = IFG_SIZE)
+        print(f"y: {y.shape}")
+        F[:, i] = y
+    
     for i in range(SPEC_SIZE):
         x = np.zeros(SPEC_SIZE)
         x[i] = 1
-        y = np.fft.fft(x, n = IFG_SIZE)
+        y = np.fft.irfft(x, n = IFG_SIZE)
         print(f"y: {y.shape}")
-        F[:, i] = y
+        IF[:, i] = y
 
     # m = np.zeros((d.shape[0], SPEC_SIZE))
     # for pixel in range(d.shape[0]):
@@ -93,8 +101,8 @@ if __name__ == "__main__":
     #     m[pixel] = solve_m(F, N, d[pixel])
 
     # the simplest way to get maps from d = Pm is using P-1d = m
-    P_inv = np.linalg.inv(F)
-    m = np.dot(P_inv, d)
+    m = np.dot(F, d.T).T
+    print(f"m: {m.shape}")
         
     # save map output
     np.savez("tests/m_invert.npz", m=m)

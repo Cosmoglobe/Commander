@@ -48,17 +48,17 @@ def plot_m_invert(frequencies):
 
     for i in range(m.shape[1]):
         # print(f"Plotting m for frequency {i}")
-        hp.mollview(m[:, i].real, title=f"{int(frequencies[i]):04d} GHz", min=0, max=200, xsize=2000)
-        plt.savefig(f"tests/m_invert/{int(frequencies[i]):04d}.png")
+        hp.mollview(m[:, i].real, title=f"{int(frequencies.value[i]):04d} GHz", min=0, max=200, xsize=2000)
+        plt.savefig(f"tests/m_invert/{int(frequencies.value[i]):04d}.png")
         plt.close()
         plt.clf()
 
 if __name__ == "__main__":
     # open ifgs
-    ifg = np.load("tests/ifgs.npz")['ifg']
-    plot_ifgs(ifg)
+    # ifg = np.load("tests/ifgs.npz")['ifg']
+    # plot_ifgs(ifg)
 
-    # dust_map_downgraded_mjy, frequencies, signal = sim_dust()
+    dust_map_downgraded_mjy, frequencies, signal = sim_dust()
 
     # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
-    # plot_m_invert(frequencies)
+    plot_m_invert(frequencies)
