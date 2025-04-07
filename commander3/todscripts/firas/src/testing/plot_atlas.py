@@ -385,7 +385,7 @@ fig, axes = plt.subplots(ncols=2)
 for i in range(3):
     axes[0].plot(nu, spec_mbb[i][offset:offset+NUM_FREQ])
     axes[1].plot(ifg_mbb[i]/ifg_mbb[i].max())
-plt.show()
+plt.savefig('ifg_powlaw_atlas.png', bbox_inches='tight')
 
 fig, axes = plt.subplots(sharex=True, nrows=2, sharey=True, figsize=(12, 6))
 spec_th = np.zeros((5, len(spec_out[0])), dtype=complex)
