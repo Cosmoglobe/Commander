@@ -329,6 +329,7 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     !if (iter == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
       ! Create zodi atlas
       ! if (.false.) then
@@ -405,10 +406,12 @@ program commander
       end select
 
       ! Sample stationary components
-      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-      if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-      if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
-
+      !if (first_zodi) then
+         if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
+         if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
+         if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+      !end if
+      
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -479,6 +482,9 @@ program commander
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
+
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 

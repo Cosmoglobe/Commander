@@ -212,7 +212,6 @@ contains
        allocate(scales(n_scales))
 
 
-
        ! Calculate initial chisq
        chisq_old = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
@@ -268,6 +267,8 @@ contains
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
+       !call output_FITS_sample(cpar, 2000+l, .true.)
+       
        if (cpar%myid_chain .eq. 0) then
          write(*,*) "|    Proposal chisq is ", chisq_prop
          write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
@@ -386,17 +387,26 @@ contains
        if (cpar%myid == 0) then
          write(*,*) '| MH sampling group ', l
        end if
-
+       
+       ! Perform one CG sample for init chisq; this should in principle not
+       ! be necessary, and indicates that the Gibbs loop may be broken before this
+       call store_buffer() ! Avoid burn-in penalty
+       if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+          if (cpar%myid == 0) write(*,*) '| No groups to sample'
+       else
+          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l))
+       end if
+       
        ! Calculate initial chisq
        chisq_old = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+            & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+       if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
        if (cpar%myid_chain .eq. 0) then
          write(*,*) '| Old chisq is ', chisq_old
        end if
-
-       call store_buffer()
 
        negative = .false.
        c => compList
@@ -437,7 +447,7 @@ contains
 
           end select
           
-          !go to next compedt
+          !go to next component
           c => c%nextComp()
        end do
 
@@ -456,6 +466,8 @@ contains
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
+       !call output_FITS_sample(cpar, 1000+100*l+m, .true.)
+       
        if (cpar%myid_chain .eq. 0) then
          write(*,*) "|    Proposal chisq is ", chisq_prop
          write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old

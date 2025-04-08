@@ -39,7 +39,8 @@ contains
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1))  ! (mu, rms, nhit, min, max)
     allocate(delta(0:npix_hist-1))  ! (mu, rms, nhit, min, max)
-    allocate(hist(0:NBIN_HIST,0:npix_hist-1))  
+    allocate(hist(0:NBIN_HIST,0:npix_hist-1))
+    tod%pixhist       = 0.
     tod%pixhist(4,:)  =  1e30
     tod%pixhist(5,:)  = -1e30
     do i = 1, tod%nscan
@@ -80,6 +81,7 @@ contains
                 if (iand(sd%flag(k,j), tod%flag0) .ne. 0) cycle
                 call ring2nest(tod%nside, sd%pix(k,j,1), pix)
                 pix = pix / q
+                if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
                 bin = int((sd%tod(k,j)-tod%pixhist(4,pix))/delta(pix))+1
                 if (bin(1) < 1 .or. bin(1) > NBIN_HIST) bin(1) = 0 ! Sample out of range; discarded
                 hist(bin(1),pix) = hist(bin(1),pix) + 1
@@ -96,6 +98,8 @@ contains
        ! Check histogram quality, and refine limits
        refine = .false.
        do i = 0, npix_hist-1
+          if (delta(i) == 0.) cycle ! 0 or 1 samples in current pixel
+          
           nhit = sum(hist(1:NBIN_HIST,i))
           if (nhit == 0) cycle
           ! Cut bins from low side
@@ -140,12 +144,22 @@ contains
           
           ! Update bin width
           delta(i) = (tod%pixhist(5,i)-tod%pixhist(4,i))/NBIN_HIST
-          if (delta(i) == 0.) write(*,*) "zero", i, tod%pixhist(4,i), tod%pixhist(5,i), hist(:,i)
+          !if (delta(i) == 0.) write(*,*) "zero", i, tod%pixhist(4,i), tod%pixhist(5,i), hist(:,i)
        end do
     end do
 
     ! Define cuts and output some histograms to disk
     do i = 0, npix_hist-1
+       if (delta(i) == 0.) then
+          ! 0 or 1 samples in current pixel; accept anything
+          tod%pixhist(1,i) = 0.
+          tod%pixhist(2,i) = 0.
+          tod%pixhist(3,i) = 0.
+          tod%pixhist(4,i) = -1e30
+          tod%pixhist(5,i) =  1e30
+          cycle
+       end if
+       
        nhit = sum(hist(1:NBIN_HIST,i))
        if (nhit == 0) cycle
        do j = 1, NBIN_HIST
@@ -160,7 +174,6 @@ contains
        tod%pixhist(3,i) = nhit
        tod%pixhist(4,i) = mu - 4.0*sigma
        tod%pixhist(5,i) = mu + 4.0*sigma
-
 
        if (tod%myid == 0 .and. mod(i,1000)==0) then
           call int2string(i,pix_text)

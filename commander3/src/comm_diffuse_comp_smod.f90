@@ -150,9 +150,9 @@ contains
           elsewhere
              self%x%alm(i,:) = 0.d0
           end where
-          if (l > 500) then
-             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
-          end if
+!!$          if (l > 500) then
+!!$             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+!!$          end if
        end do
     end if
     

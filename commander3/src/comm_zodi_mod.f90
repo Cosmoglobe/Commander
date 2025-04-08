@@ -112,7 +112,7 @@ contains
           end if
        end do
     else if (trim(zodi_model%phasefunc_type) == 'Wright') then
-       zodi_model%n_general_params = 2
+       zodi_model%n_phase_params   = 2
        zodi_model%n_general_params = 2 + zodi_model%n_phase_params
        allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) = -0.3133d0 ! p20
@@ -186,7 +186,7 @@ contains
       do i = 1, zodi_model%n_comps
          ind  = zodi_model%comps(i)%start_ind
          npar = zodi_model%comps(i)%npar
-         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape paraneters affect all band
+         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape parameters affect all bands
          do j = 1, numband
             zodi_model%theta2band(ind+npar+j-1) = j   ! Emissivity only affect band j
             zodi_model%theta2band(ind+npar+numband+j-1) = j ! The same for albedo
@@ -895,7 +895,11 @@ contains
         al     = zodi_model%comps(i)%c%albedo(band)
         em     = zodi_model%comps(i)%c%emissivity(band)
         !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
+        if (trim(zodi_model%phasefunc_type) == 'Wright') then
+           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) +             em * s_therm(:,i-first+1))
+        else
+           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
+        end if
      end do
    end subroutine get_s_zodi
 
@@ -1285,6 +1289,7 @@ contains
       logical(lgt) :: scattering, thermal, use_lowres
       real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
+      real(dp), allocatable, dimension(:) :: b_nu
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
       s_zodi_scat = 0.
@@ -1389,19 +1394,34 @@ contains
 !!$            end do
             
             if (scattering) then
-               comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               if (trim(model%phasefunc_type) == 'Wright') then
+                  allocate(b_nu(size(tod%bp(0)%p%nu)))
+                  call get_blackbody_emission(tod%bp(0)%p%nu, 5772.d0, b_nu) 
+                  comp_LOS(k)%F_sol = tsum(tod%bp(0)%p%nu, tod%bp(0)%p%tau*b_nu)/comp_LOS(k)%R**2
+                  deallocate(b_nu)
+               else
+                  comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               end if
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
                call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
             end if
 
             ! Get dust grain temperature, and compute splined blackbody emission
-            comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
+               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+            else
+               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+            end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
             ! Compute predicted signal; store computed signal in cache
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
             if (scattering) then
-               s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               if (trim(model%phasefunc_type) == 'Wright') then
+                  s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               else
+                  s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               end if
                if (use_lowres) then
                   tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
                else
@@ -1409,7 +1429,11 @@ contains
                end if
             end if
             if (thermal) then
-               s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+               if (trim(model%phasefunc_type) == 'Wright') then
+                  s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+               else
+                  s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+               end if
                if (use_lowres) then
                   tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
                else
@@ -1784,10 +1808,10 @@ contains
 
          deallocate(s_scat_, s_therm_, s_zodi)
       end if
-      return
+      !return
       
       ! Add solar component by Healpix map lookup
-      if (trim(exclude_static) /= 'solar') then
+      if (associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
          do h = 1, tod%nhorn 
             do i = 1, ntod
                j    = tod%scans(scan)%d(det)%pix_sol(i,h)
@@ -1798,6 +1822,7 @@ contains
             end do
          end do
       end if
+      return
 
       ! Add Moon component by Healpix map lookup
       if (trim(exclude_static) /= 'moon') then

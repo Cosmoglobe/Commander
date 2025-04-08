@@ -3024,6 +3024,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      cpar%zs_general_params(:, 3) = DEFAULT_PRIOR_UPPER_LIMIT
 
      do i = 1, size(cpar%zodi_param_labels%general)
+        if (trim(cpar%zs_phasefunc) /= 'Hong' .and. i > 2) cycle
           call get_parameter_from_hash(htbl, 'ZODI_'//trim(adjustl(cpar%zodi_param_labels%general(i))), par_string=value_string)! par_dp=cpar%zs_general_params(i))
           call get_tokens(value_string, ',', value_and_priors_str, num=n_tokens) 
           if (.not. (n_tokens == 4 .or. n_tokens == 1)) stop "zodi parameter must have 1, or 4 tokens (value,) or (value,prior_lower_limit,prior_upper_limit,prior_type) [no spaces]"
