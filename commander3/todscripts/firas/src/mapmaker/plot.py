@@ -40,6 +40,7 @@ def plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal):
 
 def plot_m_invert(frequencies):
     # clean previous maps
+    print("Cleaning previous maps")
     for file in os.listdir("tests/m_invert"):
         os.remove(f"tests/m_invert/{file}")
 

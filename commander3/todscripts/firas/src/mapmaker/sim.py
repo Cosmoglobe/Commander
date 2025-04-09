@@ -56,7 +56,7 @@ def sim_dust():
     signal = np.nan_to_num(signal)
     
     plt.plot(frequencies, signal)
-    plt.show()
+    # plt.show()
 
     return dust_map_downgraded_mjy, frequencies, signal
 

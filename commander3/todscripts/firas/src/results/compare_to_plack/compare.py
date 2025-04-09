@@ -32,6 +32,6 @@ for i, band in enumerate(bands):
         print(firas_filename + " is None")
         continue
     diff = planck_map - firas_map
-    hp.mollview(diff, title="Planck - FIRAS " + band + " GHz", nest=False, xsize=2000, norm='hist')#, min=-1, max=1)
+    hp.mollview(diff, title="Planck - FIRAS " + band + " GHz", nest=False, xsize=2000, min=-20, max=20)
     hp.graticule()
     plt.savefig(save_path + band + ".png")

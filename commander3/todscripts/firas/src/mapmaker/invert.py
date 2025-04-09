@@ -10,7 +10,7 @@ import numpy as np
 from globals import IFG_SIZE, SPEC_SIZE
 
 
-def solve_m(P, N, d):
+def solve_m(P, P_T, N, d):
     """
     Solve for m per pixel directly by following the equation:
     m = (P^T N^-1 P)^-1 P^T N^-1 d
@@ -19,6 +19,8 @@ def solve_m(P, N, d):
     ----------
     P : np.ndarray
         The matrix P.
+    P_T : np.ndarray
+        The hermitian conjugate of the matrix P, because we are dealing with complex numbers. In the case of simply using a Fourier transform for the P operator, this is the inverse of the Fourier transform.
     N : np.ndarray
         The matrix N.
     d : np.ndarray
@@ -29,23 +31,17 @@ def solve_m(P, N, d):
     np.ndarray
         The matrix m.
     """
-    # print(f"P: {P.shape}")
-    # print(f"N: {N.shape}")
     N_inv = N # because for now we are assuming N = I
-    # print(f"N_inv: {N_inv.shape}")
-    P_T = np.transpose(P)
-    # print(f"P_T: {P_T.shape}")
+    # P_T = np.transpose(P)
     P_T_N_inv = np.dot(P_T, N_inv)
-    # print(f"P_T_N_inv: {P_T_N_inv.shape}")
     P_T_N_inv_P = np.dot(P_T_N_inv, P)
-    # print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
 
     # print all sizes
-    print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
-    print(f"P_T_N_inv: {P_T_N_inv.shape}")
-    print(f"N_inv: {N_inv.shape}")
-    print(f"P: {P.shape}")
-    print(f"d: {d.shape}")
+    # print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
+    # print(f"P_T_N_inv: {P_T_N_inv.shape}")
+    # print(f"N_inv: {N_inv.shape}")
+    # print(f"P: {P.shape}")
+    # print(f"d: {d.shape}")
     
     assert np.allclose(P_T_N_inv_P, np.transpose(P_T_N_inv_P)), "P_T_N_inv_P is not symmetric"
 
@@ -54,8 +50,8 @@ def solve_m(P, N, d):
     m = np.dot(P_T_N_inv_P_inv, P_T_N_inv_d)
 
     # print the rest of the shapes
-    print(f"P_T_N_inv_d: {P_T_N_inv_d.shape}")
-    print(f"m: {m.shape}")
+    # print(f"P_T_N_inv_d: {P_T_N_inv_d.shape}")
+    # print(f"m: {m.shape}")
     return m
 
 if __name__ == "__main__":
@@ -106,7 +102,7 @@ if __name__ == "__main__":
     for pixel in range(d.shape[0]):
         print(f"solving for pixel {pixel}")
         # m[pixel] = solve_m(P, N, d[pixel])
-        m[pixel] = solve_m(IW, N, d[pixel])
+        m[pixel] = solve_m(IW, W, N, d[pixel])
 
     # the simplest way to get maps from d = Pm is using P-1d = m
     # m = np.dot(W, d.T).T
