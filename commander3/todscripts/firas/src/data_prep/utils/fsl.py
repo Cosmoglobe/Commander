@@ -8,13 +8,14 @@ For a given channel and scan mode, FSL reads in coadded IFGs and transforms them
 voltage spectra. It then applies the calibration model to both the spectra and the
 spectrum variances. FSL calibrates both sky and calibration data
 '''
-import os
 import datetime
+import os
 
-import numpy as np
-from astropy.io import fits
-import scipy.interpolate
 import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy.interpolate
+from astropy.io import fits
 
 # import firas_pipeline.frd as frd
 # import firas_pipeline.fut as fut
@@ -24,7 +25,6 @@ import h5py
 # import firas_pipeline.dataio2 as dataio 
 # import firas_pipeline.data_types as dt
                 
-import matplotlib.pyplot as plt
 
 fcc_varflag = -9999.0
 trlim = 1.0e-10
@@ -1359,7 +1359,7 @@ def compute_constants(chan: int, scan_mode: int, config, fft_len: int = None, ny
 
     #Fill in the frequency arrays
     freq = np.arange(fcc_spec_length)*df
-    afreq = np.arange(fcc_spec_length)*dw
+    # afreq = np.arange(fcc_spec_length)*dw
 
     #Calculate the phase shift required to make the high frequency short fast
     #spectra compatable with the high frequency long fast spectra

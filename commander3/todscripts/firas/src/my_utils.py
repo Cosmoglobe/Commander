@@ -1,3 +1,4 @@
+import constants
 import healpy as hp
 import numpy as np
 from numba import prange
@@ -5,6 +6,85 @@ from scipy import interpolate
 from scipy.interpolate import RegularGridInterpolator
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
+
+
+def ghz_to_icm(ghz):
+    """
+    Converts GHz to inverse cm.
+    """
+    return ghz * 1e9 / constants.c
+
+def generate_frequencies(channel, mode, nfreq=None):
+    """
+    Generates an array with the frequencies in GHz for the given channel and mode.
+
+    Parameters
+    ----------
+    channel : str
+        The channel to generate frequencies for. Can be "lh", "ll", "rh", or "rl".
+    mode : str or int
+        The mode to generate frequencies for. Can be "ss" or "lf" for str or 0 or 3 for int.
+
+    Returns
+    -------
+    f_ghz : np.ndarray
+        An array with the frequencies in GHz.
+    """
+
+    # check if channel is str or int
+    if isinstance(channel, int):
+        channel_str = list(constants.channels.keys())[list(constants.channels.values()).index(channel)]
+    elif isinstance(channel, str):
+        channel_str = channel
+    else:
+        raise ValueError("Channel must be either int or str")
+
+    nu0 = {"ss": 68.020812, "lf": 23.807283}
+    dnu = {"ss": 13.604162, "lf": 3.4010405}
+    nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
+
+    if not (mode == "lf" and (channel_str == "lh" or channel_str == "rh")):
+        if nfreq == None:
+            nfreq = nf[f"{channel_str}_{mode}"]
+        f_ghz = np.linspace(
+            nu0[mode],
+            nu0[mode] + dnu[mode] * (nfreq - 1),
+            nfreq,
+        )
+    else:
+        raise ValueError("Invalid channel and mode combination")
+
+    return f_ghz
+
+def get_afreq(mtm_speed, channel, nfreq=None):
+    """
+    Returns the afreq for the given channel and mode.
+
+    Parameters
+    ----------
+    mtm_speed : int
+        The speed of the mirror transport mechanism. Can be 0 or 1.
+    channel : int or str
+        The channel to get the afreq for. Can be 0, 1, 2, or 3 for int or "lh", "ll", "rh", "rl" for str.
+    """
+
+    # check if channel is str or int
+    if isinstance(channel, int):
+        channel_str = list(constants.channels.keys())[list(constants.channels.values()).index(channel)]
+    elif isinstance(channel, str):
+        channel_str = channel
+    else:
+        raise ValueError("Channel must be either int or str")
+
+    speed = constants.speed[mtm_speed]
+    
+    mode_str = "ss" if mtm_speed == 0 else "lf"
+    f_ghz = generate_frequencies(channel_str, mode_str, nfreq)
+    f_icm = ghz_to_icm(f_ghz)
+
+    afreq = speed * f_icm
+
+    return afreq
 
 
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
@@ -211,6 +291,8 @@ def ifg_to_spec(
     ifg = clean_ifg(ifg, mtm_length, mtm_speed, gain, sweeps, apod)
 
     spec = np.fft.rfft(ifg)
+    # freqs = np.fft.rfftfreq(constants.ifg_size, 1 / (fnyq_hz * 2)) TODO: find out why this doesn't work
+    # print(freqs * 1e-9)
 
     # print("spec after rfft:", spec)
 
@@ -227,9 +309,12 @@ def ifg_to_spec(
     spec = spec / etf
     spec = spec / spec_norm
 
-    spec_len = len(ifg[0]) // 2 + 1
-    dw = 2.0 * np.pi * fnyq_hz / spec_len
-    afreq = np.arange(spec_len) * dw
+    # spec_len = len(ifg[0]) // 2 + 1
+    # dw = 2.0 * np.pi * fnyq_hz / spec_len
+    # afreq = np.arange(spec_len) * dw
+
+    afreq = get_afreq(mtm_speed, channel)
+    print(afreq)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,
@@ -364,9 +449,10 @@ def spec_to_ifg(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    spec_len = len(spec_r[0])
-    dw = 2.0 * np.pi * fnyq_hz / spec_len
-    afreq = np.arange(spec_len) * dw
+    # spec_len = len(spec_r[0])
+    # dw = 2.0 * np.pi * fnyq_hz / spec_len
+    # afreq = np.arange(spec_len) * dw
+    afreq = get_afreq(mtm_speed, channel)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,

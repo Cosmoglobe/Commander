@@ -1,4 +1,5 @@
 import os
+import sys
 
 import h5py
 import matplotlib.pyplot as plt
@@ -8,6 +9,11 @@ import utils.fut as fut
 from astropy import constants as c
 from astropy import units as u
 from astropy.modeling.models import BlackBody
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import my_utils as mu
 
 fac_icm_ghz = 29.9792458  # convert cm-1 to GHz
 fac_watt_to_mjy = 1.0e15 / fac_icm_ghz
@@ -58,7 +64,9 @@ def compute_constants(
 
     # Fill in the frequency arrays
     freq = np.arange(fcc_spec_length) * df
-    afreq = np.arange(fcc_spec_length) * dw
+    # afreq = np.arange(fcc_spec_length) * dw
+    afreq = mu.get_afreq(mtm_speed, channel)
+    print(f"afreq: {afreq.shape}")
 
     # Calculate the phase shift required to make the high frequency short fast
     # spectra compatable with the high frequency long fast spectra
@@ -265,7 +273,12 @@ if __name__ == "__main__":
     apodl_all = frd.apodl()
     # Creates array with post-detector (?) electronics transfer function, derived from the analytical expressions of the analog and digital filters. Shape is 288x512. 288 is the number of records (what does that mean?) and 512 is the number of data points in one IFG. Found in page 40 of Explanatory Suplement.
     # Where did Duncan get the actual values for the functions?
-    etfl_all = frd.elex_transfcnl(samprate, 512)
+
+    # Setting the channel number to be 3 (LL)
+    channel = 3
+    nu = mu.generate_frequencies(channel, mode="ss")
+
+    etfl_all = frd.elex_transfcnl(samprate, nu.size)
     print(f"shape of etfl_all: {etfl_all.shape}")
     plt.plot(etfl_all)
     plt.savefig("../../output/etfl_all.png")
@@ -299,8 +312,6 @@ if __name__ == "__main__":
 
     # Get science data from the left long channel
     data_ll = data_orig["fdq_sdf_ll"]
-    # Setting the channel number to be 3 (LL)
-    channel = 3
     # print(f"Keys of data_ll: {data_ll.keys()}")
 
     # Picking an IFG to investigate
@@ -536,18 +547,16 @@ if __name__ == "__main__":
     plt.savefig("../../output/spectra.png")
     plt.clf()
 
-    plt.figure()
-    plt.plot(
-        spec_apod.real / spec_norm / etf[: len(spec_apod)] * fac_erg_to_mjy,
-        label="ETF-removed",
-    )
-    plt.legend(loc="best")
-    plt.xlabel(r"Frequency [$\mathrm{cm^{-1}}$]")
-    plt.ylabel("Spectra")
-    plt.title("Spectra with ETF removed")
-    plt.savefig("../../output/spectra_etf_removed.png")
-
-    nu = np.arange(1, 513) * dGHz
+    # plt.figure()
+    # plt.plot(
+    #     spec_apod.real / spec_norm / etf[: len(spec_apod)] * fac_erg_to_mjy,
+    #     label="ETF-removed",
+    # )
+    # plt.legend(loc="best")
+    # plt.xlabel(r"Frequency [$\mathrm{cm^{-1}}$]")
+    # plt.ylabel("Spectra")
+    # plt.title("Spectra with ETF removed")
+    # plt.savefig("../../output/spectra_etf_removed.png")
 
     bb_sky = BlackBody(temperature=T_obs * u.K)
     bb_ical = BlackBody(temperature=T_ical * u.K)
@@ -594,16 +603,16 @@ if __name__ == "__main__":
     # What is B?
     # # B = 1 + 2*np.pi*(nu.value*tau.value)*1j
     B = 1 + consts["afreq"] * tau.value * 1j
-    plt.plot(np.arange(1, 513), B.imag)
-    plt.ylabel("Imaginary part of B")
-    plt.title("Imaginary part of B")
-    plt.savefig("../../output/B_imag.png")
-    plt.clf()
+    # plt.plot(np.arange(1, 513), B.imag)
+    # plt.ylabel("Imaginary part of B")
+    # plt.title("Imaginary part of B")
+    # plt.savefig("../../output/B_imag.png")
+    # plt.clf()
     # # B[0] = 0
 
     # # print(B)
 
-    nu_in_icm = (nu / c.c).to("cm-1")
+    nu_in_icm = mu.ghz_to_icm(nu)
 
     b_x = np.zeros(512, dtype="complex")
     # Not used anywhere else.
@@ -612,10 +621,15 @@ if __name__ == "__main__":
     # Why is the ICAL intensity multiplied by 0.95?
     I_tot = I_sky - I_ical * 0.95
     # Why do we have to cut the ETF to the length of the spectra?
+    # print shapes
+    print("I_tot:",I_tot.shape)
+    print("etf:", etf[:512].shape)
+    print("denom:", np.array(denom).shape)
+    print("B:", B.shape)
     I_tot = I_tot * etf[:512] * denom / B
     for i in range(len(x)):
         b_x[i] = np.sum(
-            I_tot * np.cos(2 * np.pi * (x[i].value - x0) * nu_in_icm.value)
+            I_tot * np.cos(2 * np.pi * (x[i].value - x0) * nu_in_icm)
         ).value
     # # b_x = np.fft.irfft(
 

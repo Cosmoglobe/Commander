@@ -11,12 +11,12 @@ import healpy as hp
 import numpy as np
 from astropy.io import fits
 from globals import PROCESSED_DATA_PATH
-from utils.config import gen_nyquistl
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
+from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
