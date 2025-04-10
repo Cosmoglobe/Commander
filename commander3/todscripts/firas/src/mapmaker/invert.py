@@ -65,6 +65,8 @@ if __name__ == "__main__":
     ) # cm
 
     d = np.load("tests/ifgs.npz")['ifg']
+    d = np.roll(d, -360, axis=1)
+
     # find where nans are in d
     # print(f"d: {d}")
     N = np.identity(IFG_SIZE) # as we are doing this per pixel, this should be npoints x npoints

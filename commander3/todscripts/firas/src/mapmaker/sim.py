@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     # add phase to ifg
     # ifg = ifg * np.exp(1j * np.pi * (x_cm - 1.22))
-    # ifg = np.roll(ifg, 360, axis=1)
+    ifg = np.roll(ifg, 360, axis=1)
 
     # plot real and imaginary parts of ifg
     fig, ax = plt.subplots(2, 1)
