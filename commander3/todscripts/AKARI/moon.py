@@ -19,7 +19,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 start = time.time()
 
-def moonag(mjd):
+def moonag(mjd, DEG2RAD):
     """
     月の計算に必要な各角度・パラメータを算出する。
     (mjd: Modified Julian Date)
@@ -231,7 +231,7 @@ def moonth(ta, a, b, c, d, e, g, j, l, m, n, v, w):
     return mx, my, mz
 
 
-def at_moon(mjd):
+def at_moon(mjd, EARTH_RADIUS, MOON_RADIUS, DEG2RAD, TWO_PI):
     """
     月の位置を計算する関数
       入力:
@@ -242,7 +242,7 @@ def at_moon(mjd):
          phase: 月の位相 [radian] (0:new, pi:full)
          dist: 月までの距離 [km]
     """
-    ta, a, b, c, d, e, g, j, l, m, n, v, w = moonag(mjd)
+    ta, a, b, c, d, e, g, j, l, m, n, v, w = moonag(mjd, DEG2RAD)
     mx, my, mz = moonth(ta, a, b, c, d, e, g, j, l, m, n, v, w)
     
     # 以下の計算は元コードの通り
@@ -270,7 +270,7 @@ def at_moon(mjd):
     return pos, size, phase, dist
 
 
-def precession_rm(mjd):
+def precession_rm(mjd, MJD_J2000, DEG2RAD):
     """
     与えられたMJDの歳差補正回転行列を計算する
     """
@@ -308,21 +308,21 @@ def mat_vec_mult(mat, vec):
     return [sum(mat[i][j] * vec[j] for j in range(3)) for i in range(3)]
 
 
-def at_precess_rm(mjd0, mjd):
+def at_precess_rm(mjd0, mjd, MJD_J2000, DEG2RAD):
     """
     MJD0 から MJD への歳差補正回転行列を計算する
     """
-    rm_a_to_2000 = precession_rm(mjd0)
-    rm_b_to_2000 = precession_rm(mjd)
+    rm_a_to_2000 = precession_rm(mjd0, MJD_J2000, DEG2RAD)
+    rm_b_to_2000 = precession_rm(mjd, MJD_J2000, DEG2RAD)
     rm_2000_to_b = [[rm_b_to_2000[j][i] for j in range(3)] for i in range(3)]  # 転置で逆行列
     return mat_mult(rm_a_to_2000, rm_2000_to_b)
 
 
-def at_precession(mjd0, x0, mjd):
+def at_precession(mjd0, x0, mjd, MJD_J2000, DEG2RAD):
     """
     MJD0 の時点での赤道座標 x0 を、MJD における赤道座標に変換する
     """
-    rm = at_precess_rm(mjd0, mjd)
+    rm = at_precess_rm(mjd0, mjd, MJD_J2000, DEG2RAD)
     return mat_vec_mult(rm, x0)
 
 
@@ -450,7 +450,7 @@ def at_mj_date(mjd):
     return f"MJD={mjd}"
 
 
-def at_set_element(filename, mjd0, kchk):
+def at_set_element(filename, mjd0, kchk, atElement, DEG2RAD, EARTH_RADIUS, TWO_PI):
 # ----------------------------
 # at_set_element: 軌道要素ファイルからatElementを設定する関数  
 # filename: 軌道要素ファイルのパス  
@@ -610,7 +610,7 @@ def at_set_element(filename, mjd0, kchk):
     return atElement
 
 
-def at_vect_to_pol(x):
+def at_vect_to_pol(x, TWO_PI):
     """
     直交座標系ベクトル x を極座標系に変換する。
     入力:
@@ -703,7 +703,7 @@ def angle(coord1, coord2):
 # それ以外で、21.5°以上34°未満の場合、さらに以下のいずれかの条件で False に
 # 三つのパターンのうち、少なくとも一つで「距離」計算の結果が設定された上下限の間に入る。
 # もしくは、moon_avoid が 23.0°～26.5°の範囲にあり、かつ算出された位相角が 27°～63°の間にある。
-def calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, sample, image_param):
+def calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, sample, image_param, DEG2RAD, RAD2DEG):
     test = []
     # 角度の定義
     moon20 = 21.5 * DEG2RAD
@@ -785,14 +785,13 @@ def save_to_file(file_path, month, suffix, direc, data):  # ファイルの保�
 
 
 
-
-
-month = "2006_04"
-dir_path = f"/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}/FIS_LW*"
-file_path = glob.glob(dir_path)
-filename = "/mn/stornext/d23/cmbco/cg/AKARI/code/FISimage/diffuse/trunk/src/atFunctions/2.8/data/orbit.data"
-for files in file_path:
-    data = fitsio.FITS(files)
+def make_moon(files):
+    # month = "2006_04"
+    # dir_path = f"/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/{month}/FIS_SW*"
+    # file_path = glob.glob(dir_path)
+    filename = "/mn/stornext/d23/cmbco/cg/AKARI/code/FISimage/diffuse/trunk/src/atFunctions/2.8/data/orbit.data"
+    file_path = os.path.join(path_add, files)
+    data = fitsio.FITS(file_path)
     d = data[1].read()
     dd = data[7].read()
     aftime = d['AFTIME']
@@ -836,15 +835,15 @@ for files in file_path:
         mjd.append(result_mjd)
 
     for j in range(len(ra)):
-        pos, size, phase, dist = at_moon(mjd[j])
+        pos, size, phase, dist = at_moon(mjd[j], EARTH_RADIUS, MOON_RADIUS, DEG2RAD, TWO_PI)
 
         mjd0 = t0  # 元の MJD
         mjd1 = mjd[j]  # 変換先の MJD
         x0 = pos  # サンプルベクトル
-        x1 = at_precession(mjd0, x0, mjd1)
+        x1 = at_precession(mjd0, x0, mjd1, MJD_J2000, DEG2RAD)
 
         kchk = 0
-        atElement = at_set_element(filename, mjd0, kchk)
+        atElement = at_set_element(filename, mjd0, kchk, atElement, DEG2RAD, EARTH_RADIUS, TWO_PI)
 
         sat_xyz = at_sat_pos(mjd[j], atElement)
 
@@ -852,7 +851,7 @@ for files in file_path:
         for i in range(len(sat_xyz)):
             moonpos.append((-1 * sat_xyz[i]) + pos[i])
 
-        moon = at_vect_to_pol(moonpos)
+        moon = at_vect_to_pol(moonpos, TWO_PI)
         moon_eq = [moon['lon'], moon['lat']]
 
         m_ecliptic = equatorial2ecliptic(MJD_J2000, moon_eq)  # 実際の月の位置
@@ -861,24 +860,27 @@ for files in file_path:
         ecliptic = equatorial2ecliptic(MJD_J2000, radec)
         moon_avoid = angle(ecliptic, m_ecliptic)
 
-        flag_test = calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, j, image_param[j])
+        flag_test = calculate_obsflag(moon_avoid, m_ecliptic, ecliptic, obsflag, j, image_param[j], DEG2RAD, RAD2DEG)
         obsflag[j] = flag_test[0]
 
     lune = []
-    for i in range(75):  # LWの場合は75, SWの場合は100に変更する
+    for i in range(100):  # If LW: 75, elif SW: 100
         lune.append(obsflag)  # 0: survey/maneuver 1:pointing
-    save_to_file(files, month, 'near_moon', 'flag', lune)
+    save_to_file(file_path, month, 'near_moon', 'flag', lune)
 
     end = time.time()
     time_diff = end - start
-    print(time_diff)
+    print(time_diff, files)
 
+if __name__ == '__main__':
+    directory = '/mn/stornext/d23/cmbco/cg/AKARI/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2/'
+    months = ['2006_04', '2006_05','2006_06','2006_07','2006_08','2006_09','2006_10','2006_11','2006_12','2007_01','2007_02','2007_03','2007_04','2007_05','2007_06','2007_07','2007_08']
+    for month in months:
+        path_add = str(directory) + str(month)
+        files = [f for f in os.listdir(path_add) if f.startswith('FIS_SW_')]  # LW or SW
 
-
-
-
-
-
+        with Pool(processes=100) as pool:
+            pool.map(make_moon, files)
 
 
 
