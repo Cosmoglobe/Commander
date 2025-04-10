@@ -61,5 +61,5 @@ if __name__ == "__main__":
 
     dust_map_downgraded_mjy, frequencies, signal = sim_dust()
 
-    # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
+    # # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
     plot_m_invert(frequencies)
