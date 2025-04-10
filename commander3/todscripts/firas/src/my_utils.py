@@ -66,6 +66,8 @@ def get_afreq(mtm_speed, channel, nfreq=None):
         The speed of the mirror transport mechanism. Can be 0 or 1.
     channel : int or str
         The channel to get the afreq for. Can be 0, 1, 2, or 3 for int or "lh", "ll", "rh", "rl" for str.
+    nfreq : int, optional
+        The number of frequencies to generate. If None, defaults to the size of the channel.
     """
 
     # check if channel is str or int
@@ -313,7 +315,7 @@ def ifg_to_spec(
     # dw = 2.0 * np.pi * fnyq_hz / spec_len
     # afreq = np.arange(spec_len) * dw
 
-    afreq = get_afreq(mtm_speed, channel)
+    afreq = get_afreq(mtm_speed, channel, 257)
     print(afreq)
 
     S0 = calculate_dc_response(
@@ -533,28 +535,58 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
 
 
 def filter_junk(
-    stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
+    stat_word_1, stat_word_5, stat_word_9, stat_word_12, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
 ):
-    filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217)
-    filter2 = stat_word_9 != 15414
+    """
+    Sets the filters needed to remove junk data according to flags.
+
+    ---
+    Parameters
+
+    stat_word_1 : np.ndarray
+
+    stat_word_5 : np.ndarray
+
+    stat_word_9 : np.ndarray
+
+    stat_word_12 : np.ndarray
+
+    stat_word_13 : np.ndarray
+
+    stat_word_16 : np.ndarray
+
+    lvdt_stat_a : np.ndarray
+
+    lvdt_stat_b : np.ndarray
+    ---
+    Returns
+    full_filter : np.ndarray
+    """
+
+    filter0 = stat_word_1 != 46 
+    filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217) #& (stat_word_5 != 19457) # makes the hole!
+    filter2 = (stat_word_9 != 15414) & (stat_word_9 != 45110)
+    filter25 = stat_word_12 != 19121 
     filter3 = (
         (stat_word_13 != 17345)
         & (stat_word_13 != 17393)
-        & (stat_word_13 != 19585)  # makes the hole?
+        & (stat_word_13 != 19585) 
         & (stat_word_13 != 25201)
         & (stat_word_13 != 25585)
         & (stat_word_13 != 26945)
+        & (stat_word_13 != 27009)
         & (stat_word_13 != 27073)
         & (stat_word_13 != 27649)
         & (stat_word_13 != 27697)
-        # & (stat_word_13 != 27777)
+        # & (stat_word_13 != 27777) # makes the hole!
+        & (stat_word_13 != 27825)
         & (stat_word_13 != 60465)
         & (stat_word_13 != 60593)
     )
     filter4 = (
         (stat_word_16 != 0)
-        & (stat_word_16 != 14372)  # makes the hole?
-        & (stat_word_16 != 35584)  # makes the hole?
+        & (stat_word_16 != 14372)  
+        & (stat_word_16 != 35584) 
         & (stat_word_16 != 36032)
         & (stat_word_16 != 52992)
         & (stat_word_16 != 53056)
@@ -603,7 +635,9 @@ def filter_junk(
         & (lvdt_stat_b != 121)
     )
 
-    return filter1 & filter2 & filter3 & filter4 & filter5 & filter6
+    full_filter = filter0 & filter1 & filter2 & filter25 &  filter3 & filter4 & filter5 & filter6
+
+    return full_filter
 
 
 def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):

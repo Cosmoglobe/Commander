@@ -1,19 +1,22 @@
+import globals as g
 import numpy as np
 from astropy.io import fits
 
 # modes = {"ss": 0, "lf": 3}
 # modes = {"ss": 0}
-mode = "lf"
+mode = "ss"
 
 data = np.load(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npz",
+    g.PROCESSED_DATA_PATH,
     allow_pickle=True,
 )
 
 # print(data.files)
 variables_names = [
-    "stat_word_16",
+    "stat_word_1",
+    "stat_word_12",
     "stat_word_13",
+    "stat_word_16",
     "stat_word_5",
     "stat_word_9",
     "lvdt_stat_a",
@@ -29,9 +32,17 @@ pix_gal = data[f"pix_gal_{mode}"]
 for name in variables_names:
     variables[name] = data[f"{name}_{mode}"][mask[pix_gal] == 1]
 
-print(f"stat_word_16: {variables["stat_word_16"][76700]}")
-print(f"stat_word_13: {variables["stat_word_13"][83700]}")
-print(f"stat_word_5: {variables["stat_word_5"][83600]}")
-print(f"stat_word_9: {variables["stat_word_9"][1067]}")
-print(f"lvdt_stat_a: {variables["lvdt_stat_a"][51491]}")
-print(f"lvdt_stat_b: {variables["lvdt_stat_b"][51491]}")
+# print shapes
+for name in variables_names:
+    print(f"{name}: {variables[name].shape}")
+
+ind = 1223
+
+print(f"stat_word_1: {variables["stat_word_1"][ind]}")
+print(f"stat_word_12: {variables["stat_word_12"][ind]}")
+print(f"stat_word_13: {variables["stat_word_13"][ind]}")
+print(f"stat_word_16: {variables["stat_word_16"][ind]}")
+print(f"stat_word_5: {variables["stat_word_5"][ind]}")
+print(f"stat_word_9: {variables["stat_word_9"][ind]}")
+print(f"lvdt_stat_a: {variables["lvdt_stat_a"][ind]}")
+print(f"lvdt_stat_b: {variables["lvdt_stat_b"][ind]}")

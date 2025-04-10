@@ -1,7 +1,15 @@
+import os
+import sys
+
+import globals as g
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
 from utils.config import gen_nyquistl
 
 # m = hp.fitsfunc.read_map(
@@ -17,21 +25,21 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
 # comparing otf with ical emiss ---------------
-fits_data_ss = fits.open(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
-)
+# fits_data_ss = fits.open(
+#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
+# )
 
-otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
-otf_ss = otf_ss[np.abs(otf_ss) > 0]
+# otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
+# otf_ss = otf_ss[np.abs(otf_ss) > 0]
 
-ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
-ical_emiss_ss = ical_emiss_ss[np.abs(ical_emiss_ss) > 0]
+# ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
+# ical_emiss_ss = ical_emiss_ss[np.abs(ical_emiss_ss) > 0]
 
 # plt.plot(ical_emiss_ss / otf_ss)
 # plt.show()
 
 data = np.load(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npz",
+    g.PROCESSED_DATA_PATH,
     allow_pickle=True,
 )
 

@@ -10,7 +10,7 @@ import h5py
 import healpy as hp
 import numpy as np
 from astropy.io import fits
-from globals import PROCESSED_DATA_PATH
+from globals import OFFSET, PROCESSED_DATA_PATH
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -20,7 +20,6 @@ from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
-OFFSET = 0.5
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
@@ -60,8 +59,10 @@ variable_names = [
     "b_bol_assem_lh",
     "a_bol_assem_ll",
     "b_bol_assem_ll",
+    "stat_word_1",
     "stat_word_5",
     "stat_word_9",
+    "stat_word_12",
     "stat_word_13",
     "stat_word_16",
     "lvdt_stat_a",
@@ -122,8 +123,10 @@ for channel in channels.keys():
 
 # filter out bad data (selected "by eye")
 filter_bad = filter_junk(
+    variables["stat_word_1"],
     variables["stat_word_5"],
     variables["stat_word_9"],
+    variables["stat_word_12"],
     variables["stat_word_13"],
     variables["stat_word_16"],
     variables["lvdt_stat_a"],
@@ -167,85 +170,85 @@ variables["bolometer_ll"] = (
     variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
 ) / 2
 
-start = "89-326-1130"
-start_dt = datetime.strptime(start, "%y-%j-%H%M")
+# start = "89-326-1130"
+# start_dt = datetime.strptime(start, "%y-%j-%H%M")
 
 # ends of each mission period
-mission_periods = np.array(
-    [
-        "89-327-2359",
-        "89-343-0151",
-        "90-019-0204",
-        "90-080-0114",
-        "90-128-2359",
-        "90-139-1534",
-        "90-193-1849",
-        "90-207-1103",
-        "90-208-1119",
-        "90-220-0459",
-        "90-264-0936",
-    ]
-)
+# mission_periods = np.array(
+#     [
+#         "89-327-2359",
+#         "89-343-0151",
+#         "90-019-0204",
+#         "90-080-0114",
+#         "90-128-2359",
+#         "90-139-1534",
+#         "90-193-1849",
+#         "90-207-1103",
+#         "90-208-1119",
+#         "90-220-0459",
+#         "90-264-0936",
+#     ]
+# )
 
-ical_temps = [
-    [2.789],
-    [2.758, 2.763, 2.789],
-    [2.759, 2.771],
-    [2.758, 2.771],
-    [2.758, 2.771],
-    [2.758, 2.770],
-    [2.7455, 2.755, 2.768],
-    [2.746, 2.757, 2.769],
-    [2.757, 2.769],
-    [2.758, 2.770],
-    [2.758, 2.771],
-]
+# ical_temps = [
+#     [2.789],
+#     [2.758, 2.763, 2.789],
+#     [2.759, 2.771],
+#     [2.758, 2.771],
+#     [2.758, 2.771],
+#     [2.758, 2.770],
+#     [2.7455, 2.755, 2.768],
+#     [2.746, 2.757, 2.769],
+#     [2.757, 2.769],
+#     [2.758, 2.770],
+#     [2.758, 2.771],
+# ]
 
-missions_periods_dt = [
-    datetime.strptime(period, "%y-%j-%H%M") for period in mission_periods
-]
+# missions_periods_dt = [
+#     datetime.strptime(period, "%y-%j-%H%M") for period in mission_periods
+# ]
 
-period_filter = np.empty((len(mission_periods), len(variables["gmt"])), dtype=bool)
-period_filter[0] = (variables["gmt"] < missions_periods_dt[0]) & (
-    variables["gmt"] > start_dt
-)
+# period_filter = np.empty((len(mission_periods), len(variables["gmt"])), dtype=bool)
+# period_filter[0] = (variables["gmt"] < missions_periods_dt[0]) & (
+#     variables["gmt"] > start_dt
+# )
 
-for i in range(len(missions_periods_dt) - 1):
-    period_filter[i + 1] = (variables["gmt"] < missions_periods_dt[i + 1]) & (
-        variables["gmt"] > missions_periods_dt[i]
-    )
+# for i in range(len(missions_periods_dt) - 1):
+#     period_filter[i + 1] = (variables["gmt"] < missions_periods_dt[i + 1]) & (
+#         variables["gmt"] > missions_periods_dt[i]
+#     )
 
 # get filter for ical temps to be +- 2 mK for each mission period depending on the ical temps
-ical_periods = np.empty((len(mission_periods), len(variables["ical"])), dtype=bool)
+# ical_periods = np.empty((len(mission_periods), len(variables["ical"])), dtype=bool)
 
-for i in range(len(ical_temps)):
-    for j in range(len(ical_temps[i])):
-        if j == 0:
-            ical_periods[i] = (ical_temps[i][j] - 0.002 < variables["ical"]) & (
-                variables["ical"] < ical_temps[i][j] + 0.002
-            )
-        else:
-            ical_periods[i] = ical_periods[i] | (
-                ical_temps[i][j] - 0.002 < variables["ical"]
-            ) & (variables["ical"] < ical_temps[i][j] + 0.002)
+# for i in range(len(ical_temps)):
+#     for j in range(len(ical_temps[i])):
+#         if j == 0:
+#             ical_periods[i] = (ical_temps[i][j] - 0.002 < variables["ical"]) & (
+#                 variables["ical"] < ical_temps[i][j] + 0.002
+#             )
+#         else:
+#             ical_periods[i] = ical_periods[i] | (
+#                 ical_temps[i][j] - 0.002 < variables["ical"]
+#             ) & (variables["ical"] < ical_temps[i][j] + 0.002)
 
 # full ical temp and mission filter has to be with and between the two
-ical_filter = (
-    (ical_periods[0] & period_filter[0])
-    | (ical_periods[1] & period_filter[1])
-    | (ical_periods[2] & period_filter[2])
-    | (ical_periods[3] & period_filter[3])
-    | (ical_periods[4] & period_filter[4])
-    | (ical_periods[5] & period_filter[5])
-    | (ical_periods[6] & period_filter[6])
-    | (ical_periods[7] & period_filter[7])
-    | (ical_periods[8] & period_filter[8])
-    | (ical_periods[9] & period_filter[9])
-    | (ical_periods[10] & period_filter[10])
-)
+# ical_filter = (
+#     (ical_periods[0] & period_filter[0])
+#     | (ical_periods[1] & period_filter[1])
+#     | (ical_periods[2] & period_filter[2])
+#     | (ical_periods[3] & period_filter[3])
+#     | (ical_periods[4] & period_filter[4])
+#     | (ical_periods[5] & period_filter[5])
+#     | (ical_periods[6] & period_filter[6])
+#     | (ical_periods[7] & period_filter[7])
+#     | (ical_periods[8] & period_filter[8])
+#     | (ical_periods[9] & period_filter[9])
+#     | (ical_periods[10] & period_filter[10])
+# )
 
-for variable in variables.keys():
-    variables[variable] = variables[variable][ical_filter]
+# for variable in variables.keys():
+#     variables[variable] = variables[variable][ical_filter]
 
 # filtering the data based on the mode used
 short_filter = variables["mtm_length"] == 0
@@ -608,31 +611,31 @@ extra_variables = [
     "power_b_status_b",
     "ref_hrn_temp_a",
     "ref_hrn_temp_b",
-    # "dwell_stat_a",
-    # "dwell_stat_b",
-    # "engstat_spares_1",
-    # "engstat_spares_2",
-    # "engstat_spares_3",
-    # "engstat_spares_4",
-    # "engstat_spares_5",
-    # "engstat_spares_6",
-    # "engstat_spares_7",
-    # "engstat_spares_8",
-    # "engstat_spares_9",
-    # "engstat_spares_10",
-    # "engstat_spares2_1",
-    # "engstat_spares2_2",
-    # "engstat_spares2_3",
-    # "engstat_spares2_4",
-    # "engstat_spares2_5",
-    # "micro_stat_bus_1",
-    # "micro_stat_bus_2",
-    # "micro_stat_bus_3",
-    # "micro_stat_bus_4",
+    "dwell_stat_a",
+    "dwell_stat_b",
+    "engstat_spares_1",
+    "engstat_spares_2",
+    "engstat_spares_3",
+    "engstat_spares_4",
+    "engstat_spares_5",
+    "engstat_spares_6",
+    "engstat_spares_7",
+    "engstat_spares_8",
+    "engstat_spares_9",
+    "engstat_spares_10",
+    "engstat_spares2_1",
+    "engstat_spares2_2",
+    "engstat_spares2_3",
+    "engstat_spares2_4",
+    "engstat_spares2_5",
+    "micro_stat_bus_1",
+    "micro_stat_bus_2",
+    "micro_stat_bus_3",
+    "micro_stat_bus_4",
     "ext_cal_temp_a",
     "ext_cal_temp_b",
-    # "grt_addr_a",
-    # "grt_addr_b",
+    "grt_addr_a",
+    "grt_addr_b",
     "hot_spot_cmd_a",
     "hot_spot_cmd_b",
     "int_ref_temp_a",
@@ -651,7 +654,7 @@ for variable in extra_variables:
         # variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
         #     ical_filter
         # ]
-        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][ical_filter]
+        # variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][ical_filter]
         variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][
             filters[mode]
         ]
