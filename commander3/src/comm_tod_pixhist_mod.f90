@@ -68,7 +68,7 @@ contains
     iter   = 0
     do while (refine)
        iter = iter + 1
-       if (tod%myid == 0) write(*,*) 'Pixhist, band = ', trim(tod%freq), ', iter = ', iter
+       !if (tod%myid == 0) write(*,*) 'Pixhist, band = ', trim(tod%freq), ', iter = ', iter
     
        ! Build histogram
        hist = 0.
@@ -190,6 +190,7 @@ contains
           write(58,*) tod%pixhist(5,i), 2.*maxval(P)
        end if
     end do
+    if (tod%myid == 0) write(*,fmt='(a,a,a,i6)') '    --> Pixhist, band = ', trim(tod%freq), ', numiter = ', iter
 
     deallocate(delta, hist)
     

@@ -1535,11 +1535,12 @@ contains
     
   end subroutine compute_symmetric_beam
 
-  subroutine initPtsrcPrecond(comm, samp_group)
+  subroutine initPtsrcPrecond(comm, samp_group, verbosity)
     implicit none
     integer(i4b),                intent(in) :: comm, samp_group
+    integer(i4b),                intent(in), optional :: verbosity
 
-    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2
+    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2, verbosity_
     real(dp)     :: t1, t2, t3, t4, dist, tot, tot2
     logical(lgt) :: skip
     real(dp), allocatable, dimension(:) :: buff
@@ -1550,7 +1551,8 @@ contains
     
     if (.not. apply_ptsrc_precond) return
     if (npre(samp_group) == 0) return
-
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Make a list of active components, and check that at least one wants update
     nactive = 0
     skip    = .true.
@@ -1586,7 +1588,7 @@ contains
              pt1 => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
                 i1 = i1+1   
                 i2 = pt1%myid
                 do c2 = 1, nactive
@@ -1602,7 +1604,7 @@ contains
              end do
           end do
           call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
-          if (myid_pre == 0) write(*,*) 'Number of matrix elements = ', n
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'Number of matrix elements = ', n
           ! Allocate sparse matrix
           P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre(samp_group), n)
        end if
@@ -1614,7 +1616,7 @@ contains
              pt1  => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Computing A =', k1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity > 0) write(*,*) 'Computing A =', k1, pt1%nsrc
                 i1 = i1+1
 
                 i2 = 0
@@ -1683,7 +1685,7 @@ contains
 
           ! Construct matrix with sparsity pattern
           do i1 = 1, P_cr(samp_group)%invM_src(1,j)%M%ni
-             if (myid_pre == 0 .and. mod(i1,10000) == 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
+             if (myid_pre == 0 .and. mod(i1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
              c1 = 1
              k1 = i1
              do while (k1 > pc(c1)%p%nsrc)
@@ -1802,13 +1804,13 @@ contains
           end do
           ! Invert matrix to finalize preconditioner
           call wall_time(t3)
-          call P_cr(samp_group)%invM_src(1,j)%M%decomp()
+          call P_cr(samp_group)%invM_src(1,j)%M%decomp(verbosity)
           call wall_time(t4)
-          if (myid_pre == 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
        end if
     end do
     call wall_time(t2)
-    if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
+    if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
     
     do i = 1, nactive
        pc(i)%p%recompute_ptsrc_precond = .false.

@@ -50,7 +50,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
      type(byte_pointer), allocatable, dimension(:)     :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)     :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked samples
+     integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked sample
      type(byte_pointer), allocatable, dimension(:)     :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)     :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)   :: offset_range   ! Beginning and end tod index of every offset region
@@ -62,7 +62,17 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
-     logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
+     logical(lgt),       allocatable, dimension(:)      :: zodi_glitch_mask
+!     integer(i4b),       allocatable, dimension(:)    :: downsamp_pix_full
+!     real(sp),           allocatable, dimension(:)    :: downsamp_tod_full
+!     real(sp),           allocatable, dimension(:)    :: downsamp_sky_full
+!     real(sp),           allocatable, dimension(:)    :: downsamp_zodi_full
+!     real(sp),           allocatable, dimension(:, :) :: downsamp_scat_full
+!     real(sp),           allocatable, dimension(:, :) :: downsamp_therm_full
+!     real(sp),           allocatable, dimension(:, :) :: downsamp_point_full  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
+!     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres_full
+!     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres_full
+     
      integer(i4b),       allocatable, dimension(:)    :: downsamp_pix
      real(sp),           allocatable, dimension(:)    :: downsamp_tod
      real(sp),           allocatable, dimension(:)    :: downsamp_sky
@@ -70,7 +80,6 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:, :) :: downsamp_scat
      real(sp),           allocatable, dimension(:, :) :: downsamp_therm
      real(sp),           allocatable, dimension(:, :) :: downsamp_point  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
-
      real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
      real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
   end type comm_detscan
@@ -217,6 +226,7 @@ module comm_tod_mod
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
      real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
      real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
+     integer(i4b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
      real(sp),           allocatable, dimension(:,:)   :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
@@ -306,6 +316,7 @@ module comm_tod_mod
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
      procedure                           :: create_dynamic_mask
+     procedure                           :: report_dynamic_mask_stats
      procedure                           :: get_s_static
   end type comm_tod
   
@@ -3265,8 +3276,10 @@ contains
      ntot        = count(iand(flag,self%flag0) .eq. 0)
      nmax        = 1000
      gain        = self%scans(scan)%d(det)%gain
+     self%mask_dyn_stats(-1) = self%mask_dyn_stats(-1) + ntod
+     self%mask_dyn_stats( 0) = self%mask_dyn_stats( 0) + ntod - ntot ! Number of samples removed by base flagging
 
-     write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
+     !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
      
      ! Generate dynamic mask
      allocate(mask_dyn(ntod))
@@ -3296,7 +3309,8 @@ contains
               end if
            end if
         end do
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, pixhist      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, pixhist      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(1) = self%mask_dyn_stats(1) + ncut
      end if
 
      if (threshold(2) > 0) then
@@ -3310,7 +3324,8 @@ contains
               ncut        = ncut + 1
            end if
         end do
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(2) = self%mask_dyn_stats(2) + ncut
      end if
 
      ! Single sample outlier cut; potentially iterate in order to adjust the threshold rms
@@ -3360,7 +3375,8 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(cut)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(3) = self%mask_dyn_stats(3) + ncut
      end if
      
      if (threshold(4) > 0.) then
@@ -3387,7 +3403,8 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(4) = self%mask_dyn_stats(4) + ncut
      end if
 
      if (threshold(5) > 0.) then
@@ -3414,7 +3431,8 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(5) = self%mask_dyn_stats(5) + ncut
      end if
 
 !!$     open(58, file='var4.dat')
@@ -3447,7 +3465,8 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(6) = self%mask_dyn_stats(6) + ncut
      end if
 
      if (threshold(7) > 0.) then
@@ -3473,7 +3492,8 @@ contains
            flag(ntod)     = flag(ntod) + flag_dyn
            ncut           = ncut + 1
         end if
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(7) = self%mask_dyn_stats(7) + ncut
      end if
 
      if (threshold(8) > 0.) then
@@ -3497,7 +3517,8 @@ contains
            end if
         end do
         if (output_scan == self%scanid(scan)) close(58)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(8) = self%mask_dyn_stats(8) + ncut
      end if
 
      if (output_scan == self%scanid(scan)) then
@@ -3550,7 +3571,8 @@ contains
            end do
         end if
 
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(9) = self%mask_dyn_stats(9) + ncut
      end if
 
      if (output_scan == self%scanid(scan)) then
@@ -3604,7 +3626,7 @@ contains
      if (n > 0) then
         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
      end if
 
      if (count(iand(flag,self%flag0) .eq. 0) == 0) then
@@ -3615,6 +3637,34 @@ contains
      deallocate(bad, mask_dyn)
    end subroutine create_dynamic_mask
 
+   subroutine report_dynamic_mask_stats(self)
+     implicit none
+     class(comm_tod), intent(in) :: self
+
+     integer(i4b) :: ierr, ntod
+
+     ! Synchronize stats across cores
+     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER, MPI_SUM, self%comm, ierr)
+
+     if (self%myid == 0) then
+        ntod = self%mask_dyn_stats(-1)
+        write(*,fmt='(a,a,a)')      'TOD flagging stats for ', trim(self%freq), ' (      frac,          ntot     )'
+        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),sp)/ntod, ntod
+        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),sp)/ntod, self%mask_dyn_stats( 0)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),sp)/ntod, self%mask_dyn_stats( 1)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),sp)/ntod, self%mask_dyn_stats( 2)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),sp)/ntod, self%mask_dyn_stats( 3)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),sp)/ntod, self%mask_dyn_stats( 4)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),sp)/ntod, self%mask_dyn_stats( 5)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),sp)/ntod, self%mask_dyn_stats( 6)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),sp)/ntod, self%mask_dyn_stats( 7)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),sp)/ntod, self%mask_dyn_stats( 8)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),sp)/ntod, self%mask_dyn_stats( 9)
+        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),sp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
+     end if
+        
+   end subroutine report_dynamic_mask_stats
+   
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod
