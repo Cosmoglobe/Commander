@@ -454,7 +454,7 @@ contains
     character(len=512), intent(in), optional :: abscal_comps
     class(comm_map), pointer, intent(inout), optional    :: gainmap
 
-    integer(i4b) :: i, j, k, n
+    integer(i4b) :: i, j, k, n, nmaps
     logical(lgt) :: skip, mono_, calmap
     real(dp)     :: rms_EE2_prior
     class(comm_map),  pointer :: map_diff, cmbmap_band, gaindiff
@@ -462,12 +462,23 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     character(len=16),         dimension(100) :: abscal_labels
-    
+    class(comm_mapinfo), pointer              :: info_pol => null()
+
     mono_ = .true.; if (present(mono)) mono_=mono 
 
     ! Allocate map
-    map_out  => comm_map(data(band)%info)  
-    map_diff => comm_map(data(band)%info)
+    nmaps = data(band)%info%nmaps
+    if(nmaps > 3) nmaps = 3
+
+    if(data(band)%distribute_type == 'nplus2') then
+      info_pol => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, data(band)%info%pol, & 
+                &distribute_type=data(band)%info%distribute_type)
+      map_out  => comm_map(info_pol)
+      map_diff => comm_map(info_pol)
+    else
+      map_out  => comm_map(data(band)%info)  
+      map_diff => comm_map(data(band)%info)
+    end if
 
     if (present(cmbmap)) then
        cmbmap_band => comm_map(data(band)%info)
@@ -510,7 +521,7 @@ contains
           else
              alm     = c%getBand(band, alm_out=.true., det=det)
           end if
-          map_diff%alm = map_diff%alm + alm
+          map_diff%alm = map_diff%alm + alm(:,1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -522,7 +533,7 @@ contains
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -534,7 +545,7 @@ contains
        class is (comm_template_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then

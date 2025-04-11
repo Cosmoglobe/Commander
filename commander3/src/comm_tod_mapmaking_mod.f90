@@ -69,13 +69,13 @@ contains
        self%nout = tod%output_n_maps + tod%n_bp_prop
        !write(*,*) 'hei!', size(tod%bp_delta,2)
     else if(self%solve_nplus2) then
-       if(tod%nmaps /= 3) then
+       if(tod%nmaps /= tod%ndet + 3) then
          write(*,*) "Cannot use n+2 mapmaking for nmaps=", tod%nmaps
          stop
        end if
        self%ncol = tod%nmaps + tod%ndet - 1
        self%n_A  = 3*tod%ndet + 3
-       self%nout = tod%output_n_maps + tod%ndet-1
+       self%nout = tod%output_n_maps *(tod%ndet+2)
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
@@ -203,7 +203,7 @@ contains
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = tod%output_n_maps + 4*(det-1)
-       if(binmap%solve_nplus2) off = tod%output_n_maps *(det-1)
+       if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        do t = 1, size(pix,1)
           
@@ -249,7 +249,7 @@ contains
             do i = 1, nout
                 binmap%b_map(i,det+3,pix_) = binmap%b_map(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
              end do
-          else if(binmap%solve_nplus2) then
+          else if(binmap%solve_nplus2 .and. det > 1) then
             binmap%A_map(off+1,pix_) = binmap%A_map(off+1,pix_) + 1.d0 *inv_sigmasq
             binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
             binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
@@ -638,7 +638,7 @@ end subroutine bin_differential_TOD
 
   end subroutine finalize_binned_map_unpol
 
-  subroutine finalize_binned_map_nplus2(tod, binmap, rms, scale, chisq_S, mask, correct_transfer)
+  subroutine finalize_binned_map_nplus2(tod, binmap, rms, scale, mask, correct_transfer)
     !
     ! Routine to finalize the binned maps
     ! Makes one T map per detector but joint Q+U maps
@@ -649,7 +649,6 @@ end subroutine bin_differential_TOD
     ! binmap:
     ! rms:
     ! scale
-    ! chisq_S
     ! mask
     !
     implicit none
@@ -657,16 +656,15 @@ end subroutine bin_differential_TOD
     type(comm_binmap),                    intent(inout) :: binmap
     class(comm_map),                      intent(inout) :: rms
     real(dp),                             intent(in)    :: scale
-    real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
     real(sp),        dimension(0:),       intent(in),    optional :: mask
     logical(lgt),                         intent(in),    optional :: correct_transfer
 
     logical(lgt) :: correct_transfer_
-    integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
+    integer(i4b) :: i, j, k, p, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
     real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
-    real(dp), allocatable, dimension(:)     :: W, eta
+    real(dp), allocatable, dimension(:)     :: W, eta, b_copy
     real(dp), allocatable, dimension(:,:)   :: A_tot
 
     correct_transfer_ = .false.
@@ -681,7 +679,8 @@ end subroutine bin_differential_TOD
     ndet  = tod%ndet
     n_A   = size(binmap%sA_map%a,dim=1)
     ncol  = size(binmap%sb_map%a,dim=2)
-    ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
+
+    allocate(b_copy(ndet+2))
 
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
@@ -708,30 +707,27 @@ end subroutine bin_differential_TOD
 
       ! Solve for local map and rms
       allocate (A_inv(ndet+2, ndet+2), As_inv(ncol, ncol))
-      if (present(chisq_S)) chisq_S = 0.d0
       do i = 0, np0 - 1
          if (all(b_tot(1, :, i) == 0.d0)) then
-            if (.not. present(chisq_S)) then
                rms%map(i, :) = 0.d0
                do k = 1, nout
                   binmap%outmaps(k)%p%map(i, :) = 0.d0
                end do
-            end if
             cycle
          end if
 
          A_inv = 0.d0
          ! First detector T
-         A_inv(1, 1)       = A_tot(1, i)
+         A_inv(1, 1)       = A_tot(1,i)
          A_inv(1, ndet+1)  = A_tot(2,i)
          A_inv(1, ndet+2)  = A_tot(4,i)
          A_inv(ndet+1, 1)  = A_tot(2,i)
          A_inv(ndet+2, 1)  = A_tot(4,i)
          ! Other detectors T
          do j=2, ndet
-           A_inv(j,j)      = A_tot(7+3*(ndet-1), i)
-           A_inv(j,ndet+1) = A_tot(8+3*(ndet-1), i)
-           A_inv(j,ndet+2) = A_tot(9+3*(ndet-1), i)
+           A_inv(j,j)      = A_tot(7+3*(ndet-2), i)
+           A_inv(j,ndet+1) = A_tot(8+3*(ndet-2), i)
+           A_inv(j,ndet+2) = A_tot(9+3*(ndet-2), i)
            A_inv(ndet+1,j) = A_inv(j,ndet+1)           
            A_inv(ndet+2,j) = A_inv(j,ndet+2)
          end do
@@ -744,43 +740,45 @@ end subroutine bin_differential_TOD
 
          ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
-         do k = 1, tod%ndet+2
-            b_tot(k, 1:nmaps, i) = matmul(A_inv, b_tot(k, 1:nmaps, i))
+         do k = 1, tod%output_n_maps
+            b_copy(1)      = b_tot(k, 1, i)
+            b_copy(2:ndet) = b_tot(k, 4:ndet+2, i)
+            b_copy(ndet+1) = b_tot(k, 2, i)
+            b_copy(ndet+2) = b_tot(k, 3, i)
+            b_tot(k, 1:ndet+2, i) = matmul(A_inv, b_copy)
          end do
 
          ! Store map in correct units
-         do j = 1, nmaps
+         do p = 1, tod%ndet
             do k = 1, tod%output_n_maps
-               binmap%outmaps(k)%p%map(i, j) = b_tot(k, j, i)*scale
+                ! T component
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 1) = b_tot(k, p, i)*scale
+                ! Joint Q/U component copied into each map
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = b_tot(k, tod%ndet+1, i)
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = b_tot(k, tod%ndet+2, i)
+              
             end do
          end do
 
          ! Store N in correct units
-         if (rms%info%nmaps == 3) then
+         if (rms%info%nmaps == tod%ndet + 3) then
             ! Diagonal matrix; store RMS
-            do j = 1, nmaps
-               rms%map(i,j) = sqrt(A_inv(j, j))*scale
+            do j = 2, rms%info%nmaps
+               rms%map(i,j) = sqrt(A_inv(j-1, j-1))*scale
             end do
-         else if (rms%info%nmaps == 4) then           
-            ! Block-diagonal T + QU; store N
-            rms%map(i,1) = A_inv(1,1)*scale**2
-            rms%map(i,2) = A_inv(2,2)*scale**2
-            rms%map(i,3) = A_inv(3,3)*scale**2
-            rms%map(i,4) = A_inv(2,3)*scale**2
+         else
+            write(*,*) "Wrong RMS map size in finalize_binned_map_nplus2"
          end if
+         !else if (rms%info%nmaps == 4) then           
+            ! Block-diagonal T + QU; store N
+         !   rms%map(i,1) = A_inv(1,1)*scale**2
+         !   rms%map(i,2) = A_inv(2,2)*scale**2
+         !   rms%map(i,3) = A_inv(3,3)*scale**2
+         !   rms%map(i,4) = A_inv(2,3)*scale**2
+         !end if
       end do
 
-      if (present(chisq_S)) then
-         if (myid == 0) then
-            call mpi_reduce(mpi_in_place, chisq_S, size(chisq_S), &
-                 & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-         else
-            call mpi_reduce(chisq_S, chisq_S, size(chisq_S), &
-                 & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-         end if
-      end if
-
-      deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta)
+      deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta, b_copy)
 
 
   end subroutine finalize_binned_map_nplus2

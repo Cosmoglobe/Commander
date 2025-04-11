@@ -2903,13 +2903,19 @@ n_gibbs=1
     class(comm_ptsrc_comp), intent(inout)          :: self
     integer(i4b),           intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k, ka
+    integer(i4b) :: i, j, k, ka, nmaps
 
     if(self%precomputed_amps) return
 
+    nmaps = data(band)%info%nmaps
+    if(nmaps > 3) nmaps = 3
+
     if (present(band)) then
+       nmaps = data(band)%info%nmaps
+       if(nmaps > 3) nmaps = 3
+
        if (self%F_null(band)) return
-       do i = 1, data(band)%info%nmaps
+       do i = 1, nmaps
           do j = 0, data(band)%tod%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
@@ -2918,7 +2924,9 @@ n_gibbs=1
        do k = 1, numband
           if (self%F_null(k)) cycle
           ka = self%b2a(k)
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(band)%info%nmaps
+          if(nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,ka,j)%p%update(pol=i)
              end do

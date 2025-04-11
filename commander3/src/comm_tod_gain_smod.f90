@@ -186,7 +186,7 @@ contains
     if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
@@ -217,7 +217,7 @@ contains
        end do
 
        ! Perform poly-fit
-       allocate(xx(tod%nscan_tot), yy(tod%nscan_tot))
+       allocate(xx(tod%last_scan), yy(tod%last_scan))
        allocate(a(0:16))
        do j = 1, tod%ndet
           xx = 0.d0
@@ -1283,7 +1283,7 @@ contains
     integer*8       :: plan_fwd, plan_back
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
     ! Collect gains on all processors
     allocate(g(nscan_tot,ndet))
     g = 0.d0

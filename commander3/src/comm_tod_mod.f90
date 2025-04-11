@@ -172,6 +172,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      character(len=512) :: datadir
+     character(len=512) :: map_type                               ! type of mapmaker to use, {nplus2, binned, differential}
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
@@ -439,6 +440,7 @@ contains
     self%flag0         = cpar%ds_tod_flag(id_abs)
     self%abscal_comps  = cpar%ds_tod_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
+    self%map_type      = cpar%ds_tod_map_type(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
     self%output_zodi_comps = cpar%zs_output_comps
@@ -456,7 +458,7 @@ contains
     self%sol_elong_range = [0., 180.]
     self%sample_mono     = .false.
     self%nside_pixhist   = -1
-    
+ 
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
@@ -3666,7 +3668,7 @@ contains
           end if
        end do
        do k = 1, tod%nobs
-          do l = 1, tod%nmaps
+          do l = 1, nmaps
              map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
           end do
        end do

@@ -738,7 +738,7 @@ contains
        allocate(A(tod%ndet), b(tod%ndet))
        A = 0.d0; b = 0.d0
     else if (trim(mode) == 'deltaG') then
-       allocate(dipole_mod(tod%nscan_tot, tod%ndet))
+       allocate(dipole_mod(tod%last_scan, tod%ndet))
        dipole_mod = 0.d0
     else
        write(*,*) 'Unsupported sampling mode!'
@@ -1069,9 +1069,11 @@ contains
          end do
        end if
       !  Bandpass proposals
+      if(tod%n_bp_prop > 1) then
        do i = 1, nout-tod%output_n_maps
           d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
        end do
+      end if
 
     end do
 

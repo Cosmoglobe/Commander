@@ -166,6 +166,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_procmask_zodi
      character(len=2048), allocatable, dimension(:)   :: ds_tod_filelist
      character(len=2048), allocatable, dimension(:)   :: ds_tod_jumplist
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_map_type
      character(len=2048), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=2048), allocatable, dimension(:)   :: ds_tod_dets
      character(len=2048), allocatable, dimension(:)   :: ds_tod_bp_init
@@ -618,7 +619,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n))
+    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n), cpar%ds_tod_map_type(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
@@ -724,6 +725,8 @@ contains
                   & par_int=cpar%ds_tod_scanrange(i,2))
              call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_tot_numscan(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MAPMAKE_TYPE'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_map_type(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_flag(i))
              cpar%ds_tod_flag(i) = cpar%ds_tod_flag(i) + 2**30  ! Always Enable dynamic flagging in Commander

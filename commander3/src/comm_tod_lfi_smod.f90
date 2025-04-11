@@ -658,7 +658,7 @@ contains
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
-    character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
+    character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename, prefix_nplus2
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
@@ -672,20 +672,23 @@ contains
     call timer%start(TOD_ALLOC, self%band)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
+    sample_rel_bandpass   = .false. !.not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = .false. !      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
     
-    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
-    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+    sample_rel_bandpass   = .false. !sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = .false.!sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
     nside           = map_out%info%nside
+
     nmaps           = map_out%info%nmaps
+    if(nmaps > 3) nmaps = 3
+
     npix            = 12*nside**2
     self%output_n_maps = 3
     if (self%output_aux_maps > 0) then
@@ -696,6 +699,7 @@ contains
     call int2string(iter, samptext)
     call int2string(self%myid, myid_text)
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
+    prefix_nplus2 = trim(chaindir) // '/tod_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Distribute maps
@@ -764,15 +768,19 @@ contains
 !    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+    !if (.not. self%enable_tod_simulations) then
+    !   call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+    !   call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+    !   call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
-    end if
+    !end if
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., sample_rel_bandpass)
+    if(self%map_type == 'nplus2') then
+      call binmap%init(self, .true., .false., nplus2=.true.)
+    else if (self%map_type == 'binned') then 
+      call binmap%init(self, .true., sample_rel_bandpass)
+    end if
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        call timer%start(TOD_ALLOC, self%band)
        allocate(chisq_S(self%ndet,size(delta,3)))
@@ -812,7 +820,7 @@ contains
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -888,10 +896,21 @@ contains
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       map_out%map = binmap%outmaps(1)%p%map
+    else if(self%map_type == 'nplus2') then
+       call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d6)
+       !Q+U maps
+       map_out%map(:,2:3) = binmap%outmaps(1)%p%map(:,2:3)
+       do i = 1, self%ndet
+          ! I maps for each detector
+          map_out%map(:,i+3) = binmap%outmaps(i)%p%map(:,1)
+       end do
+       ! mean I map
+       map_out%map(:,1) = 0.d0
     else
        call finalize_binned_map(self, binmap, rms_out, 1.d6)
+       map_out%map = binmap%outmaps(1)%p%map
     end if
-    map_out%map = binmap%outmaps(1)%p%map
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -899,17 +918,37 @@ contains
        self%bp_delta = delta(:,:,1)
     end if
   
-    call timer%start(TOD_WRITE) 
-    ! Output maps to disk
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-    if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
+    call timer%start(TOD_WRITE)
+    if(self%map_type == 'binned') then 
+      ! Output maps to disk
+      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+      if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+      if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+      if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+      if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+      if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+      if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+      if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
+    else if(self%map_type == 'nplus2') then
+      do i = 1, self%ndet
+        call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_map"//trim(postfix))
+        ! copy rms map for each detector into outmaps(0)
+        binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i)
+        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,self%ndet+1:self%ndet+2)
+        call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_rms"//trim(postfix))
+        !call rms_out%writeFITS 
+        if(self%output_n_maps > 1) call binmap%outmaps(i+self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_res"//trim(postfix))
+        if(self%output_n_maps > 2) call binmap%outmaps(i+2*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_ncorr"//trim(postfix))
+        if(self%output_n_maps > 3) call binmap%outmaps(i+3*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_bpcorr"//trim(postfix))
+        if(self%output_n_maps > 4) call binmap%outmaps(i+4*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_orb"//trim(postfix))
+        if(self%output_n_maps > 5) call binmap%outmaps(i+5*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_sl"//trim(postfix))
+        if(self%output_n_maps > 6) call binmap%outmaps(i+6*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_zodi"//trim(postfix))
+        if(self%output_n_maps > 7) call binmap%outmaps(i+7*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_1hz"//trim(postfix))
+      end do
+    else
+      if (self%myid == 0) write(*,*) "Unknown map_type in LFI output:", self%map_type
+    end if
     call timer%stop(TOD_WRITE) 
 
     ! Clean up
@@ -1544,13 +1583,13 @@ contains
     real(dp), allocatable, dimension(:,:,:) :: R, R_tot
     real(dp), allocatable, dimension(:,:,:,:) :: ref_filter, adc_corr
 
-    allocate(amp(self%nscan_tot,self%ndet), amp_tot(self%nscan_tot,self%ndet))
+    allocate(amp(self%last_scan,self%ndet), amp_tot(self%last_scan,self%ndet))
     amp = 0.d0
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
     if (trim(self%level) == 'L1') then
-       allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
+       allocate(R(self%last_scan,self%ndet,size(self%R,3)),R_tot(self%last_scan,self%ndet,size(self%R,3)))
        R = 0.d0
        R(self%scanid,:,:) = self%R
        call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
