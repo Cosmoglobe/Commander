@@ -1248,6 +1248,7 @@ contains
 
 
    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, use_lowres_pointing, comp)
+     implicit none
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       !
       ! Parameters
@@ -1312,7 +1313,7 @@ contains
             use_lowres = .false.
          else
             if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
-            if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then
+            if (.not. allocated(tod%scans(scan)%downsamp_obs_time_full)) then
                print *, tod%zodiband, scan, "lowres obs_time not allocated"
                stop
             end if
@@ -1328,7 +1329,7 @@ contains
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
          if (use_lowres) then
-            obs_time = tod%scans(scan)%downsamp_obs_time(i)
+            obs_time = tod%scans(scan)%downsamp_obs_time_full(i)
          else
             obs_time = obs_time + dt_tod ! assumes a time continuous TOD
          end if

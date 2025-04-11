@@ -62,26 +62,28 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
-     logical(lgt),       allocatable, dimension(:)      :: zodi_glitch_mask
-!     integer(i4b),       allocatable, dimension(:)    :: downsamp_pix_full
-!     real(sp),           allocatable, dimension(:)    :: downsamp_tod_full
-!     real(sp),           allocatable, dimension(:)    :: downsamp_sky_full
-!     real(sp),           allocatable, dimension(:)    :: downsamp_zodi_full
-!     real(sp),           allocatable, dimension(:, :) :: downsamp_scat_full
-!     real(sp),           allocatable, dimension(:, :) :: downsamp_therm_full
-!     real(sp),           allocatable, dimension(:, :) :: downsamp_point_full  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
-!     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres_full
-!     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres_full
+     logical(lgt),       allocatable, dimension(:,:) :: zodi_glitch_mask
+     integer(i4b),       allocatable, dimension(:)   :: downsamp_pix_full
+     real(sp),           allocatable, dimension(:)   :: downsamp_tod_full
+     real(sp),           allocatable, dimension(:)   :: downsamp_sky_full
+     real(sp),           allocatable, dimension(:,:) :: downsamp_point_full  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
+     real(sp),           allocatable, dimension(:)   :: downsamp_obs_time_full ! downsampled_obs_time used for zodi sampling
+!!$     real(sp),           allocatable, dimension(:)    :: downsamp_zodi_full
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_scat_full
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_therm_full
+!!$     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres_full
+!!$     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres_full
      
-     integer(i4b),       allocatable, dimension(:)    :: downsamp_pix
-     real(sp),           allocatable, dimension(:)    :: downsamp_tod
-     real(sp),           allocatable, dimension(:)    :: downsamp_sky
-     real(sp),           allocatable, dimension(:)    :: downsamp_zodi
-     real(sp),           allocatable, dimension(:, :) :: downsamp_scat
-     real(sp),           allocatable, dimension(:, :) :: downsamp_therm
-     real(sp),           allocatable, dimension(:, :) :: downsamp_point  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
-     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
-     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
+     integer(i4b),       allocatable, dimension(:)   :: downsamp_pix
+     real(sp),           allocatable, dimension(:)   :: downsamp_tod
+     real(sp),           allocatable, dimension(:)   :: downsamp_sky
+     real(sp),           allocatable, dimension(:,:) :: downsamp_point    ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
+     real(sp),           allocatable, dimension(:)   :: downsamp_obs_time ! downsampled_obs_time used for zodi sampling
+!!$     real(sp),           allocatable, dimension(:)    :: downsamp_zodi
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_scat
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_therm
+!!$     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
+!!$     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -108,7 +110,6 @@ module comm_tod_mod
      type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
-     real(sp),            allocatable, dimension(:)     :: downsamp_obs_time ! downsampled_obs_time used for zodi sampling
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 

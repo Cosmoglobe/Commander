@@ -273,39 +273,31 @@ program commander
         call timer%stop(TOT_TODPROC)
      end if
 
-     if (cpar%enable_tod_simulations) then
-        ! Skip other steps if TOD simulations
-        exit
-     end if
+     ! Skip other steps if TOD simulations
+     if (cpar%enable_tod_simulations) exit
 
      ! Sample zodi parameters
      if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
         call project_and_downsamp_sky(cpar)
-        call downsamp_invariant_structs(cpar)
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
+           call downsamp_invariant_structs(cpar)
            call precompute_lowres_zodi_lookups(cpar)
-        else
-           call apply_zodi_glitch_mask(cpar)
-        end if
-
-        call compute_downsamp_zodi(cpar, zodi_model)      
-        if (first_zodi) then
-           !call compute_downsamp_zodi(cpar, zodi_model)
-           call create_zodi_glitch_mask(cpar, handle)
+           !call compute_downsamp_zodi(cpar, zodi_model)      
+           call create_zodi_sampgroup_mask(cpar, handle)
            first_zodi = .false.
         end if
-        call apply_zodi_glitch_mask(cpar)
 
         ! Sample non-stationary zodi components with geometric 3D model
-        select case (trim(adjustl(cpar%zs_sample_method)))
-        case ("powell")
-           do i = 1, cpar%zs_num_samp_groups
+        do i = 1, cpar%zs_num_samp_groups
+           call apply_zodi_sampgroup_mask(cpar, i)
+           select case (trim(adjustl(cpar%zs_sample_method)))
+           case ("powell")
               if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
-           end do
-        end select
-
+           end select
+        end do
+        
         ! Sample stationary components
         !if (first_zodi) then
            if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')

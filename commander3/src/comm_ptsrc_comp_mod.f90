@@ -1616,7 +1616,7 @@ contains
              pt1  => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity > 0) write(*,*) 'Computing A =', k1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Computing A =', k1, pt1%nsrc
                 i1 = i1+1
 
                 i2 = 0
