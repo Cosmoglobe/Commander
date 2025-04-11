@@ -47,12 +47,41 @@ def plot_m_invert(frequencies):
     m = np.load("tests/m_invert.npz")['m']
     # remove monopole
 
-    for i in range(m.shape[1]):
-        # print(f"Plotting m for frequency {i}")
-        hp.mollview(m[:, i].real, title=f"{int(frequencies.value[i]):04d} GHz", min=0, max=200, xsize=2000)
-        plt.savefig(f"tests/m_invert/{int(frequencies.value[i]):04d}.png")
-        plt.close()
-        plt.clf()
+    if PNG:
+        for i in range(m.shape[1]):
+            # print(f"Plotting m for frequency {i}")
+            hp.mollview(m[:, i].real, title=f"{int(frequencies.value[i]):04d} GHz", min=0, max=200, xsize=2000)
+            plt.savefig(f"tests/m_invert/{int(frequencies.value[i]):04d}.png")
+            plt.close()
+            plt.clf()
+    if FITS:
+        for i in range(m.shape[1]):
+            # print(f"Plotting m for frequency {i}")
+            hp.write_map(f"tests/m_invert/{int(frequencies.value[i]):04d}.fits", m[:, i].real, overwrite=True)
+            plt.close()
+            plt.clf()
+
+def plot_m_cg_per_tod(frequencies):
+    # clean previous maps
+    print("Cleaning previous maps")
+    for file in os.listdir("tests/m_cg_per_tod"):
+        os.remove(f"tests/m_cg_per_tod/{file}")
+
+    m = np.load("tests/cg_per_tod.npz")['m']
+
+    if PNG:
+        for i in range(m.shape[1]):
+            # print(f"Plotting m for frequency {i}")
+            hp.mollview(m[:, i].real, title=f"{int(frequencies.value[i]):04d} GHz", min=0, max=200, xsize=2000)
+            plt.savefig(f"tests/m_cg_per_tod/{int(frequencies.value[i]):04d}.png")
+            plt.close()
+            plt.clf()
+    if FITS:
+        for i in range(m.shape[1]):
+            # print(f"Plotting m for frequency {i}")
+            hp.write_map(f"tests/m_cg_per_tod/{int(frequencies.value[i]):04d}.fits", m[:, i].real, overwrite=True)
+            plt.close()
+            plt.clf()
 
 if __name__ == "__main__":
     # open ifgs
@@ -61,5 +90,6 @@ if __name__ == "__main__":
 
     dust_map_downgraded_mjy, frequencies, signal = sim_dust()
 
-    # # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
+    # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
     plot_m_invert(frequencies)
+    # plot_m_cg_per_tod(frequencies)

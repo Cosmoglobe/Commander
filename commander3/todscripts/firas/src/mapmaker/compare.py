@@ -17,7 +17,7 @@ plt.savefig("tests/compare/original_map.png")
 
 # plot simulated dust map
 dust_map = fits.getdata("/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/src/mapmaker/tests/dust_map_downgraded.fits")
-hp.mollview(dust_map, title="Simulated dust map", unit="MJy/sr", min=0, max=200)
+hp.mollview(dust_map, title="Dust map downgraded", unit="MJy/sr", min=0, max=200)
 hp.graticule()
 plt.savefig("tests/compare/dust_map.png")
 
@@ -33,3 +33,22 @@ hp.mollview(difference_map, title="Original - Simulated", unit="MJy/sr", min=-20
 hp.graticule()
 plt.savefig("tests/compare/difference_map.png")
 
+# plot difference between input simulated map and output of invert mapmaker
+m_invert = hp.read_map("tests/m_invert/0546.fits")
+hp.mollview(m_invert, title="Invert map", unit="MJy/sr", min=0, max=200)
+hp.graticule()
+plt.savefig("tests/compare/invert_map.png")
+difference_map = simulated_map - m_invert
+hp.mollview(difference_map, title="Simulated - Invert", unit="MJy/sr", min=-200, max=200)
+hp.graticule()
+plt.savefig("tests/compare/difference_map_invert.png")
+
+# plot difference between input simulated map and output of cg solver
+cg_map = hp.read_map("tests/m_cg_per_tod/0546.fits")
+hp.mollview(cg_map, title="CG map", unit="MJy/sr", min=0, max=200)
+hp.graticule()
+plt.savefig("tests/compare/cg_map.png")
+difference_map = simulated_map - cg_map
+hp.mollview(difference_map, title="Simulated - CG", unit="MJy/sr", min=-200, max=200)
+hp.graticule()
+plt.savefig("tests/compare/difference_map_cg.png")
