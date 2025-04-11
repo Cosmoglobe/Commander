@@ -3,3 +3,5 @@ SPEC_SIZE = 257
 
 PNG = True
 FITS = False
+
+NSIDE = 32

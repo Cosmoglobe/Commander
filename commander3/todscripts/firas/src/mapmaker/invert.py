@@ -10,7 +10,7 @@ import numpy as np
 from globals import IFG_SIZE, SPEC_SIZE
 
 
-def solve_m(P, P_T, N, d):
+def solve_m(P, P_T, N_inv, d):
     """
     Solve for m per pixel directly by following the equation:
     m = (P^T N^-1 P)^-1 P^T N^-1 d
@@ -31,7 +31,6 @@ def solve_m(P, P_T, N, d):
     np.ndarray
         The matrix m.
     """
-    N_inv = N # because for now we are assuming N = I
     # P_T = np.transpose(P)
     P_T_N_inv = np.dot(P_T, N_inv)
     P_T_N_inv_P = np.dot(P_T_N_inv, P)
@@ -43,6 +42,8 @@ def solve_m(P, P_T, N, d):
     # print(f"P: {P.shape}")
     # print(f"d: {d.shape}")
     
+    
+    # print matrix to check symmetry
     assert np.allclose(P_T_N_inv_P, np.transpose(P_T_N_inv_P)), "P_T_N_inv_P is not symmetric"
 
     P_T_N_inv_d = np.dot(P_T_N_inv, d)
@@ -65,11 +66,16 @@ if __name__ == "__main__":
     ) # cm
 
     d = np.load("tests/ifgs.npz")['ifg']
+    ntod = d.shape[0]
     d = np.roll(d, -360, axis=1)
 
     # find where nans are in d
     # print(f"d: {d}")
-    N = np.identity(IFG_SIZE) # as we are doing this per pixel, this should be npoints x npoints
+    noise = np.load("tests/white_noise.npz")['noise']
+    # N_inv = np.identity(IFG_SIZE)
+    scale = 0.1
+    N_inv = np.identity(IFG_SIZE) / scale **2
+    print(f"N_inv: {N_inv.shape}")
 
     # alternatively for making the discrete fourier transform matrix apparently it should be done like this: https://en.wikipedia.org/wiki/DFT_matrix
     W = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
@@ -101,10 +107,11 @@ if __name__ == "__main__":
     #     F[:, i] = y
 
     m = np.zeros((d.shape[0], SPEC_SIZE))
-    for pixel in range(d.shape[0]):
-        print(f"solving for pixel {pixel}")
+    for t in range(d.shape[0]):
+        print(f"solving for ntod {t}")
         # m[pixel] = solve_m(P, N, d[pixel])
-        m[pixel] = solve_m(IW, W, N, d[pixel])
+
+        m[t] = solve_m(IW, W, N_inv, d[t])
 
     # the simplest way to get maps from d = Pm is using P-1d = m
     # m = np.dot(W, d.T).T

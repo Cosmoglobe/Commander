@@ -35,6 +35,10 @@ def sim_dust():
 def white_noise(ntod):
     noise = np.random.normal(0, 0.1, (ntod, IFG_SIZE))
 
+    # save noise in a npz file
+    np.savez("tests/white_noise.npz", noise=noise)
+    print(f"Noise: {noise}")
+
     return noise
 
 if __name__ == "__main__":
