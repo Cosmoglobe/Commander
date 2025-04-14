@@ -277,9 +277,8 @@ program commander
      if (cpar%enable_tod_simulations) exit
 
      ! Sample zodi parameters
-     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+     if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
-        call project_and_downsamp_sky(cpar)
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
            call downsamp_invariant_structs(cpar)
@@ -288,13 +287,14 @@ program commander
            call create_zodi_sampgroup_mask(cpar, handle)
            first_zodi = .false.
         end if
+        call project_and_downsamp_sky(cpar)
 
         ! Sample non-stationary zodi components with geometric 3D model
         do i = 1, cpar%zs_num_samp_groups
            call apply_zodi_sampgroup_mask(cpar, i)
            select case (trim(adjustl(cpar%zs_sample_method)))
            case ("powell")
-              if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
+              call minimize_zodi_with_powell(cpar, iter, handle, i)
            end select
         end do
         
@@ -559,9 +559,6 @@ contains
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
-       ! Clear zodi cache for next band
-       if (data(i)%subtract_zodi) call data(i)%tod%clear_zodi_cache()
-       
        call timer%incr_numsamp(data(i)%id_abs)
        
        if (cpar%myid_chain == 0) then

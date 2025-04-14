@@ -5,7 +5,7 @@ module comm_zodi_samp_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky
    public minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_sampgroup_mask
    public apply_zodi_sampgroup_mask, sample_static_zodi_map!, sample_static_zodi_amps
    
@@ -137,7 +137,7 @@ contains
          if (.not. data(i)%tod%subtract_zodi) cycle
 
          nside = data(i)%map%info%nside
-         npix  = nside
+         npix  = 12*nside**2
          nmaps = data(i)%map%info%nmaps
          ndet  = data(i)%tod%ndet
          nhorn = data(i)%tod%nhorn
@@ -153,17 +153,11 @@ contains
             if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
             ntod        = data(i)%tod%scans(scan)%ntod
             ntod_lowres = ntod/thin
-
-            do k = 1, ntod_lowres
-
-            end do
             
             ! Initialize detector specific downsampled quantities
             do j = 1, data(i)%tod%ndet
                d => data(i)%tod%scans(scan)%d(j)               
                allocate(d%downsamp_pix_full(ntod_lowres))
-               allocate(d%downsamp_psi_full(ntod_lowres))
-               allocate(d%downsamp_mask_full(ntod_lowres))
                allocate(d%downsamp_tod_full(ntod_lowres))
                allocate(d%downsamp_obs_time_full(ntod_lowres))
                
@@ -193,9 +187,11 @@ contains
                deallocate(tod, s_static)
 
                ! Remove masked samples
+               ntod_lowres = count(mask)
                d%downsamp_pix_full      = pack(d%downsamp_pix_full, mask)
                d%downsamp_tod_full      = pack(d%downsamp_tod_full, mask)
                d%downsamp_obs_time_full = pack(d%downsamp_obs_time_full, mask)
+               deallocate(mask)
 
                ! write timestreams to files
                ! call int2string(data(i)%tod%scanid(scan), scan_str)
@@ -208,10 +204,6 @@ contains
                ! call close_hdf_file(tod_file)
 
                ! Allocate other downsampled quantities with same shape
-               ntod_lowres = count(mask)
-               allocate(d%downsamp_zodi_full(ntod_lowres))
-               allocate(d%downsamp_scat_full(ntod_lowres))
-               allocate(d%downsamp_therm_full(ntod_lowres))
                allocate(d%downsamp_point_full(ntod_lowres,5))
                do k = 1, ntod_lowres
                   call pix2ang_ring(nside, d%downsamp_pix_full(k), lat, lon)
@@ -269,6 +261,7 @@ contains
          end do
          
          nobs_downsamp = count(pix2ind_highres == 1)
+         data(i)%tod%zodi_cache_nobs_lowres = nobs_downsamp
          
          allocate(ind2vec_zodi_temp(3, nobs_downsamp))
          allocate(ind2pix_highres(nobs_downsamp))
@@ -296,14 +289,9 @@ contains
             j =  j + 1
          end do
 
-         nobs_lowres = j - 1
+         nobs_lowres = j-1
          allocate(data(i)%tod%ind2vec_ecl_lowres(3, nobs_lowres))
          data(i)%tod%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
-         
-         allocate(data(i)%tod%zodi_scat_cache_lowres(nobs_lowres, data(i)%tod%zodi_n_comps, data(i)%tod%ndet))
-         allocate(data(i)%tod%zodi_therm_cache_lowres(nobs_lowres, data(i)%tod%zodi_n_comps, data(i)%tod%ndet))
-         data(i)%tod%zodi_scat_cache_lowres = -1.d0
-         data(i)%tod%zodi_therm_cache_lowres = -1.d0
          
          do k = 1, nobs_lowres
             data(i)%tod%ind2vec_ecl_lowres(:, k) = matmul(data(i)%tod%ind2vec_ecl_lowres(:, k), rotation_matrix)
@@ -316,14 +304,13 @@ contains
      implicit none
      type(comm_params), intent(in) :: cpar
      
-      integer(i4b) :: i, j, k, scan, ext(2), upper_bound, padding, ierr, ntod, nhorn, npix, ndet, nmaps, thin, ntod_lowres
+      integer(i4b) :: i, j, k, scan, ext(2), upper_bound, padding, ierr, ntod, nhorn, npix, ndet, nmaps, thin, ntod_lowres, pix
       type(map_ptr), allocatable, dimension(:, :) :: sky_signal
       real(sp), allocatable, dimension(:) :: downsamp_sky, downsamp_mask
       logical(lgt), allocatable, dimension(:) :: downsamp_mask_idx
       real(sp), allocatable, dimension(:, :, :, :) :: map_sky
       real(dp), allocatable, dimension(:, :) :: m_buf
       type(hdf_file) :: tod_file
-      integer(i4b), allocatable :: pix(:, :), psi(:, :), flag(:)
       real(sp), allocatable :: mask(:), sky(:)
       real(sp), allocatable, dimension(:) :: procmask_zodi
 
@@ -349,13 +336,14 @@ contains
          ! Project sky signal into already downsampled data structures
          do scan = 1, data(i)%tod%nscan
             if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-            ntod = data(i)%tod%scans(scan)%ntod
-
             do j = 1, ndet
                ntod_lowres = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full)
-               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(ntod_lowres))               
+               if (.not. allocated(data(i)%tod%scans(scan)%d(j)%downsamp_sky_full)) then
+                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(ntod_lowres))
+               end if
                do k = 1, ntod_lowres
-                  data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(k) = map_sky(1, data(i)%tod%pix2ind(pix(k, 1)), j, 1)  !zodi is only temperature (for now)
+                  pix = data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(k)
+                  data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(k) = map_sky(1, data(i)%tod%pix2ind(pix), j, 1)  !zodi is only temperature (for now)
                end do
             end do
          end do
@@ -405,7 +393,6 @@ contains
      
       integer(i4b) :: i, j, k, l, scan, ierr, non_glitch_size, thinstep, offset, ntod, ngood
       real(dp) :: rms, frac, thin_frac
-      logical(lgt), allocatable, dimension(:) :: basemask
       real(sp), allocatable :: res(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
@@ -418,7 +405,7 @@ contains
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
                ! Initialize masks
-               ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_tod_full)
                allocate(data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(ntod,cpar%zs_num_samp_groups))
                data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask = .true.
                                  
@@ -433,10 +420,11 @@ contains
 
                ! Apply TOD thinning; may be different for each sampling group
                do l = 1, cpar%zs_num_samp_groups
+
                   ! Remove samples at high latitudes, if requested by user
-                  if (cpar%zs_samp_group_max_b_ecl(i) < 0.5d0*pi) then
+                  if (cpar%zs_samp_group_max_b_ecl(l) < 90.d0) then
                      do k = 1, ntod
-                        if (abs(data(i)%tod%scans(scan)%d(j)%downsamp_point_full(k,3)) > cpar%zs_samp_group_max_b_ecl(i)) then
+                        if (abs(data(i)%tod%scans(scan)%d(j)%downsamp_point_full(k,3)) > cpar%zs_samp_group_max_b_ecl(l)) then
                            data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(k,l) = .false.
                         end if
                      end do
@@ -455,7 +443,6 @@ contains
                      k = k+1
                   end do
                end do
-               deallocate(basemask)
             end do
          end do
       end do
@@ -631,6 +618,7 @@ contains
       logical(lgt) :: accept
       character(len=4) :: scan_str
       type(hdf_file) :: tod_file
+      real(sp), allocatable, dimension(:) :: s_zodi
 
       call wall_time(t1)
       
@@ -674,36 +662,19 @@ contains
          ! Get monopole
          mono = band_monopole(i)
          
-         ! Make sure that the zodi cache is cleared before each new band
-         call data(i)%tod%clear_zodi_cache()
-
          ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-         chisq_prev(i) = 0.d0
          do scan = 1, nscan
             ! Skip scan if no accepted data
             do j = 1, ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
+               allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)))
+               
                call wall_time(t3)
-               call get_zodi_emission(&
-                   & tod=data(i)%tod, &
-                   & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-                   & scan=scan, &
-                   & det=j, &
-                   & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                   & model=zodi_model, &
-                   & use_lowres_pointing=.true. &
-                   &)
+               call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
+                    & scan, j, zodi_model, s_zodi, use_lowres_pointing=.true.)
                call wall_time(t4)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
-               call get_s_zodi(i, &
-                   & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                   & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                   &)
-               call wall_time(t3)
-               !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
 
                !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'tod  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_tod))
                !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'sky  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_sky))
@@ -711,15 +682,9 @@ contains
                !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'mono ', mono
                !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                chisq = sum( &
-                  & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
-                  &   - data(i)%tod%scans(scan)%d(j)%gain * &
-                  &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky &
-                  &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                  &   + mono) &
-                  & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0))**2 &
-                  &)
+                    & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%gain * &
+                    & (data(i)%tod%scans(scan)%d(j)%downsamp_sky + s_zodi + mono))/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
                chisq_tot     = chisq_tot     + chisq
-               chisq_prev(i) = chisq_prev(i) + chisq
                call wall_time(t4)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
                
@@ -745,7 +710,7 @@ contains
                      write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
                           &   - data(i)%tod%scans(scan)%d(j)%gain * &
                           &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                          &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
+                          &   + s_zodi(k) &
                           &   + mono)
                   end do
                   close(58)
@@ -753,12 +718,11 @@ contains
                call wall_time(t3)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU4 = ', t3-t4
 
+               deallocate(s_zodi)
             end do
          end do
       end do
 
-      !write(*,*) data(1)%tod%myid, ' -- recomputed =', chisq_prev
-      
       ! Reduce chisq to root process
       call mpi_reduce(chisq_tot, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
       call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
@@ -774,7 +738,6 @@ contains
          write(unit,*) chisq/ndof_tot, real(theta,sp)
       end if
 
-      theta_prev = theta
    end function
 
  end subroutine minimize_zodi_with_powell
