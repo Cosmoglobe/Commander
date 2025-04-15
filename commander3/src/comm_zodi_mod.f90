@@ -1407,8 +1407,8 @@ contains
             end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
-            ! Compute density along line of sight
-            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+!!$            ! Compute density along line of sight
+!!$            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
             
             ! Compute predicted signal in MJy/sr; store computed signal in cache
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
