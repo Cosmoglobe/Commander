@@ -673,13 +673,13 @@ contains
 
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !.not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = .false. !      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
+    sample_abs_bandpass   =      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
     
     sample_rel_bandpass   = .false. !sample_rel_bandpass .and. .not. self%enable_tod_simulations
-    sample_abs_bandpass   = .false.!sample_abs_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -694,6 +694,8 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
+    !self%output_n_maps = 1
+
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -768,12 +770,12 @@ contains
 !    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    !if (.not. self%enable_tod_simulations) then
-    !   call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-    !   call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-    !   call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
-       !call sample_gain_psd(self, handle)
-    !end if
+    if (.not. self%enable_tod_simulations) then
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_gain_psd(self, handle)
+    end if
 
     ! Prepare intermediate data structures
     if(self%map_type == 'nplus2') then
@@ -816,11 +818,11 @@ contains
        else
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-       !sd%n_corr = 0.
-       !sd%s_bp   = 0.
+       sd%n_corr = 0.
+       sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet

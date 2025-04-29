@@ -73,9 +73,9 @@ contains
          write(*,*) "Cannot use n+2 mapmaking for nmaps=", tod%nmaps
          stop
        end if
-       self%ncol = tod%nmaps + tod%ndet - 1
+       self%ncol = tod%nmaps - 1
        self%n_A  = 3*tod%ndet + 3
-       self%nout = tod%output_n_maps *(tod%ndet+2)
+       self%nout = tod%output_n_maps *tod%ndet
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
@@ -254,6 +254,15 @@ contains
             binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
             binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
          end if
+
+!        if(pix_ == 1 .and. det==2) then
+!          write(*,*) "Id", tod%myid
+!          write(*,*) "A"
+!          write(*,*) binmap%A_map(:,pix_)
+!          write(*,*) "B"
+!          write(*,*) binmap%b_map(1, :, pix_)
+!        end if
+
        end do
     end do
 
@@ -682,6 +691,11 @@ end subroutine bin_differential_TOD
 
     allocate(b_copy(ndet+2))
 
+    if(tod%myid == 0) then
+      write(*,*) 'A_start', tod%myid, binmap%sA_map%a(:,1) 
+      write(*,*) 'B_start', tod%myid, binmap%sb_map%a(1,:,1)
+    end if
+
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
@@ -700,9 +714,9 @@ end subroutine bin_differential_TOD
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
-      allocate (A_tot(n_A, 0:np0 - 1), b_tot(nout, nmaps, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(nmaps), eta(nmaps))
+      allocate (A_tot(n_A, 0:np0 - 1), b_tot(nout, ndet+2, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(nmaps), eta(nmaps))
       A_tot = binmap%sA_map%a(:, tod%info%pix + 1)
-      b_tot = binmap%sb_map%a(:, 1:nmaps, tod%info%pix + 1)
+      b_tot(:,:,0:np0-1) = binmap%sb_map%a(:, 1:ndet+2, tod%info%pix + 1)
       bs_tot = binmap%sb_map%a(:, :, tod%info%pix + 1)
 
       ! Solve for local map and rms
@@ -725,9 +739,9 @@ end subroutine bin_differential_TOD
          A_inv(ndet+2, 1)  = A_tot(4,i)
          ! Other detectors T
          do j=2, ndet
-           A_inv(j,j)      = A_tot(7+3*(ndet-2), i)
-           A_inv(j,ndet+1) = A_tot(8+3*(ndet-2), i)
-           A_inv(j,ndet+2) = A_tot(9+3*(ndet-2), i)
+           A_inv(j,j)      = A_tot(7+3*(j-2), i)
+           A_inv(j,ndet+1) = A_tot(8+3*(j-2), i)
+           A_inv(j,ndet+2) = A_tot(9+3*(j-2), i)
            A_inv(ndet+1,j) = A_inv(j,ndet+1)           
            A_inv(ndet+2,j) = A_inv(j,ndet+2)
          end do
@@ -738,15 +752,30 @@ end subroutine bin_differential_TOD
          A_inv(ndet+1,ndet+2) = A_tot(5, i)
          A_inv(ndet+2,ndet+1) = A_tot(5, i)
 
+         if(tod%myid == 0 .and. i==0) write(*,*) "A for pix=", i
+         do j=1, ndet+2
+            if(tod%myid == 0 .and. i==0) write(*,*) A_inv(:, j)
+         end do
+
          ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
+         if(tod%myid == 0 .and. i==0) write(*,*) "A^-1"
+         do j=1, ndet+2
+            if(tod%myid == 0 .and. i ==0) write(*,*) A_inv(:, j)
+         end do
+
          do k = 1, tod%output_n_maps
             b_copy(1)      = b_tot(k, 1, i)
             b_copy(2:ndet) = b_tot(k, 4:ndet+2, i)
             b_copy(ndet+1) = b_tot(k, 2, i)
             b_copy(ndet+2) = b_tot(k, 3, i)
+            if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) "B"
+            if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) b_copy
             b_tot(k, 1:ndet+2, i) = matmul(A_inv, b_copy)
          end do
+
+         if(tod%myid == 0 .and. i == 0) write(*,*) "A^-1 B"
+         if(tod%myid == 0 .and. i == 0) write(*,*) b_tot(1,:,i)
 
          ! Store map in correct units
          do p = 1, tod%ndet
