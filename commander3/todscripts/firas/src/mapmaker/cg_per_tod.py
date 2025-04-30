@@ -9,7 +9,7 @@ import globals as g
 import numpy as np
 
 
-def calculate_A(P, P_T, N_inv):
+def calculate_A(N_inv):
     """
     Calculate the matrix A = P^T N^-1 P.
 
@@ -32,7 +32,7 @@ def calculate_A(P, P_T, N_inv):
 
     return A
 
-def calculate_b(P_T, N_inv, d):
+def calculate_b(N_inv, d):
     """
     Calculate the vector b = P^T N^-1 d.
 
@@ -50,12 +50,13 @@ def calculate_b(P_T, N_inv, d):
     np.ndarray
         The vector b.
     """
-    P_T_N_inv = np.dot(P_T, N_inv)
-    b = np.dot(P_T_N_inv, d)
+    # P_T_N_inv = np.dot(P_T, N_inv)
+    b = np.dot(N_inv, d)
+    b = np.fft.rfft(b)
 
     return b
 
-def conjugate_gradient(A, b, x0=None, tol=1e-10, maxiter=1000):
+def conjugate_gradient(N_inv, b, x0=None, tol=1e-10, maxiter=1000):
     """
     Solve the equation A x = b using the conjugate gradient method.
 
@@ -82,12 +83,22 @@ def conjugate_gradient(A, b, x0=None, tol=1e-10, maxiter=1000):
 
     x = x0
 
-    r = b - np.dot(A, x0)
+    # r = b - Ax0
+    Ax0 = np.fft.irfft(x0)
+    Ax0 = np.dot(N_inv, Ax0)
+    Ax0 = np.fft.rfft(Ax0)
+    
+    # r = b - np.dot(A, x0)
+    r = b - Ax0
     delta = np.dot(r, r)
     delta0 = delta
     
     for i in range(maxiter):
-        Ar = np.dot(A, r)
+        # Ar = np.dot(A, r)
+        Ar = np.fft.irfft(r)
+        Ar = np.dot(N_inv, Ar)
+        Ar = np.fft.rfft(Ar)
+
         alpha = delta / np.dot(r, Ar)
 
         x += alpha * r
@@ -111,23 +122,23 @@ if __name__ == "__main__":
     ntod = d.shape[0]
     noise_scale = 0.1
 
-    W = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
-    W[0, :] = 1
-    W[:, 0] = 1
-    omega = np.exp(-2j * np.pi / g.IFG_SIZE)
-    for xi in range(1, g.IFG_SIZE):
-        for nui in range(1, g.IFG_SIZE):
-            W[nui, xi] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
-    W = W #/ np.sqrt(g.IFG_SIZE)
+    # W = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
+    # W[0, :] = 1
+    # W[:, 0] = 1
+    # omega = np.exp(-2j * np.pi / g.IFG_SIZE)
+    # for xi in range(1, g.IFG_SIZE):
+    #     for nui in range(1, g.IFG_SIZE):
+    #         W[nui, xi] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # W = W #/ np.sqrt(g.IFG_SIZE)
 
-    IW = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
-    IW[0, :] = 1
-    IW[:, 0] = 1
-    omega = np.exp(2j * np.pi / g.IFG_SIZE)
-    for xi in range(1, g.IFG_SIZE):
-        for nui in range(1, g.IFG_SIZE):
-            IW[xi, nui] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
-    IW = IW / g.IFG_SIZE
+    # IW = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
+    # IW[0, :] = 1
+    # IW[:, 0] = 1
+    # omega = np.exp(2j * np.pi / g.IFG_SIZE)
+    # for xi in range(1, g.IFG_SIZE):
+    #     for nui in range(1, g.IFG_SIZE):
+    #         IW[xi, nui] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # IW = IW / g.IFG_SIZE
 
     N_inv = np.identity(g.IFG_SIZE) / noise_scale ** 2
 
@@ -135,9 +146,9 @@ if __name__ == "__main__":
 
     for t in range(ntod): # doing it per TOD
         print(f"Processing TOD {t+1}/{ntod}")
-        A = calculate_A(IW, W, N_inv)
-        b = calculate_b(W, N_inv, d[t])
-        m[t] = conjugate_gradient(A, b)[:g.SPEC_SIZE]
+        # A = calculate_A(IW, W, N_inv)
+        b = calculate_b(N_inv, d[t])
+        m[t] = conjugate_gradient(N_inv, b)
 
     # save m in a npz file
     np.savez("tests/cg_per_tod.npz", m=m)

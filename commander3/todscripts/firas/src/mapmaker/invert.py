@@ -10,17 +10,13 @@ import numpy as np
 from globals import IFG_SIZE, SPEC_SIZE
 
 
-def solve_m(P, P_T, N_inv, d):
+def solve_m(d):
     """
     Solve for m per pixel directly by following the equation:
-    m = (P^T N^-1 P)^-1 P^T N^-1 d
+    m = (P^T N^-1 P)^-1 P^T N^-1 d which simplifies to m = P^T d
 
     Parameters
     ----------
-    P : np.ndarray
-        The matrix P.
-    P_T : np.ndarray
-        The hermitian conjugate of the matrix P, because we are dealing with complex numbers. In the case of simply using a Fourier transform for the P operator, this is the inverse of the Fourier transform.
     N : np.ndarray
         The matrix N.
     d : np.ndarray
@@ -31,28 +27,8 @@ def solve_m(P, P_T, N_inv, d):
     np.ndarray
         The matrix m.
     """
-    # P_T = np.transpose(P)
-    P_T_N_inv = np.dot(P_T, N_inv)
-    P_T_N_inv_P = np.dot(P_T_N_inv, P)
-
-    # print all sizes
-    # print(f"P_T_N_inv_P: {P_T_N_inv_P.shape}")
-    # print(f"P_T_N_inv: {P_T_N_inv.shape}")
-    # print(f"N_inv: {N_inv.shape}")
-    # print(f"P: {P.shape}")
-    # print(f"d: {d.shape}")
+    m = np.fft.rfft(d, axis=1)
     
-    
-    # print matrix to check symmetry
-    assert np.allclose(P_T_N_inv_P, np.transpose(P_T_N_inv_P)), "P_T_N_inv_P is not symmetric"
-
-    P_T_N_inv_d = np.dot(P_T_N_inv, d)
-    P_T_N_inv_P_inv = np.linalg.inv(P_T_N_inv_P)
-    m = np.dot(P_T_N_inv_P_inv, P_T_N_inv_d)
-
-    # print the rest of the shapes
-    # print(f"P_T_N_inv_d: {P_T_N_inv_d.shape}")
-    # print(f"m: {m.shape}")
     return m
 
 if __name__ == "__main__":
@@ -78,23 +54,23 @@ if __name__ == "__main__":
     print(f"N_inv: {N_inv.shape}")
 
     # alternatively for making the discrete fourier transform matrix apparently it should be done like this: https://en.wikipedia.org/wiki/DFT_matrix
-    W = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
-    W[0, :] = 1
-    W[:, 0] = 1
-    omega = np.exp(-2j * np.pi / IFG_SIZE)
-    for xi in range(1, IFG_SIZE):
-        for nui in range(1, IFG_SIZE):
-            W[nui, xi] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    W = W #/ np.sqrt(IFG_SIZE)
+    # W = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
+    # W[0, :] = 1
+    # W[:, 0] = 1
+    # omega = np.exp(-2j * np.pi / IFG_SIZE)
+    # for xi in range(1, IFG_SIZE):
+    #     for nui in range(1, IFG_SIZE):
+    #         W[nui, xi] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # W = W #/ np.sqrt(IFG_SIZE)
 
-    IW = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
-    IW[0, :] = 1
-    IW[:, 0] = 1
-    omega = np.exp(2j * np.pi / IFG_SIZE)
-    for xi in range(1, IFG_SIZE):
-        for nui in range(1, IFG_SIZE):
-            IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    IW = IW / IFG_SIZE #IFG_SIZE#np.sqrt(IFG_SIZE)
+    # IW = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
+    # IW[0, :] = 1
+    # IW[:, 0] = 1
+    # omega = np.exp(2j * np.pi / IFG_SIZE)
+    # for xi in range(1, IFG_SIZE):
+    #     for nui in range(1, IFG_SIZE):
+    #         IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # IW = IW / IFG_SIZE #IFG_SIZE#np.sqrt(IFG_SIZE)
 
     # F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
     # # unit vector hammering method
@@ -114,25 +90,9 @@ if __name__ == "__main__":
     #     print(f"y: {y.shape}")
     #     IF[:, i] = y
 
-    # print as a proper matrix
-    matrix = np.dot(IW, W)
-    # # is this the identity matrix?
-    # print(f"matrix: {matrix.imag}")
-    # # print matrix to check symmetry
-    assert np.allclose(matrix.real, np.identity(IFG_SIZE)), "Matrix is not the identity matrix"
-
     m = np.zeros((d.shape[0], SPEC_SIZE))
-    for t in range(d.shape[0]):
-        print(f"solving for ntod {t}")
-        # print(f"solving for ntod {t}")
-        # m[pixel] = solve_m(P, N, d[pixel])
-
-        m[t] = solve_m(IW, W, N_inv, d[t])[:SPEC_SIZE]
-        # m[t] = solve_m(IF, F, N_inv, d[t])
-
-
-    # the simplest way to get maps from d = Pm is using P-1d = m
-    # m = np.dot(W, d.T).T
+    m = solve_m(d)[:, :SPEC_SIZE]
+    # m = np.dot(W, d.T).T[:, :SPEC_SIZE]
         
     # save map output
     np.savez("tests/m_invert.npz", m=m)

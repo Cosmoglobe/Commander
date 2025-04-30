@@ -34,7 +34,7 @@ x = np.linspace(0, 10, g.IFG_SIZE)
 y = np.sin(x)
 
 # compare W matrix with numpy fft and rfft
-fft = np.fft.fft(y, n=g.IFG_SIZE)
+fft = np.fft.rfft(y)
 freq = np.fft.fftfreq(g.IFG_SIZE, d=g.IFG_SIZE / g.SPEC_SIZE)
 rfft = np.fft.rfft(y, n=g.IFG_SIZE)
 rfreq = np.fft.rfftfreq(g.IFG_SIZE, d=g.IFG_SIZE / g.SPEC_SIZE)
@@ -52,7 +52,7 @@ print(f"Wfft: {Wfft.shape}")
 # plot
 fig, ax = plt.subplots(2, 1)
 ax[0].plot(freq, Wfft.real, label='Wfft', alpha=0.5)
-ax[0].plot(freq, fft.real, label='fft', alpha=0.5)
+# ax[0].plot(freq, fft.real, label='fft', alpha=0.5)
 ax[1].plot(rfreq, Wnsqfft.real, label='Wnsq', alpha=0.5)
 ax[1].plot(rfreq, rfft.real, label='rfft', alpha=0.5)
 fig.legend()
@@ -102,7 +102,22 @@ IWnsq_H = np.asarray((np.matrix(Wnsq).H -1) / g.SPEC_SIZE)
 # check size
 print(f"IWnsq_H: {IWnsq_H.shape}")
 
-ifft = np.fft.ifft(fft, n=g.IFG_SIZE)
+ifft = np.fft.irfft(fft)
+
+# check if ifft and y are the same
+difference = np.abs(ifft) - y
+ratio = np.abs(ifft) / y
+print(f"Difference: {difference}")
+print(f"Ratio: {ratio}")
+plt.plot(x, difference)
+plt.title('Difference')
+plt.show()
+plt.plot(x, ratio)
+plt.title('Ratio')
+plt.show()
+
+
+
 Wifft = np.dot(IW, Wfft)
 irfft = np.fft.irfft(rfft, n=g.IFG_SIZE)
 Wifftnsq = np.dot(IWnsq, Wnsqfft)
