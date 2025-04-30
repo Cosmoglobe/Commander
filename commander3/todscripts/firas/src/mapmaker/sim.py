@@ -33,7 +33,7 @@ def sim_dust():
     return dust_map_downgraded_mjy, frequencies, signal
 
 def white_noise(ntod):
-    noise = np.random.normal(0, 0.1, (ntod, IFG_SIZE))
+    noise = np.random.normal(0, 0.01, (ntod, IFG_SIZE))
 
     # save noise in a npz file
     np.savez("tests/white_noise.npz", noise=noise)
@@ -51,23 +51,28 @@ if __name__ == "__main__":
     signal = np.nan_to_num(signal)
     print(f"sizes: {dust_map_downgraded_mjy.shape} and {signal.shape}")
     spec = dust_map_downgraded_mjy[:, np.newaxis] * signal[np.newaxis, :]
+    spec512 = np.zeros((spec.shape[0], IFG_SIZE))
+    print(f"spec shape: {spec.shape}")
+    spec512[:, :SPEC_SIZE] = spec
+    for i in range(SPEC_SIZE, IFG_SIZE - 1, 1):
+        spec512[:, i] = spec[:, SPEC_SIZE - i]
 
     # visualise spec_complex
-    plt.imshow(np.abs(spec), aspect="auto")
+    plt.imshow(np.abs(spec512), aspect="auto")
     plt.colorbar()
     plt.show()
 
     # plot some spec_complex
     for i in range(0, len(spec), 100):  
-        plt.plot(np.abs(spec[i]), color="black", alpha=0.5)
-        plt.plot(spec[i], color="red", alpha=0.5)
+        plt.plot(np.abs(spec512[i]), color="black", alpha=0.5)
+        plt.plot(spec512[i], color="red", alpha=0.5)
     plt.show()
 
     # plot real and imag parts of spec_complex
     fig, ax = plt.subplots(2, 1)
     for i in range(0, len(spec), 100):
-        ax[0].plot(np.real(spec[i]), color="black", alpha=0.5)
-        ax[1].plot(np.imag(spec[i]), color="red", alpha=0.5)
+        ax[0].plot(np.real(spec512[i]), color="black", alpha=0.5)
+        ax[1].plot(np.imag(spec512[i]), color="red", alpha=0.5)
     plt.show()
 
     # check ifg for nans
@@ -83,34 +88,58 @@ if __name__ == "__main__":
     frequencies_icm = (frequencies).to(1 / u.cm, equivalencies=u.spectral()).value
 
     # dft matrix
-    IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    IW = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
     IW[0, :] = 1
     IW[:, 0] = 1
     omega = np.exp(2j * np.pi / IFG_SIZE)
     for xi in range(1, IFG_SIZE):
-        for nui in range(1, SPEC_SIZE):
+        for nui in range(1, IFG_SIZE):
             IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    IW = IW / np.sqrt(IFG_SIZE)
+    IW = IW / IFG_SIZE
 
-    ifg = np.dot(IW, spec.T).T
+    ifg = np.dot(IW, spec512.T).T
     print(f"ifg shape: {ifg.shape}")
 
     # add phase to ifg
     # ifg = ifg * np.exp(1j * np.pi * (x_cm - 1.22))
     ifg = np.roll(ifg, 360, axis=1)
 
+    ifgnp = np.fft.ifft(spec, n=IFG_SIZE, axis = 1)
+    ifgnp = np.roll(ifgnp, 360, axis=1)
+
     # plot real and imaginary parts of ifg
     fig, ax = plt.subplots(2, 1)
     for i in range(0, len(ifg), 100):
         ax[0].plot(np.real(ifg[i]), color="black", alpha=0.5)
-        ax[1].plot(np.imag(ifg[i]), color="red", alpha=0.5)
+        # ax[1].plot(np.imag(ifg[i]), color="red", alpha=0.5)
+        ax[1].plot(np.real(ifgnp[i]), color="blue", alpha=0.5)
     plt.show()
+
+    # compare ifg from IW and ifft for a spec with 257 elements
+    # IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    # IW[0, :] = 1
+    # IW[:, 0] = 1
+    # omega = np.exp(2j * np.pi / IFG_SIZE)
+    # for xi in range(1, IFG_SIZE):
+    #     for nui in range(1, SPEC_SIZE):
+    #         IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
+    # IW = IW / IFG_SIZE
+
+    # ifg2 = np.dot(IW, spec.T).T
+
+    # npifg2 = np.fft.ifft(spec, n=IFG_SIZE, axis = 1)
+
+    # fig, ax = plt.subplots(2, 1)
+    # for i in range(0, len(ifg), 100):
+    #     ax[0].plot(np.real(ifg2[i]), color="black", alpha=0.5)
+    #     ax[1].plot(np.real(npifg2[i]), color="blue", alpha=0.5)
+    # plt.show()
 
     # turn ifg into real signal
     ifg = ifg.real
 
     # add noise to ifg
-    ifg = ifg + white_noise(ifg.shape[0])
+    # ifg = ifg + white_noise(ifg.shape[0])
 
     # check for nans
     print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")

@@ -78,26 +78,25 @@ if __name__ == "__main__":
     print(f"N_inv: {N_inv.shape}")
 
     # alternatively for making the discrete fourier transform matrix apparently it should be done like this: https://en.wikipedia.org/wiki/DFT_matrix
-    W = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
+    W = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
     W[0, :] = 1
     W[:, 0] = 1
     omega = np.exp(-2j * np.pi / IFG_SIZE)
     for xi in range(1, IFG_SIZE):
-        for nui in range(1, SPEC_SIZE):
+        for nui in range(1, IFG_SIZE):
             W[nui, xi] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    W = W / np.sqrt(IFG_SIZE)
+    W = W #/ np.sqrt(IFG_SIZE)
 
-    IW = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    IW = np.zeros((IFG_SIZE, IFG_SIZE), dtype=complex)
     IW[0, :] = 1
     IW[:, 0] = 1
     omega = np.exp(2j * np.pi / IFG_SIZE)
     for xi in range(1, IFG_SIZE):
-        for nui in range(1, SPEC_SIZE):
+        for nui in range(1, IFG_SIZE):
             IW[xi, nui] = omega ** ((xi * nui) % IFG_SIZE) # the mod operator just avoids calculating high exponents
-    IW = IW / np.sqrt(IFG_SIZE)
+    IW = IW / IFG_SIZE #IFG_SIZE#np.sqrt(IFG_SIZE)
 
     # F = np.zeros((SPEC_SIZE, IFG_SIZE), dtype=complex)
-
     # # unit vector hammering method
     # for i in range(IFG_SIZE):
     #     x = np.zeros(IFG_SIZE)
@@ -106,12 +105,31 @@ if __name__ == "__main__":
     #     print(f"y: {y.shape}")
     #     F[:, i] = y
 
+    # IF = np.zeros((IFG_SIZE, SPEC_SIZE), dtype=complex)
+    # # unit vector hammering method
+    # for i in range(SPEC_SIZE):
+    #     x = np.zeros(SPEC_SIZE)
+    #     x[i] = 1
+    #     y = np.fft.irfft(x, n = IFG_SIZE)
+    #     print(f"y: {y.shape}")
+    #     IF[:, i] = y
+
+    # print as a proper matrix
+    matrix = np.dot(IW, W)
+    # # is this the identity matrix?
+    # print(f"matrix: {matrix.imag}")
+    # # print matrix to check symmetry
+    assert np.allclose(matrix.real, np.identity(IFG_SIZE)), "Matrix is not the identity matrix"
+
     m = np.zeros((d.shape[0], SPEC_SIZE))
     for t in range(d.shape[0]):
         print(f"solving for ntod {t}")
+        # print(f"solving for ntod {t}")
         # m[pixel] = solve_m(P, N, d[pixel])
 
-        m[t] = solve_m(IW, W, N_inv, d[t])
+        m[t] = solve_m(IW, W, N_inv, d[t])[:SPEC_SIZE]
+        # m[t] = solve_m(IF, F, N_inv, d[t])
+
 
     # the simplest way to get maps from d = Pm is using P-1d = m
     # m = np.dot(W, d.T).T

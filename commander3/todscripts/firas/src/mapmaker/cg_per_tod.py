@@ -111,32 +111,33 @@ if __name__ == "__main__":
     ntod = d.shape[0]
     noise_scale = 0.1
 
-    W = np.zeros((g.SPEC_SIZE, g.IFG_SIZE), dtype=complex)
+    W = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
     W[0, :] = 1
     W[:, 0] = 1
     omega = np.exp(-2j * np.pi / g.IFG_SIZE)
     for xi in range(1, g.IFG_SIZE):
-        for nui in range(1, g.SPEC_SIZE):
+        for nui in range(1, g.IFG_SIZE):
             W[nui, xi] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
-    W = W / np.sqrt(g.IFG_SIZE)
+    W = W #/ np.sqrt(g.IFG_SIZE)
 
-    IW = np.zeros((g.IFG_SIZE, g.SPEC_SIZE), dtype=complex)
+    IW = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
     IW[0, :] = 1
     IW[:, 0] = 1
     omega = np.exp(2j * np.pi / g.IFG_SIZE)
     for xi in range(1, g.IFG_SIZE):
-        for nui in range(1, g.SPEC_SIZE):
+        for nui in range(1, g.IFG_SIZE):
             IW[xi, nui] = omega ** ((xi * nui) % g.IFG_SIZE) # the mod operator just avoids calculating high exponents
-    IW = IW / np.sqrt(g.IFG_SIZE)
+    IW = IW / g.IFG_SIZE
 
     N_inv = np.identity(g.IFG_SIZE) / noise_scale ** 2
 
     m = np.zeros((ntod, g.SPEC_SIZE), dtype=complex)
 
     for t in range(ntod): # doing it per TOD
+        print(f"Processing TOD {t+1}/{ntod}")
         A = calculate_A(IW, W, N_inv)
         b = calculate_b(W, N_inv, d[t])
-        m[t] = conjugate_gradient(A, b)
+        m[t] = conjugate_gradient(A, b)[:g.SPEC_SIZE]
 
     # save m in a npz file
     np.savez("tests/cg_per_tod.npz", m=m)
