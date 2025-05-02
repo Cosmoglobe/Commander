@@ -297,6 +297,7 @@ program commander
      end if
      !----------------------------------------------------------------------------------
      ! Process TOD structures
+
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
       ! Create zodi atlas
@@ -336,7 +337,7 @@ program commander
         exit
      end if
 
-     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+   if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
 !     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
@@ -560,6 +561,7 @@ contains
            cycle
        end if
 
+
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
           write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
@@ -581,6 +583,7 @@ contains
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
+
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet,1))
        allocate(delta(0:ndet,npar,ndelta))
@@ -625,17 +628,17 @@ contains
              end do
           end if
 
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
 
-                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
-                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
-                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
-                end if
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)
+         do j = 0, ndet
+            data(i)%bp(j)%p%delta = delta(j,:,k)
+            !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+            call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+            if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
+               !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+               call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+            end if
+         end do
+         call update_mixing_matrices(i, update_F_int=.true.)
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
@@ -662,10 +665,11 @@ contains
           end if
 
        end do
-
+       
               !call s_sky(1,1)%p%writeFITS('sky.fits')
 
        rms => comm_map(data(i)%rmsinfo)
+
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
        ! Clear zodi cache for next band
@@ -706,7 +710,7 @@ contains
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)
-       call rms%dealloc
+       call rms%dealloc   
 
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
@@ -725,11 +729,13 @@ contains
        end do
        deallocate(s_sky, s_gain, delta, eta)
 
+
        ! Set monopole component to zero, if active. Now part of n_corr
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
           call nullify_monopole_amp(data(i)%label)
        end if
        
+      
     end do
     if (associated(gainmap)) call gainmap%dealloc()
 

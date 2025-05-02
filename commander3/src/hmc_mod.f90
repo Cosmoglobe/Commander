@@ -51,28 +51,25 @@ contains
     integer(i4b), optional,             intent(in) :: length
     real(dp), optional, dimension(:),   intent(in) :: M
     interface
-       function lnlike(theta)
+       function lnlike(theta, checks)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(:), intent(in), optional :: theta
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: lnlike
        end function lnlike
 
        function grad_lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
-         real(dp), dimension(size(theta))   :: grad_lnlike
+         real(dp), dimension(:), intent(in), optional :: theta
+         real(dp), allocatable   :: grad_lnlike(:)
        end function grad_lnlike
     end interface
 
     integer(i4b) :: i, j, npar, L, t0, M_adapt, unit
     real(dp) :: alpha, H_m, logeps, logepsbar, gamm, kappa, mu, delta, acc_rate
     real(dp), dimension(size(theta)) :: p0, p, theta_prop, mass, theta_new, p_new
-
-    unit = getlun()
-    open(unit,file='angela_outputs/hmc/gaussian_tests/hmc_state.dat', recl=2048)
-    write(unit, *) '#ITERATION  | POSITION_X  |  MOMENTUM_X'
 
     acc_rate = 0.0
 
@@ -90,7 +87,7 @@ contains
     if (present(M)) then
       mass = M
     else
-      mass = 1.d0
+      mass = 1.0_dp
     end if
 
     if (present(length)) then
@@ -114,10 +111,9 @@ contains
         call Leapfrog(theta_prop, p, theta_new, p_new, eps, grad_lnlike, mass)
         theta_prop = theta_new
         p = p_new
-        !write(*,*) '1', lnlike(theta_prop) - 0.5*sum(p**2/mass), theta_prop(1), p(1)
       end do
-      alpha = min(1.d0, exp(lnlike(theta_prop) - lnlike(theta) &
-                     &- 0.d5*(sum(p**2/mass) + 0.d5*sum(p0**2/mass)))  )
+      alpha = min(1.0_dp, exp(lnlike(theta_prop) - lnlike(theta) &
+                     &- 0.5*(sum(p**2/mass) + 0.5*sum(p0**2/mass)))  )
       if (alpha > rand_uni(handle)) then
         theta = theta_prop
         p = -p_new
@@ -132,11 +128,6 @@ contains
         logeps = mu - sqrt(real(i,dp))/gamm*H_m
         logepsbar = i**(-kappa)*logeps + (1-i**(-kappa))*logepsbar
         eps = exp(logeps)
-      !!  write(*,*) '2', theta(1), eps, exp(logepsbar)
-      !!else
-      !!  write(*,*) '2', theta(1)
-      !end if
-      !if (i .eq. M_adapt) then
       else
         eps = exp(logepsbar)
       end if
@@ -168,18 +159,19 @@ contains
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     interface
-       function lnlike(theta)
+       function lnlike(theta, checks)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
+         real(dp), dimension(:), intent(in), optional :: theta
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: lnlike
        end function lnlike
 
        function grad_lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
-         real(dp), dimension(size(theta))   :: grad_lnlike
+         real(dp), dimension(:), intent(in), optional :: theta
+         real(dp), allocatable   :: grad_lnlike(:)
        end function grad_lnlike
     end interface
 
@@ -195,9 +187,12 @@ contains
     npar = size(theta)
 
     if (.not. present(eps)) then
+      write(*,*) 'calling FindReasonableEpsilon'
       eps = FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle) 
       write(*,*) "ReasonableEpsilon= ", eps
     end if
+
+    write(*,*) "starting nuts"
 
     H_m = 0
     mu = log(10*eps)
@@ -208,14 +203,10 @@ contains
     kappa = 0.75
     delta = 0.65
 
-    unit = getlun()
-    open(unit,file='angela_outputs/hmc/gaussian_tests/two_hmc_state.dat', recl=2048)
-    write(unit, *) '#ITERATION  | POSITION_X  | MOMENTUM_X  | POSITION_Y  | MOMENTUM_Y | LOGLIKE  |  GRADLOGLIKE'
-
     if (present(M)) then
       mass = M
     else
-      mass = 1.d0
+      mass = 1.0_dp
     end if
 
     M_adapt = n_steps/10
@@ -267,11 +258,6 @@ contains
         logeps = mu - sqrt(real(k,dp))/gamm*H_m
         logepsbar = k**(-kappa)*logeps + (1-k**(-kappa))*logepsbar
         eps = exp(logeps)
-!     !   write(*,*) '4', theta(1), eps, exp(logepsbar)
-!     ! else
-!     !   write(*,*) '4', theta(1)
-      !end if
-      !if (k .eq. M_adapt) then
       else
         eps = exp(logepsbar)
       end if
@@ -293,18 +279,19 @@ contains
     real(dp),                           intent(out) :: alpha
     type(planck_rng),                intent(inout) :: handle
     interface
-       function lnlike(theta)
+       function lnlike(theta, checks)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
+         real(dp), dimension(:), intent(in), optional :: theta 
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: lnlike
        end function lnlike
 
        function grad_lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
-         real(dp), dimension(size(theta))   :: grad_lnlike
+         real(dp), dimension(:), intent(in), optional :: theta
+         real(dp), allocatable   :: grad_lnlike(:)
        end function grad_lnlike
     end interface
 
@@ -318,7 +305,6 @@ contains
 
     if (j == 0) then
       call Leapfrog(theta, p, theta_p, p_p, v*eps, grad_lnlike, mass)
-      !write(*,*) '3', lnlike(theta_p) - 0.5*sum(p_p**2/mass), theta_p(1), p_p(1)
       if (logu < lnlike(theta_p) - 0.5*sum(p_p**2/mass)) then
         n_p = 1
       else
@@ -392,26 +378,29 @@ contains
   end subroutine BuildTree
 
 
-  function lnlike_hmc_test(theta) result(lnlike)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:), intent(in)  :: theta
-    real(dp)                            :: lnlike
-
-    lnlike = -(1.0_dp/2.0_dp)*(theta(1)**2+theta(2)**2)
-
-  end function
-
-  function grad_lnlike_hmc_test(theta) result(grad_lnlike)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:), intent(in)  :: theta
-    real(dp), dimension(size(theta))    :: grad_lnlike
-
-    grad_lnlike(1) = -theta(1)
-    grad_lnlike(2) = -theta(2)
-
-  end function 
+  !function lnlike_hmc_test(theta) result(lnlike)
+  !  use healpix_types
+  !  implicit none
+  !  real(dp), dimension(:), intent(in), optional  :: theta
+  !  real(dp)                            :: lnlike
+!
+  !  !if(.not. theta) something
+!
+  !  lnlike = -(1.0_dp/2.0_dp)*(theta(1)**2+theta(2)**2)
+!
+  !end function
+!
+  !function grad_lnlike_hmc_test(theta) result(grad_lnlike)
+  !  use healpix_types
+  !  implicit none
+  !  real(dp), dimension(:), intent(in), optional  :: theta
+  !  real(dp), allocatable    :: grad_lnlike(:)
+!
+  !  allocate(grad_lnlike(size(theta)))
+  !  grad_lnlike(1) = -theta(1)
+  !  grad_lnlike(2) = -theta(2)
+!
+  !end function 
 
 
   subroutine Leapfrog(x, p, x_new, p_new, eps, grad_func, mass)
@@ -420,13 +409,14 @@ contains
     real(dp), dimension(:), intent(out)   :: x_new, p_new
     real(dp),               intent(in)    :: eps
     real(dp), dimension(:), intent(in)    :: mass
+    real(dp), allocatable                 :: grad(:)
 
     interface
       function grad_func(x)
         use healpix_types
         implicit none
-        real(dp), dimension(:), intent(in) :: x
-        real(dp), dimension(size(x))       :: grad_func
+        real(dp), dimension(:), intent(in), optional :: x
+        real(dp), allocatable      :: grad_func(:)
       end function grad_func
     end interface
 
@@ -436,9 +426,15 @@ contains
       write(*,*) "Warning: Mass matrix in HMC has nonpositive values"
     end if
 
-    p_new = p +     grad_func(x)    *eps/2
-    x_new = x +     p_new/mass      *eps
-    p_new = p_new + grad_func(x_new)*eps/2
+    allocate(grad(size(x)))
+    
+    grad = grad_func(x)
+    p_new = p+grad*eps/2
+    x_new = x+p_new/mass*eps
+    grad = grad_func(x_new)
+    p_new = p_new+grad*eps/2
+
+    deallocate(grad)
 
   end subroutine Leapfrog
 
@@ -453,23 +449,24 @@ contains
     real(dp), dimension(:),          intent(inout) :: theta
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M    
-    real(dp)                                       :: final_eps
-    real(dp)                                       :: eps, npar, pp_over_p
+    real(dp)                                       :: final_eps, eps, npar, pp_over_p
+    real(dp)                                       :: ln_old, ln_new
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
     integer(i4b)                                   :: i, a
     interface
-       function lnlike(theta)
+       function lnlike(theta, checks)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in), optional :: theta  !shouldn't be optional but I need this to use it in lnL_zodi_hmc
+         real(dp), dimension(:), intent(in), optional :: theta 
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: lnlike
        end function lnlike
 
        function grad_lnlike(theta)
          use healpix_types
          implicit none
-         real(dp), dimension(:), intent(in) :: theta
-         real(dp), dimension(size(theta))   :: grad_lnlike
+         real(dp), dimension(:), intent(in), optional :: theta
+         real(dp), allocatable   :: grad_lnlike(:)
        end function grad_lnlike
     end interface
 
@@ -478,20 +475,25 @@ contains
     if (present(M)) then
       mass = M
     else
-      mass = 1.d0
+      mass = 1.0_dp
     end if
 
-    eps = 1d0
+    eps = 1.0_dp
     do i = 1, npar
       p(i) = rand_gauss(handle)
     end do
 
     theta_new = theta
+    ln_old = lnlike(theta, .false.)
     p_new = p
 
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
-    pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.d5*(sum(p_new**2/mass) + 0.d5*sum(p**2/mass)))
+    ln_new = lnlike(theta_new, .false.)
+
+    write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
+    pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
+    write(*,*) 'pp_over_p=', pp_over_p
 
     if (pp_over_p > 0.5) then
       a = 1
@@ -500,19 +502,26 @@ contains
     end if
 
     do 
-      eps = eps*2.d0**a
+      eps = eps*2.0_dp**a
       call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
-      pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.d5*(sum(p_new**2/mass) + 0.d5*sum(p**2/mass)))
-      !write(*,*) eps, pp_over_p
-      if (pp_over_p**a < 2.d0**(-a)) exit
+      ln_old=lnlike(theta, .false.)
+      ln_new=lnlike(theta_new, .false.)
+      pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
+      write(*,*) 'theta=', theta , 'p=', p, 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'p_new=', p_new, 'lnlike(theta_new)=', ln_new
+      write(*,*) 'eps= ', eps, 'pp_over_p= ', pp_over_p
+
+      if(a == 1) then
+        if (pp_over_p**a < 2.0_dp**(-a)) exit
+      else if (a == -1) then
+        if (pp_over_p /= 0.0_dp) then
+          if (pp_over_p**a < 2.0_dp**(-a)) exit
+        end if
+      end if
     end do
 
     final_eps = eps
 
   end function FindReasonableEpsilon
-
-
-
 
 
 end module hmc_mod

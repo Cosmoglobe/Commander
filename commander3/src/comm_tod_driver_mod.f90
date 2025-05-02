@@ -159,10 +159,12 @@ contains
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
+
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
+
        call tod%decompress_pointing_and_flags(scan, j, sd%pix(:,j,:), &
             & sd%psi(:,j,:), sd%flag(:,j))
     end do
@@ -185,6 +187,7 @@ contains
        call timer%start(TOD_DECOMP, tod%band)
        do j = 1, sd%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
+
           if (tod%compressed_tod) then
              call tod%decompress_tod(scan, j, sd%tod(:,j))
           else
@@ -248,8 +251,13 @@ contains
     ! Perform sanity tests
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
+
+       !BETWEEN HERE
+       
        if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
+
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+        
     end do
     !call update_status(status, "todinit_sanity")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -306,6 +314,7 @@ contains
        call timer%start(TOD_SL_INT, tod%band)
        do j = 1, sd%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
+          
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
                & sd%pix(:,j,1), sd%psi(:,j,1), sd%s_sl(:,j), tod%mbang(j))
@@ -313,8 +322,12 @@ contains
        end do
        call timer%stop(TOD_SL_INT, tod%band)
     else
+
+      !AND HERE
+
        do j = 1, sd%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (.not. tod%scans(scan)%d(j)%accept)  cycle
+          
           sd%s_sl(:,j) = 0.
        end do
     end if
@@ -333,6 +346,7 @@ contains
     if (tod%sample_mono) then
        do j = 1, sd%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
+          
           !sd%s_mono(:,j) = tod%mono(j)
           sd%s_mono(:,j) = 0.d0 ! Disabled for now
        end do
@@ -351,7 +365,8 @@ contains
 
     ! Construct total sky signal
     do j = 1, sd%ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       if (.not. tod%scans(scan)%d(j)%accept)  cycle
+       
        if (tod%subtract_zodi) then 
            sd%s_tot(:,j) = sd%s_sky(:,j) + sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:,j)
        else

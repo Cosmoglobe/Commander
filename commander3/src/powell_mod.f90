@@ -33,10 +33,11 @@ contains
     real(dp), dimension(:)  :: p, xi
     real(dp)                :: f1lin
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                                     :: func
        end function func
     end interface
@@ -88,10 +89,11 @@ contains
     integer(i4b), optional,        intent(in)     :: niter
     real(dp),     optional,        intent(in)     :: tolerance
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
     end interface
@@ -197,10 +199,11 @@ contains
     real(dp), dimension(:)  :: p, xi
     integer(i4b), intent(out), optional :: ierr
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
     end interface
@@ -236,10 +239,11 @@ contains
     real(dp), dimension(:)  :: xi, pp
     integer(i4b), intent(out), optional :: ierr
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
     end interface
@@ -363,10 +367,11 @@ contains
     real(dp), dimension(:)  :: p, xi
     integer(i4b), optional, intent(out) :: ierr
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
     end interface
@@ -468,10 +473,11 @@ contains
     integer(i4b), intent(out), optional :: ierr
   
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
 
@@ -619,10 +625,11 @@ contains
     real(dp), dimension(:)  :: p, xi
     integer(i4b), intent(out), optional :: ierr
     interface
-       function func(p)
+       function func(p, checks)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: p
+         logical(lgt), intent(in), optional :: checks 
          real(dp)                           :: func
        end function func
   

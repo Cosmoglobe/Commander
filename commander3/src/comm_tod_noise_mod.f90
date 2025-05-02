@@ -475,6 +475,7 @@ contains
     outscan   = -1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
+
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
 
@@ -485,6 +486,7 @@ contains
           s    = 0.d0
           nval = 0
           do j = 1, self%scans(scan)%ntod-1
+
              if (any(mask(j:j+1,i) < 0.5)) cycle
              res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
                   & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)

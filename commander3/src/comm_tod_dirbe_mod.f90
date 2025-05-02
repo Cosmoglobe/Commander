@@ -270,14 +270,13 @@ contains
       real(dp), allocatable, dimension(:, :)    :: res_tot ! (n_tod_tot, ndet)
       real(dp), allocatable, dimension(:)       :: mask_tot ! (n_tod_tot)
       type(hdf_file) :: tod_file
-
+      
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
 
       !call timer%start(TOD_ALLOC, self%band)
 
-      
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
       output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -308,7 +307,7 @@ contains
          only_solar_mask    = .true.
       end if
       sample_gain = .false.
-
+      
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -353,7 +352,6 @@ contains
          stop
       end if
 
-
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
@@ -374,19 +372,19 @@ contains
          allocate(chisq_S(self%ndet,size(delta,3)))
          chisq_S = 0.d0
       end if
+      
       if (output_scanlist) then
          allocate(slist(self%nscan))
          slist   = ''
-      end if
+      end if      
 
       ! Perform loop over scans
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
-
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         !call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
          if (self%first_call) then
@@ -405,10 +403,10 @@ contains
             !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
             call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
            ! Compute noise spectrum parameters
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+ !           call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
          else
             sd%n_corr = 0.d0
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+ !          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
          end if
 
          ! Compute chisquare
@@ -508,7 +506,6 @@ contains
          self%bp_delta = delta(:,:,1)
       end if
 
-
       ! Output maps to disk
       if (.false.) then
          ! call map_out%writeFITS(trim(prefix_atlas)//'map'//trim(postfix_atlas))
@@ -555,6 +552,7 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
+
    end subroutine process_DIRBE_tod   
 
 

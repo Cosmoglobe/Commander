@@ -646,6 +646,7 @@ contains
 
          j = j+1
       end do
+      write(*,*) 'chisq_prior=', chisq_prior
     end function get_chisq_priors
 
    subroutine downsamp_invariant_structs(cpar)
@@ -1266,10 +1267,11 @@ contains
       
     contains
       
-      function lnL_zodi(p)
+      function lnL_zodi(p, checks)
       use healpix_types
       implicit none
       real(dp), dimension(:), intent(in), optional :: p
+      logical(lgt), intent(in), optional :: checks
       real(dp)                                     :: lnL_zodi
 
       real(dp), allocatable :: theta(:)
