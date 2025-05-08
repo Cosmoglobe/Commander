@@ -569,9 +569,11 @@ def filter_junk(
     filter2 = (stat_word_9 != 15414) & (stat_word_9 != 45110)
     filter25 = (stat_word_12 != 18536) & (stat_word_12 != 19121) & (stat_word_12 != 54906) & (stat_word_12 != 63675)
     filter3 = (
-        (stat_word_13 != 17345)
+        (stat_word_13 != 17281)
+        & (stat_word_13 != 17345)
         & (stat_word_13 != 17393)
-        & (stat_word_13 != 19585)
+        & (stat_word_13 != 19585) 
+        & (stat_word_13 != 25153)
         & (stat_word_13 != 25201)
         & (stat_word_13 != 25585)
         & (stat_word_13 != 26945)
@@ -582,6 +584,7 @@ def filter_junk(
         # & (stat_word_13 != 27777) # makes the hole!
         # & (stat_word_13 != 27825) # takes away a lot of data!
         & (stat_word_13 != 60465)
+        & (stat_word_13 != 60545)
         & (stat_word_13 != 60593)
     )
     filter4 = (
