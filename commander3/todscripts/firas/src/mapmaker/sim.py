@@ -41,6 +41,10 @@ def white_noise(ntod):
 
     return noise
 
+def scanning_strategy():
+
+
+
 if __name__ == "__main__":
 
     dust_map_downgraded_mjy, frequencies, signal = sim_dust()

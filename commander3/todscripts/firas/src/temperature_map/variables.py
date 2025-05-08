@@ -4,7 +4,7 @@ from astropy.io import fits
 
 # modes = {"ss": 0, "lf": 3}
 # modes = {"ss": 0}
-mode = "ss"
+mode = "lf"
 
 data = np.load(
     g.PROCESSED_DATA_PATH,
@@ -36,7 +36,7 @@ for name in variables_names:
 for name in variables_names:
     print(f"{name}: {variables[name].shape}")
 
-ind = 1223
+ind = 20
 
 print(f"stat_word_1: {variables["stat_word_1"][ind]}")
 print(f"stat_word_12: {variables["stat_word_12"][ind]}")

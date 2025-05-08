@@ -184,7 +184,7 @@ for channel in channels.keys():
 
             for i, name in enumerate(variable_names):
                 ax[i // n_cols, i % n_cols].plot(variables[f"{name}_{mode}"])
-                ax[i // n_cols, i % n_cols].set_title(name)
+                ax[i // n_cols, i % n_cols].set_title(name, fontsize=10)
 
             ax[-1, -1].imshow(
                 np.abs(spec[f"{channel}_{mode}"]).T,
@@ -198,6 +198,7 @@ for channel in channels.keys():
                 vmax=500,
                 vmin=0,
             )
-            ax[-1, -1].set_title("spec")
+            ax[-1, -1].set_title("spec", fontsize=10)
 
+            plt.tight_layout()
             plt.show()
