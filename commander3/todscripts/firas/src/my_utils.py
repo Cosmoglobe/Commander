@@ -1,10 +1,9 @@
+import constants
 import healpy as hp
 import numpy as np
 from numba import prange
 from scipy import interpolate
 from scipy.interpolate import RegularGridInterpolator
-
-import constants
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
@@ -567,12 +566,17 @@ def filter_junk(
     filter0 = stat_word_1 != 46 
     filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217) #& (stat_word_5 != 19457) # makes the hole!
     filter2 = (stat_word_9 != 15414) & (stat_word_9 != 45110)
-    filter25 = (stat_word_12 != 18536) & (stat_word_12 != 19121) & (stat_word_12 != 54906) & (stat_word_12 != 63675)
+    filter25 = (
+        (stat_word_12 != 6714) # hot horn season
+        & (stat_word_12 != 7866) # hot horn season
+        & (stat_word_12 != 18536) & (stat_word_12 != 19121) & (stat_word_12 != 54906) & (stat_word_12 != 63675)
+    )
     filter3 = (
         (stat_word_13 != 17281)
         & (stat_word_13 != 17345)
         & (stat_word_13 != 17393)
         & (stat_word_13 != 19585) 
+        & (stat_word_13 != 23681) # hot horn season
         & (stat_word_13 != 25153)
         & (stat_word_13 != 25201)
         & (stat_word_13 != 25585)
@@ -590,7 +594,9 @@ def filter_junk(
     filter4 = (
         (stat_word_16 != 0)
         & (stat_word_16 != 14372)  
+        & (stat_word_16 != 35392) # hot horn season
         & (stat_word_16 != 35584) 
+        & (stat_word_16 != 35642) # hot horn season
         & (stat_word_16 != 36032)
         & (stat_word_16 != 52992)
         & (stat_word_16 != 53056)
