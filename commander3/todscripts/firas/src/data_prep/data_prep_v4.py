@@ -2,6 +2,8 @@
 After re-reading the Explanatory Supplement I think the engineering data is not completely raw and is already interpolated, i.e. the gmt values it has are not the "true" ones. So I am going back to a different way of pre-processing the data to compare and see which makes more sense.
 """
 
+import os
+import sys
 import time
 
 import h5py
@@ -10,13 +12,13 @@ import numpy as np
 import pandas as pd
 import tables as tb
 from scipy import interpolate
-from utils.my_utils import (
-    clean_variable,
-    convert_gain,
-    get_temperature_hl,
-    parse_date_string,
-    scan_up_down,
-)
+from utils.my_utils import (clean_variable, convert_gain, get_temperature_hl,
+                            parse_date_string, scan_up_down)
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import commander3.todscripts.firas.src.globals_all as g
 
 # check how much time the script takes to run
 start_time = time.time()
@@ -938,7 +940,7 @@ sky_variables = [
 ]
 
 # saving to a h5 file
-with tb.open_file("./../../data/sky_v4.3_debug.h5", mode="w") as h5file:
+with tb.open_file(g.PREPROCESSED_DATA_PATH_SKY, mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Sky Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)
@@ -961,7 +963,7 @@ cal_variables = sky_variables + [
 print(f"Saving calibration data")
 
 # saving to a h5 file
-with tb.open_file("./../../data/cal_v4.3_debug.h5", mode="w") as h5file:
+with tb.open_file(g.PREPROCESSED_DATA_PATH_CAL, mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Calibration Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)

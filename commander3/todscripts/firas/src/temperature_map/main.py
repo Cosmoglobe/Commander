@@ -15,6 +15,7 @@ from globals import OFFSET, PROCESSED_DATA_PATH
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+import globals_all as ga
 from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
 from utils.config import gen_nyquistl
 
@@ -25,7 +26,7 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
-    "../../data/sky_v4.3_debug.h5",
+    ga.PREPROCESSED_DATA_PATH_SKY,
     "r",
 )
 
