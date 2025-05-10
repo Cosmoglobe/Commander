@@ -265,7 +265,7 @@ contains
     end do
 
     ! Disable CG search when asking for positivity prior
-    if (c%apply_pos_prior)  c%active_samp_group = .false.
+    !if (c%apply_pos_prior)  c%active_samp_group = .false.
     
     ! Read and allocate source structures
     call update_status(status, "init_ptsrc2")
@@ -453,7 +453,7 @@ contains
        do j = 1, self%src(i)%T(band_active)%nmaps
           if(self%precomputed_amps) then
             ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) * amp(i,j)
+            m = self%src(i)%amp_precomp(band_active) * amp(i,j) * data(band)%gain
           else
             m = self%src(i)%T(band_active)%F(j,d) * amp(i,j)
           end if
@@ -510,7 +510,7 @@ contains
 
           if(self%precomputed_amps) then
             ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) !*self%x(i,j)
+            m = self%src(i)%amp_precomp(band_active) * data(band)%gain
           else
             m = self%src(i)%T(band_active)%F(j,d)
           end if
@@ -975,6 +975,13 @@ contains
     call read_alloc_hdf(stars_file, '/reported_values', catalog) !nstars, nbands        
     call read_alloc_hdf(stars_file, '/band_column_mapping', band_list)
 
+    if (.not. allocated(npre)) then
+       allocate(npre(cpar%cg_num_samp_groups))
+       allocate(nmaps_pre(cpar%cg_num_samp_groups))
+       npre      = 0
+       nmaps_pre = 1
+    end if
+    
     ! trim unused bands from star catalog
     allocate(star_catalog(self%nactive, size(catalog(1,:))))
 
@@ -1000,6 +1007,7 @@ contains
     self%nsrc = size(star_catalog(1, :))
 
     call read_alloc_hdf(stars_file, 'coordinates', coords)
+    !coords = coords * DEG2RAD  ! Convention now in degrees
 
     allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
 
@@ -1018,7 +1026,7 @@ contains
 
        ii = ii+1
        self%src(ii)%glon = coords(1,i)
-       self%src(ii)%glat = coords(2,i)
+       self%src(ii)%glat = coords(2,i) 
        call ang2vec(0.5d0*pi-coords(2,i), coords(1,i), self%src(ii)%vec)
        ! Check for too close neighbours
        skip_src = .false.
@@ -1071,7 +1079,7 @@ contains
     !load in the beam information
     call init_beam_templates(self, cpar, id, id_abs)
 
-    ! Update mixing matrix
+    ! Update mixing matrix --  HKE: GAIN IS MISSING
     do i=1, self%nsrc
       do j=1, numband !self%nactive
          ja = self%b2a(j)
@@ -2042,7 +2050,7 @@ contains
           if (p == 1 .and. data(l)%pol_only) cycle
           la = self%b2a(l)
           do q = 1, self%src(i)%T(la)%np
-            src_amp = self%src(i)%amp_precomp(la)
+            src_amp = self%src(i)%amp_precomp(la) * data(l)%gain
             beam    = self%src(i)%T(la)%map(q,p)
             pix     = self%src(i)%T(la)%pix(q,1)
             noise   = data(l)%N%rms_pix(pix, p)
@@ -2083,8 +2091,9 @@ contains
            else
               x_tot = 0.d0
            end if
+           if (self%apply_pos_prior) x_tot = max(x_tot, 0.d0)
           if (mod(i,10000) == 0) then
-             write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
+             write(*,fmt='(a,i8,a,f8.3,a,f8.3,a,f16.8)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot, ', sigma = ', 1.d0/sqrt(A_tot)
           end if
           self%x(i,p) = x_tot
         end if
