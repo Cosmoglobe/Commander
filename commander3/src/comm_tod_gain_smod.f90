@@ -301,6 +301,10 @@ contains
                denom = denom + 1.d0
             end if
          end do
+         if (denom .eq. 0.d0) then
+            write(*,*) 'Warning: No valid gain estimates for detector ', j
+            cycle
+         end if
          mu = mu / denom
          !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
@@ -398,7 +402,7 @@ contains
     call tod%downsample_tod(s_sub(:,1), ext)    
     allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
     do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) then
+      if (.not. tod%scans(scan)%d(j)%accept) then
           residual(:,j) = 0.
           cycle
        end if
@@ -461,13 +465,23 @@ contains
     call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & tod%info%comm, ierr)
 
-    ! Compute gain update and distribute to all cores
-    if (tod%myid == 0) then
-       tod%gain0(0) = sum(b)/sum(A)
-       if (trim(tod%operation) == 'sample') then
-          ! Add fluctuation term if requested
-          tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
-       end if
+         ! Compute gain update and distribute to all cores
+      if (tod%myid == 0) then
+       ! write(*,*) 'ierr = ', ierr
+       ! write(*,*) "tod%ndet", tod%ndet
+       ! write(*,*) "tod%info%comm", tod%info%comm
+      
+      if (sum(A) .ne. 0) then
+         tod%gain0(0) = sum(b)/sum(A)
+         
+         if (trim(tod%operation) == 'sample') then
+            ! Add fluctuation term if requested
+            tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
+         end if
+      else 
+         write(*,*) 'Warning: No valid gain estimates for absolute gain. sum(b)/sum(A) gives 0 / 0'
+      end if
+
        if (tod%verbosity > 1) then
          write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
@@ -769,7 +783,6 @@ contains
      !write(*, *) 'Sigma_0: ', sigma_0
      !write(*, *) 'alpha: ', alpha
      !write(*, *) 'fknee: ', fknee
-
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
      if (sample) then
         fourier_fluctuations = 0.d0
@@ -788,7 +801,13 @@ contains
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 0, n-1
-         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         if (inv_N_corr(i) + maxval(inv_N_wn2) .eq. 0.d0) then
+            write(*,*) 'Warning: inv_N_corr(i) + maxval(inv_N_wn2) = 0'
+            precond(i) = 1.d0
+         else
+            precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         end if
+         
          !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)
       end do
@@ -1190,7 +1209,7 @@ contains
       do i = 1, size(freqs) -1
          apod = (1 + freqs(i)/target_apod_freq)**5
          invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
-!        else
+         !        else
 !           invcov(i) = 1.d12
 !        end if
      end do
