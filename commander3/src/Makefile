@@ -55,6 +55,7 @@ F90SOURCES=hashtbl.f90 \
            comm_bp_utils.f90 \
            comm_param_mod.f90 \
            comm_comp_mod.f90 \
+           comm_dust_extinction_mod.f90 \
            comm_diffuse_comp_mod.f90 comm_diffuse_comp_smod.f90 \
            comm_comp_interface_mod.f90 \
            comm_cmb_comp_mod.f90 \
@@ -190,7 +191,8 @@ comm_cr_precond_mod.o       : comm_utils.o
 comm_cr_utils.o             : comm_utils.o
 comm_curvature_comp_mod.o   : comm_comp_interface_mod.o
 comm_data_mod.o             : comm_bp_mod.o comm_noise_mod.o comm_beam_mod.o comm_tod_inst_mod.o
-comm_diffuse_comp_mod.o     : comm_comp_mod.o comm_cl_mod.o comm_f_mod.o
+comm_dust_extinction_mod.o  : comm_map_mod.o
+comm_diffuse_comp_mod.o     : comm_comp_mod.o comm_cl_mod.o comm_f_mod.o comm_dust_extinction_mod.o
 comm_diffuse_comp_smod.o    : comm_diffuse_comp_mod.o
 comm_exp_comp_mod.o         : comm_comp_interface_mod.o
 comm_fft_mod.o              : comm_param_mod.o
@@ -225,7 +227,7 @@ comm_param_mod.o            : comm_status_mod.o hashtbl.o
 comm_physdust_comp_mod.o    : comm_comp_interface_mod.o
 comm_powlaw_break_comp_mod.o : comm_comp_interface_mod.o
 comm_powlaw_comp_mod.o      : comm_comp_interface_mod.o
-comm_ptsrc_comp_mod.o       : comm_f_mod.o
+comm_ptsrc_comp_mod.o       : comm_f_mod.o comm_dust_extinction_mod.f90
 comm_shared_arr_mod.o       : comm_utils.o
 comm_shared_output_mod.o    : comm_utils.o
 comm_signal_mod.o           : comm_chisq_mod.o comm_cr_mod.o comm_cmb_comp_mod.o comm_cmb_relquad_comp_mod.o comm_mbb_comp_mod.o comm_mbbtab_comp_mod.o comm_powlaw_comp_mod.o comm_curvature_comp_mod.o comm_spindust_comp_mod.o comm_spindust2_comp_mod.o comm_md_comp_mod.o comm_line_comp_mod.o comm_freefree_comp_mod.o comm_freefreeEM_comp_mod.o comm_exp_comp_mod.o comm_physdust_comp_mod.o comm_pah_comp_mod.o comm_powlaw_break_comp_mod.o comm_ame_lognormal_mod.o
@@ -283,7 +285,7 @@ comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o comm_tod_pixhist_mod.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o
 comm_tod_inst_mod.o         : comm_tod_lb_mod.o comm_tod_lfi_mod.o comm_tod_spider_mod.o comm_tod_wmap_mod.o comm_tod_dirbe_mod.o comm_tod_hfi_mod.o #comm_tod_quiet_mod.o
 
-comm_data_mod.o             : comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o comm_tod_inst_mod.o
+comm_data_mod.o             : comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o comm_tod_inst_mod.o comm_dust_extinction_mod.o 
 
 comm_comp_mod.o             : comm_cr_utils.o comm_cr_precond_mod.o comm_data_mod.o spline_2d_mod.o
 comm_f_int_mod.o            : comm_bp_mod.o comm_comp_mod.o

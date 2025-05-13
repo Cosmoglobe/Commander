@@ -280,6 +280,9 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
+     ! Exctinction parameters
+     character(len=2048) :: EBVmap
+     
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
      character(len=24)                       :: zs_phasefunc, zs_bandpass
@@ -360,6 +363,11 @@ contains
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
+
+    ! Read extinction parameters
+    call get_parameter_hashtable(htable, 'EXTINCTION_E(B-V)_MAP',     par_string=cpar%EBVmap, path=.true.)
+
+    ! Read zodi parameters 
     if (cpar%include_tod_zodi) call read_zodi_params_hash(htable, cpar) 
 
     !output parameter file to output directory

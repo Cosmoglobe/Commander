@@ -72,12 +72,6 @@ contains
     self%nu_min        = cpar%cs_nu_min(id_abs)
     self%nu_max        = cpar%cs_nu_max(id_abs)
 
-    if(self%npar == 0) then
-       self%lmax_ind = 0 !default
-       allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind_mix = 0
-    end if
-
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
@@ -358,7 +352,12 @@ contains
     nmaps = 1
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
-    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+    if (self%npar==0) then
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind     = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       self%lmax_ind_mix = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       return !do not go further, lmax_ind is set in initDiffuse
+    end if
 
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
 
@@ -369,7 +368,7 @@ contains
     do i = 1,self%npar
        do p = 1, self%poltype(i)
           l = cpar%cs_lmax_ind_pol(p,i,id_abs)
-
+          
           !assign lmax per spec ind per polarization (poltype)
           if (self%poltype(i)==1) then !all polarizations have the same lmax
              self%lmax_ind_pol(:,i) = l 
@@ -1155,7 +1154,9 @@ contains
           if (self%lmax_ind_pol(j,i) >= 0) then
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
-             self%lmax_ind_mix(p_min:p_max,i) = 0
+             do k = p_min, p_max
+                self%lmax_ind_mix(k,i) = min(self%lmax_ind_pol(k,i), 0)
+             end do
           else
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i)
           end if
@@ -1781,7 +1782,7 @@ contains
     integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
     integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
-    real(dp)     :: lat, lon, t1, t2
+    real(dp)     :: lat, lon, t1, t2, A_ext
     logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
@@ -1809,7 +1810,7 @@ contains
        if (present(band)) then
           if (i /= band) cycle
        end if
-
+       
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
@@ -1935,6 +1936,14 @@ contains
                 end if
              end if
 
+             ! Initialize dust extinction
+             if (associated(data(i)%A_ext)) then
+                A_ext = data(i)%A_ext%map(j,1)
+             else
+                A_ext = 1.d0
+             end if
+
+             
 !          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
@@ -1963,14 +1972,14 @@ contains
                          write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                          stop !debug, replace by proper stop and error message
                       end if
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
                       !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
                       self%F(i,l)%p%map(j,1) = 0.0
                    else
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
                    end if
                 end if
              end if
@@ -1987,9 +1996,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
                    end if
                 end if
                 
@@ -2003,9 +2012,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
                    end if
                 end if
              end if
@@ -2015,7 +2024,7 @@ contains
                 if (self%npar > 0) then
                    do k = 1, nmaps
                       if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k)
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
                       end if
                    end do
                 else

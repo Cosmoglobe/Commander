@@ -23,6 +23,7 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_tod_inst_mod
+  use comm_dust_extinction_mod
   implicit none
 
   type comm_data_set
@@ -55,6 +56,7 @@ module comm_data_mod
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
      class(comm_map),     pointer :: gainmask  => null()
+     class(comm_map),     pointer :: A_ext     => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
      class(B_ptr),         allocatable, dimension(:) :: B
@@ -87,7 +89,7 @@ contains
     class(comm_N), pointer  :: tmp => null()
     class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
-    class(comm_mapinfo), pointer :: smoothed_rms_info => null()
+    class(comm_mapinfo), pointer :: smoothed_rms_info => null(), info_ext => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
 
@@ -320,7 +322,15 @@ contains
           end do
        end if
 
-       
+       ! Initialize dust extinction map
+       if (active_dust_ext_model(data(i)%bp(0)%p%nu_c)) then
+          info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+               & -1, 1, .false.)
+          data(n)%A_ext => comm_map(data(n)%info)
+          call get_dust_attenuation_map(data(n)%bp(0)%p%nu_c, data(n)%A_ext)
+          call data(n)%A_ext%writeFITS(trim(cpar%outdir)//'/dust_ext_'//trim(data(n)%label)//'.fits')
+       end if
+  
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))

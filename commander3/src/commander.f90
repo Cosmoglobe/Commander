@@ -23,6 +23,7 @@ program commander
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
   use comm_sparse_mod
+  use comm_dust_extinction_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -43,7 +44,7 @@ program commander
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)
-  real(dp) :: time_step
+  real(dp) :: time_step, lambda, A_ext(1)
   integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
@@ -99,6 +100,14 @@ program commander
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
+!!$  call initialize_dust_extinction_mod(cpar)
+!!$  do i = 1, 1000
+!!$     lambda = 0.09 + (i-1)/(1000-1.d0)*33.d0
+!!$     call get_dust_attenuation_pos([0.d0,1.d0,0.d0], [c/(lambda*1d-6)], A_ext)
+!!$  end do
+!!$  call mpi_finalize(ierr)
+!!$  stop
+  
 !!!  if (cpar%myid == cpar%root) then
 !!!      allocate(param_test(200))
 !!!      param_test = 0.5d0
@@ -147,8 +156,9 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
-  call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
-  call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
+  call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
+  call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
 
 
