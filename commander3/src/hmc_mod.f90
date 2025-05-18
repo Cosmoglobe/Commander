@@ -43,6 +43,10 @@ contains
     ! inverse covariance matrix of the parameters theta. "...better scaling of M
     ! will merely make HMC more efficient."
     !
+
+    !
+    ! Not used at the moment, may need to be revised
+    !
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     integer(i4b),                       intent(in) :: n_steps
@@ -149,7 +153,7 @@ contains
     ! perpendicular).
 
     ! Takes theta, lnlike, grad_lnlike, n_steps, eps, adn handle as arguments,
-    ! with optional mass matrix M.
+    ! with optional mass matrix M (diagonal matrix so array with just diagonal elements).
     ! After performing n_steps samples, the subroutine will return the latest
     ! sample. 
     implicit none
@@ -186,9 +190,21 @@ contains
 
     npar = size(theta)
 
+    if (present(M)) then
+      if(size(M)/=size(theta)) then
+        write(*,*) "Error: in nuts size(M)=", size(M), " while size(theta)=", size(theta), ". Setting default mass."
+        mass = 1.0_dp
+      else
+        mass = M
+        write(*,*) "Mass set to=", mass
+      end if
+    else
+      mass = 1.0_dp
+    end if
+
     if (.not. present(eps)) then
       write(*,*) 'calling FindReasonableEpsilon'
-      eps = FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle) 
+      eps = FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, mass) 
       write(*,*) "ReasonableEpsilon= ", eps
     end if
 
@@ -203,17 +219,11 @@ contains
     kappa = 0.75
     delta = 0.65
 
-    if (present(M)) then
-      mass = M
-    else
-      mass = 1.0_dp
-    end if
-
     M_adapt = n_steps/10
 
     do k = 1, n_steps + M_adapt
       do j = 1, npar
-        p(j) = mass(j)*rand_gauss(handle)
+        p(j) = rand_gauss(handle)
       end do
       logu = lnlike(theta) - 0.5*sum(p**2/mass) + log(rand_uni(handle))
       theta_minus = theta
@@ -405,10 +415,10 @@ contains
 
   subroutine Leapfrog(x, p, x_new, p_new, eps, grad_func, mass)
     implicit none
-    real(dp), dimension(:), intent(inout) :: x, p
-    real(dp), dimension(:), intent(out)   :: x_new, p_new
+    real(dp), dimension(:), intent(in) :: x, p
     real(dp),               intent(in)    :: eps
     real(dp), dimension(:), intent(in)    :: mass
+    real(dp), dimension(:), intent(inout)   :: x_new, p_new
     real(dp), allocatable                 :: grad(:)
 
     interface
@@ -429,17 +439,17 @@ contains
     allocate(grad(size(x)))
     
     grad = grad_func(x)
-    p_new = p+grad*eps/2
-    x_new = x+p_new/mass*eps
+    p_new = p+(grad*(eps/2))
+    x_new = x+(eps*(p_new/mass))
     grad = grad_func(x_new)
-    p_new = p_new+grad*eps/2
+    p_new = p_new+(grad*(eps/2))
 
     deallocate(grad)
 
   end subroutine Leapfrog
 
 
-  function FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, M) result(final_eps)
+  function FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, mass) result(final_eps)
     !
     ! If you have no idea what the timestep should be, this will give the value
     ! where the change in energy will be roughly 0.5 -- generally not a great
@@ -448,10 +458,10 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     type(planck_rng),                intent(inout) :: handle
-    real(dp), optional, dimension(:),   intent(in) :: M    
+    real(dp), dimension(size(theta)),   intent(in) :: mass
     real(dp)                                       :: final_eps, eps, npar, pp_over_p
     real(dp)                                       :: ln_old, ln_new
-    real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
+    real(dp), dimension(size(theta))               :: p, p0, theta_prop, theta_new, p_new
     integer(i4b)                                   :: i, a
     interface
        function lnlike(theta, checks)
@@ -472,23 +482,17 @@ contains
 
     npar = size(theta)
 
-    if (present(M)) then
-      mass = M
-    else
-      mass = 1.0_dp
-    end if
-
     eps = 1.0_dp
     do i = 1, npar
       p(i) = rand_gauss(handle)
     end do
 
-    theta_new = theta
-    ln_old = lnlike(theta, .false.)
-    p_new = p
+    !theta_new = theta
+    !p_new = p
 
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
+    ln_old = lnlike(theta, .false.)
     ln_new = lnlike(theta_new, .false.)
 
     write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
@@ -511,10 +515,10 @@ contains
       write(*,*) 'eps= ', eps, 'pp_over_p= ', pp_over_p
 
       if(a == 1) then
-        if (pp_over_p**a < 2.0_dp**(-a)) exit
+        if (pp_over_p < 0.5_dp) exit
       else if (a == -1) then
         if (pp_over_p /= 0.0_dp) then
-          if (pp_over_p**a < 2.0_dp**(-a)) exit
+          if (1.0_dp/pp_over_p < 2.0_dp) exit
         end if
       end if
     end do

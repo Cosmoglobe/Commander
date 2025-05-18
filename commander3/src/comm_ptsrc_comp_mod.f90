@@ -2716,12 +2716,16 @@ n_gibbs=1
     end do
   end function grad_lnL_ptsrc_total
 
-  function lnL_ptsrc_multi(p)
+  function lnL_ptsrc_multi(p, checks)
     use healpix_types
     implicit none
     real(dp), dimension(:), intent(in), optional :: p
-    real(dp)                                     :: lnL_ptsrc_multi
 
+    logical(lgt), intent(in), optional :: checks 
+    !useless here but powell can be used for zodi so they need to have the same definition
+    
+    real(dp)                                     :: lnL_ptsrc_multi
+    
     integer(i4b) :: i, l, la, k, q, pix, ierr, flag
     real(dp)     :: lnL, amp, s, a
     real(dp), allocatable, dimension(:) :: theta

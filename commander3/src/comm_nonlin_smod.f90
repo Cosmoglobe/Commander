@@ -1669,10 +1669,14 @@ contains
 
   contains
 
-    function lnL_multi(x)
+    function lnL_multi(x, checks)
       use healpix_types
       implicit none
       real(dp), dimension(:), intent(in), optional :: x
+
+      logical(lgt), intent(in), optional :: checks 
+      !useless here but powell can be used for zodi so they need to have the same definition
+    
       real(dp)             :: lnL_multi
       
       integer(i4b) :: i, j, k, n
@@ -2095,10 +2099,14 @@ contains
 
   contains
 
-    function lnL_simple(x)
+    function lnL_simple(x, checks)
       use healpix_types
       implicit none
       real(dp), dimension(:), intent(in), optional :: x
+
+      logical(lgt), intent(in), optional :: checks 
+      !useless here but powell can be used for zodi so they need to have the same definition
+    
       real(dp)             :: lnL_simple
       
       integer(i4b) :: i, j, n

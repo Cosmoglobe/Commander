@@ -18,7 +18,7 @@ module zodi_hmc_mod
       integer(i4b),      intent(in)      :: samp_group
 
       logical(lgt) :: accept
-      real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:), grad_new(:)
+      real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:), grad_new(:), hmc_mass(:)
       real(dp), allocatable, dimension(:) :: theta_prev, chisq_prev
       integer(i4b) :: i, j, k, ind, ierr, flag, ntot, npar, unit
       real(dp) :: chisq_old, chisq_new
@@ -99,7 +99,10 @@ module zodi_hmc_mod
             call powell(theta, lnL_zodi_hmc, ierr, tolerance=1d-5) 
          else if (trim(cpar%zs_samp_method(samp_group))=='hmc') then
             write(*,*) "calling nuts"
-            call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle) !does it need tolerance=1d-5? ierr=number of hmc iteration? 
+            allocate(hmc_mass(size(theta)))
+            hmc_mass = 10000
+            call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle, M=hmc_mass) !does it need tolerance=1d-5? ierr=number of hmc iteration? 
+            deallocate(hmc_mass)
          else
             write(*,*) 'Unsupported zs_samp_method=', trim(cpar%zs_samp_method(samp_group))
             stop
