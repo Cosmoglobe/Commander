@@ -1564,8 +1564,10 @@ contains
      end if
      !lambda = 1e8
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
-     
-     psd_loglike = -sum(gain_ps(1:2000) * inv_N_corr(1:2000) - log(inv_N_corr(1:2000))) !- lambda*sigma_0
+   
+
+     !TODO: fix this hardcoding issue here 
+     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike
