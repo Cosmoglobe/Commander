@@ -48,6 +48,7 @@ contains
     logical(lgt), optional, intent(in)    :: nplus2
 
     integer(i4b) :: i, ierr
+    class(comm_mapinfo), allocatable :: mapinfo_nplus2
 
     call timer%start(TOD_ALLOC, tod%band)
     self%nobs            = tod%nobs
@@ -76,6 +77,9 @@ contains
        self%ncol = tod%nmaps - 1
        self%n_A  = 3*tod%ndet + 3
        self%nout = tod%output_n_maps *tod%ndet
+
+       mapinfo_nplus2 = comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
+
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
@@ -84,7 +88,11 @@ contains
     !write(*,*) 'nout = ', tod%output_n_maps, self%nout
     allocate(self%outmaps(self%nout))
     do i = 1, self%nout
-       self%outmaps(i)%p => comm_map(tod%info)
+       if(self%solve_nplus2)then
+         self%outmaps(i)%p => comm_map(mapinfo_nplus2)
+       else  
+         self%outmaps(i)%p => comm_map(tod%info)
+       end if
     end do
     allocate(self%A_map(self%n_A,self%nobs), self%b_map(self%nout,self%ncol,self%nobs))
     self%A_map = 0.d0; self%b_map = 0.d0
