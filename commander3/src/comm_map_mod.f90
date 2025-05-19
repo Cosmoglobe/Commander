@@ -1028,6 +1028,7 @@ subroutine tod2file_dp3(filename,d)
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
+    character(len=8) :: headernum
 
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
@@ -1094,7 +1095,7 @@ subroutine tod2file_dp3(filename,d)
         call add_card(header,"TUNIT4", unit_//'^2',"Map unit")
         call add_card(header)
 
-    else
+    else if(nmaps <= 3) then
         call add_card(header) ! blank line
         call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
         call add_card(header,"TUNIT1", unit_,"Map unit")
@@ -1109,6 +1110,13 @@ subroutine tod2file_dp3(filename,d)
            call add_card(header,"TUNIT3", unit_,"Map unit")
            call add_card(header)
         endif
+    else !Something weird with a nonstandard number of maps, add dummy header
+       call add_card(header)
+       do i = 1, nmaps
+         write(headernum, *) i
+         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype") 
+         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+       end do
     end if
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
