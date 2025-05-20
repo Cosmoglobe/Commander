@@ -28,6 +28,7 @@ module comm_tod_inst_mod
   use comm_tod_dirbe_mod
   use comm_tod_lb_mod
   !use comm_tod_quiet_mod  
+  use comm_tod_chipass_mod
   implicit none
   
 end module comm_tod_inst_mod

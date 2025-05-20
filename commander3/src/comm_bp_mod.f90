@@ -135,6 +135,8 @@ contains
        c%threshold = 0.d0
     case ('SPIDER')
        c%threshold = 0.d0
+    case ('CHIPASS')
+       c%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(c%type))
     end select
@@ -308,7 +310,7 @@ contains
        self%a2f     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / tsum(self%nu, self%tau/self%nu**2 * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
-    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER', 'CHIPASS') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
@@ -426,6 +428,8 @@ contains
        SED2F = tsum(self%nu, self%tau * f)
     case ('SPIDER')
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
+    case ('CHIPASS')
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop
@@ -481,7 +485,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'HFI_submm', 'PSM_LFI', 'SPIDER', 'DIRBE', 'FIRAS') 
+    case ('HFI_cmb', 'HFI_submm', 'PSM_LFI', 'SPIDER', 'DIRBE', 'FIRAS', 'CHIPASS') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)

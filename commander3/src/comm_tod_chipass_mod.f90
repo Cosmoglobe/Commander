@@ -18,8 +18,8 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_tod_IRAS_mod
-   !   Module which contains all the LiteBIRD time ordered data processing and routines
+module comm_tod_CHIPASS_mod
+   !   Module which contains all the CHIPASS time ordered data processing and routines
    !   for a given frequency band
    !
    !   Main Methods
@@ -27,29 +27,29 @@ module comm_tod_IRAS_mod
    !   constructor(cpar, id_abs, info, tod_type)
    !       Initialization routine that reads in, allocates and associates 
    !       all data needed for TOD processing
-   !   process_IRAS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+   !   process_CHIPASS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
    use comm_tod_driver_mod
    implicit none
 
    private
-   public comm_iras_tod
+   public comm_chipass_tod
 
-   type, extends(comm_tod) :: comm_iras_tod
+   type, extends(comm_tod) :: comm_chipass_tod
    contains
-      procedure     :: process_tod          => process_IRAS_tod
-   end type comm_iras_tod
+      procedure     :: process_tod          => process_CHIPASS_tod
+   end type comm_chipass_tod
 
-   interface comm_iras_tod
-      procedure constructor_iras
-   end interface comm_iras_tod
+   interface comm_chipass_tod
+      procedure constructor_chipass
+   end interface comm_chipass_tod
 
 contains
    !**************************************************
    !             Constructor
    !**************************************************
-   function constructor_iras(cpar, id, id_abs, info, tod_type) result(c)
+   function constructor_chipass(cpar, id, id_abs, info, tod_type) result(c)
       ! 
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -74,7 +74,7 @@ contains
       integer(i4b),            intent(in) :: id, id_abs        !index of the current band within the parameters 
       class(comm_mapinfo),     target     :: info
       character(len=128),      intent(in) :: tod_type      !
-      class(comm_iras_tod),      pointer    :: c
+      class(comm_chipass_tod), pointer    :: c
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
@@ -106,7 +106,7 @@ contains
 
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
-      c%samprate_lowres = 1.  ! Lowres samprate in Hz
+      c%samprate_lowres = 8.  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
       c%compressed_tod  = .false.
@@ -124,7 +124,7 @@ contains
          c%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       end if
             
-      nside_beam                  = 128
+      nside_beam                  = 1024
       nmaps_beam                  = 1
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
@@ -165,21 +165,21 @@ contains
       !end do
       
       call timer%stop(TOD_INIT, id_abs)
-    end function constructor_iras
+    end function constructor_chipass
 
    !**************************************************
    !             Driver routine
    !**************************************************
-   subroutine process_IRAS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
+   subroutine process_CHIPASS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
       ! 
-      ! Routine that processes the IRAS Calibrated Individual Observations. 
+      ! Routine that processes the CHIPASS Calibrated Individual Observations. 
       ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
       ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
       ! Writes maps to disc in fits format
       ! 
       ! Arguments:
       ! ----------
-      ! self:     pointer of comm_iras_tod class
+      ! self:     pointer of comm_chipass_tod class
       !           Points to output of the constructor
       ! chaindir: string
       !           Directory for output files
@@ -208,7 +208,7 @@ contains
       !          Final output rms map after TOD processing combined for all detectors
 
       implicit none
-      class(comm_iras_tod),                    intent(inout) :: self
+      class(comm_chipass_tod),                  intent(inout) :: self
       character(len=*),                         intent(in)    :: chaindir
       integer(i4b),                             intent(in)    :: chain, iter
       type(planck_rng),                         intent(inout) :: handle
@@ -477,7 +477,7 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
-   end subroutine process_IRAS_tod   
+   end subroutine process_CHIPASS_tod   
 
 
-end module comm_tod_IRAS_mod
+end module comm_tod_CHIPASS_mod

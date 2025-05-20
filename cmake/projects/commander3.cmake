@@ -76,6 +76,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_chipass_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_inst_mod.f90

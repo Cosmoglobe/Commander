@@ -393,7 +393,7 @@ contains
    end if
    self%use_solar_point = self%subtract_zodi
 
-    if (trim(self%tod_type)=='SPIDER') then
+    if (trim(self%tod_type)=='SPIDER' .or. trim(self%tod_type)=='CHIPASS') then
       self%orbital = .false.
     else
       self%orbital = .true.
