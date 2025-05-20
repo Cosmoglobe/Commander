@@ -18,8 +18,8 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_tod_CHIPASS_mod
-   !   Module which contains all the CHIPASS time ordered data processing and routines
+module comm_tod_chipass_mod
+   !   Module which contains all the chipass time ordered data processing and routines
    !   for a given frequency band
    !
    !   Main Methods
@@ -27,7 +27,7 @@ module comm_tod_CHIPASS_mod
    !   constructor(cpar, id_abs, info, tod_type)
    !       Initialization routine that reads in, allocates and associates 
    !       all data needed for TOD processing
-   !   process_CHIPASS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+   !   process_chipass_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
    use comm_tod_driver_mod
@@ -38,7 +38,7 @@ module comm_tod_CHIPASS_mod
 
    type, extends(comm_tod) :: comm_chipass_tod
    contains
-      procedure     :: process_tod          => process_CHIPASS_tod
+      procedure     :: process_tod          => process_chipass_tod
    end type comm_chipass_tod
 
    interface comm_chipass_tod
@@ -170,9 +170,9 @@ contains
    !**************************************************
    !             Driver routine
    !**************************************************
-   subroutine process_CHIPASS_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
+   subroutine process_chipass_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
       ! 
-      ! Routine that processes the CHIPASS Calibrated Individual Observations. 
+      ! Routine that processes the chipass Calibrated Individual Observations. 
       ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
       ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
       ! Writes maps to disc in fits format
@@ -477,7 +477,7 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
-   end subroutine process_CHIPASS_tod   
+   end subroutine process_chipass_tod   
 
 
-end module comm_tod_CHIPASS_mod
+end module comm_tod_chipass_mod
