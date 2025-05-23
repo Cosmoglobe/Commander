@@ -32,6 +32,7 @@ module zodi_hmc_mod
       ntot = zodi_model%npar_tot
       allocate(theta_old(npar), theta_new(npar), theta(npar))
       allocate(theta_prev(npar), chisq_prev(numband), scale(npar))
+      allocate(grad_new(npar))
 
       ! Initialize active monopoles
       do i = 1, numband
@@ -89,9 +90,7 @@ module zodi_hmc_mod
 
       ! Rescale 
       theta = theta_new/scale
-
-      allocate(grad_new(size(theta)))
-
+      
       if (cpar%myid == cpar%root) then
          
          ! Perform search
@@ -99,10 +98,11 @@ module zodi_hmc_mod
             call powell(theta, lnL_zodi_hmc, ierr, tolerance=1d-5) 
          else if (trim(cpar%zs_samp_method(samp_group))=='hmc') then
             write(*,*) "calling nuts"
-            allocate(hmc_mass(size(theta)))
-            hmc_mass = 10000
-            call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle, M=hmc_mass) !does it need tolerance=1d-5? ierr=number of hmc iteration? 
-            deallocate(hmc_mass)
+            !allocate(hmc_mass(npar))
+            !hmc_mass = 1.0_dp
+            !call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle, M=hmc_mass) !does it need tolerance=1d-5? ierr=number of hmc iteration? 
+            !deallocate(hmc_mass)
+            call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle)
          else
             write(*,*) 'Unsupported zs_samp_method=', trim(cpar%zs_samp_method(samp_group))
             stop
@@ -133,7 +133,7 @@ module zodi_hmc_mod
              if (flag == 1) then 
                  chisq_new = lnL_zodi_hmc()
              else if (flag == 2) then
-                 grad_new = grad_lnL_zodi_hmc()
+                 call grad_lnL_zodi_hmc(grad_lnL_zodi=grad_new)
              else 
                  exit
               end if
@@ -171,13 +171,14 @@ module zodi_hmc_mod
          real(dp) :: chisq, chisq_tot, box_width, t1, t2, t3, t4, mono
          integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot
          logical(lgt) :: accept, flag_checks
-         logical(lgt), dimension(numband) :: update_band
+         !logical(lgt), dimension(numband) :: update_band
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
 
          call wall_time(t1)
-         
+
          allocate(theta(npar))
+         
          if (cpar%myid_chain == 0) then
             if(present(checks)) then
                flag_checks = checks 
@@ -189,13 +190,14 @@ module zodi_hmc_mod
             call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
 
             theta = p*scale
+            
          end if
 
          call mpi_bcast(flag_checks, 1, MPI_LOGICAL, 0, data(1)%tod%comm, ierr)
          call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
          ! Check which parameters have changed
-         update_band = .true.
+         !update_band = .true.
 !!$         update_band = .false.
 !!$         j = 0
 !!$         do i = 1, zodi_model%npar_tot
@@ -247,17 +249,17 @@ module zodi_hmc_mod
             ndet = data(i)%tod%ndet
             nscan = data(i)%tod%nscan
             
-            !This could be removed since update_band is always set to true I think
-            if (.not. update_band(i)) then
-               chisq_tot = chisq_tot + chisq_prev(i)
-               do scan = 1, nscan
-                  do j = 1, ndet
-                     if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-                     ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                  end do
-               end do
-               cycle
-            end if
+            !!This could be removed since update_band is always set to true I think
+            !if (.not. update_band(i)) then
+            !   chisq_tot = chisq_tot + chisq_prev(i)
+            !   do scan = 1, nscan
+            !      do j = 1, ndet
+            !         if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+            !         ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+            !      end do
+            !   end do
+            !   cycle
+            !end if
 
             ! Get monopole
             mono = band_monopole(i) !get_monopole_amp(data(i)%label)
@@ -374,33 +376,34 @@ module zodi_hmc_mod
          theta_prev = theta
       end function lnL_zodi_hmc
 
-      function grad_lnL_zodi_hmc(p)
+     subroutine grad_lnL_zodi_hmc(p, grad_lnL_zodi)
+     !Currently the only free parameter is comp:n0 which is linear in the model, this means 
+     !grad(lnL_zodi)=d(lnL_zodi)/dno=d(chisq)/dno=-(2/(dof*sigma**2))*(data-models)*zodi_model_comp(n0=1)
+     !attention: the sum is outside everything
+     !first I use the usual lnL_zodi, then I force comp:n0=1 setting its 'stat'=-3 and other n0s=0 with stat=-2 then I re-evaluate zodi
+     
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional       :: p
+        real(dp), dimension(:), intent(inout) :: grad_lnL_zodi
 
-      !Currently the only free parameter is comp:n0 which is linear in the model, this means 
-      !grad(lnL_zodi)=d(lnL_zodi)/dno=d(chisq)/dno=-(2/(dof*sigma**2))*(data-models)*zodi_model_comp(n0=1)
-      !attention: the sum is outside everything
-      !first I use the usual lnL_zodi, then I force comp:n0=1 setting its 'stat'=-3 and other n0s=0 with stat=-2 then I re-evaluate zodi
-      
-         use healpix_types
-         implicit none
-         real(dp), dimension(:), intent(in), optional       :: p
-
-         real(dp), allocatable :: theta(:), zodi_mod(:), zodi_n0(:), grad_lnL_zodi_hmc(:)
+         real(dp), dimension(npar) :: theta
+         real(dp), allocatable :: zodi_mod(:), zodi_n0(:)
          real(dp) :: grad, grad_tot
          character(len=:), allocatable :: free_comp, free_par 
          integer(i4b), dimension(6) :: par_inds, prev_vals   !number of components =6 (cloud, band1, band2, band3, ring, feature)
          integer(i4b) :: g, pos, c
 
-         real(dp) :: box_width, t1, t2, t3, t4, mono  !chisq, chisq_tot, 
+         real(dp) :: box_width, t1, t2, t3, t4, mono
          integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot
          logical(lgt) :: accept
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
 
          call wall_time(t1)  
-         
-         allocate(theta(npar))
 
+         !write(*,*) 'h1'
+         
          !#grad_lnL is called only when performing the minimization which is something that only 
          !#the root process performs but then all the threads are needed when evaluating lnL or grad because I need all the data
          if (cpar%myid_chain == 0) then
@@ -410,9 +413,9 @@ module zodi_hmc_mod
          end if
          call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
-         allocate(grad_lnL_zodi_hmc(size(theta)))
-
          call params_to_model(zodi_model, theta, samp_group) !check this
+
+         !write(*,*) 'h2'
 
          do g=1, size(theta)   !loop over all free parameters i.e. all components of the gradient
             ndof = 0
@@ -423,6 +426,8 @@ module zodi_hmc_mod
 
                ! Get monopole
                mono = band_monopole(i) !get_monopole_amp(data(i)%label)
+
+               !write(*,*) 'h3'
 
                box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
 
@@ -453,6 +458,8 @@ module zodi_hmc_mod
                          &)
                      zodi_mod = data(i)%tod%scans(scan)%d(j)%downsamp_zodi
 
+                     !write(*,*) 'zodi_mod'
+
                      !now I want zodi_n0 i.e., zodi model with n0=1
 
                      !look for the free parameter index in theta_stat (probably there's a more intelligent way to do this)
@@ -473,7 +480,7 @@ module zodi_hmc_mod
                      !all the other n0 must be set to zero because the derivative acts only on one component
                      select case (free_comp)
                      case ('cloud')
-                        !write(*,*) 'calling case cloud'
+                        write(*,*) 'calling case cloud'
                         par_inds(2) = zodi_model%get_par_ind(comp_str = 'band1', param = 'n_0')
                         prev_vals(2) = zodi_model%theta_stat(par_inds(2),samp_group)
                         zodi_model%theta_stat(par_inds(2),samp_group) = -2
@@ -606,7 +613,7 @@ module zodi_hmc_mod
                      end select
                      deallocate(free_comp, free_par)
 
-                     call params_to_model(zodi_model, theta, samp_group) !check this
+                     call params_to_model(zodi_model, theta, samp_group)
 
                      !evaluate zodi with this condition
                      call get_zodi_emission(&
@@ -626,12 +633,14 @@ module zodi_hmc_mod
                          &)
                      zodi_n0 = data(i)%tod%scans(scan)%d(j)%downsamp_zodi
 
+                     !write(*,*) 'zodi_n0'
+
                      !set theta_stat[n0]=prev_vals again so that in the next run is going to optimize it
                      do c=1, 6
                         zodi_model%theta_stat(par_inds(c),samp_group) = prev_vals(c)
                      end do
 
-                     call params_to_model(zodi_model, theta, samp_group) !check this
+                     call params_to_model(zodi_model, theta, samp_group)
 
                      !compute gradient
                      grad = sum( &
@@ -650,9 +659,12 @@ module zodi_hmc_mod
                      !call wall_time(t4)
 
                      ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                     write(*,*) 'ndof'
                   end do
                end do
             end do
+
+            !write(*,*) 'h4'
 
             ! Reduce grad to root process
             call mpi_reduce(grad_tot, grad, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
@@ -661,8 +673,12 @@ module zodi_hmc_mod
             call wall_time(t4)
 
             if (cpar%myid_chain == 0) then
-               grad_lnL_zodi_hmc(g) = grad/ndof_tot
-               write(*,*) 'grad_lnL_zodi_hmc(',g,')=', grad_lnL_zodi_hmc(g)
+               grad_lnL_zodi(g) = grad/ndof_tot
+               !write(*,*) 'unscaled'
+               !grad is computed using the physical parameter theta*scale but hmc works better with just theta
+               !so the idea is to apply the chain rule to get the dl/d(t*s)=s*dl/dt
+               grad_lnL_zodi = scale*grad_lnL_zodi
+               write(*,*) 'grad_lnL_zodi(',g,')=', grad_lnL_zodi(g)
                call wall_time(t2)
             end if
             
@@ -670,7 +686,7 @@ module zodi_hmc_mod
 
          end do 
  
-      end function grad_lnL_zodi_hmc
+      end subroutine grad_lnL_zodi_hmc
 
    end subroutine minimize_zodi
 

@@ -384,7 +384,7 @@ contains
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         !call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
          if (self%first_call) then

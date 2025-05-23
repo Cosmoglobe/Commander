@@ -54,6 +54,8 @@ contains
     type(planck_rng),                intent(inout) :: handle
     integer(i4b), optional,             intent(in) :: length
     real(dp), optional, dimension(:),   intent(in) :: M
+
+
     interface
        function lnlike(theta, checks)
          use healpix_types
@@ -63,15 +65,15 @@ contains
          real(dp)                           :: lnlike
        end function lnlike
 
-       function grad_lnlike(theta)
+       subroutine grad_lnlike(theta, grad_lnL)
          use healpix_types
          implicit none
          real(dp), dimension(:), intent(in), optional :: theta
-         real(dp), allocatable   :: grad_lnlike(:)
-       end function grad_lnlike
+         real(dp), dimension(:), intent(inout)   :: grad_lnL
+       end subroutine grad_lnlike
     end interface
 
-    integer(i4b) :: i, j, npar, L, t0, M_adapt, unit
+    integer(i4b) :: i, j, npar, L, t0, M_adapt
     real(dp) :: alpha, H_m, logeps, logepsbar, gamm, kappa, mu, delta, acc_rate
     real(dp), dimension(size(theta)) :: p0, p, theta_prop, mass, theta_new, p_new
 
@@ -136,10 +138,6 @@ contains
         eps = exp(logepsbar)
       end if
 
-      if (mod(i, 1)==0) then
-        write(unit, *)  i, '  | ', theta(1), '  | ', p(1)
-      end if
-
     end do
 
     write(*,*) "final acceptance rate ", acc_rate/real(n_steps + M_adapt)
@@ -159,7 +157,7 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     integer(i4b),                       intent(in) :: n_steps
-    real(dp), optional,                           intent(inout) :: eps
+    real(dp), optional,intent(inout)               :: eps
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     interface
@@ -171,12 +169,12 @@ contains
          real(dp)                           :: lnlike
        end function lnlike
 
-       function grad_lnlike(theta)
-         use healpix_types
-         implicit none
-         real(dp), dimension(:), intent(in), optional :: theta
-         real(dp), allocatable   :: grad_lnlike(:)
-       end function grad_lnlike
+       subroutine grad_lnlike(theta, grad_lnL)
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional :: theta
+        real(dp), dimension(:), intent(inout)   :: grad_lnL
+       end subroutine grad_lnlike
     end interface
 
 
@@ -186,8 +184,6 @@ contains
     real(dp), dimension(size(theta)) :: theta_plus, theta_minus, theta_p
     real(dp), dimension(size(theta)) :: p_plus, p_minus, p_p, p, buff1, buff2, mass
 
-    integer(i4b) :: unit
-
     npar = size(theta)
 
     if (present(M)) then
@@ -196,11 +192,11 @@ contains
         mass = 1.0_dp
       else
         mass = M
-        write(*,*) "Mass set to=", mass
       end if
     else
       mass = 1.0_dp
     end if
+    write(*,*) "Mass set to=", mass
 
     if (.not. present(eps)) then
       write(*,*) 'calling FindReasonableEpsilon'
@@ -225,6 +221,7 @@ contains
       do j = 1, npar
         p(j) = rand_gauss(handle)
       end do
+
       logu = lnlike(theta) - 0.5*sum(p**2/mass) + log(rand_uni(handle))
       theta_minus = theta
       theta_plus  = theta
@@ -297,12 +294,12 @@ contains
          real(dp)                           :: lnlike
        end function lnlike
 
-       function grad_lnlike(theta)
-         use healpix_types
-         implicit none
-         real(dp), dimension(:), intent(in), optional :: theta
-         real(dp), allocatable   :: grad_lnlike(:)
-       end function grad_lnlike
+       subroutine grad_lnlike(theta, grad_lnL)
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional :: theta
+        real(dp), dimension(:), intent(inout)   :: grad_lnL
+       end subroutine grad_lnlike
     end interface
 
 
@@ -413,21 +410,21 @@ contains
   !end function 
 
 
-  subroutine Leapfrog(x, p, x_new, p_new, eps, grad_func, mass)
+  subroutine Leapfrog(x, p, x_new, p_new, eps, grad_lnlike, mass)
     implicit none
-    real(dp), dimension(:), intent(in) :: x, p
+    real(dp), dimension(:), intent(in)    :: x, p, mass
     real(dp),               intent(in)    :: eps
-    real(dp), dimension(:), intent(in)    :: mass
-    real(dp), dimension(:), intent(inout)   :: x_new, p_new
-    real(dp), allocatable                 :: grad(:)
+    real(dp), dimension(:), intent(inout) :: x_new, p_new
+    real(dp), dimension(size(x))          :: grad
+    integer(i4b) :: npar
 
     interface
-      function grad_func(x)
-        use healpix_types
-        implicit none
-        real(dp), dimension(:), intent(in), optional :: x
-        real(dp), allocatable      :: grad_func(:)
-      end function grad_func
+    subroutine grad_lnlike(theta, grad_lnL)
+      use healpix_types
+      implicit none
+      real(dp), dimension(:), intent(in), optional :: theta
+      real(dp), dimension(:), intent(inout)   :: grad_lnL
+    end subroutine grad_lnlike
     end interface
 
     ! Leapfrog integrator, performs sympletic integration of Hamilton's equation
@@ -436,15 +433,11 @@ contains
       write(*,*) "Warning: Mass matrix in HMC has nonpositive values"
     end if
 
-    allocate(grad(size(x)))
-    
-    grad = grad_func(x)
+    call grad_lnlike(x, grad)
     p_new = p+(grad*(eps/2))
     x_new = x+(eps*(p_new/mass))
-    grad = grad_func(x_new)
+    call grad_lnlike(x_new, grad)
     p_new = p_new+(grad*(eps/2))
-
-    deallocate(grad)
 
   end subroutine Leapfrog
 
@@ -461,7 +454,7 @@ contains
     real(dp), dimension(size(theta)),   intent(in) :: mass
     real(dp)                                       :: final_eps, eps, npar, pp_over_p
     real(dp)                                       :: ln_old, ln_new
-    real(dp), dimension(size(theta))               :: p, p0, theta_prop, theta_new, p_new
+    real(dp), dimension(size(theta))               :: p, p0, theta_prop, theta_new, p_new, grad
     integer(i4b)                                   :: i, a
     interface
        function lnlike(theta, checks)
@@ -472,12 +465,12 @@ contains
          real(dp)                           :: lnlike
        end function lnlike
 
-       function grad_lnlike(theta)
-         use healpix_types
-         implicit none
-         real(dp), dimension(:), intent(in), optional :: theta
-         real(dp), allocatable   :: grad_lnlike(:)
-       end function grad_lnlike
+       subroutine grad_lnlike(theta, grad_lnL)
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional :: theta
+        real(dp), dimension(:), intent(inout)   :: grad_lnL
+       end subroutine grad_lnlike 
     end interface
 
     npar = size(theta)
@@ -487,17 +480,16 @@ contains
       p(i) = rand_gauss(handle)
     end do
 
-    !theta_new = theta
-    !p_new = p
+    !write(*,*) 'p=', p
 
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
     ln_old = lnlike(theta, .false.)
     ln_new = lnlike(theta_new, .false.)
 
-    write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
+    !write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
     pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
-    write(*,*) 'pp_over_p=', pp_over_p
+    !write(*,*) 'pp_over_p=', pp_over_p
 
     if (pp_over_p > 0.5) then
       a = 1
@@ -511,8 +503,8 @@ contains
       ln_old=lnlike(theta, .false.)
       ln_new=lnlike(theta_new, .false.)
       pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
-      write(*,*) 'theta=', theta , 'p=', p, 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'p_new=', p_new, 'lnlike(theta_new)=', ln_new
-      write(*,*) 'eps= ', eps, 'pp_over_p= ', pp_over_p
+      !write(*,*) 'theta=', theta , 'p=', p, 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'p_new=', p_new, 'lnlike(theta_new)=', ln_new
+      !write(*,*) 'eps= ', eps, 'pp_over_p= ', pp_over_p
 
       if(a == 1) then
         if (pp_over_p < 0.5_dp) exit

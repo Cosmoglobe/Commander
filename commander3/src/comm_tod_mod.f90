@@ -3104,7 +3104,8 @@ contains
          call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
       end do
 
-      self%zodi_init_cache_time = self%scans(1)%t0(1)
+      if(size(self%scans)/=0) self%zodi_init_cache_time = self%scans(1)%t0(1)
+      
       call self%clear_zodi_cache()
       
       !allocate spectral quantities
