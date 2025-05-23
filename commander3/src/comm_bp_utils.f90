@@ -101,6 +101,11 @@ contains
     if (x > 200) then
       write(*,*) 'h, nu, k_B, T_CMB, x = ', h, nu, k_b, T_CMB, x
     end if
+
+    if (x < 1d-6) then
+      write(*,*) 'h, nu, k_B, T_CMB, x = ', h, nu, k_b, T_CMB, x
+    end if
+
     compute_ant2thermo_single = (exp(x)-1.d0)**2 / (x**2 * exp(x))
     
   end function compute_ant2thermo_single

@@ -269,6 +269,7 @@ contains
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
           sz(i)           = comp_sz_thermo(self%nu(i))
        else
+          !write(*,*) 'a', i, size(self%nu), self%nu(i)
           a(i)            = comp_a2t(self%nu(i))          
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))

@@ -297,14 +297,15 @@ contains
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
-            do k=1, j
+            do k=1, j-1
                if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
-               else if (k==j-1) then
-                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
                end if
             end do
+            if (k==j) then
+               data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
+            end if
             deallocate(nu_dummy, tau_dummy)
           end if
        end do

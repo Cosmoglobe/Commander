@@ -279,14 +279,16 @@ contains
       call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
+      !call map_in(1,1)%p%writeFITS("map_in.fits")
 
+      
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       if (self%sample_zodi .and. self%subtract_zodi) then
          allocate(procmask_zodi(0:npix-1))
          call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
-      end if
+       end if
       deallocate(m_buf)
 
       call update_status(status, "tod_init")
