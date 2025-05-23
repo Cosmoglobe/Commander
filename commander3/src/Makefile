@@ -50,6 +50,7 @@ F90SOURCES=hashtbl.f90 \
            comm_cr_precond_mod.f90 \
            comm_zodi_mod.f90 \
            comm_zodi_comp_mod.f90 \
+           zodi_hmc_mod.f90 \
            comm_shared_output_mod.f90 \
            comm_status_mod.f90 \
            comm_bp_utils.f90 \
@@ -164,7 +165,7 @@ locate_mod.o                :
 math_tools.o                :
 comm_sparse_mod.o           : math_tools.o
 powell_mod.o                :
-hmc_mod.o                   :
+hmc_mod.o                   : comm_utils.o
 comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o
 spline_1d_mod.o             : math_tools.o locate_mod.o
 ars_mod.o                   : sort_utils.o
@@ -318,6 +319,7 @@ comm_spindust_comp_mod.o    : comm_comp_interface_mod.o
 comm_chisq_mod.o            : comm_comp_interface_mod.o
 comm_output_mod.o           : comm_chisq_mod.o
 comm_zodi_samp_mod.o        : comm_zodi_mod.o comm_chisq_mod.o powell_mod.o
+zodi_hmc_mod.o              : comm_zodi_samp_mod.o hmc_mod.o
 
 comm_cr_mod.o               : comm_output_mod.o
 
@@ -327,4 +329,4 @@ comm_gain_mod.o             : comm_signal_mod.o
 comm_nonlin_mod.o           : comm_gain_mod.o
 comm_nonlin_smod.o          : comm_nonlin_mod.o
 
-commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_sparse_mod.o
+commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_sparse_mod.o zodi_hmc_mod.o
