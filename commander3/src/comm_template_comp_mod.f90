@@ -335,9 +335,9 @@ contains
   end subroutine initTemplateHDF
 
 
-  subroutine initTemplatePrecond(comm)
+  subroutine initTemplatePrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2
@@ -348,7 +348,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (npre == 0) return
-    if (allocated(P_cr%invM_temp)) return
+    if (allocated(P_cr(samp_group)%invM_temp)) return
 
     call mpi_comm_rank(comm, myid, ierr)
         
@@ -401,7 +401,7 @@ contains
     call mpi_reduce(mat, mat2, size(mat2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
 
     ! Invert matrix to finalize preconditioner
-    allocate(P_cr%invM_temp(1,1))
+    allocate(P_cr(samp_group)%invM_temp(1,1))
     if (myid == 0) then
        ! Multiply with sqrtS from left side
        i1  = 0
@@ -445,8 +445,8 @@ contains
        end do
        ! Invert matrix to finalize preconditioner
        call invert_matrix_with_mask(mat2)
-       allocate(P_cr%invM_temp(1,1)%M(npre,npre))
-       P_cr%invM_temp(1,1)%M = mat2
+       allocate(P_cr(samp_group)%invM_temp(1,1)%M(npre,npre))
+       P_cr(samp_group)%invM_temp(1,1)%M = mat2
     end if
 
     deallocate(mat,mat2)
@@ -463,10 +463,11 @@ contains
   end subroutine updateTemplatePrecond
 
 
-  subroutine applyTemplatePrecond(x)
+  subroutine applyTemplatePrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
-
+    integer(i4b),                     intent(in)    :: samp_group
+    
     integer(i4b)              :: i, j, k, l, m, nmaps
     logical(lgt)              :: skip
     real(dp),                  allocatable, dimension(:,:) :: amp
@@ -501,7 +502,7 @@ contains
     end do
 
     ! Multiply with preconditioner
-    y = matmul(P_cr%invM_temp(1,1)%M, y)
+    y = matmul(P_cr(samp_group)%invM_temp(1,1)%M, y)
 
     ! Reformat y(npre) structure back into linear array
     l = 1

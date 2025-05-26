@@ -40,9 +40,21 @@ module comm_utils
   !include "mpif.h"
   include 'fftw3.f'
 
+  interface compute_running_variance
+     module procedure compute_running_variance_sp, compute_running_variance_dp
+  end interface compute_running_variance
+
+  interface median
+     module procedure median_sp, median_dp
+  end interface median
+
+  interface read_map
+     module procedure read_map_dp, read_map_sp
+  end interface read_map
+
 contains
 
-  function median(array) result(res)
+  function median_dp(array) result(res)
     implicit none
     real(dp) :: array(:), res
     real(dp), dimension(:), allocatable :: tmp
@@ -52,7 +64,19 @@ contains
     call QuickSort_real(tmp)
     res = tmp(size(tmp)/2+1)
     deallocate(tmp)
-  end function median
+  end function median_dp
+
+  function median_sp(array) result(res)
+    implicit none
+    real(sp) :: array(:), res
+    real(dp), dimension(:), allocatable :: tmp
+
+    allocate(tmp(size(array)))
+    tmp = array
+    call QuickSort_real(tmp)
+    res = tmp(size(tmp)/2+1)
+    deallocate(tmp)
+  end function median_sp
 
   function getlun()
     implicit none
@@ -522,7 +546,7 @@ contains
 !!$  end subroutine allocate_map
 
   
-  subroutine read_map(filename, map)
+  subroutine read_map_dp(filename, map)
     implicit none
 
     character(len=*),                 intent(in)  :: filename
@@ -547,7 +571,34 @@ contains
        end do
     end if
 
-  end subroutine read_map
+  end subroutine read_map_dp
+
+  subroutine read_map_sp(filename, map)
+    implicit none
+
+    character(len=*),                 intent(in)  :: filename
+    real(sp),         dimension(0:,1:), intent(out) :: map
+
+    integer(i4b)   :: nside, nmaps, ordering, i, npix, nmaps_in, nside_in
+    integer(i8b)   :: temp_i
+
+    npix  = size(map(:,1))
+    nmaps = size(map(0,:))
+    nside = nint(sqrt(real(npix,sp)/12.))
+
+    temp_i = getsize_fits(trim(filename), ordering=ordering, nside=nside_in, nmaps=nmaps_in)
+    if ((nmaps_in < nmaps) .or. (nside_in /= nside)) then
+       write(*,*) 'Incorrect nside or nmaps for file called ', trim(filename)
+    end if
+
+    call input_map(filename, map, npix, nmaps, ignore_polcconv=.true.)
+    if (ordering == 2) then
+       do i = 1, nmaps
+          call convert_nest2ring(nside, map(:,i))
+       end do
+    end if
+
+  end subroutine read_map_sp
 
     ! Routine for initializing the monopole and dipoles
   subroutine initialize_mono_dipole(nside, pix, monopole, dipole)
@@ -602,9 +653,9 @@ contains
 
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
     
-    if (myid == 0) write(*,*) trim(message)
-    call mpi_finalize(ierr)
-    stop
+    write(*,*) trim(message)
+
+    call mpi_abort(MPI_COMM_WORLD, 1, ierr)
     
   end subroutine report_error
 
@@ -1482,4 +1533,187 @@ contains
      is_numeric = e == 0
    END FUNCTION is_numeric
 
+  subroutine compute_running_variance_sp(x, mask, window, variance, var_mean, mean_full)
+    implicit none
+    real(sp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(sp),     dimension(:), intent(out) :: variance
+    real(sp),                   intent(out), optional :: var_mean
+    logical(lgt),               intent(in),  optional :: mean_full
+
+    integer(i4b) :: i, j, k, l, n, m
+    real(sp)     :: mu, mu_full
+    logical(lgt) :: mean_full_
+    !integer(i4b), allocatable, dimension(:) :: m
+
+    mean_full_ = .false.; if (present(mean_full)) mean_full_ = mean_full
+    
+    n = size(x)
+
+    if (mean_full_) then
+       mu_full = median(x)
+!!$       mu_full = 0.
+!!$       m       = 0
+!!$       do l = j, k
+!!$          if (mask(l) == 1.) then
+!!$             mu_full = mu_full + x(l)
+!!$             m       = m  + 1
+!!$          end if
+!!$       end do
+!!$       if (m > 0) mu_full = mu_full / m
+    end if
+    
+    do i = 1, n
+       j = max(i-window,1)
+       k = min(i+window,n)
+       variance(i) = 0.
+       mu = 0.
+       m  = 0
+       do l = j, k
+          if (mask(l) == 1.) then
+             mu = mu + x(l)
+             m  = m  + 1
+          end if
+       end do
+       if (m < 3) then
+          variance(i) = 0.
+       else
+          if (mean_full_) then
+             mu = mu_full
+          else
+             mu = mu / m
+          end if
+          do l = j, k
+             if (mask(l) == 1.) then
+                variance(i) = variance(i) + (x(l) - mu)**2
+             end if
+          end do
+          variance(i) = variance(i) / (m-1)
+       end if
+    end do
+    
+!!$    allocate(m(n))
+!!$    variance(1) = 0.d0
+!!$    m           = 0
+!!$    do j = 1, window
+!!$       if (mask(j) == 1.d0) then
+!!$          variance(1) = variance(1) + x(j)**2
+!!$          m(1)        = m(1)        + 1
+!!$       end if
+!!$    end do
+!!$    
+!!$    ! Compute running mean variance
+!!$    do i = 2, n
+!!$       variance(i) = variance(i-1)
+!!$       m(i)        = m(i-1)
+!!$       k = i-window
+!!$       if (k > 0) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) - x(k)**2
+!!$             m(i)        = m(i) - 1
+!!$          end if
+!!$       end if
+!!$       k = i+window
+!!$       if (k <= n) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) + x(k)**2
+!!$             m(i)        = m(i) + 1
+!!$          end if
+!!$       end if
+!!$    end do
+!!$    do i = 1, n
+!!$       if (m(i) > 2) then
+!!$          variance(i) = variance(i) / (m(i) - 1.d0)
+!!$       else
+!!$          variance(i) = 0.d0
+!!$       end if
+!!$    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0 .and. variance(i) > 0.) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+             !write(*,*) i, var_mean, j, var_mean/j
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    !deallocate(m)
+    
+  end subroutine compute_running_variance_sp
+
+  
+
+  subroutine compute_running_variance_dp(x, mask, window, variance, var_mean)
+    implicit none
+    real(dp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(dp),     dimension(:), intent(out) :: variance
+    real(dp),                   intent(out), optional :: var_mean
+
+    integer(i4b) :: i, j, k, n
+    integer(i4b), allocatable, dimension(:) :: m
+
+    n = size(x)
+    
+    allocate(m(n))
+    variance(1) = 0.d0
+    m           = 0
+    do j = 1, window
+       if (mask(j) == 1.d0) then
+          variance(1) = variance(1) + x(j)**2
+          m(1)        = m(1)        + 1
+       end if
+    end do
+    
+    ! Compute running mean variance
+    do i = 2, n
+       variance(i) = variance(i-1)
+       m(i)        = m(i-1)
+       k = i-window
+       if (k > 0) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) - x(k)**2
+             m(i)        = m(i) - 1
+          end if
+       end if
+       k = i+window
+       if (k <= n) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) + x(k)**2
+             m(i)        = m(i) + 1
+          end if
+       end if
+    end do
+    do i = 1, n
+       if (m(i) > 2) then
+          variance(i) = variance(i) / (m(i) - 1.d0)
+       else
+          variance(i) = 0.d0
+       end if
+    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    deallocate(m)
+    
+  end subroutine compute_running_variance_dp
+
+   
 end module comm_utils

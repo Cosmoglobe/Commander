@@ -104,6 +104,7 @@ contains
     class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
+    real(dp), allocatable, dimension(:,:) :: map_out
 
     call update_status(status, "output_start")
     
@@ -145,7 +146,7 @@ contains
        call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
-
+    
     !Prepare mean foregrounds values print to file
     if (cpar%myid_chain == 0) then
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
@@ -453,6 +454,30 @@ contains
           do i = 1, numband
              if (trim(data(i)%tod_type) == 'none') cycle
              if (data(i)%tod%map_solar_allocated) call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_solar_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_solar)
+             if (data(i)%tod%map_moon_allocated)  call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_moon_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_moon)
+             if (data(i)%tod%map_earth_allocated) then
+                open(58,file=trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_earth_c'//ctext//'_k' // itext // '.dat')
+                do j = 1, NBIN_EARTH_ELON
+                   write(58,*) real(j+0.5,sp)*pi/NBIN_EARTH_ELON, data(i)%tod%map_earth(j)
+                end do
+                close(58)
+             end if
+          end do
+       end if
+
+       ! Output pixel histogram summary
+       if (cpar%myid_chain == 0 .and. iter == 1) then
+          do i = 1, numband
+             if (trim(data(i)%tod_type) == 'none') cycle
+             if (allocated(data(i)%tod%pixhist)) then
+                allocate(map_out(0:size(data(i)%tod%pixhist,2)-1,5))
+                map_out = transpose(data(i)%tod%pixhist)
+                do j = 1, size(map_out,2)
+                   call convert_nest2ring(data(i)%tod%nside_pixhist, map_out(:,j))
+                end do
+                call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_pixhist.fits', map_out)
+                deallocate(map_out)
+             end if
           end do
        end if
     end if
@@ -510,8 +535,8 @@ contains
 
       call create_hdf_group(chainfile, 'parameters')
       n = size(cpar%cs_label)
-
       do i = 1, n
+         !write(*,*) i, trim(adjustl(cpar%cs_label(i)))
          hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
          call create_hdf_group(chainfile, trim(hdf_path))
 

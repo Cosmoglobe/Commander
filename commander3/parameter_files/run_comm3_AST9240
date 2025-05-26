@@ -1,0 +1,47 @@
+#!/bin/bash
+list1=owl{17..24}.uio.no
+list2=owl{25..28}.uio.no
+list3=owl{29..30}.uio.no
+list4=owl{31..35}.uio.no
+list5=owl{36..37}.uio.no
+list6=hyades{2..3}.uio.no
+list7=hyades4.uio.no
+list8=hyades5.uio.no
+list9=hyades6.uio.no
+list10=hyades{7..9}.uio.no
+list11=hyades{10..16}.uio.no
+lists=(list1 list2 list3 list4 list5 list6 list7 list8 list9 list10 list11)
+ns=(24 72 64 64 128 86 64 24 64)
+tLen=${#lists[@]}
+builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "hya13" "hya4" "hya5" "hya6" "hya79" "hya1016")
+module purge
+module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+
+build=0
+for (( i=0; i<${tLen}; i++ ));
+do
+  c=${!lists[$i]}
+  v=$(eval "echo $c")
+  if [[ "$v" == *"$HOSTNAME"* ]]
+  then
+    build=$((i+1))
+    build=${builds[$i]}
+    n=${ns[$i]}
+  fi
+done
+echo $build
+
+seed=$RANDOM
+
+
+#killall -9 commander
+COMM_ROOT="/mn/stornext/u3/hke/git/Commander_AST9240_2024"
+export COMMANDER_PARAMS_DEFAULT=$COMM_ROOT"/commander3/parameter_files/defaults"
+export COMM_EXEC=$COMM_ROOT"/build_${build}_oneapi_Release/install/bin/commander3"
+export HEALPIX=${COMM_ROOT}"/build_${build}_oneapi_Release/install/healpix"
+export LD_LIBRARY_PATH=${COMM_ROOT}/install/lib:${COMM_ROOT}/install/healpix/lib:$LD_LIBRARY_PATH
+pfile=param_AST9240_planck2015_1deg.txt
+dir="chains"
+cp $pfile $dir/${pfile}_orig_v1
+n=64
+export OMP_NUM_THREADS=1; mpirun -env I_MPI_FABRICS shm -n $n $COMM_EXEC $pfile 2>&1| tee -a $dir/slurm.txt

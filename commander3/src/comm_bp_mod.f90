@@ -30,6 +30,7 @@ module comm_bp_mod
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
      real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
+     real(dp)           :: RJ2data
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
      ! Data procedures
@@ -182,8 +183,6 @@ contains
                end do
                c%tau0 = c%tau0 / ndet
           else
-               print *, "got to nonzero threshold, aborting"
-               stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & c%threshold, &
                     & c%n, c%nu0, c%tau0)
@@ -217,6 +216,27 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     c%nu_eff = sum(c%tau*c%nu)/sum(c%tau)
+
+    ! Initialize conversion from RJ to data units
+    select case (trim(cpar%ds_unit(id_abs)))
+    case ('uK_cmb') 
+       c%RJ2data = c%a2t
+    case ('mK_cmb') 
+       c%RJ2data = c%a2t * 1d-3
+    case ('K_cmb') 
+       c%RJ2data = c%a2t * 1d-6
+    case ('MJy/sr') 
+       c%RJ2data = c%a2f
+    case ('y_SZ') 
+       c%RJ2data = c%a2sz
+    case ('uK_RJ') 
+       c%RJ2data = 1.d0
+    case ('K km/s')
+       write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
+       c%RJ2data = 1.d0
+    case default
+       c%RJ2data = 1.d0
+    end select
     
   end function constructor_bp
   

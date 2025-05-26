@@ -65,7 +65,7 @@ contains
     logical(lgt) :: pol_beam
     character(len=50)  :: name
     character(len=6)   :: itext
-    character(len=512) :: chainfile, path
+    character(len=2048) :: chainfile, path
     type(hdf_file)     :: init_file
 
     real(dp), dimension(:),   allocatable :: nus
@@ -531,10 +531,10 @@ contains
          call update_status(status, "init_noise_filter_from_chain")
 
          ! init the noise filter from chain if we are not computing it
-         if(trim(res%init_from_HDF) == 'default') then
-           call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
-         else if(trim(res%init_from_HDF) == 'none') then
+         if(trim(res%init_from_HDF) == 'none' .or. cpar%init_chain_prefix == 'none') then
            chainfile = ""
+         else if(trim(res%init_from_HDF) == 'default') then
+           call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
          else
            call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
          end if
@@ -795,11 +795,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
 
        ! Make simulations, or draw correlated noise
@@ -867,7 +867,7 @@ contains
        end if
 
        ! Clean up
-       call sd%dealloc
+       call dealloc_scan_data(sd)
        call timer%start(TOD_ALLOC, self%band)
        deallocate(d_calib)
        call timer%stop(TOD_ALLOC, self%band)
@@ -1636,7 +1636,7 @@ contains
 
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call sd%init_singlehorn(tod, i, map_sky, m_gain, procmask, procmask2)
+       call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)
@@ -1693,7 +1693,7 @@ contains
 !!$       end if
 
        ! Clean up
-        call sd%dealloc
+        call dealloc_scan_data(sd)
         deallocate(res)
         call timer%stop(TOD_1HZ, tod%band)
     end do
