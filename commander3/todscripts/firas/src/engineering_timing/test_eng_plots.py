@@ -15,6 +15,19 @@
 
 '''
 
+from scipy.interpolate import interp1d
+import h5py
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.time import Time
+import astropy.units as u
+
+from time import time
+
+from astropy.visualization import time_support
+time_support()
+
+from tqdm import tqdm
 
 def find_epoch(time):
     '''
@@ -114,12 +127,16 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     plt.close('all')
 
 
+    '''
     for i in range(352, 358):
         plt.plot(time1, ifgs1[i])
+    plt.title('IFGs1 times')
     plt.figure()
     for i in range(350, 360):
         plt.plot(time2, -ifgs2[i])
+    plt.title('IFGs2 times')
     plt.show()
+    '''
 
     return
 
@@ -128,16 +145,6 @@ kind = 'cubic'
 kind = 'linear'
 
 
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-from astropy.time import Time
-import astropy.units as u
-
-from time import time
-
-from astropy.visualization import time_support
-time_support()
 # https://docs.astropy.org/en/latest/api/astropy.visualization.time_support.html
 
 # FIRAS mission periods, MJD in ns
@@ -236,11 +243,11 @@ filters = (stat_word_9 == 16185)
 
 dn = 8
 dn = 0.5
+dn = 4
 '''
 # GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
 times = []
-from tqdm import tqdm
 for i in tqdm(range(len(gmt_time))):
     t_str = gmt_time[i].decode('UTF-8')
     yr = f'19{t_str[0:2]}'
@@ -448,6 +455,8 @@ t1 = 2.465e6*u.s + t_10
 t0 = 2.103e6*u.s + t_10
 t1 = 2.110e6*u.s + t_10
 
+t0 = 2.1045e6*u.s + t_10
+t1 = 2.108e6*u.s + t_10
 
 
 '''
@@ -488,6 +497,7 @@ for side in ['a', 'b']:
         grts[f'{side}_hi_{grt}'][filters] = np.nan
 
 
+        # This ordering is an artifact of the time-domain multiplexing, likely wires being plugged in a non-ideal order.
         if (grt == 'collimator') or (grt == 'xcal_cone'):
             grt_times[f'{side}_lo_{grt}'] = time + 16*u.s
             grt_times[f'{side}_hi_{grt}'] = time
@@ -503,28 +513,41 @@ axs[0].plot(nt(time[inds],epoch), grts[f'a_hi_xcal_cone'][inds] - grts[f'a_hi_ic
 axs[1].plot(nt(time[inds],epoch), grts[f'a_lo_xcal_cone'][inds] - grts[f'a_lo_ical'][inds],'.')
 axs[0].margins(0)
 axs[1].set_xlabel(f'Time since epoch {epoch+1} [s]')
-#plt.show()
+plt.close()
 
+# This is essentially a way to get the peaks to match so that it is easier to see when the changes occur.
 grt_biases = {}
 grt_biases['a_hi_xcal_tip'] = 0.007
 grt_biases['b_hi_xcal_tip'] = 0
 grt_biases['a_hi_skyhorn'] = 0.002
 grt_biases['b_hi_skyhorn'] = 0.00
 grt_biases['a_hi_refhorn'] = 0.0055
-grt_biases['b_hi_refhorn'] = 0.0045
-grt_biases['a_hi_ical'] = 0.013
+grt_biases['b_hi_refhorn'] = 0.0045 + 4e-3
+grt_biases['a_hi_ical'] = 0.021
 grt_biases['b_hi_ical'] = 0.005
-grt_biases['a_hi_dihedral'] = 0.29
+grt_biases['a_hi_dihedral'] = 0.31
 grt_biases['b_hi_dihedral'] = 0.54
-grt_biases['a_hi_mirror'] = 0.65
-grt_biases['b_hi_mirror'] = 0.73
+grt_biases['a_hi_mirror'] = 0.65 + 0.015
+grt_biases['b_hi_mirror'] = 0.73 + 0.002
 grt_biases['a_hi_xcal_cone'] = 0.005
 grt_biases['b_hi_xcal_cone'] = 0.0025
 grt_biases['a_hi_collimator'] = 0.69
 grt_biases['b_hi_collimator'] = 0
 
+for ji, j in tqdm(enumerate(np.arange(-64, 64.5, dn))):
+    for i, grt in enumerate(grt_names):
+        if (grt == 'xcal_tip') | (grt == 'collimator'):
+            continue
+        plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], 'o-', label='High current reading')
+        plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], 'o-', label='High current reading')
+        plt.title(f'Extra {j} seconds')
+        plt.xlabel(f'Time since epoch {epoch+1} [s]')
+        plt.savefig(f'temperature_comp_{grt}_{ji:02}.png')
+        plt.close()
+plt.close('all')
+
 #grt_names = ['skyhorn','xcal_cone']
-for ji, j in enumerate(np.arange(-5, 5.5, dn)):
+for ji, j in tqdm(enumerate(np.arange(-5, 5.5, dn))):
     fig, axes = plt.subplots(4, 4, sharex=True, sharey=False, figsize=(13, 13))
     axs = axes.flatten()
     for i, grt in enumerate(grt_names):
@@ -548,6 +571,8 @@ for ji, j in enumerate(np.arange(-5, 5.5, dn)):
     plt.savefig(f'temperature_readings_{ji:02}.png')
     plt.close()
 plt.close('all')
+
+
 
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
@@ -589,6 +614,8 @@ axs[4].set_title('lvdta')
 axs[5].plot(nt(time[inds],epoch), lvdt_stat_b[inds], '.')
 axs[5].set_title('lvdtb')
 axs[0].margins(0)
+plt.savefig('stat_words.png', bbox_inches='tight')
+plt.close()
 
 
 fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
@@ -598,6 +625,7 @@ axs[1].plot(nt(time[inds],epoch), stat_word_9[inds], '.')
 axs[0].margins(0)
 plt.suptitle('Important flags?')
 plt.savefig('eng_data.png', bbox_inches='tight')
+plt.close()
 
 ll = sdf['fdq_sdf_ll']
 rh = sdf['fdq_sdf_rh']
@@ -615,7 +643,6 @@ plot_sdf(ll, rh, t0, t1, vmin=-100, vmax=100,
 #plt.show()
 #plt.close()
 
-from scipy.interpolate import interp1d
 
 stat_word_5 = eng['en_stat/stat_word_5'][()]
 stat_word_9 = eng['en_stat/stat_word_9'][()]
@@ -623,9 +650,9 @@ stat_word_13 = eng['en_stat/stat_word_13'][()]
 stat_word_16 = eng['en_stat/stat_word_16'][()]
 lvdt_stat_a, lvdt_stat_b = eng['en_stat/lvdt_stat'][()].T
 
-for _, j in enumerate(np.arange(15, 17, dn)):
-    t_lo = (time[inds])
-    t_hi = (time[inds] + j*dt)
+for _, j in enumerate(np.arange(-8, 8, dn)):
+    #t_lo = (time[inds])
+    #t_hi = (time[inds] + j*dt)
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
     axs = axes.flatten()
     for i, grt in enumerate(grt_names):
@@ -633,6 +660,8 @@ for _, j in enumerate(np.arange(15, 17, dn)):
         T_hi = grts[f'a_hi_{grt}'][inds]
         T_lo[T_lo < 0] = np.nan
         T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'a_lo_{grt}'][inds]
+        t_hi = grt_times[f'a_hi_{grt}'][inds] + j*dt
 
         f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
@@ -646,6 +675,8 @@ for _, j in enumerate(np.arange(15, 17, dn)):
         T_hi = grts[f'b_hi_{grt}'][inds]
         T_lo[T_lo < 0] = np.nan
         T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'b_lo_{grt}'][inds]
+        t_hi = grt_times[f'b_hi_{grt}'][inds] + j*dt
 
         f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
@@ -660,12 +691,12 @@ for _, j in enumerate(np.arange(15, 17, dn)):
     fig.supxlabel(r'$T_\mathrm{low}$')
     plt.suptitle(f'{j} second offset')
     plt.tight_layout()
-    #plt.savefig(f'offsets_diff_{_:03}.png')
+    plt.savefig(f'offsets_diff_{_:03}.png')
     plt.close()
 
-for _, j in enumerate(np.arange(15,17, dn)):
-    t_lo = (time[inds])
-    t_hi = (time[inds] + j*dt)
+for _, j in enumerate(np.arange(-8, 8, dn)):
+    #t_lo = (time[inds])
+    #t_hi = (time[inds] + j*dt)
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
     axs = axes.flatten()
     for i, grt in enumerate(grt_names):
@@ -673,6 +704,8 @@ for _, j in enumerate(np.arange(15,17, dn)):
         T_hi = grts[f'a_hi_{grt}'][inds]
         T_lo[T_lo < 0] = np.nan
         T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'a_lo_{grt}'][inds]
+        t_hi = grt_times[f'a_hi_{grt}'][inds] + j*dt
 
         f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
@@ -686,6 +719,8 @@ for _, j in enumerate(np.arange(15,17, dn)):
         T_hi = grts[f'b_hi_{grt}'][inds]
         T_lo[T_lo < 0] = np.nan
         T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'b_lo_{grt}'][inds]
+        t_hi = grt_times[f'b_hi_{grt}'][inds] + j*dt
 
         f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
@@ -700,5 +735,5 @@ for _, j in enumerate(np.arange(15,17, dn)):
     fig.supxlabel(r'$T_\mathrm{low}$')
     plt.suptitle(f'{j} second offset')
     plt.tight_layout()
-    #plt.savefig(f'offsets_split_{_:03}.png')
+    plt.savefig(f'offsets_split_{_:03}.png')
     plt.close()
