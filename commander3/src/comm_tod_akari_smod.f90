@@ -97,6 +97,7 @@ contains
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       ! c%chisq_threshold = 50000.
       c%chisq_threshold = huge(0.0d0)
+      c%nside_pixhist   = 64
 
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -209,6 +210,7 @@ contains
       character(len=6)    :: samptext, scantext
       character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
+      real(sp),              dimension(9)       :: flag_threshold
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -235,8 +237,9 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .true.                         ! Gain sampling, LB TOD sims have perfect gain
+      sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
+      flag_threshold        = [1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
@@ -298,6 +301,11 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
+      ! Create pixel histograms
+      if (self%first_call) then
+         call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
+      end if
+      
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
@@ -339,17 +347,17 @@ contains
          ! end if
          
          ! Create dynamic mask
-         ! if (self%first_call) then
-         !    do j = 1, sd%ndet
-         !       if (.not. self%scans(i)%d(j)%accept) cycle
-         !       if (self%scans(i)%d(j)%N_psd%sigma0 .eq. 0.d0) write(*,*) 'debug sigma0 = 0.0'
-         !       call self%create_dynamic_mask(i, j, (sd%tod(:,j) - real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-         !            & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
-         !    end do
-         !    call dealloc_scan_data(sd)
-         !    if (.not. any(self%scans(i)%d%accept)) cycle
-         !    call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
-         ! end if
+         if (self%first_call) then
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               if (self%scans(i)%d(j)%N_psd%sigma0 .eq. 0.d0) write(*,*) 'debug sigma0 = 0.0'
+               call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                    & sd%mask(:,j), sd%flag(:,j), flag_threshold, s_tot=sd%s_tot(:,j))
+            end do
+            call dealloc_scan_data(sd)
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         end if
 
          ! Sample correlated noise
          ! if (sample_ncorr) then
@@ -423,6 +431,9 @@ contains
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
+      ! Synchronize and output flagging statistics in first iteration
+      if (self%first_call) call self%report_dynamic_mask_stats
+      
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
 

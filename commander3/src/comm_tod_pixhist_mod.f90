@@ -36,6 +36,25 @@ contains
     npix_hist = 12*tod%nside_pixhist**2
     q         = (tod%nside / tod%nside_pixhist)**2
 
+!!$    if (tod%myid == 0) then
+!!$       open(58,file='tod.dat')
+!!$       do i = 1, tod%nscan
+!!$          if (.not. any(tod%scans(i)%d%accept)) cycle
+!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+!!$          do j = 1, tod%ndet
+!!$             if (.not. tod%scans(i)%d(j)%accept) cycle
+!!$             do k = 1, sd%ntod
+!!$                if (iand(sd%flag(k,j), tod%flag0) .ne. 0) cycle
+!!$                write(58,*) i, j, k, sd%tod(k,j)
+!!$             end do
+!!$          end do
+!!$          call dealloc_scan_data(sd)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$    call mpi_finalize(ierr)
+!!$    stop
+    
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1))  ! (mu, rms, nhit, min, max)
     allocate(delta(0:npix_hist-1))  ! (mu, rms, nhit, min, max)
@@ -63,6 +82,11 @@ contains
     call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(4,:),  size(tod%pixhist(4,:)),  MPI_REAL, MPI_MIN, tod%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(5,:),  size(tod%pixhist(5,:)),  MPI_REAL, MPI_MAX, tod%comm, ierr)
     delta = (tod%pixhist(5,:)-tod%pixhist(4,:))/NBIN_HIST
+!!$    if (tod%myid == 0) then
+!!$       do i = 0, npix_hist-1
+!!$          if (tod%pixhist(4,i) /= 1e30) write(*,*) 'pixhist', i, tod%pixhist(4:5,i), delta(i)
+!!$       end do
+!!$    end if
 
     refine = .true.
     iter   = 0
@@ -82,6 +106,8 @@ contains
                 call ring2nest(tod%nside, sd%pix(k,j,1), pix)
                 pix = pix / q
                 if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
+                !write(*,fmt='(i4,i4,i6,3e16.8)') i, j, k, sd%tod(k,j), tod%pixhist(4,pix), delta(pix)
+                !if (delta(pix) < 1e-6) write(*,*) 'skal ikke vaere her', i, j, k
                 bin = int((sd%tod(k,j)-tod%pixhist(4,pix))/delta(pix))+1
                 if (bin(1) < 1 .or. bin(1) > NBIN_HIST) bin(1) = 0 ! Sample out of range; discarded
                 hist(bin(1),pix) = hist(bin(1),pix) + 1
