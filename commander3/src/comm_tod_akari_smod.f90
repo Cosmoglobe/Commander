@@ -327,7 +327,7 @@ contains
          !write(*,*) i, self%scans(i)%d%accept
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
@@ -399,10 +399,6 @@ contains
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
-               do k = 1, size(sd%s_zodi_therm, dim=2)
-                  call int2string(k, scantext)
-                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
-               end do
                call close_hdf_file(tod_file)
             end if
          end if
@@ -421,7 +417,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          deallocate(d_calib)
       end do
 
