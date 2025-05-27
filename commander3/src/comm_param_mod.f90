@@ -41,7 +41,7 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=2048), dimension(2)  :: general = [character(len=2048) :: "T_0", "T_DELTA"]
+     character(len=2048), dimension(7)  :: general = [character(len=2048) :: "T_0", "T_DELTA", "G1", "G2", "G3", "W2", "W3"]
      character(len=2048), dimension(6)  :: common = [character(len=2048) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
      character(len=2048), dimension(4)  :: cloud = [character(len=2048) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=2048), dimension(4)  :: band = [character(len=2048) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
@@ -282,6 +282,8 @@ module comm_param_mod
 
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
+     character(len=24)                       :: zs_phasefunc, zs_bandpass
+     real(dp)                                :: zs_nu_min_scatter, zs_nu_max_thermal
      integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
@@ -724,6 +726,7 @@ contains
                   & par_int=cpar%ds_tod_tot_numscan(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_flag(i))
+             cpar%ds_tod_flag(i) = cpar%ds_tod_flag(i) + 2**30  ! Always Enable dynamic flagging in Commander
              !call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
              !     & par_lgt=cpar%ds_tod_orb_abscal(i))
              if (cpar%include_TOD_zodi) then
@@ -2996,6 +2999,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
 
      call get_parameter_hashtable(htbl, 'NUM_ZODI_COMPS', par_int=cpar%zs_ncomps)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
+     call get_parameter_from_hash(htbl, 'ZODI_PHASE_FUNCTION_TYPE', par_string=cpar%zs_phasefunc)
+     call get_parameter_from_hash(htbl, 'ZODI_BANDPASS_TYPE', par_string=cpar%zs_bandpass)
+     call get_parameter_from_hash(htbl, 'ZODI_NU_MIN_SCATTERING', par_dp=cpar%zs_nu_min_scatter)
+     call get_parameter_from_hash(htbl, 'ZODI_NU_MAX_THERMAL', par_dp=cpar%zs_nu_max_thermal)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_JOINT_MONOPOLE_SAMPLING', par_lgt=cpar%zs_joint_mono)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_TOD_RESIDUALS', par_lgt=cpar%zs_output_tod_res)
@@ -3017,6 +3024,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      cpar%zs_general_params(:, 3) = DEFAULT_PRIOR_UPPER_LIMIT
 
      do i = 1, size(cpar%zodi_param_labels%general)
+        if (trim(cpar%zs_phasefunc) /= 'Hong' .and. i > 2) cycle
           call get_parameter_from_hash(htbl, 'ZODI_'//trim(adjustl(cpar%zodi_param_labels%general(i))), par_string=value_string)! par_dp=cpar%zs_general_params(i))
           call get_tokens(value_string, ',', value_and_priors_str, num=n_tokens) 
           if (.not. (n_tokens == 4 .or. n_tokens == 1)) stop "zodi parameter must have 1, or 4 tokens (value,) or (value,prior_lower_limit,prior_upper_limit,prior_type) [no spaces]"

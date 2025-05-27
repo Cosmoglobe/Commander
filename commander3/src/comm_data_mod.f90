@@ -63,7 +63,6 @@ module comm_data_mod
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
-     procedure :: RJ2data
      procedure :: chisq => get_chisq
      !procedure :: apply_proc_mask
   end type comm_data_set
@@ -187,7 +186,7 @@ contains
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
           end if
-
+          
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
              data(n)%tod_freq       = cpar%ds_tod_freq(i)
@@ -281,14 +280,13 @@ contains
        call update_status(status, "data_N")
 
        ! Initialize bandpass structures; 0 is full freq, j is detector       
-       allocate(data(n)%bp(0:data(n)%ndet))
-      
+       allocate(data(n)%bp(0:data(n)%ndet))      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
+             data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(cpar%ds_bpfile(i), &
+            call read_bandpass(trim(adjustl(cpar%ds_bpfile(i))), &
                               & trim(data(n)%tod%label(j)), &
                               & data(n)%bp(1)%p%threshold, &
                               & n_dummy, &
@@ -314,6 +312,15 @@ contains
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
+       ! Set up bp pointers in the TOD object
+       if (cpar%enable_TOD_analysis) then
+          allocate(data(n)%tod%bp(0:data(n)%ndet))
+          do j = 0, data(n)%ndet
+             data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
+          end do
+       end if
+
+       
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))
@@ -392,37 +399,6 @@ contains
 
   end function get_chisq
 
-  function RJ2data(self, det)
-    implicit none
-
-    class(comm_data_set), intent(in)           :: self
-    integer(i4b),         intent(in), optional :: det
-    real(dp)                                   :: RJ2data
-
-    integer(i4b) :: d
-
-    d = 0; if (present(det)) d = det
-
-    select case (trim(self%unit))
-    case ('uK_cmb') 
-       RJ2data = self%bp(d)%p%a2t
-    case ('mK_cmb') 
-       RJ2data = self%bp(d)%p%a2t * 1d-3
-    case ('K_cmb') 
-       RJ2data = self%bp(d)%p%a2t * 1d-6
-    case ('MJy/sr') 
-       RJ2data = self%bp(d)%p%a2f
-    case ('y_SZ') 
-       RJ2data = self%bp(d)%p%a2sz
-    case ('uK_RJ') 
-       RJ2data = 1.d0
-    case ('K km/s') 
-       RJ2data = 1.d0
-    case default
-       RJ2data = 1.d0
-    end select
-    
-  end function RJ2data
 
   subroutine dump_unit_conversion(dir)
     implicit none

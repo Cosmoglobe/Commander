@@ -32,7 +32,7 @@ module comm_tod_noise_psd_mod
   implicit none
 
   private
-  public comm_noise_psd, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_quad
+  public comm_noise_psd, comm_noise_psd_white, comm_noise_psd_oof, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_quad
 
   integer(i4b), parameter :: SIGMA0 = 1
   integer(i4b), parameter :: FKNEE  = 2
@@ -45,7 +45,7 @@ module comm_tod_noise_psd_mod
   integer(i4b), parameter :: SLOPE  = 4
   integer(i4b), parameter :: QUADRATIC = 5
 
-  type :: comm_noise_psd
+  type, abstract :: comm_noise_psd
      ! 
      ! Class definition for basic 1/f noise PSD model
      !
@@ -60,16 +60,73 @@ module comm_tod_noise_psd_mod
      logical(lgt)                               :: apply_filter      ! If we should apply the spline filter to the noise output
      type(spline_type)                          :: modulation_filter ! The filter multiplied to the output noise
    contains
-     procedure :: eval_full   => eval_noise_psd_full
-     procedure :: eval_corr   => eval_noise_psd_corr
+     procedure(eval_noise_psd_full), deferred :: eval_full
+     procedure(eval_noise_psd_corr), deferred :: eval_corr
      procedure :: init_common
   end type comm_noise_psd
 
-  interface comm_noise_psd
-     procedure constructor_oof
-  end interface comm_noise_psd
+  abstract interface
+     function eval_noise_psd_full(self, nu)
+       import comm_noise_psd, sp
+       ! 
+       ! Evaluation routine for general noise PSD object; both correlated and uncorrelated components
+       ! 
+       ! Arguments
+       ! ---------
+       ! self:    derived type (comm_noise_psd)
+       !          Basic noise PSD object
+       ! nu:      sp (scalar)
+       !          Frequency (in Hz) at which to evaluate PSD
+       ! 
+       implicit none
+       class(comm_noise_psd),         intent(in)      :: self
+       real(sp),                      intent(in)      :: nu
+       real(sp)                                       :: eval_noise_psd_full
+     end function eval_noise_psd_full
+  end interface
 
+  abstract interface
+     function eval_noise_psd_corr(self, nu)
+       import comm_noise_psd, sp
+       ! 
+       ! Evaluation routine for general noise PSD object; correlated noise only
+       ! 
+       ! Arguments
+       ! ---------
+       ! self:    derived type (comm_noise_psd)
+       !          Basic noise PSD object
+       ! nu:      sp (scalar)
+       !          Frequency (in Hz) at which to evaluate PSD
+       ! 
+       implicit none
+       class(comm_noise_psd),         intent(in)      :: self
+       real(sp),                      intent(in)      :: nu
+       real(sp)                                       :: eval_noise_psd_corr
+     end function eval_noise_psd_corr
+  end interface
 
+  ! #######################################
+  !     Specific noise class definition
+  ! #######################################
+  
+  type, extends(comm_noise_psd) :: comm_noise_psd_white
+     ! 
+     ! Class definition for white noise PSD model
+     !
+   contains
+     procedure :: eval_full   => eval_noise_psd_white_full
+     procedure :: eval_corr   => eval_noise_psd_white_corr
+  end type comm_noise_psd_white
+  
+  type, extends(comm_noise_psd) :: comm_noise_psd_oof
+     ! 
+     ! Class definition for basic 1/f noise PSD model
+     !
+   contains
+     procedure :: eval_full   => eval_noise_psd_oof_full
+     procedure :: eval_corr   => eval_noise_psd_oof_corr
+  end type comm_noise_psd_oof
+  
   type, extends(comm_noise_psd) :: comm_noise_psd_2oof
      ! 
      ! Class definition for 2-component 1/f noise PSD model
@@ -79,6 +136,7 @@ module comm_tod_noise_psd_mod
      procedure :: eval_corr   => eval_noise_psd_2oof_corr
   end type comm_noise_psd_2oof
 
+  
   type, extends(comm_noise_psd) :: comm_noise_psd_oof_gauss
      ! 
      ! Class definition for 2-component 1/f + Gauss noise PSD model
@@ -97,6 +155,14 @@ module comm_tod_noise_psd_mod
      procedure :: eval_corr   => eval_noise_psd_oof_quad_corr
   end type comm_noise_psd_oof_quad
 
+  interface comm_noise_psd_white
+     procedure constructor_white
+  end interface comm_noise_psd_white
+
+  interface comm_noise_psd_oof
+     procedure constructor_oof
+  end interface comm_noise_psd_oof
+
   interface comm_noise_psd_2oof
      procedure constructor_2oof
   end interface comm_noise_psd_2oof
@@ -108,54 +174,8 @@ module comm_tod_noise_psd_mod
   interface comm_noise_psd_oof_quad
      procedure constructor_oof_quad
   end interface comm_noise_psd_oof_quad
-
+  
 contains
-
-  function constructor_oof(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
-    ! 
-    ! Constructor for basic 1/f noise PSD object, where
-    !     
-    !     P(nu) = sigma0^2 * (1 + (nu/fknee)^alpha)
-    ! 
-    ! Arguments
-    ! --------- 
-    ! xi_n_def: sp (array)
-    !          3-element array containing default {sigma0, alpha, fknee}, where
-    !          [sigma0] = du/volts/tod unit, [alpha] = 1, and [fknee] = Hz
-    ! P_uni: sp (2D array)
-    !          Array containing absolute upper and lower limits for each parameter (npar,upper/lower)
-    ! P_active: sp (2D array)
-    !          Array containing informative priors for each parameter (npar,mean/rms)
-    ! nu_fit: sp (2-element array)
-    !          Array with [nu_min,nu_max] in Hz, defining ranged used for fittig non-linear parameters
-    ! 
-    ! filter : dp of size (2, :), optional
-    !          The noise filter to apply, in the form (x(:), y(:)). Regions 
-    !          outside x(1) -> x(n) will not be filtered. Omit this if you
-    !          don't want filtering
-
-    implicit none
-    real(sp),               dimension(:),   intent(in)      :: P_active_mean
-    real(sp),               dimension(:),   intent(in)      :: P_active_rms
-    real(sp),               dimension(:,:), intent(in)      :: P_uni
-    real(sp),               dimension(:,:), intent(in)      :: nu_fit
-    real(dp),     optional, dimension(:,:), intent(in)      :: filter
-    class(comm_noise_psd), pointer                         :: constructor_oof
-
-    allocate(constructor_oof)
-
-    if (P_active_mean(FKNEE) <= 0.0)     write(*,*) 'comm_noise_psd error: Default fknee less than zero'
-    if (P_uni(FKNEE,1) <= 0.0)           write(*,*) 'comm_noise_psd error: Lower fknee prior less than zero'
-    if (P_uni(FKNEE,1) > P_uni(FKNEE,2)) write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
-    if (P_uni(ALPHA,1) > P_uni(ALPHA,2)) write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
-
-    constructor_oof%npar = 3
-
-    call constructor_oof%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
-
-    constructor_oof%P_lognorm     = [.false., .true., .false.] ! [sigma0, fknee, alpha]
-
-  end function constructor_oof
 
   subroutine init_common(self, P_active_mean, P_active_rms, P_uni, nu_fit, filter)
     ! Contains common initialization for all classes of noise model
@@ -194,11 +214,142 @@ contains
     if(self%apply_filter) then
       call spline(self%modulation_filter, filter(1,:), filter(2,:))
     end if
-
-
   end subroutine
+  
+  function constructor_white(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+    ! 
+    ! Constructor for basic white noise PSD object, where
+    !     
+    !     P(nu) = sigma0^2 
+    ! 
+    ! Arguments
+    ! --------- 
+    ! xi_n_def: sp (array)
+    !          3-element array containing default {sigma0, alpha, fknee}, where
+    !          [sigma0] = du/volts/tod unit, [alpha] = 1, and [fknee] = Hz
+    ! P_uni: sp (2D array)
+    !          Array containing absolute upper and lower limits for each parameter (npar,upper/lower)
+    ! P_active: sp (2D array)
+    !          Array containing informative priors for each parameter (npar,mean/rms)
+    ! nu_fit: sp (2-element array)
+    !          Array with [nu_min,nu_max] in Hz, defining ranged used for fittig non-linear parameters
+    ! 
+    ! filter : dp of size (2, :), optional
+    !          The noise filter to apply, in the form (x(:), y(:)). Regions 
+    !          outside x(1) -> x(n) will not be filtered. Omit this if you
+    !          don't want filtering
 
-  function eval_noise_psd_full(self, nu)
+    implicit none
+    real(sp),               dimension(:),   intent(in)      :: P_active_mean
+    real(sp),               dimension(:),   intent(in)      :: P_active_rms
+    real(sp),               dimension(:,:), intent(in)      :: P_uni
+    real(sp),               dimension(:,:), intent(in)      :: nu_fit
+    real(dp),     optional, dimension(:,:), intent(in)      :: filter
+    class(comm_noise_psd_white), pointer                    :: constructor_white
+
+    allocate(constructor_white)
+
+    constructor_white%npar = 1
+
+    call constructor_white%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+
+    constructor_white%P_lognorm     = [.false.] ! [sigma0]
+
+  end function constructor_white
+
+  function eval_noise_psd_white_full(self, nu)
+    ! 
+    ! Evaluation routine for basic white noise PSD object
+    ! 
+    ! Arguments
+    ! ---------
+    ! self:    derived type (comm_noise_psd)
+    !          Basic noise PSD object
+    ! nu:      sp (scalar)
+    !          Frequency (in Hz) at which to evaluate PSD
+    ! 
+    implicit none
+    class(comm_noise_psd_white),         intent(in)      :: self
+    real(sp),                            intent(in)      :: nu
+    real(sp)                                             :: eval_noise_psd_white_full
+
+    eval_noise_psd_white_full = self%xi_n(SIGMA0)**2 
+
+    if(self%apply_filter) then
+      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
+        eval_noise_psd_white_full = eval_noise_psd_white_full * splint(self%modulation_filter, dble(nu))
+      end if
+    end if
+
+  end function eval_noise_psd_white_full
+
+  function eval_noise_psd_white_corr(self, nu)
+    ! 
+    ! Evaluation routine for basic white noise PSD object; correlated noise only, so this returns zero
+    ! 
+    ! Arguments
+    ! ---------
+    ! self:    derived type (comm_noise_psd)
+    !          Basic noise PSD object
+    ! nu:      sp (scalar)
+    !          Frequency (in Hz) at which to evaluate PSD
+    ! 
+    implicit none
+    class(comm_noise_psd_white),         intent(in)      :: self
+    real(sp),                            intent(in)      :: nu
+    real(sp)                                             :: eval_noise_psd_white_corr
+
+    eval_noise_psd_white_corr = 0.
+
+  end function eval_noise_psd_white_corr
+  
+  function constructor_oof(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+    ! 
+    ! Constructor for basic 1/f noise PSD object, where
+    !     
+    !     P(nu) = sigma0^2 * (1 + (nu/fknee)^alpha)
+    ! 
+    ! Arguments
+    ! --------- 
+    ! xi_n_def: sp (array)
+    !          3-element array containing default {sigma0, alpha, fknee}, where
+    !          [sigma0] = du/volts/tod unit, [alpha] = 1, and [fknee] = Hz
+    ! P_uni: sp (2D array)
+    !          Array containing absolute upper and lower limits for each parameter (npar,upper/lower)
+    ! P_active: sp (2D array)
+    !          Array containing informative priors for each parameter (npar,mean/rms)
+    ! nu_fit: sp (2-element array)
+    !          Array with [nu_min,nu_max] in Hz, defining ranged used for fittig non-linear parameters
+    ! 
+    ! filter : dp of size (2, :), optional
+    !          The noise filter to apply, in the form (x(:), y(:)). Regions 
+    !          outside x(1) -> x(n) will not be filtered. Omit this if you
+    !          don't want filtering
+
+    implicit none
+    real(sp),               dimension(:),   intent(in)      :: P_active_mean
+    real(sp),               dimension(:),   intent(in)      :: P_active_rms
+    real(sp),               dimension(:,:), intent(in)      :: P_uni
+    real(sp),               dimension(:,:), intent(in)      :: nu_fit
+    real(dp),     optional, dimension(:,:), intent(in)      :: filter
+    class(comm_noise_psd_oof), pointer                      :: constructor_oof
+
+    allocate(constructor_oof)
+
+    if (P_active_mean(FKNEE) <= 0.0)     write(*,*) 'comm_noise_psd error: Default fknee less than zero'
+    if (P_uni(FKNEE,1) <= 0.0)           write(*,*) 'comm_noise_psd error: Lower fknee prior less than zero'
+    if (P_uni(FKNEE,1) > P_uni(FKNEE,2)) write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
+    if (P_uni(ALPHA,1) > P_uni(ALPHA,2)) write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
+
+    constructor_oof%npar = 3
+
+    call constructor_oof%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+
+    constructor_oof%P_lognorm     = [.false., .true., .false.] ! [sigma0, fknee, alpha]
+
+  end function constructor_oof  
+
+  function eval_noise_psd_oof_full(self, nu)
     ! 
     ! Evaluation routine for basic 1/f noise PSD object
     ! 
@@ -210,21 +361,21 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd),               intent(in)      :: self
+    class(comm_noise_psd_oof),           intent(in)      :: self
     real(sp),                            intent(in)      :: nu
-    real(sp)                                             :: eval_noise_psd_full
+    real(sp)                                             :: eval_noise_psd_oof_full
 
-    eval_noise_psd_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA))
+    eval_noise_psd_oof_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA))
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_full = eval_noise_psd_full * splint(self%modulation_filter, dble(nu))
+        eval_noise_psd_oof_full = eval_noise_psd_oof_full * splint(self%modulation_filter, dble(nu))
       end if
     end if
 
-  end function eval_noise_psd_full
+  end function eval_noise_psd_oof_full
 
-  function eval_noise_psd_corr(self, nu)
+  function eval_noise_psd_oof_corr(self, nu)
     ! 
     ! Evaluation routine for basic 1/f noise PSD object; correlated noise only
     ! 
@@ -236,19 +387,19 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd),               intent(in)      :: self
+    class(comm_noise_psd_oof),           intent(in)      :: self
     real(sp),                            intent(in)      :: nu
-    real(sp)                                             :: eval_noise_psd_corr
+    real(sp)                                             :: eval_noise_psd_oof_corr
 
-    eval_noise_psd_corr = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
+    eval_noise_psd_oof_corr = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_corr = eval_noise_psd_corr * splint(self%modulation_filter, dble(nu))
+        eval_noise_psd_oof_corr = eval_noise_psd_oof_corr * splint(self%modulation_filter, dble(nu))
       end if
     end if
 
-  end function eval_noise_psd_corr
+  end function eval_noise_psd_oof_corr
 
   function constructor_2oof(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
     ! 

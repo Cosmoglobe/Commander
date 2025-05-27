@@ -150,9 +150,9 @@ contains
           elsewhere
              self%x%alm(i,:) = 0.d0
           end where
-          if (l > 500) then
-             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
-          end if
+!!$          if (l > 500) then
+!!$             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+!!$          end if
        end do
     end if
     
@@ -3501,12 +3501,13 @@ contains
 
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in),   optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, ierr, pix
+    integer(i4b) :: i, j, k, l, m, ierr, pix, verbosity_
     real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
     class(comm_map), pointer :: map, lr_map 
     class(comm_mapinfo), pointer :: info => null()
@@ -3519,6 +3520,8 @@ contains
        return
     end if
 
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Compute monopole offset given the specified prior
     mu = 0.d0
 
@@ -3544,7 +3547,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
              write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
              write(*,fmt='(a)') ' | '
@@ -3574,7 +3577,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
              write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
@@ -3589,7 +3592,7 @@ contains
              call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
              self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
           end do
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
              write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
              write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
@@ -3709,7 +3712,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' |  Cross-correlation prior correction for component: '//trim(self%label)
           write(*,fmt='(a,i2)') ' |    Number of linear fits (thresholds): ',&
                & self%mono_prior_Nthresh
@@ -3792,7 +3795,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' Lowest value prior correction for component: '//trim(self%label)
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
@@ -3902,7 +3905,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then 
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then 
           write(*,fmt='(a)') ' |  Band monopole prior correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
           write(*,fmt='(a,f14.3,f14.3)') ' |  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
           write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)

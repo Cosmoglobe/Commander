@@ -138,11 +138,12 @@ contains
     end if
   end subroutine sparse_system_set_rhs
   
-  subroutine sparse_system_decomp(self)
+  subroutine sparse_system_decomp(self, verbosity)
     implicit none
     class(sparse_system),     intent(inout) :: self
+    integer(i4b),             intent(in), optional :: verbosity
 
-    integer(i4b) :: solver, error, phase
+    integer(i4b) :: solver, error, phase, msglvl
 
     ! Initialize PARDISO solver
     solver     =  10  ! use sparse direct method
@@ -152,9 +153,10 @@ contains
     ! Symbolic factorization
     phase          = 11     ! only reordering and symbolic factorization
     self%iparm(33) = 1      ! compute determinant
+    msglvl         = self%msglvl; if (present(verbosity)) msglvl = verbosity
     call pardiso(self%pt, self%maxfct, self%mnum, self%mtype, phase, self%n, &
          & self%a(1:self%nj), self%ia(1:self%ni+1), self%ja(1:self%nj), &
-         & self%idum, self%nrhs, self%iparm, self%msglvl, self%ddum, self%ddum, error)
+         & self%idum, self%nrhs, self%iparm, msglvl, self%ddum, self%ddum, error)
     if (error /= 0) THEN
        write(*,*) 'pardiso symbolic factorization error: ', error
        stop
@@ -167,7 +169,7 @@ contains
     phase     = 22
     call pardiso(self%pt, self%maxfct, self%mnum, self%mtype, phase, self%n, &
          & self%a(1:self%nj), self%ia(1:self%ni+1), self%ja(1:self%nj), &
-         & self%idum, self%nrhs, self%iparm, self%msglvl, self%ddum, self%ddum, error) 
+         & self%idum, self%nrhs, self%iparm, msglvl, self%ddum, self%ddum, error) 
     if (error /= 0) THEN
        write(*,*) 'pardiso factorization error: ', error
        stop
