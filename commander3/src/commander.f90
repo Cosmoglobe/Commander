@@ -23,8 +23,12 @@ program commander
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
   use comm_sparse_mod
+<<<<<<< HEAD
   use hmc_mod
   use zodi_hmc_mod
+=======
+  use comm_dust_extinction_mod
+>>>>>>> precond
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -45,7 +49,7 @@ program commander
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)
-  real(dp) :: time_step
+  real(dp) :: time_step, lambda, A_ext(1)
   integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
@@ -159,8 +163,9 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
-  call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
-  call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
+  call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
+  call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
 
   ! Precompute zodi lookups
@@ -283,17 +288,15 @@ program commander
      ! Process TOD structures
 
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-     !if (iter == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     !if (mod(iter,10) == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         !qua!!
         call timer%stop(TOT_TODPROC)
      end if
 
-     if (cpar%enable_tod_simulations) then
-        ! Skip other steps if TOD simulations
-        exit
-     end if
+     ! Skip other steps if TOD simulations
+     if (cpar%enable_tod_simulations) exit
 
 <<<<<<< HEAD
    if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
@@ -309,13 +312,13 @@ program commander
       end if
 =======
      ! Sample zodi parameters
-     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+     if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
-        call project_and_downsamp_sky(cpar)
-        call downsamp_invariant_structs(cpar)
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
+           call downsamp_invariant_structs(cpar)
            call precompute_lowres_zodi_lookups(cpar)
+<<<<<<< HEAD
         else
            call apply_zodi_glitch_mask(cpar)
         end if
@@ -325,18 +328,23 @@ program commander
         if (first_zodi) then
            !call compute_downsamp_zodi(cpar, zodi_model)
            call create_zodi_glitch_mask(cpar, handle)
+=======
+           !call compute_downsamp_zodi(cpar, zodi_model)      
+           call create_zodi_sampgroup_mask(cpar, handle)
+>>>>>>> precond
            first_zodi = .false.
         end if
-        call apply_zodi_glitch_mask(cpar)
+        call project_and_downsamp_sky(cpar)
 
         ! Sample non-stationary zodi components with geometric 3D model
-        select case (trim(adjustl(cpar%zs_sample_method)))
-        case ("powell")
-           do i = 1, cpar%zs_num_samp_groups
-              if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
-           end do
-        end select
-
+        do i = 1, cpar%zs_num_samp_groups
+           call apply_zodi_sampgroup_mask(cpar, i)
+           select case (trim(adjustl(cpar%zs_sample_method)))
+           case ("powell")
+              call minimize_zodi_with_powell(cpar, iter, handle, i)
+           end select
+        end do
+        
         ! Sample stationary components
         !if (first_zodi) then
            if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
@@ -658,9 +666,6 @@ contains
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
-       ! Clear zodi cache for next band
-       if (data(i)%subtract_zodi) call data(i)%tod%clear_zodi_cache()
-       
        call timer%incr_numsamp(data(i)%id_abs)
        
        if (cpar%myid_chain == 0) then

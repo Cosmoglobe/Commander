@@ -46,8 +46,12 @@ module comm_utils
 
   interface median
      module procedure median_sp, median_dp
-  end interface
-  
+  end interface median
+
+  interface read_map
+     module procedure read_map_dp, read_map_sp
+  end interface read_map
+
 contains
 
   function median_dp(array) result(res)
@@ -542,7 +546,7 @@ contains
 !!$  end subroutine allocate_map
 
   
-  subroutine read_map(filename, map)
+  subroutine read_map_dp(filename, map)
     implicit none
 
     character(len=*),                 intent(in)  :: filename
@@ -567,7 +571,34 @@ contains
        end do
     end if
 
-  end subroutine read_map
+  end subroutine read_map_dp
+
+  subroutine read_map_sp(filename, map)
+    implicit none
+
+    character(len=*),                 intent(in)  :: filename
+    real(sp),         dimension(0:,1:), intent(out) :: map
+
+    integer(i4b)   :: nside, nmaps, ordering, i, npix, nmaps_in, nside_in
+    integer(i8b)   :: temp_i
+
+    npix  = size(map(:,1))
+    nmaps = size(map(0,:))
+    nside = nint(sqrt(real(npix,sp)/12.))
+
+    temp_i = getsize_fits(trim(filename), ordering=ordering, nside=nside_in, nmaps=nmaps_in)
+    if ((nmaps_in < nmaps) .or. (nside_in /= nside)) then
+       write(*,*) 'Incorrect nside or nmaps for file called ', trim(filename)
+    end if
+
+    call input_map(filename, map, npix, nmaps, ignore_polcconv=.true.)
+    if (ordering == 2) then
+       do i = 1, nmaps
+          call convert_nest2ring(nside, map(:,i))
+       end do
+    end if
+
+  end subroutine read_map_sp
 
     ! Routine for initializing the monopole and dipoles
   subroutine initialize_mono_dipole(nside, pix, monopole, dipole)

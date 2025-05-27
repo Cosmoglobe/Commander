@@ -280,6 +280,9 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
+     ! Exctinction parameters
+     character(len=2048) :: EBVmap
+     
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
      character(len=24)                       :: zs_phasefunc, zs_bandpass
@@ -291,7 +294,8 @@ module comm_param_mod
      real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_sol_elong(2)
      character(len=2048)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=2048)                     :: zs_wiring
-     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:), zs_samp_method(:)
+     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
+     real(dp),            allocatable        :: zs_samp_group_max_b_ecl(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
 
@@ -359,6 +363,11 @@ contains
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
+
+    ! Read extinction parameters
+    call get_parameter_hashtable(htable, 'EXTINCTION_E(B-V)_MAP',     par_string=cpar%EBVmap, path=.true.)
+
+    ! Read zodi parameters 
     if (cpar%include_tod_zodi) call read_zodi_params_hash(htable, cpar) 
 
     !output parameter file to output directory
@@ -3111,11 +3120,13 @@ subroutine read_zodi_params_hash(htbl, cpar)
         allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
         allocate(cpar%zs_samp_method(cpar%zs_num_samp_groups))
         allocate(cpar%zs_samp_group_bands(cpar%zs_num_samp_groups))
+        allocate(cpar%zs_samp_group_max_b_ecl(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
                call int2string(i, itext2)
                call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=cpar%zs_samp_groups(i))
                call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP_BANDS'//itext2, par_string=cpar%zs_samp_group_bands(i))
                call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_METHOD'//itext2, par_string=cpar%zs_samp_method(i))
+               call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP_MAX_ECL_LAT'//itext2, par_dp=cpar%zs_samp_group_max_b_ecl(i))
           end do
      end if
 

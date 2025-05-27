@@ -101,6 +101,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_dust_extinction_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90

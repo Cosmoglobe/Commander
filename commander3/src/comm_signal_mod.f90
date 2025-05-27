@@ -253,25 +253,25 @@ contains
     end if
    
     ! Sample point source amplitudes with precomputed amplitudes
-!!$    c => compList 
-!!$    do while (associated(c))
-!!$       select type (c)
-!!$       class is (comm_ptsrc_comp)
-!!$          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
-!!$             ! Initialize residual maps
-!!$             do l = 1, numband
-!!$                res             => compute_residual(l)
-!!$                data(l)%res%map =  res%map
-!!$                call res%dealloc(); deallocate(res)
-!!$                nullify(res)
-!!$             end do
-!!$             ! Perform sampling
-!!$             call c%samplePtsrcAmp(cpar, handle, samp_group)
-!!$             return
-!!$          end if
-!!$       end select
-!!$       c => c%nextComp()
-!!$    end do
+    c => compList 
+    do while (associated(c))
+       select type (c)
+       class is (comm_ptsrc_comp)
+          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+             ! Initialize residual maps
+             do l = 1, numband
+                res             => compute_residual(l)
+                data(l)%res%map =  res%map
+                call res%dealloc(); deallocate(res)
+                nullify(res)
+             end do
+             ! Perform sampling
+             call c%samplePtsrcAmp(cpar, handle, samp_group)
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
     
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
