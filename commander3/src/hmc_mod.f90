@@ -118,8 +118,7 @@ contains
         theta_prop = theta_new
         p = p_new
       end do
-      alpha = min(1.0_dp, exp(lnlike(theta_prop) - lnlike(theta) &
-                     &- 0.5*(sum(p**2/mass) + 0.5*sum(p0**2/mass)))  )
+      alpha = min(1.0_dp, exp(- lnlike(theta_prop)- 0.5*(sum(p**2/mass) - lnlike(theta) + 0.5*sum(p0**2/mass)))  )
       if (alpha > rand_uni(handle)) then
         theta = theta_prop
         p = -p_new
@@ -331,8 +330,8 @@ contains
       p_minus = p_p
 
       n_alpha = 1
-      E0 = lnlike(theta0)  - 0.5*sum(p0**2/mass)
-      Ep = lnlike(theta_p) - 0.5*sum(p_p**2/mass)
+      E0 = - lnlike(theta0)  - 0.5*sum(p0**2/mass)
+      Ep = - lnlike(theta_p) - 0.5*sum(p_p**2/mass)
       alpha = min(1d0, exp(Ep - E0))
 
     else
@@ -453,9 +452,10 @@ contains
     type(planck_rng),                intent(inout) :: handle
     real(dp), dimension(size(theta)),   intent(in) :: mass
     real(dp)                                       :: final_eps, eps, npar, pp_over_p
-    real(dp)                                       :: ln_old, ln_new
+    real(dp)                                       :: ln_old, ln_new, exponent
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, theta_new, p_new, grad
     integer(i4b)                                   :: i, a
+    real(dp) :: max_exp, min_exp, like_norm !safe range for x when using exp(x), normalizazion factor for the loglikelihood
     interface
        function lnlike(theta, checks)
          use healpix_types
@@ -473,6 +473,9 @@ contains
        end subroutine grad_lnlike 
     end interface
 
+    max_exp = log(huge(1.0_dp)) 
+    min_exp = log(tiny(1.0_dp))
+
     npar = size(theta)
 
     eps = 1.0_dp
@@ -480,16 +483,27 @@ contains
       p(i) = rand_gauss(handle)
     end do
 
-    !write(*,*) 'p=', p
-
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
     ln_old = lnlike(theta, .false.)
     ln_new = lnlike(theta_new, .false.)
 
-    !write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
-    pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
-    !write(*,*) 'pp_over_p=', pp_over_p
+    like_norm = ln_old
+    ln_old = ln_old/like_norm
+    ln_new = ln_new/like_norm
+
+    write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
+    write(*,*) 'p=', p, 'kin=', 0.5*sum(p**2/mass), 'p_new=', p_new, 'kin_new=', 0.5*sum(p_new**2/mass)
+    
+    exponent = - ln_new - 0.5*sum(p_new**2/mass) + ln_old + 0.5*sum(p**2/mass)    !(-new Hamiltonian) - (-old Hamiltonian)
+    if(exponent > max_exp) then 
+      exponent = max_exp
+    else if (exponent < min_exp) then
+      exponent = min_exp
+    end if 
+    pp_over_p =  exp(exponent)
+
+    write(*,*) 'exponent=', exponent, 'pp_over_p=', pp_over_p
 
     if (pp_over_p > 0.5) then
       a = 1
@@ -500,11 +514,20 @@ contains
     do 
       eps = eps*2.0_dp**a
       call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
-      ln_old=lnlike(theta, .false.)
-      ln_new=lnlike(theta_new, .false.)
-      pp_over_p =  exp(ln_new - ln_old - 0.5*sum(p_new**2/mass) + 0.5*sum(p**2/mass))
-      !write(*,*) 'theta=', theta , 'p=', p, 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'p_new=', p_new, 'lnlike(theta_new)=', ln_new
-      !write(*,*) 'eps= ', eps, 'pp_over_p= ', pp_over_p
+      ln_new=lnlike(theta_new, .false.)/like_norm
+
+      exponent = - ln_new - 0.5*sum(p_new**2/mass) + ln_old + 0.5*sum(p**2/mass)    !(-new Hamiltonian) - (-old Hamiltonian)
+      if(exponent > max_exp) then 
+        exponent = max_exp
+      else if (exponent < min_exp) then
+        exponent = min_exp
+      end if 
+      pp_over_p =  exp(exponent)
+
+      write(*,*) 'theta=', theta , 'lnlike(theta)=', ln_old, 'theta_new=', theta_new, 'lnlike(theta_new)=', ln_new
+      write(*,*) 'p=', p, 'kin=', 0.5*sum(p**2/mass), 'p_new=', p_new, 'kin_new=', 0.5*sum(p_new**2/mass)
+      write(*,*) 'exponent=', exponent, 'pp_over_p=', pp_over_p
+      write(*,*) 'eps= ', eps
 
       if(a == 1) then
         if (pp_over_p < 0.5_dp) exit

@@ -126,6 +126,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
 	   comm_timing_mod.f90 \
 	   comm_tod_cray_mod.f90 \
+	   zodi_hmc_mod.f90 \
 	   commander.f90
            #comm_tod_quiet_mod.f90 comm_tod_quiet_smod.f90 
 
@@ -186,7 +187,7 @@ comm_comp_interface_mod.o   : comm_diffuse_comp_mod.o comm_ptsrc_comp_mod.o comm
 comm_comp_mod.o             : comm_cr_utils.o comm_cr_precond_mod.o comm_data_mod.o
 comm_conviqt_mod.o          : comm_map_mod.o comm_shared_arr_mod.o
 comm_cr_mod.o               : comm_output_mod.o
-comm_cr_precond_mod.o       : comm_utils.o
+comm_cr_precond_mod.o       : comm_utils.o comm_sparse_mod.o
 comm_cr_utils.o             : comm_utils.o
 comm_curvature_comp_mod.o   : comm_comp_interface_mod.o
 comm_data_mod.o             : comm_bp_mod.o comm_noise_mod.o comm_beam_mod.o comm_tod_inst_mod.o
@@ -328,5 +329,6 @@ comm_mh_specind_mod.o       : comm_signal_mod.o
 comm_gain_mod.o             : comm_signal_mod.o
 comm_nonlin_mod.o           : comm_gain_mod.o
 comm_nonlin_smod.o          : comm_nonlin_mod.o
+zodi_hmc_mod.o              : comm_zodi_mod.o comm_chisq_mod.o comm_chisq_mod.o hmc_mod.o
 
 commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_sparse_mod.o zodi_hmc_mod.o

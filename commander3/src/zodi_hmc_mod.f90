@@ -99,7 +99,7 @@ module zodi_hmc_mod
          else if (trim(cpar%zs_samp_method(samp_group))=='hmc') then
             write(*,*) "calling nuts"
             !allocate(hmc_mass(npar))
-            !hmc_mass = 1.0_dp
+            !hmc_mass = 0.0001
             !call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle, M=hmc_mass) !does it need tolerance=1d-5? ierr=number of hmc iteration? 
             !deallocate(hmc_mass)
             call nuts(theta, lnL_zodi_hmc, grad_lnL_zodi_hmc, ierr, handle)
@@ -174,6 +174,8 @@ module zodi_hmc_mod
          !logical(lgt), dimension(numband) :: update_band
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
+
+         real(dp) :: norm !a constant used to make the target distribution more similar to the actual log_like instead of the chisquare
 
          call wall_time(t1)
 
@@ -359,6 +361,9 @@ module zodi_hmc_mod
          call mpi_reduce(chisq_tot, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
          call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
 
+         norm = 1.0_dp/ndof_tot
+         !norm = 1.0_dp
+
          call wall_time(t4)
          !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
 
@@ -366,11 +371,11 @@ module zodi_hmc_mod
 
          !this too is useful only after tuning
          if (cpar%myid_chain == 0) then
-            lnL_zodi_hmc = chisq/ndof_tot
+            lnL_zodi_hmc = chisq*norm
             call wall_time(t2)
             if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,i5,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", ndof_tot = ", ndof_tot, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
             !write(*,*) 
-            if (flag_checks) write(unit,*) chisq/ndof_tot, real(theta,sp)
+            if (flag_checks) write(unit,*) chisq*norm, real(theta,sp)
          end if
 
          theta_prev = theta
@@ -399,6 +404,8 @@ module zodi_hmc_mod
          logical(lgt) :: accept
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
+
+         real(dp) :: norm !a constant used to make the target distribution more similar to the actual log_like instead of the chisquare
 
          call wall_time(t1)  
 
@@ -480,7 +487,7 @@ module zodi_hmc_mod
                      !all the other n0 must be set to zero because the derivative acts only on one component
                      select case (free_comp)
                      case ('cloud')
-                        write(*,*) 'calling case cloud'
+                        !write(*,*) 'calling case cloud'
                         par_inds(2) = zodi_model%get_par_ind(comp_str = 'band1', param = 'n_0')
                         prev_vals(2) = zodi_model%theta_stat(par_inds(2),samp_group)
                         zodi_model%theta_stat(par_inds(2),samp_group) = -2
@@ -659,7 +666,6 @@ module zodi_hmc_mod
                      !call wall_time(t4)
 
                      ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                     write(*,*) 'ndof'
                   end do
                end do
             end do
@@ -672,12 +678,15 @@ module zodi_hmc_mod
 
             call wall_time(t4)
 
+            norm = 1.0_dp/ndof_tot
+            !norm = 1.0_dp
+
             if (cpar%myid_chain == 0) then
-               grad_lnL_zodi(g) = grad/ndof_tot
+               grad_lnL_zodi(g) = grad*norm     !statistical scaling
                !write(*,*) 'unscaled'
                !grad is computed using the physical parameter theta*scale but hmc works better with just theta
                !so the idea is to apply the chain rule to get the dl/d(t*s)=s*dl/dt
-               grad_lnL_zodi = scale*grad_lnL_zodi
+               grad_lnL_zodi = scale*grad_lnL_zodi    !physical scaling
                write(*,*) 'grad_lnL_zodi(',g,')=', grad_lnL_zodi(g)
                call wall_time(t2)
             end if
