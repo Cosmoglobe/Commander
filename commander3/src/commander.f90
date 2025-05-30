@@ -23,12 +23,9 @@ program commander
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
   use comm_sparse_mod
-<<<<<<< HEAD
   use hmc_mod
   use zodi_hmc_mod
-=======
   use comm_dust_extinction_mod
->>>>>>> precond
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -227,11 +224,8 @@ program commander
 
   ! Prepare chains
   call init_chain_file(cpar, first_sample)
-<<<<<<< HEAD
 
   !first_sample = 1
-=======
->>>>>>> precond
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
@@ -298,19 +292,6 @@ program commander
      ! Skip other steps if TOD simulations
      if (cpar%enable_tod_simulations) exit
 
-<<<<<<< HEAD
-   if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-!     if (.true. .and. cpar%include_tod_zodi) then
-      call timer%start(TOT_ZODI_SAMP)
-      call project_and_downsamp_sky(cpar)
-      call downsamp_invariant_structs(cpar)
-      if (first_zodi) then
-         ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
-         call precompute_lowres_zodi_lookups(cpar)
-      else
-         call apply_zodi_glitch_mask(cpar)
-      end if
-=======
      ! Sample zodi parameters
      if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
@@ -318,22 +299,11 @@ program commander
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
            call downsamp_invariant_structs(cpar)
            call precompute_lowres_zodi_lookups(cpar)
-<<<<<<< HEAD
-        else
-           call apply_zodi_glitch_mask(cpar)
-        end if
->>>>>>> precond
-
-        call compute_downsamp_zodi(cpar, zodi_model)      
-        if (first_zodi) then
            !call compute_downsamp_zodi(cpar, zodi_model)
-           call create_zodi_glitch_mask(cpar, handle)
-=======
-           !call compute_downsamp_zodi(cpar, zodi_model)      
            call create_zodi_sampgroup_mask(cpar, handle)
->>>>>>> precond
-           first_zodi = .false.
+           first_zodi = .false.      
         end if
+        
         call project_and_downsamp_sky(cpar)
 
         ! Sample non-stationary zodi components with geometric 3D model
@@ -352,64 +322,6 @@ program commander
            if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
         !end if
       
-<<<<<<< HEAD
-
-      call compute_downsamp_zodi(cpar, zodi_model)      
-      if (first_zodi) then
-         !call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
-         call compute_downsamp_zodi(cpar, zodi_model)
-         call create_zodi_glitch_mask(cpar, handle)
-         first_zodi = .false.
-      end if 
-      call apply_zodi_glitch_mask(cpar)
-      !write(*,*) 'disabling glitch mask'
-
-      ! Sample non-stationary zodi components with geometric 3D model
-      select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("mh")
-         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-      case ("powell")
-         do i = 1, cpar%zs_num_samp_groups
-            !if (iter > 1) call minimize_zodi(cpar, iter, handle, i)
-            call minimize_zodi(cpar, iter, handle, i)
-         end do
-      end select
-
-      ! Sample stationary components
-      if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-      if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
-      if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-      
-!!$      if (mod(iter-2,10) == 0) then
-!!$         call zodi_model%params_to_model([&
-!!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
-!!$              & 2.10d0  + 0.0d0*rand_gauss(handle), &
-!!$              & 78.01d0 + 0.d0* rand_gauss(handle), &
-!!$              & 3.72d-2 + 0.000d0 * rand_gauss(handle), &
-!!$              & 8.71d-3 + 0.000d0 * rand_gauss(handle), &
-!!$              & -2.14d-3 + 0.000d0 * rand_gauss(handle), &
-!!$              & 0.951d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 3.50d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 0.822d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 0.183d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 1d-9 + 3d-10*rand_gauss(handle), &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 1.d0 + 0.3d0*rand_gauss(handle), &
-!!$              & 3.d0 + 0.3*rand_gauss(handle), &
-!!$              & 286d0, 0.466863d0])
-!!$      end if
-!!$      if (mod(iter-1,2) == 0) then
-!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-!!$      else
-!!$         call minimize_zodi_with_powell(cpar)
-!!$      end if
-
-=======
->>>>>>> precond
       call timer%stop(TOT_ZODI_SAMP)
    end if
    

@@ -294,7 +294,7 @@ module comm_param_mod
      real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_sol_elong(2)
      character(len=2048)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=2048)                     :: zs_wiring
-     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
+     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:), zs_samp_method(:)
      real(dp),            allocatable        :: zs_samp_group_max_b_ecl(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels

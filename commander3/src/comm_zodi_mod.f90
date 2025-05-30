@@ -8,6 +8,7 @@ module comm_zodi_mod
    public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
    public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
    public band_monopole, band_update_monopole
+   public params_to_model
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max

@@ -57,24 +57,16 @@ module zodi_hmc_mod
 
       ! Get chisq of old point
       scale = pack(zodi_model%theta_scale(:,1), zodi_model%theta_stat(:,samp_group)==0)
-      call model_to_params(zodi_model, theta_old, samp_group)
-   !!$      if (cpar%myid == cpar%root) then
-   !!$         do i = 1, npar
-   !!$            write(*,*) i, theta_old(i)
-   !!$         end do
-   !!$      end if
-   !!$      call mpi_finalize(ierr)
-   !!$      stop
-
+      call zodi_model%model_to_params(theta_old, samp_group)
+      
       ! Enforce priors; rms = 0
-      call randomize_zodi_init(theta_old, samp_group, cpar, handle, rms=0.d0)
+      call randomize_zodi_init(theta_new, samp_group, cpar, handle)
 
       theta_prev = 0.d0
       chisq_prev = 0.d0
       if (cpar%myid == cpar%root) then
          theta = theta_old/scale
          chisq_old  = lnL_zodi_hmc(theta, .true.)
-         !write(*,*) "chi_ol ", chisq_old
       else
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
          chisq_old  = lnL_zodi_hmc()
@@ -146,7 +138,7 @@ module zodi_hmc_mod
       call mpi_bcast(theta_new, size(theta_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
 
       ! update model with final parameters
-      call params_to_model(zodi_model, theta_new, samp_group)
+      call zodi_model%params_to_model(theta_new, samp_group)
 
       ! Update monopole for requested bands
       do i = 1, numband
@@ -174,6 +166,7 @@ module zodi_hmc_mod
          !logical(lgt), dimension(numband) :: update_band
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
+         real(sp), allocatable, dimension(:) :: s_zodi
 
          real(dp) :: norm !a constant used to make the target distribution more similar to the actual log_like instead of the chisquare
 
@@ -198,25 +191,6 @@ module zodi_hmc_mod
          call mpi_bcast(flag_checks, 1, MPI_LOGICAL, 0, data(1)%tod%comm, ierr)
          call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
-         ! Check which parameters have changed
-         !update_band = .true.
-!!$         update_band = .false.
-!!$         j = 0
-!!$         do i = 1, zodi_model%npar_tot
-!!$            if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
-!!$            j = j+1
-!!$            if (theta(j) /= theta_prev(j)) then
-!!$               !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
-!!$               if (zodi_model%theta2band(i) == 0) then
-!!$                  update_band = .true.
-!!$                  exit
-!!$               else
-!!$                  update_band(zodi_model%theta2band(i)) = .true.
-!!$               end if
-!!$            end if
-!!$         end do
-         !if (data(1)%tod%myid == 0) write(*,*) data(1)%tod%myid, ' -- update =', update_band, all(theta == theta_prev)
-
          if(flag_checks) then
             !Check priors
             if (cpar%myid_chain == 0) then
@@ -234,7 +208,7 @@ module zodi_hmc_mod
             end if
          end if
 
-         call params_to_model(zodi_model, theta, samp_group) 
+         call zodi_model%params_to_model(theta, samp_group) 
 
          if ((flag_checks) .and. (cpar%myid_chain == 0)) call print_zodi_model(theta, samp_group)
 
@@ -250,54 +224,21 @@ module zodi_hmc_mod
 
             ndet = data(i)%tod%ndet
             nscan = data(i)%tod%nscan
-            
-            !!This could be removed since update_band is always set to true I think
-            !if (.not. update_band(i)) then
-            !   chisq_tot = chisq_tot + chisq_prev(i)
-            !   do scan = 1, nscan
-            !      do j = 1, ndet
-            !         if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-            !         ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-            !      end do
-            !   end do
-            !   cycle
-            !end if
 
             ! Get monopole
             mono = band_monopole(i) !get_monopole_amp(data(i)%label)
             
-            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
-
-            ! Make sure that the zodi cache is cleared before each new band
-            call data(i)%tod%clear_zodi_cache()
-
-            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-            chisq_prev(i) = 0.d0
-
             do scan = 1, nscan
                ! Skip scan if no accepted data
                do j = 1, ndet
                   if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle 
 
+                  allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)))
+
                   call wall_time(t3)
-                  call get_zodi_emission(&
-                      & tod=data(i)%tod, &
-                      & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-                      & scan=scan, &
-                      & det=j, &
-                      & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                      & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                      & model=zodi_model, &
-                      & use_lowres_pointing=.true. &
-                      &)
+                  call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
+                     & scan, j, zodi_model, s_zodi, use_lowres_pointing=.true.)
                   call wall_time(t4)
-                  !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
-                  call get_s_zodi(i, &
-                      & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                      & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                      & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                      &)
-                  call wall_time(t3)
                   !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
 
                   !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'tod  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_tod))
@@ -307,15 +248,10 @@ module zodi_hmc_mod
                   !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                   
                   chisq = sum( &
-                     & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
-                     &   - data(i)%tod%scans(scan)%d(j)%gain * &
-                     &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky &
-                     &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                     &   + mono) &
-                     & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
-                     &)
-                  chisq_tot     = chisq_tot     + chisq
-                  chisq_prev(i) = chisq_prev(i) + chisq
+                    & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%gain * &
+                    & (data(i)%tod%scans(scan)%d(j)%downsamp_sky + s_zodi + mono))/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+                  chisq_tot = chisq_tot + chisq
+
                   call wall_time(t4)
                   !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
 
@@ -342,7 +278,7 @@ module zodi_hmc_mod
                            write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
                                 &   - data(i)%tod%scans(scan)%d(j)%gain * &
                                 &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                                &   + data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
+                                &   + s_zodi(k) &
                                 &   + mono)
                         end do
                         close(58)
@@ -351,6 +287,7 @@ module zodi_hmc_mod
                   call wall_time(t3)
                   !if (data(1)%tod%myid == 10) write(*,*) ' CPU4 = ', t3-t4
 
+                  deallocate(s_zodi)
                end do
             end do
          end do
@@ -404,6 +341,7 @@ module zodi_hmc_mod
          logical(lgt) :: accept
          character(len=4) :: scan_str
          type(hdf_file) :: tod_file
+         real(sp), allocatable, dimension(:) :: s_zodi
 
          real(dp) :: norm !a constant used to make the target distribution more similar to the actual log_like instead of the chisquare
 
@@ -434,13 +372,6 @@ module zodi_hmc_mod
                ! Get monopole
                mono = band_monopole(i) !get_monopole_amp(data(i)%label)
 
-               !write(*,*) 'h3'
-
-               box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
-
-               ! Make sure that the zodi cache is cleared before each new band
-               call data(i)%tod%clear_zodi_cache()
-
                !Evaluate zodi model with newly proposed values for each band and calculate the gradient
                do scan = 1, nscan
                   ! Skip scan if no accepted data
@@ -448,22 +379,13 @@ module zodi_hmc_mod
                      if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
                      !Actual zodi model value
-                     call get_zodi_emission(&
-                         & tod=data(i)%tod, &
-                         & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-                         & scan=scan, &
-                         & det=j, &
-                         & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &  !by changeing these arguments can I get zodi(n0; k98)?
-                         & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                         & model=zodi_model, &
-                         & use_lowres_pointing=.true. &
-                         &)
-                     call get_s_zodi(i, &
-                         & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                         & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                         & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                         &)
-                     zodi_mod = data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+                     allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)))
+               
+                     call wall_time(t3)
+                     call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
+                          & scan, j, zodi_model, s_zodi, use_lowres_pointing=.true.)
+                     call wall_time(t4)
+                     zodi_mod = s_zodi
 
                      !write(*,*) 'zodi_mod'
 
@@ -623,23 +545,11 @@ module zodi_hmc_mod
                      call params_to_model(zodi_model, theta, samp_group)
 
                      !evaluate zodi with this condition
-                     call get_zodi_emission(&
-                         & tod=data(i)%tod, &
-                         & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-                         & scan=scan, &
-                         & det=j, &
-                         & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, & 
-                         & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                         & model=zodi_model, &
-                         & use_lowres_pointing=.true. &
-                         &)
-                     call get_s_zodi(i, &
-                         & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                         & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                         & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                         &)
-                     zodi_n0 = data(i)%tod%scans(scan)%d(j)%downsamp_zodi
-
+                     call wall_time(t3)
+                     call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
+                          & scan, j, zodi_model, s_zodi, use_lowres_pointing=.true.)
+                     call wall_time(t4)
+                     zodi_n0 = s_zodi
                      !write(*,*) 'zodi_n0'
 
                      !set theta_stat[n0]=prev_vals again so that in the next run is going to optimize it
@@ -658,7 +568,7 @@ module zodi_hmc_mod
                         &   + zodi_mod & 
                         &   + mono)) &
                         !*2/sigma**2
-                        & *(2.d0/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width))**2) & 
+                        & *(2.d0/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2) & 
                         !*zodi_mod with n0=1
                         & *zodi_n0)
 
@@ -669,6 +579,8 @@ module zodi_hmc_mod
                   end do
                end do
             end do
+
+            deallocate(s_zodi)
 
             !write(*,*) 'h4'
 
