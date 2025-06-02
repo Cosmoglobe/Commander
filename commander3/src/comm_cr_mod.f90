@@ -35,15 +35,16 @@ module comm_cr_mod
 
 contains
 
-  subroutine solve_cr_eqn_by_CG(cpar, samp_group, x, b, stat)
+  subroutine solve_cr_eqn_by_CG(cpar, samp_group, x, b, stat, verbosity)
     implicit none
     type(comm_params),                intent(in)    :: cpar
     integer(i4b),                     intent(in)    :: samp_group
     real(dp),          dimension(1:), intent(out)   :: x
     real(dp),          dimension(1:), intent(in)    :: b
     integer(i4b),                     intent(out)   :: stat
+    integer(i4b),                     intent(in), optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
+    integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr, verbosity_
     integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
     real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff, dq
@@ -55,6 +56,7 @@ contains
     maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
+    verbosity_ = cpar%verbosity; if (present(verbosity)) verbosity_ = verbosity
 
     ! Allocate temporary data vectors
     call update_status(status, "cr1")
@@ -67,7 +69,7 @@ contains
     samp_group_prev = samp_group
     !call update_status(status, "cr3")
     call wall_time(t2)
-    if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
+    if (cpar%myid_chain == root .and. verbosity_ > 2) then
        write(*,fmt='(a,f8.2)') ' |  CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
@@ -284,7 +286,7 @@ contains
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
        call wall_time(t2)
-       if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
+       if (cpar%myid_chain == root .and. verbosity_ > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
 !!$             write(*,*) '  CG iter. ', i, ' -- res = ', &
 !!$                  & val_convergence, ', tol = ', lim_convergence, &
@@ -354,7 +356,7 @@ contains
        write(*,*) '       number of iterations = ', maxiter
        stat = stat + 1
     else
-       if (cpar%myid_chain == root .and. cpar%verbosity > 1) then
+       if (cpar%myid_chain == root .and. verbosity_ > 1) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  Final CG iter ', i, ' -- res = ', &
                & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp)
        end if

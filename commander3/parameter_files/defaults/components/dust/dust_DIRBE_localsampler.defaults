@@ -1,6 +1,6 @@
 # New Local sampling parameters, 'dust'
-COMP_BETA_INT_LMAX&&          = 0         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_BETA_POL_LMAX&&          = 0          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_INT_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_INT_LNLTYPE&&       = chisq   # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_POL_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky    # pixel region type, local sampling, {fullsky,single_pix,pixreg,prior}.
@@ -36,7 +36,7 @@ COMP_BETA_COMBINED_MONOPOLE_MASK&& = fullsky mask_band_monopoles_bp10_chisq_comp
 COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
 
-COMP_T_INT_LMAX&&          = 0         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_T_INT_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_T_POL_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_T_INT_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_T_POL_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling

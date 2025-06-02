@@ -5,7 +5,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo
+   public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
    public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
    public band_monopole, band_update_monopole
 
@@ -112,7 +112,7 @@ contains
           end if
        end do
     else if (trim(zodi_model%phasefunc_type) == 'Wright') then
-       zodi_model%n_general_params = 2
+       zodi_model%n_phase_params   = 2
        zodi_model%n_general_params = 2 + zodi_model%n_phase_params
        allocate(zodi_model%par_phase(zodi_model%n_phase_params))
        zodi_model%par_phase(1) = -0.3133d0 ! p20
@@ -186,7 +186,7 @@ contains
       do i = 1, zodi_model%n_comps
          ind  = zodi_model%comps(i)%start_ind
          npar = zodi_model%comps(i)%npar
-         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape paraneters affect all band
+         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape parameters affect all bands
          do j = 1, numband
             zodi_model%theta2band(ind+npar+j-1) = j   ! Emissivity only affect band j
             zodi_model%theta2band(ind+npar+numband+j-1) = j ! The same for albedo
@@ -863,41 +863,45 @@ contains
 
    ! end subroutine model_from_chain
 
-   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
-      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-      ! integrated thermal zodiacal emission and scattered zodiacal light.
-      !
-      ! Parameters:
-      ! -----------
-      ! s_scat :
-      !     Integrated contribution from scattered sunlight light.
-      ! s_therm :
-      !     Integrated contribution from thermal interplanetary dust emission.
-      ! s_zodi :
-      !     Zodiacal signal.
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-     !     Albedo of the zodiacal components.
-     implicit none
-     integer(i4b),                  intent(in)  :: band
-     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
-     real(sp),     dimension(:),    intent(out) :: s_zodi
-     integer(i4b),                  intent(in), optional :: comp_id
-     
-     integer(i4b) :: i, first
-     real(dp)     :: al, em
-
-     first = 1; if (present(comp_id)) first = comp_id
-     
-     s_zodi = 0.
-     do i = first, first+size(s_therm,2)-1
-        al     = zodi_model%comps(i)%c%albedo(band)
-        em     = zodi_model%comps(i)%c%emissivity(band)
-        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
-     end do
-   end subroutine get_s_zodi
+!!$   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
+!!$      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
+!!$      ! integrated thermal zodiacal emission and scattered zodiacal light.
+!!$      !
+!!$      ! Parameters:
+!!$      ! -----------
+!!$      ! s_scat :
+!!$      !     Integrated contribution from scattered sunlight light.
+!!$      ! s_therm :
+!!$      !     Integrated contribution from thermal interplanetary dust emission.
+!!$      ! s_zodi :
+!!$      !     Zodiacal signal.
+!!$      ! emissivity :
+!!$      !     Emissivity of the zodiacal components.
+!!$      ! albedo :
+!!$     !     Albedo of the zodiacal components.
+!!$     implicit none
+!!$     integer(i4b),                  intent(in)  :: band
+!!$     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
+!!$     real(sp),     dimension(:),    intent(out) :: s_zodi
+!!$     integer(i4b),                  intent(in), optional :: comp_id
+!!$     
+!!$     integer(i4b) :: i, first
+!!$     real(dp)     :: al, em
+!!$
+!!$     first = 1; if (present(comp_id)) first = comp_id
+!!$     
+!!$     s_zodi = 0.
+!!$     do i = first, first+size(s_therm,2)-1
+!!$        al     = zodi_model%comps(i)%c%albedo(band)
+!!$        em     = zodi_model%comps(i)%c%emissivity(band)
+!!$        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
+!!$        if (trim(zodi_model%phasefunc_type) == 'Wright') then
+!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) +             em * s_therm(:,i-first+1))
+!!$        else
+!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
+!!$        end if
+!!$     end do
+!!$   end subroutine get_s_zodi
 
    
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
@@ -1243,7 +1247,8 @@ contains
 
 
 
-   subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, use_lowres_pointing, comp)
+   subroutine get_zodi_emission(tod, pix, scan, det, model, s_zodi, use_lowres_pointing, comp)
+     implicit none
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       !
       ! Parameters
@@ -1274,92 +1279,84 @@ contains
       ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
       !     Contribution from thermal interplanetary dust emission.
       !
-      class(comm_tod), intent(inout) :: tod
-      integer(i4b), intent(in) :: pix(:), scan, det
-      real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
-      type(ZodiModel), intent(in) :: model
-      logical(lgt), intent(in), optional :: use_lowres_pointing
-      integer(i4b), intent(in), optional :: comp
+      class(comm_tod),               intent(inout)        :: tod
+      integer(i4b),    dimension(:), intent(in)           :: pix
+      integer(i4b),                  intent(in)           :: scan, det
+      type(ZodiModel),               intent(in)           :: model
+      real(sp),        dimension(:), intent(out)          :: s_zodi
+      logical(lgt),                  intent(in), optional :: use_lowres_pointing
+      integer(i4b),                  intent(in), optional :: comp
 
-      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
+      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr
       logical(lgt) :: scattering, thermal, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
-      !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+      real(dp), allocatable, dimension(:)   :: b_nu
 
-      s_zodi_scat = 0.
-      s_zodi_therm = 0.
-      n_tod = size(pix, dim=1)
-
-      dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-      obs_pos = tod%scans(scan)%x0_obs
-      earth_pos = tod%scans(scan)%x0_earth
-      R_obs = norm2(obs_pos)
-      obs_time = tod%scans(scan)%t0(1)
-      earth_lon = atan(earth_pos(2), earth_pos(1))
-
+      integer(i4b) :: cache_hits
+      real(sp), allocatable, dimension(:,:)     :: cache
+      real(dp)                                  :: cache_time, init_cache_time
+      
+      use_lowres = .false.; if (present(use_lowres_pointing)) use_lowres = use_lowres_pointing
+      n_tod      = size(pix)
+      dt_tod     = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+      obs_pos    = tod%scans(scan)%x0_obs
+      earth_pos  = tod%scans(scan)%x0_earth
+      R_obs      = norm2(obs_pos)
+      obs_time   = tod%scans(scan)%t0(1)
+      earth_lon  = atan(earth_pos(2), earth_pos(1))
       scattering = tod%central_freq >= model%nu_min_scatter
       thermal    = tod%central_freq <= model%nu_max_thermal
 
-      ! select the correct cache
-      if (present(use_lowres_pointing)) then
-         if (tod%nside == zodi_nside) then
-            use_lowres = .false.
-         else
-            if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
-            if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then
-               print *, tod%zodiband, scan, "lowres obs_time not allocated"
-               stop
-            end if
-            use_lowres = .true.
-         end if
+      ! Initialize cache
+      if (use_lowres) then
+         allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
       else
-         use_lowres = .false.
+         allocate(cache(tod%nobs,                   tod%ndet))
       end if
-
+      cache_time = tod%scans(1)%t0(1)
+      cache      = -1
+      
       cache_hits = 0
 !!$      open(58,file="zodi.dat",recl=1024)
       do i = 1, n_tod
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
          if (use_lowres) then
-            obs_time = tod%scans(scan)%downsamp_obs_time(i)
+            obs_time = tod%scans(scan)%d(det)%downsamp_obs_time_full(i)
          else
             obs_time = obs_time + dt_tod ! assumes a time continuous TOD
          end if
-         if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then
+
+         ! Reset cache
+         if ((obs_time - cache_time) >= delta_t_reset) then
             do j = 1, 3
                earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
-               obs_pos(j) = splint_simple(tod%x_obs_spline(j), obs_time)
+               obs_pos(j)   = splint_simple(tod%x_obs_spline(j),   obs_time)
             end do
-            R_obs = norm2(obs_pos)
-            earth_lon = atan(earth_pos(2), earth_pos(1))
-            call tod%clear_zodi_cache(obs_time)
+            R_obs      = norm2(obs_pos)
+            earth_lon  = atan(earth_pos(2), earth_pos(1))
+            cache      = -1
+            cache_time =  obs_time
          end if
 
          ! Get lookup index for cache. If the pixel is already cached, used that value.
          if (use_lowres) then
-            lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
-            if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i,:) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
-               if (thermal) s_zodi_therm(i,:) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
-               cache_hits = cache_hits + 1
-               cycle
-            end if
+            lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
             unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
          else
-            lookup_idx = tod%pix2ind(pix(i))
-            !write(*,*) 'q1', tod%scanid(scan), lookup_idx
-            !write(*,*) 'q2', tod%scanid(scan), lookup_idx, pix(i), det, tod%zodi_therm_cache(lookup_idx, 1, det)
-            if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i,:)  = tod%zodi_scat_cache(lookup_idx, :, det)
-               if (thermal)    s_zodi_therm(i,:) = tod%zodi_therm_cache(lookup_idx, :, det)
-               cache_hits = cache_hits + 1
-               cycle
-            end if
+            lookup_idx  = tod%pix2ind(pix(i))
             unit_vector = tod%ind2vec_ecl(:, lookup_idx)
          end if
+         
+         if (cache(lookup_idx, det) > 0.d0) then
+            s_zodi(i)  = cache(lookup_idx, det)
+            cache_hits = cache_hits + 1
+            cycle
+         end if
 
+         ! If not present in cache, compute signal for each zodi component from scratch, and add signals together
+         s_tot = 0.
          do k = 1, model%n_comps
             ! If comp is present we only evaluate the zodi emission for that component.
             ! If comp == 0 then we evaluate the zodi emission for all components.
@@ -1373,9 +1370,9 @@ contains
 
             do l = 1, 3
                ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-               comp_LOS(k)%X_unit(l, :) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
-               comp_LOS(k)%X_unit(l, :) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
-               comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
+               comp_LOS(k)%X_unit(l,:) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+               comp_LOS(k)%X_unit(l,:) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+               comp_LOS(k)%X(l,:)      = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
             end do
             comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
 !!$            do l = 1, size(comp_LOS(k)%R)
@@ -1387,36 +1384,52 @@ contains
 !!$                  write(*,*) 'X_unit', comp_LOS(k)%X_unit(:,l)
 !!$               end if
 !!$            end do
-            
+
+            ! Compute phase function if scattering is included
             if (scattering) then
-               comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               if (trim(model%phasefunc_type) == 'Wright') then
+                  allocate(b_nu(size(tod%bp(0)%p%nu)))
+                  call get_blackbody_emission(tod%bp(0)%p%nu, 5772.d0, b_nu) 
+                  comp_LOS(k)%F_sol = tsum(tod%bp(0)%p%nu, tod%bp(0)%p%tau*b_nu)/comp_LOS(k)%R**2
+                  deallocate(b_nu)
+               else
+                  comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               end if
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
                call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
             end if
 
-            ! Get dust grain temperature, and compute splined blackbody emission
-            comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+            ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
+            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
+               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+            else
+               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+            end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
-            ! Compute predicted signal; store computed signal in cache
+!!$            ! Compute density along line of sight
+!!$            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+            
+            ! Compute predicted signal in MJy/sr; store computed signal in cache
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
-            if (scattering) then
-               s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
-               if (use_lowres) then
-                  tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
-               else
-                  tod%zodi_scat_cache(lookup_idx, k, det)        = s_zodi_scat(i, k)
-               end if
-            end if
-            if (thermal) then
-               s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
-               if (use_lowres) then
-                  tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
-               else
-                  tod%zodi_therm_cache(lookup_idx, k, det)        = s_zodi_therm(i, k)
-               end if
+            s_scat = 0.; s_therm = 0.
+            if (scattering) s_scat  = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5d0*(R_max-R_MIN)*1d20
+            if (thermal)    s_therm = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights)                  * 0.5d0*(R_max-R_MIN)*1d20
+
+            al = zodi_model%comps(k)%c%albedo(tod%id)
+            em = zodi_model%comps(k)%c%emissivity(tod%id)
+            if (trim(zodi_model%phasefunc_type) == 'Wright') then
+               s_tot = s_tot + al*s_scat + em          *s_therm
+            else
+               s_tot = s_tot + al*s_scat + em*(1.d0-al)*s_therm
             end if
          end do
+
+         ! Return total zodi signal, and store final value in cache for later use
+         s_zodi(i)              = s_tot
+         cache(lookup_idx, det) = s_tot
+
+         
 !!$         call vec2ang(unit_vector, lat, lon)
 !!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
 !!$
@@ -1435,8 +1448,88 @@ contains
 !!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
       end do
 
+      deallocate(cache)
+      
     end subroutine get_zodi_emission
 
+   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s_zodi_tot, pix_dynamic, exclude_static, comp)
+      implicit none
+      class(ZodiModel),                 intent(in)               :: zodi_model
+      class(comm_tod),                  intent(inout)            :: tod
+      integer(i4b),                     intent(in)               :: det, scan
+      real(sp),         dimension(:),   intent(out)              :: s_zodi_tot
+      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
+      character(len=*),                 intent(in),     optional :: exclude_static
+      integer(i4b),                     intent(in),     optional :: comp
+      
+      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
+      real(sp)     :: w
+      real(dp)     :: t1, t2
+      real(sp),     allocatable, dimension(:)   :: s_zodi
+      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
+
+      ntod  = size(s_zodi_tot)
+      ncomp = zodi_model%n_comps
+      band  = tod%id
+
+      ! Initialize
+      s_zodi_tot = 0.
+      
+      ! Compute non-stationary zodi TOD through line-of-sight integration for each horn, and add together
+      call wall_time(t1)
+      if (present(pix_dynamic)) then
+         allocate(s_zodi(ntod))
+         do h = 1, size(pix_dynamic,2)
+            call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
+            w = 1.d0; if (h > 1) w = -1.d0
+            s_zodi_tot = s_zodi_tot  + w * s_zodi
+         end do
+         deallocate(s_zodi)
+      end if
+      call wall_time(t2)
+      
+      ! Add solar component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
+               if (tod%map_solar(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_solar(j,1)
+               end if
+            end do
+         end do
+      end if
+      return
+
+      ! Add Moon component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'moon') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
+               if (tod%map_moon(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_moon(j,1)
+               end if
+            end do
+         end do
+      end if
+
+      ! Add Earth component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'earth') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+               if (tod%map_earth(j) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_earth(j)
+               end if
+            end do
+         end do
+      end if
+
+    end subroutine get_s_tot_zodi
+    
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
     ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
@@ -1745,104 +1838,9 @@ contains
       !call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
    end subroutine read_tod_zodi_params
 
+   ! Get total zodi for a given TOD, including (optionally) both dynamic and static components, and accounting for horns
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, s_therm, s_scat, exclude_static)
-      implicit none
-      class(ZodiModel),                 intent(in)               :: zodi_model
-      class(comm_tod),                  intent(inout)            :: tod
-      integer(i4b),                     intent(in)               :: det, scan
-      real(sp),         dimension(:),   intent(out)              :: s
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
-      real(sp),         dimension(:,:), intent(out),    optional :: s_therm, s_scat
-      character(len=*),                 intent(in),     optional :: exclude_static
-      
-      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
-      real(sp)     :: w
-      real(sp),     allocatable, dimension(:)   :: s_zodi
-      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
-
-      ntod  = size(s,1)
-      ncomp = zodi_model%n_comps
-      band  = tod%id
-
-      s = 0.      
-      if (present(pix_dynamic)) then
-         ! Get pointing
-         nhorn = size(pix_dynamic,2)      
-         allocate(s_scat_(ntod,ncomp), s_therm_(ntod,ncomp), s_zodi(ntod))
-                  
-         ! Compute non-stationary zodi TOD through line-of-sight integration
-         do h = 1, nhorn
-            call get_zodi_emission(tod=tod, pix=pix_dynamic(:,h), scan=scan, &
-                 & det=det, s_zodi_scat=s_scat_, s_zodi_therm=s_therm_, model=zodi_model)
-            call get_s_zodi(band, s_therm=s_therm_, s_scat=s_scat_, s_zodi=s_zodi)
-            w = 1.d0; if (h > 1) w = -1.d0
-            s = s  + w * s_zodi
-            if (present(s_scat))  s_scat  = s_scat_ ! Only works for nhorn=1
-            if (present(s_therm)) s_therm = s_therm_
-         end do
-
-         deallocate(s_scat_, s_therm_, s_zodi)
-      end if
-      return
-      
-      ! Add solar component by Healpix map lookup
-      if (trim(exclude_static) /= 'solar') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
-               if (tod%map_solar(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s(i) = s(i) + w * tod%map_solar(j,1)
-               end if
-            end do
-         end do
-      end if
-
-      ! Add Moon component by Healpix map lookup
-      if (trim(exclude_static) /= 'moon') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
-               if (tod%map_moon(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s(i) = s(i) + w * tod%map_moon(j,1)
-               end if
-            end do
-         end do
-      end if
-
-      ! Add Earth component by Healpix map lookup
-      if (trim(exclude_static) /= 'earth') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
-               if (tod%map_earth(j) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s(i) = s(i) + w * tod%map_earth(j)
-               end if
-            end do
-         end do
-      end if
-
-    end subroutine get_s_tot_zodi
-
-    subroutine get_zodi_emissivity_albedo(zodi, band, emissivity, albedo)
-     implicit none
-     class(ZodiModel),               intent(in)            :: zodi
-     integer(i4b),                   intent(in)            :: band
-     real(dp),         dimension(:), intent(out), optional :: emissivity, albedo
-
-     integer(i4b) :: i
-
-     do i = 1, zodi%n_comps
-        if (present(emissivity)) emissivity(i) = zodi%comps(i)%c%emissivity(band)
-        if (present(albedo))     albedo(i)     = zodi%comps(i)%c%albedo(band)
-     end do
-
-   end subroutine get_zodi_emissivity_albedo
-
-   subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
+    subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
       ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
       class(ZodiModel), target, intent(in) :: model
       type(comm_params), intent(in) :: cpar

@@ -32,7 +32,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -50,7 +50,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
      type(byte_pointer), allocatable, dimension(:)     :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)     :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked samples
+     integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked sample
      type(byte_pointer), allocatable, dimension(:)     :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)     :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)   :: offset_range   ! Beginning and end tod index of every offset region
@@ -62,17 +62,28 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
-     logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
-     integer(i4b),       allocatable, dimension(:)    :: downsamp_pix
-     real(sp),           allocatable, dimension(:)    :: downsamp_tod
-     real(sp),           allocatable, dimension(:)    :: downsamp_sky
-     real(sp),           allocatable, dimension(:)    :: downsamp_zodi
-     real(sp),           allocatable, dimension(:, :) :: downsamp_scat
-     real(sp),           allocatable, dimension(:, :) :: downsamp_therm
-     real(sp),           allocatable, dimension(:, :) :: downsamp_point  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
-
-     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
-     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
+     logical(lgt),       allocatable, dimension(:,:) :: zodi_sampgroup_mask
+     integer(i4b),       allocatable, dimension(:)   :: downsamp_pix_full
+     real(sp),           allocatable, dimension(:)   :: downsamp_tod_full
+     real(sp),           allocatable, dimension(:)   :: downsamp_sky_full
+     real(sp),           allocatable, dimension(:,:) :: downsamp_point_full  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
+     real(sp),           allocatable, dimension(:)   :: downsamp_obs_time_full ! downsampled_obs_time used for zodi sampling
+!!$     real(sp),           allocatable, dimension(:)    :: downsamp_zodi_full
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_scat_full
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_therm_full
+!!$     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres_full
+!!$     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres_full
+     
+     integer(i4b),       allocatable, dimension(:)   :: downsamp_pix
+     real(sp),           allocatable, dimension(:)   :: downsamp_tod
+     real(sp),           allocatable, dimension(:)   :: downsamp_sky
+     real(sp),           allocatable, dimension(:,:) :: downsamp_point    ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
+     real(sp),           allocatable, dimension(:)   :: downsamp_obs_time ! downsampled_obs_time used for zodi sampling
+!!$     real(sp),           allocatable, dimension(:)    :: downsamp_zodi
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_scat
+!!$     real(sp),           allocatable, dimension(:, :) :: downsamp_therm
+!!$     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
+!!$     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -99,7 +110,6 @@ module comm_tod_mod
      type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
-     real(sp),            allocatable, dimension(:)     :: downsamp_obs_time ! downsampled_obs_time used for zodi sampling
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
@@ -218,6 +228,7 @@ module comm_tod_mod
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
      real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
      real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
+     integer(i4b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
      real(sp),           allocatable, dimension(:,:)   :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
@@ -261,10 +272,8 @@ module comm_tod_mod
      ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
    !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
-     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cache for zodi
-     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache_lowres, zodi_therm_cache_lowres ! Cache for lowresolution zodi (used for sampling)
-     real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      !real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
+     integer(i4b) :: zodi_cache_nobs_lowres
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
@@ -305,8 +314,8 @@ module comm_tod_mod
      procedure                           :: apply_map_precond
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
-     procedure                           :: clear_zodi_cache
      procedure                           :: create_dynamic_mask
+     procedure                           :: report_dynamic_mask_stats
      procedure                           :: get_s_static
   end type comm_tod
   
@@ -346,8 +355,6 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
      real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
      real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
      real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
@@ -3173,18 +3180,11 @@ contains
          call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
       end do
 
-      self%zodi_init_cache_time = self%scans(1)%t0(1)
-      call self%clear_zodi_cache()
-      
       !allocate spectral quantities
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
 
-      ! allocate cache files and precompute ecliptic unit vectors
+      ! precompute ecliptic unit vectors
       call ecl_to_gal_rot_mat(rotation_matrix)
-      allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
-      allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
-      self%zodi_scat_cache = -1.d0
-      self%zodi_therm_cache = -1.d0
       allocate(self%ind2vec_ecl(3, self%nobs))
       do i = 1, self%nobs
          self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
@@ -3193,7 +3193,7 @@ contains
       ! If zodi sampling is turned on we precompute lowres zodi lookups
       if (.not. cpar%sample_zodi) return
       ! Skip if zodi nside = tod nside
-      if (self%nside == zodi_nside) return
+      !if (self%nside == zodi_nside) return
       n_subpix = (self%nside / zodi_nside)**2
 
       npix_lowres = 12*zodi_nside**2
@@ -3208,28 +3208,6 @@ contains
       end do
    
    end subroutine precompute_zodi_lookups
-
-   subroutine clear_zodi_cache(self, obs_time)
-      ! Clears the zodi tod cache used to look up already computed zodi values. 
-      !
-      ! This cache has an associate time of observation since the cache is only valid
-      ! if the time between the observations are small enough for the observer to not 
-      ! have moved significantly.
-      class(comm_tod),   intent(inout) :: self
-      real(dp), intent(in), optional :: obs_time
-
-      self%zodi_scat_cache = -1.d0
-      self%zodi_therm_cache = -1.d0
-      if (present(obs_time)) then
-         self%zodi_cache_time = obs_time
-      else 
-         self%zodi_cache_time = self%zodi_init_cache_time
-      end if
-      if (allocated(self%zodi_therm_cache_lowres)) then
-         self%zodi_scat_cache_lowres = -1.d0
-         self%zodi_therm_cache_lowres = -1.d0
-      end if
-   end subroutine clear_zodi_cache
 
    ! Cut definitions:
    ! threshold(1) = Pixel histogram outliers; tod%pixhist must be allocated; any positive value enables this
@@ -3270,6 +3248,8 @@ contains
      ntot        = count(iand(flag,self%flag0) .eq. 0)
      nmax        = 1000
      gain        = self%scans(scan)%d(det)%gain
+     self%mask_dyn_stats(-1) = self%mask_dyn_stats(-1) + ntod
+     self%mask_dyn_stats( 0) = self%mask_dyn_stats( 0) + ntod - ntot ! Number of samples removed by base flagging
 
      !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, base flags   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ntod-ntot,sp) / ntod, ntod
      
@@ -3301,7 +3281,8 @@ contains
               end if
            end if
         end do
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, pixhist      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, pixhist      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(1) = self%mask_dyn_stats(1) + ncut
      end if
 
      if (threshold(2) > 0) then
@@ -3316,6 +3297,7 @@ contains
            end if
         end do
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, extreme      -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(2) = self%mask_dyn_stats(2) + ncut
      end if
 
      ! Single sample outlier cut; potentially iterate in order to adjust the threshold rms
@@ -3366,6 +3348,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(cut)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(3) = self%mask_dyn_stats(3)
      end if
      
      if (threshold(4) > 0.) then
@@ -3393,6 +3376,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, small window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(4) = self%mask_dyn_stats(4) + ncut
      end if
 
      if (threshold(5) > 0.) then
@@ -3420,6 +3404,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(5) = self%mask_dyn_stats(5) + ncut
      end if
 
 !!$     open(58, file='var4.dat')
@@ -3453,6 +3438,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(var_window)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, 500 window   -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(6) = self%mask_dyn_stats(6) + ncut
      end if
 
      if (threshold(7) > 0.) then
@@ -3478,8 +3464,8 @@ contains
            flag(ntod)     = flag(ntod) + flag_dyn
            ncut           = ncut + 1
         end if
-        !     close(58)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single samp  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(7) = self%mask_dyn_stats(7) + ncut
      end if
 
      if (threshold(8) > 0.) then
@@ -3504,6 +3490,7 @@ contains
         end do
         if (output_scan == self%scanid(scan)) close(58)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(8) = self%mask_dyn_stats(8) + ncut
      end if
 
      if (output_scan == self%scanid(scan)) then
@@ -3557,6 +3544,7 @@ contains
         end if
 
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, solar elong  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
+        self%mask_dyn_stats(9) = self%mask_dyn_stats(9) + ncut
      end if
 
      if (output_scan == self%scanid(scan)) then
@@ -3610,7 +3598,7 @@ contains
      if (n > 0) then
         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-        write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
+        !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, total        -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(count(iand(flag,self%flag0) .ne. 0),sp) / ntod, count(iand(flag,self%flag0) .ne. 0), ntod
      end if
 
      if (count(iand(flag,self%flag0) .eq. 0) == 0) then
@@ -3621,6 +3609,34 @@ contains
      deallocate(bad, mask_dyn)
    end subroutine create_dynamic_mask
 
+   subroutine report_dynamic_mask_stats(self)
+     implicit none
+     class(comm_tod), intent(in) :: self
+
+     integer(i4b) :: ierr, ntod
+
+     ! Synchronize stats across cores
+     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER, MPI_SUM, self%comm, ierr)
+
+     if (self%myid == 0) then
+        ntod = self%mask_dyn_stats(-1)
+        write(*,fmt='(a,a,a)')      'TOD flagging stats for ', trim(self%freq), ' (      frac,          ntot     )'
+        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),sp)/ntod, ntod
+        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),sp)/ntod, self%mask_dyn_stats( 0)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),sp)/ntod, self%mask_dyn_stats( 1)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),sp)/ntod, self%mask_dyn_stats( 2)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),sp)/ntod, self%mask_dyn_stats( 3)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),sp)/ntod, self%mask_dyn_stats( 4)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),sp)/ntod, self%mask_dyn_stats( 5)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),sp)/ntod, self%mask_dyn_stats( 6)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),sp)/ntod, self%mask_dyn_stats( 7)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),sp)/ntod, self%mask_dyn_stats( 8)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),sp)/ntod, self%mask_dyn_stats( 9)
+        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),sp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
+     end if
+        
+   end subroutine report_dynamic_mask_stats
+   
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod

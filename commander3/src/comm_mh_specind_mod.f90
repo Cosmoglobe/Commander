@@ -22,6 +22,8 @@ module comm_mh_specind_mod
   use comm_signal_mod
   implicit none
 
+  integer(i4b), dimension(100,2) :: mh_accept_stat = 0 ! (nsamp, naccept)
+  real(dp),     dimension(100)   :: mh_scale = 1.      ! Step length modifier
 
 
 contains
@@ -212,7 +214,6 @@ contains
        allocate(scales(n_scales))
 
 
-
        ! Calculate initial chisq
        chisq_old = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
@@ -268,6 +269,8 @@ contains
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
+       !call output_FITS_sample(cpar, 2000+l, .true.)
+       
        if (cpar%myid_chain .eq. 0) then
          write(*,*) "|    Proposal chisq is ", chisq_prop
          write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
@@ -347,23 +350,30 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
-    integer(i4b) :: band, ierr, i, j, k, m, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix, ndof
     logical(lgt)  :: include_comp, reject, todo, negative
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
-
-
+    if (cpar%myid == 0) then
+       write(*,fmt='(a,i3,a,a)') ' | MH MBBtab sampling group ', l, ', active CG sampling groups = ', trim(cpar%mcmc_update_cg_groups(l))
+       if (mh_accept_stat(l,1) > 30 .and. real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1) < 0.1d0) then
+          write(*,*) 'MH MBBtab ADJUSTING STEP LENGTH for group', l
+          mh_scale(l)         = mh_scale(l) / 2.
+          mh_accept_stat(l,:) = 0
+       end if
+       write(*,fmt='(a,f10.5)') ' |    Step length modifier = ', mh_scale(l)
+       if (mh_accept_stat(l,1) > 0) then
+          write(*,fmt='(a,i8,a,f8.4)') ' |    nsamp_tot = ', mh_accept_stat(l,1), ', accept rate = ', real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1)
+       end if
+    end if
+       
     ! Loop over sampling groups
-
-    !do l = 1, cpar%mcmc_num_user_samp_groups
     do m = 1, cpar%mcmc_samp_group_numstep(l)
-       if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
 
        mval_0 = -1d0
-       k = 0
-       
+       k = 0       
        c => compList
        do while (associated(c))
           k = k + 1
@@ -380,23 +390,26 @@ contains
        call mpi_bcast(mval_0, 1, MPI_DOUBLE_PRECISION, &
          & 0, data(1)%info%comm, ierr)
 
-       if (mval_0 <= 0d0) then
-         return
-       end if
-       if (cpar%myid == 0) then
-         write(*,*) '| MH sampling group ', l
-       end if
+       if (mval_0 <= 0d0) return
 
+       if (cpar%myid == 0) write(*,fmt='(a,i3,a,i3)') ' |  Sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
+       mh_accept_stat(l,1) = mh_accept_stat(l,1) + 1
+       
+       ! Perform one CG sample for init chisq; this should in principle not
+       ! be necessary, but is useful for cases where the Gibbs chain hasn't burned in yet.
+       ! Otherwise, one gets a burn-in penalty during the CG step from the large number of
+       ! free parameters involved there, compared to the few global parameters sampled here.
+       call store_buffer() ! Avoid burn-in penalty
+       if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0)
+       end if
+       
        ! Calculate initial chisq
-       chisq_old = 0d0
-       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-
-       if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', chisq_old
+       if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none' .or. m == 1) then
+          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), ndof=ndof)
+          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar) ! Reset to previous values
        end if
-
-       call store_buffer()
 
        negative = .false.
        c => compList
@@ -405,29 +418,20 @@ contains
           select type (c)
           type is (comm_MBBtab_comp)
 
-            !if (c%id == k) then
             if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
-
                if (cpar%myid_chain .eq. 0) then
-                 write(*,*) '| ', trim(c%label)
                  c%SEDtab_buff = c%SEDtab
-                 write(*,*) '| MBBtab original'
-                 do i = 1, c%ntab
-                   if (c%theta_steplen(c%npar+i,l) > 0) then
-                     write(*,*) '|         ', c%SEDtab(3:,i)
-                   end if
-                 end do
-                 write(*,*) '| MBBtab proposal'
+                 write(*,fmt='(a,a12)',advance='no') ' |   ', trim(c%label)
                  do i = 1, c%ntab
                     if (c%theta_steplen(c%npar+i,l) > 0) then
+                       write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(3,i)
                        do j = 3, size(c%SEDtab(:,i))
-                          c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
+                          c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l) * mh_scale(l)
                        end do
-                       write(*,*) '|         ',  c%SEDtab(3:,i)
+                       write(*,fmt='(a,f16.8)') ', prop = ',  c%SEDtab(3,i)
                     end if
                  end do
                end if
-
                negative = negative .or. any(c%SEDtab(3:,:) < 0.d0)
             end if
             call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
@@ -437,7 +441,7 @@ contains
 
           end select
           
-          !go to next compedt
+          !go to next component
           c => c%nextComp()
        end do
 
@@ -445,91 +449,64 @@ contains
        call update_mixing_matrices(update_F_int=.true.)
 
        ! Perform component separation
-       if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid == 0) write(*,*) '| No groups to sample'
-       else
-          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l))
+       if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0)
        end if
 
        chisq_prop = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
-       if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", chisq_prop
-         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
-       end if
-
        ! Check MH statistic
        !reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2 .or. negative
        reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
        call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
-
        if (reject) then
-         if (cpar%myid_chain == 0) then
-           write(*,*) '| '
-           write(*,*) '| MH step rejected, returning to original tabulated values.'
-           write(*,*) '| '
-         end if
+          if (cpar%myid_chain == 0) then
+             write(*,fmt='(a,f12.2,a,f12.2,a,f7.3)') " |    REJECT -- X^2 = ", chisq_prop, ', dX^2 = ', (chisq_prop - chisq_old), ', X^2/dof = ', chisq_prop/ndof
+          end if
 
+          ! Reset parameters to old values
+          c => compList
+          do while (associated(c))                         
+             select type (c)
+             type is (comm_MBBtab_comp)
+                if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
+                   if (cpar%myid_chain .eq. 0) then
+                      do i = 1, c%ntab
+                         c%SEDtab(3:,i) = c%SEDtab_buff(3:,i)
+                      end do
+                   end if
+                   call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                        & 0, data(1)%info%comm, ierr)
+                end if
+             end select
+             c => c%nextComp()
+          end do
 
-         c => compList
-         do while (associated(c))
-                         
-            select type (c)
-            type is (comm_MBBtab_comp)
+          ! Update mixing matrices
+          call update_mixing_matrices(update_F_int=.true.)
+          
+          ! Instead of doing compsep, revert the amplitudes here
+          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
-              !if (c%id == k) then
-              if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
-                 if (cpar%myid_chain .eq. 0) then
-                   do i = 1, c%ntab
-                      c%SEDtab(3:,i) = c%SEDtab_buff(3:,i)
-                   end do
-                 end if
+         ! Test for proper reset
+!!$         chisq_prop = 0d0
+!!$         call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+!!$                            & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+!!$         if (cpar%myid_chain == 0) then
+!!$           write(*,*) '| '
+!!$           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+!!$           write(*,*) '| '
+!!$         end if
 
-                 call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                   & 0, data(1)%info%comm, ierr)
-              end if
-
-            end select
-            
-            !go to next component
-            c => c%nextComp()
-         end do
-
-         ! Update mixing matrices
-         call update_mixing_matrices(update_F_int=.true.)
-
-         ! Instead of doing compsep, revert the amplitudes here
-         if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
-
-         chisq_prop = 0d0
-         call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-                            & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-
-         if (cpar%myid_chain == 0) then
-           write(*,*) '| '
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
-           write(*,*) '| '
-         end if
-
-       else
-         if (cpar%myid_chain == 0) then
-           write(*,*) '| '
-           write(*,*) '| MH step accepted'
-           write(*,*) '| '
-         end if
+       else if (cpar%myid_chain == 0) then                   
+          write(*,fmt='(a,f12.2,a,f12.2,a,f7.3)') " |    ACCEPT -- X^2 = ", chisq_prop, ', dX^2 = ', (chisq_prop - chisq_old), ', X^2/dof = ', chisq_prop/ndof
+          chisq_old = chisq_prop
+          mh_accept_stat(l,2) = mh_accept_stat(l,2) + 1
        end if
-
-
      end do
-
-
-     if (cpar%myid == 0) then
-       write(*,*) '|   Finished sampling mbbtab'
-     end if
 
   end subroutine sample_mbbtab_mh
 
@@ -984,10 +961,10 @@ contains
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
 
-    if (cpar%myid == 0) then
-      write(*,*) '|   Reverting to buffer values. Did you run sample_maps_with_CG with '
-      write(*,*) '|   store_buff = .true.?'
-    end if
+    !if (cpar%myid == 0) then
+    !  write(*,*) '|   Reverting to buffer values. Did you run sample_maps_with_CG with '
+    !  write(*,*) '|   store_buff = .true.?'
+    !end if
 
     c   => compList
     do while (associated(c))

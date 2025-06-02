@@ -20,6 +20,7 @@
 !================================================================================
 module comm_ptsrc_comp_mod
   use comm_F_mod
+  use comm_dust_extinction_mod
   implicit none
 
   private
@@ -30,6 +31,7 @@ module comm_ptsrc_comp_mod
   !**************************************************
   type Tnu
      integer(i4b) :: nside, nside_febecop, np, nmaps
+     real(dp)     :: A_ext ! Dust extinction, absolute attenuation
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
      real(dp),     allocatable, dimension(:,:) :: F       ! Mixing matrix (nmaps,ndet)
@@ -265,7 +267,7 @@ contains
     end do
 
     ! Disable CG search when asking for positivity prior
-    if (c%apply_pos_prior)  c%active_samp_group = .false.
+    !if (c%apply_pos_prior)  c%active_samp_group = .false.
     
     ! Read and allocate source structures
     call update_status(status, "init_ptsrc2")
@@ -276,6 +278,16 @@ contains
       call read_sources(c, cpar, id, id_abs)
     end if 
 
+    ! Initialize dust extinction correction
+    do j = 1, c%nsrc
+       do i = 1, numband
+          if (c%F_null(i)) cycle
+          ia = c%b2a(i)
+          call get_dust_attenuation_pos(c%src(j)%vec, data(i)%bp(0)%p%nu_c, c%src(j)%T(ia)%A_ext)
+          if(cpar%myid == 0) write(*,*) j, i, c%src(j)%T(ia)%A_ext
+       end do
+    end do
+    
     ! Update mixing matrix
     call update_status(status, "init_ptsrc3")
     call c%updateMixmat
@@ -298,7 +310,7 @@ contains
     integer(i4b) :: i, ia, j, k
 
     ! if we have fixed precomputed amps, we don't change mixing matrix
-    if(self%precomputed_amps) return
+    !if(self%precomputed_amps) return
 
 
     do j = 1, self%nsrc
@@ -319,25 +331,29 @@ contains
 
           do k = 0, data(i)%ndet
              ! Temperature
-             self%src(j)%T(ia)%F(1,k) = &
-                  & self%F_int(1,ia,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
+             if(self%precomputed_amps) then
+                self%src(j)%T(ia)%F(1,k) = self%src(j)%amp_precomp(ia) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
+             else
+                self%src(j)%T(ia)%F(1,k) = &
+                     & self%F_int(1,ia,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
+             end if
              
              ! Polarization
              if (self%nmaps == 3) then
                 ! Stokes Q
-                if (self%poltype(1) < 2) then
+                if (self%poltype(1) < 2 .or. self%precomputed_amps) then
                    self%src(j)%T(ia)%F(2,k) = self%src(j)%T(ia)%F(1,k)
                 else
                    self%src(j)%T(ia)%F(2,k) = &
-                        & self%F_int(2,ia,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
+                        & self%F_int(2,ia,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
                 end if
                 
                 ! Stokes U
-                if (self%poltype(1) < 3) then
+                if (self%poltype(1) < 3 .or. self%precomputed_amps) then
                    self%src(j)%T(ia)%F(3,k) = self%src(j)%T(ia)%F(2,k)
                 else
                    self%src(j)%T(ia)%F(3,k) = &
-                        & self%F_int(3,ia,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
+                        & self%F_int(3,ia,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext 
                 end if
              end if
           end do
@@ -451,12 +467,12 @@ contains
     evalPtsrcBand = 0.d0
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band_active)%nmaps
-          if(self%precomputed_amps) then
-            ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) * amp(i,j)
-          else
+!          if(self%precomputed_amps) then
+!            ! so far just used for stars
+!            m = self%src(i)%amp_precomp(band_active) * amp(i,j) * data(band)%gain
+!          else
             m = self%src(i)%T(band_active)%F(j,d) * amp(i,j)
-          end if
+!          end if
           ! Scale to correct frequency through multiplication with mixing matrix
           a = self%getScale(band,i,j) * m
 
@@ -508,12 +524,12 @@ contains
              val = val + self%src(i)%T(band_active)%map(q,j) * map%map(p,j)
           end do
 
-          if(self%precomputed_amps) then
-            ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) !*self%x(i,j)
-          else
+!          if(self%precomputed_amps) then
+!            ! so far just used for stars
+!            m = self%src(i)%amp_precomp(band_active) * data(band)%gain
+!          else
             m = self%src(i)%T(band_active)%F(j,d)
-          end if
+!          end if
 
           ! Scale to correct frequency through multiplication with mixing matrix
           val = self%getScale(band,i,j) * m * val
@@ -975,6 +991,13 @@ contains
     call read_alloc_hdf(stars_file, '/reported_values', catalog) !nstars, nbands        
     call read_alloc_hdf(stars_file, '/band_column_mapping', band_list)
 
+    if (.not. allocated(npre)) then
+       allocate(npre(cpar%cg_num_samp_groups))
+       allocate(nmaps_pre(cpar%cg_num_samp_groups))
+       npre      = 0
+       nmaps_pre = 1
+    end if
+    
     ! trim unused bands from star catalog
     allocate(star_catalog(self%nactive, size(catalog(1,:))))
 
@@ -1000,6 +1023,7 @@ contains
     self%nsrc = size(star_catalog(1, :))
 
     call read_alloc_hdf(stars_file, 'coordinates', coords)
+    !coords = coords * DEG2RAD  ! Convention now in degrees
 
     allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
 
@@ -1018,7 +1042,7 @@ contains
 
        ii = ii+1
        self%src(ii)%glon = coords(1,i)
-       self%src(ii)%glat = coords(2,i)
+       self%src(ii)%glat = coords(2,i) 
        call ang2vec(0.5d0*pi-coords(2,i), coords(1,i), self%src(ii)%vec)
        ! Check for too close neighbours
        skip_src = .false.
@@ -1071,16 +1095,16 @@ contains
     !load in the beam information
     call init_beam_templates(self, cpar, id, id_abs)
 
-    ! Update mixing matrix
-    do i=1, self%nsrc
-      do j=1, numband !self%nactive
-         ja = self%b2a(j)
-         if (ja == -1) cycle
-          do k = 0, data(j)%ndet ! Only T for now
-            self%src(i)%T(ja)%F(1,k) = self%src(i)%amp_precomp(self%b2a(j))
-         end do
-      end do
-   end do
+    ! Update mixing matrix --  HKE: GAIN IS MISSING
+!!$    do i=1, self%nsrc
+!!$      do j=1, numband !self%nactive
+!!$         ja = self%b2a(j)
+!!$         if (ja == -1) cycle
+!!$          do k = 0, data(j)%ndet ! Only T for now
+!!$            self%src(i)%T(ja)%F(1,k) = self%src(i)%amp_precomp(self%b2a(j))
+!!$         end do
+!!$      end do
+!!$   end do
 
 
   end subroutine read_star_catalogue
@@ -1535,11 +1559,12 @@ contains
     
   end subroutine compute_symmetric_beam
 
-  subroutine initPtsrcPrecond(comm, samp_group)
+  subroutine initPtsrcPrecond(comm, samp_group, verbosity)
     implicit none
     integer(i4b),                intent(in) :: comm, samp_group
+    integer(i4b),                intent(in), optional :: verbosity
 
-    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2
+    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2, verbosity_
     real(dp)     :: t1, t2, t3, t4, dist, tot, tot2
     logical(lgt) :: skip
     real(dp), allocatable, dimension(:) :: buff
@@ -1550,7 +1575,8 @@ contains
     
     if (.not. apply_ptsrc_precond) return
     if (npre(samp_group) == 0) return
-
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Make a list of active components, and check that at least one wants update
     nactive = 0
     skip    = .true.
@@ -1586,7 +1612,7 @@ contains
              pt1 => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
                 i1 = i1+1   
                 i2 = pt1%myid
                 do c2 = 1, nactive
@@ -1602,7 +1628,7 @@ contains
              end do
           end do
           call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
-          if (myid_pre == 0) write(*,*) 'Number of matrix elements = ', n
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'Number of matrix elements = ', n
           ! Allocate sparse matrix
           P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre(samp_group), n)
        end if
@@ -1614,7 +1640,7 @@ contains
              pt1  => pc(c1)%p
              if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
-                if (myid_pre == 0 .and. mod(k1,10000) == 0) write(*,*) 'Computing A =', k1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Computing A =', k1, pt1%nsrc
                 i1 = i1+1
 
                 i2 = 0
@@ -1683,7 +1709,7 @@ contains
 
           ! Construct matrix with sparsity pattern
           do i1 = 1, P_cr(samp_group)%invM_src(1,j)%M%ni
-             if (myid_pre == 0 .and. mod(i1,10000) == 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
+             if (myid_pre == 0 .and. mod(i1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
              c1 = 1
              k1 = i1
              do while (k1 > pc(c1)%p%nsrc)
@@ -1802,13 +1828,13 @@ contains
           end do
           ! Invert matrix to finalize preconditioner
           call wall_time(t3)
-          call P_cr(samp_group)%invM_src(1,j)%M%decomp()
+          call P_cr(samp_group)%invM_src(1,j)%M%decomp(verbosity)
           call wall_time(t4)
-          if (myid_pre == 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
        end if
     end do
     call wall_time(t2)
-    if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
+    if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
     
     do i = 1, nactive
        pc(i)%p%recompute_ptsrc_precond = .false.
@@ -2040,7 +2066,7 @@ contains
           if (p == 1 .and. data(l)%pol_only) cycle
           la = self%b2a(l)
           do q = 1, self%src(i)%T(la)%np
-            src_amp = self%src(i)%amp_precomp(la)
+            src_amp = self%src(i)%amp_precomp(la) * data(l)%gain
             beam    = self%src(i)%T(la)%map(q,p)
             pix     = self%src(i)%T(la)%pix(q,1)
             noise   = data(l)%N%rms_pix(pix, p)
@@ -2081,8 +2107,9 @@ contains
            else
               x_tot = 0.d0
            end if
+           if (self%apply_pos_prior) x_tot = max(x_tot, 0.d0)
           if (mod(i,10000) == 0) then
-             write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
+             write(*,fmt='(a,i8,a,f8.3,a,f8.3,a,f16.8)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot, ', sigma = ', 1.d0/sqrt(A_tot)
           end if
           self%x(i,p) = x_tot
         end if
@@ -2179,7 +2206,7 @@ contains
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    do q = 1, self%src(k)%T(la)%np
                       pix = self%src(k)%T(la)%pix(q,1)
                       data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(la)%map(q,p) * a
@@ -2239,7 +2266,7 @@ contains
                    la = self%b2a(l)
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    do q = 1, self%src(k)%T(la)%np
                       pix = self%src(k)%T(la)%pix(q,1)
                       data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(la)%map(q,p)
@@ -2364,7 +2391,7 @@ n_gibbs=1
                    la = self%b2a(l)
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                   s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
 !if (self%myid == 0) write(*,*) 'l numband', l, numband
                 end do
@@ -2393,7 +2420,7 @@ n_gibbs=1
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
-                         s        = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                         s        = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                          
                          ! Compute predicted source amplitude for current band
                          a = self%getScale(l,k,p) * s * amp(k,p)
@@ -2482,7 +2509,7 @@ n_gibbs=1
                    if (self%F_null(l)) cycle
                    la = self%b2a(l)
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    
                    ! Compute likelihood by summing over pixels
                    do q = 1, self%src(k)%T(la)%np
@@ -2518,7 +2545,7 @@ n_gibbs=1
                 if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(la)%np
@@ -2580,7 +2607,7 @@ n_gibbs=1
                 if (p == 1 .and. data(l)%pol_only) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(la)%np
@@ -2657,7 +2684,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2697,7 +2724,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2766,7 +2793,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2864,9 +2891,10 @@ n_gibbs=1
           if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
              
           ! Compute mixing matrix
-          s = c_lnL%F_int(1,la,0)%p%eval(theta)    * data(l)%gain * c_lnL%cg_scale
+          s = c_lnL%F_int(1,la,0)%p%eval(theta)    * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
              
           ! Compute predicted source amplitude for current band
+          ! HKE: Fix extinction correction below?
           a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
           if (j .eq. 1) then
               a_grad = c_lnL%getScale(l,k_lnL,p_lnL) * s
