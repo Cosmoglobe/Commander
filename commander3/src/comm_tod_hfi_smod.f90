@@ -383,8 +383,8 @@ contains
     if (sample_gain) then
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
-       !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
-       !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
     end if
 
 
@@ -470,7 +470,7 @@ contains
        if (self%scanid(i) == 500) then
           open(58,file='res'//samptext//'.dat', recl=1024)
           do j = 1, sd%ntod
-             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1)))
+             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
           end do
           close(58)
        end if
@@ -533,13 +533,13 @@ contains
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
     if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
-       do i = 1, zodi_model%n_comps
-          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
-       end do
-    endif
+!!$    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+!!$    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+!!$    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+!!$       do i = 1, zodi_model%n_comps
+!!$          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+!!$       end do
+!!$    endif
 
     ! Clean up
     call binmap%dealloc()

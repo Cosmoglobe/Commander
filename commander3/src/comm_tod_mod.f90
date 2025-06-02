@@ -1622,7 +1622,6 @@ contains
 
   end subroutine get_scan_ids
 
-
   subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
     class(comm_tod),                   intent(inout) :: self
@@ -1634,17 +1633,13 @@ contains
     real(dp)           :: mu
     character(len=6)   :: itext
     character(len=512) :: path
-    real(dp), allocatable, dimension(:,:,:) :: output, condensed_output
-    real(dp), allocatable, dimension(:)     :: mjds, condensed_mjds
+    real(dp), allocatable, dimension(:,:,:) :: output
+    real(dp), allocatable, dimension(:)     :: mjds
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
-    allocate(output(self%last_scan,self%ndet,npar+1))
-    allocate(  mjds(self%last_scan))
-
-    allocate(condensed_output(self%nscan_tot, self%ndet,npar+1))
-    allocate(condensed_mjds(self%nscan_tot))
-
+    allocate(output(self%nscan_tot,self%ndet,npar))
+    allocate(  mjds(self%nscan_tot))
 
     ! Collect all parameters
     output = 0.d0
@@ -1652,13 +1647,12 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
-          output(k,j,1)             = k
-          output(k,j,2)             = self%scans(i)%d(j)%gain
-          output(k,j,3)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,4)             = self%scans(i)%d(j)%chisq
-          output(k,j,5:4+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+          output(k,j,1)             = self%scans(i)%d(j)%gain
+          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,3)             = self%scans(i)%d(j)%chisq
+          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
           if (self%baseline_order >= 0) then
-             output(k,j,5+self%n_xi:npar+1) = self%scans(i)%d(j)%baseline
+             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
           end if
           if (j == 1) then
              mjds(k)                = self%scans(i)%t0(1)
@@ -1706,17 +1700,6 @@ contains
           end do
        end do
 
-       ! cut missing scan ids from output and mjd before we write it to disk
-       j = 1
-       do i = 1, self%last_scan
-         if(mjds(i) > 0) then !this scanid exists
-           condensed_output(j,:,:) = output(i,:,:)
-           condensed_mjds(j) = mjds(i)
-           j = j+1
-         end if
-       end do
-
-
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
@@ -1730,12 +1713,11 @@ contains
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
        !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
-       call write_hdf(chainfile, trim(adjustl(path))//'scanid', condensed_output(:,:,1))
-       call write_hdf(chainfile, trim(adjustl(path))//'gain',   condensed_output(:,:,2))
-       call write_hdf(chainfile, trim(adjustl(path))//'accept', condensed_output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  condensed_output(:,:,4))
-       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   condensed_output(:,:,5:4+self%n_xi))
-       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    condensed_mjds)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
+       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
+       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:3+self%n_xi))
+       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    mjds)
        if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
@@ -1754,9 +1736,11 @@ contains
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 
-    deallocate(output, mjds, condensed_output, condensed_mjds)
+    deallocate(output, mjds)
 
   end subroutine dumpToHDF
+
+  
 
   subroutine initHDF(self, chainfile, iter, map, rms)
     implicit none
@@ -3340,17 +3324,17 @@ contains
         ncut = 0
         if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
         do iter = 1, 1
-           ! Compute full-scan, masked rms0
-           rms0 = 0.d0
-           n   = 0
-           do i = 1, ntod
-              if (mask(i) == 1.) then
-                 rms0 = rms0 + res(i)**2
-                 n   = n   + 1
-              end if
-           end do
-           rms0 = sqrt(rms0/(n-1))
-           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
+!!$           ! Compute full-scan, masked rms0
+!!$           rms0 = 0.d0
+!!$           n   = 0
+!!$           do i = 1, ntod
+!!$              if (mask(i) == 1.) then
+!!$                 rms0 = rms0 + res(i)**2
+!!$                 n   = n   + 1
+!!$              end if
+!!$           end do
+!!$           rms0 = 0.; if (n > 1) rms0 = sqrt(rms0/(n-1))
+!!$           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
