@@ -149,6 +149,7 @@ interface
 
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 

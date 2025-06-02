@@ -2986,17 +2986,27 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
     integer(i4b),             intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k
+    integer(i4b) :: i, j, k, nmaps
+
+    ! only do the computation for the I,Q,U maps, not for the individual det maps
+    ! that info is instead stored in the j index in this structure
 
     if (present(band)) then
-       do i = 1, data(band)%info%nmaps
+       ! only do the computation for the I,Q,U maps, not for the individual det maps
+       ! that info is instead stored in the j index in this structure
+       nmaps = data(band)%info%nmaps
+       if (nmaps > 3) nmaps = 3
+
+       do i = 1, nmaps
           do j = 0, data(band)%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
     else
        do k = 1, numband
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(k)%info%nmaps
+          if (nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
