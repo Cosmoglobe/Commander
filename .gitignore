@@ -78,3 +78,18 @@ commander3/todscripts/quiet/quiet_qband_beam_instrumental_v1.fits
 #---------------------------------------------------------------
 commander3/parameter_files/defaults/bands/DIRBE/old
 commander3/parameter_files/defaults/bands/DIRBE/old2
+
+
+#--------------------------------------------------------------
+# Miscellaneous small-ish filetypes
+#--------------------------------------------------------------
+*.png
+*.pdf
+*.jpg
+*.jpeg
+*.fits
+*.FITS
+*.npy
+*.dat
+*.txt
+*.h5

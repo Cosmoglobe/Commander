@@ -1,3 +1,5 @@
+# Try just printing out the times! We know that there are 64 possible readings between the two chunks of header data. It should be something like half a second between each of them.
+
 '''
 
  According to the calibrator design paper (Mather 1999) and the design document
@@ -107,6 +109,10 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     time2 = sci_mode2['ct_head/time'][()]*(100*u.ns) - 36*u.s
     time2 = sci_mode2['ct_head/time'][()]*(100*u.ns)
     time2 = time2.to('s')
+
+
+    print('time1 min', np.diff(time1).min())
+    print('time2 min', np.diff(time2).min())
     data_ready = sci_mode1['sci_head/data_ready'][()] # (N_ifgs x 8)
                                                      # Flagged if anything != 1
                                                      # See line 206 of
@@ -299,6 +305,8 @@ offsets = {}
 # ADT Time, in units of 100ns since 1858-11-17
 bin_time = data['fdq_eng']['ct_head']['time']*(100*u.ns)
 
+reord = np.argsort(bin_time)
+
 # Getting bad flags
 stat_word_5 = eng['en_stat/stat_word_5'][()]
 stat_word_9 = eng['en_stat/stat_word_9'][()]
@@ -310,12 +318,15 @@ xcal_eng = eng['en_xcal/pos'][()]
 
 filters = (stat_word_9 == 16185)
 
+filters = filters[reord]
+
 
 
 dn = 8
 dn = 0.5
-dn = 4
-#dn = 16
+dn = 8
+dn = 16
+dn = 8
 '''
 # GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
@@ -337,9 +348,15 @@ time = Time(times, format='yday')
 ind0 = 0
 for i in range(len(names_en_analog_grt)):
     grts[names_en_analog_grt[i]] = data['fdq_eng']['en_analog']['grt'][:,ind0:ind0+lens_grt[i]].flatten()
+    grts[names_en_analog_grt[i]] = grts[names_en_analog_grt[i]][reord]
     offsets[names_en_analog_grt[i]] = ind0
     ind0 += lens_grt[i]
-time = bin_time
+time = bin_time[reord]
+
+
+
+
+
 
 
 
@@ -606,12 +623,6 @@ t1 = (4.156e9 + 740_000)*u.s
 #t0 = (4.156e9 + 642_250)*u.s
 #t1 = (4.156e9 + 643_250)*u.s
 
-# Constant ICAL, varying XCAL; there's a sort of "gaussian bump"
-# This is VERY USEFUL for getting the XCAL timings.
-t0 = t_09 + 8.36e5*u.s
-t1 = t_09 + 8.38e5*u.s
-# Should be just the rise
-t1 = t_09 + 8.37e5*u.s
 
 # This seems to have the ifgs being aligned well with the temperature data.
 # I am also not sure that the plateau information is necessary.
@@ -633,10 +644,6 @@ t1 = (4.1596e9 + 14_000)*u.s
 t0 = (4.1596e9 + 6_000)*u.s
 t1 = (4.1596e9 + 8_000)*u.s
 
-# This avoids the spike, but still shows the ICAL transition
-t0 = (4.1596e9 + 4_500)*u.s
-t1 = (4.1596e9 + 6_000)*u.s
-'''
 
 # Zooms in more closely on the transition
 t0 = (4.1596e9 + 5_000)*u.s
@@ -644,15 +651,6 @@ t1 = (4.1596e9 + 5_500)*u.s
 
 
 
-# Trying to look at skyhorn and refhorn
-t0 = (4.1497e9 + 30_000)*u.s
-t1 = (4.1497e9 + 90_000)*u.s
-
-t0 = (4.1497e9 + 36_000)*u.s
-t1 = (4.1497e9 + 40_000)*u.s
-
-t0 = (4.1497e9 + 39_000)*u.s
-t1 = (4.1497e9 + 40_500)*u.s
 
 
 # Trying to look at dihedral mirror now;
@@ -662,6 +660,18 @@ t0 = (4.139e9 + 390_000)*u.s
 t0 = (4.139e9 + 425_000)*u.s
 t1 = (4.139e9 + 430_000)*u.s
 
+
+
+'''
+
+
+
+# Mirror and collimator now
+
+t0 = (4.156e9 + 700_000)*u.s
+t1 = (4.156e9 + 702_500)*u.s
+
+'''
 # Pretty good for the dihedral mirror
 t0 = (4.139e9 + 425_000)*u.s
 t1 = (4.139e9 + 426_000)*u.s
@@ -672,14 +682,93 @@ t0 = (4.139e9 + 429_250)*u.s
 t1 = (4.139e9 + 430_250)*u.s
 
 
-# Mirro rand collimator now
 
-t0 = (4.156e9 + 700_000)*u.s
-t1 = (4.156e9 + 702_500)*u.s
+# Trying to look at skyhorn and refhorn
+t0 = (4.1497e9 + 30_000)*u.s
+t1 = (4.1497e9 + 90_000)*u.s
+
+#t0 = (4.1497e9 + 33_000)*u.s
+#t1 = (4.1497e9 + 34_500)*u.s
+
+t0 = (4.1497e9 + 45_000)*u.s
+t1 = (4.1497e9 + 50_000)*u.s
+#
+#t0 = (4.1497e9 + 39_000)*u.s
+#t1 = (4.1497e9 + 40_500)*u.s
+
+#t0 = (4.1497e9 + 88_500)*u.s
+#t1 = (4.1497e9 + 90_000)*u.s
+'''
+
+# Trying to look at the mirror and collimator.
+t0 = (4.138e9 + 895_500)*u.s
+t1 = (4.138e9 + 904_000)*u.s
+
+t_start = 4.138e9*u.s + 3e5*u.s + 2.5e5*u.s + 1.25e5*u.s
+t0 = t_start + 2.5e4*u.s
+t1 = t_start + 5e4*u.s
+
+t_start = 4.138e9*u.s
+# There are three spikes in mirror and collimator here that I want to understand, and hopefully use them to match them up.
+t0 = t_start + 5e5*u.s
+t1 = t_start + 1e6*u.s
+
+# First spike
+t_start = 4.138e9*u.s + 6e5*u.s + 7.5e4*u.s + 2.5e4*u.s
+t0 = t_start + 8.75e3*u.s
+t1 = t_start + 1.0e4*u.s
+
+# Second spike
+# Also a big jump, but not quite the same shape
+# t_start += 7.5e5*u.s + 1e5*u.s
+# t0 = t_start + 4e4*u.s
+# t1 = t_start + 6e4*u.s
+
+# Third spike
+# Not all look especially similar here
+# t_start = 4.138e9*u.s
+# t_start += 7.5e5*u.s
+#t_start += 2.5e5*u.s + 2.5e4*u.s
+#t0 = t_start + 2e3*u.s
+#t1 = t_start + 5e3*u.s
+
+print((np.diff(time).to('s').value < 30).sum())
+
+inds = (np.gradient(time).to('s').value < 30)
+print(inds)
+print(t_00)
+t0 = time[inds][50].to('s') - 5_000*u.s
+t1 = (t0 + 5_000*u.s).to('s')
+
+print(t0)
+
+# Constant ICAL, varying XCAL; there's a sort of "gaussian bump"
+# This is VERY USEFUL for getting the XCAL timings.
+t0 = t_09 + 8.36e5*u.s
+t1 = t_09 + 8.38e5*u.s
+# Should be just the rise
+# t1 = t_09 + 8.37e5*u.s
+
+
+# This avoids the spike, but still shows the ICAL transition
+t0 = (4.1596e9 + 4_500)*u.s
+t0 = (4.1596e9 + 4_750)*u.s
+t1 = (4.1596e9 + 5_500)*u.s
+
+
+
+# Heating up at the end...
+
+t_start = 4.160625e9*u.s
+t0 = t_start + 520*u.s
+t1 = t0 + 150*u.s
+
 
 epoch = find_epoch(t0)
 time = time.to('s')
 inds = (time > t0) & (time < t1)
+
+
 
 
 
@@ -689,7 +778,6 @@ inds = (time > t0) & (time < t1)
 
 grt_times = {}
 
-
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
 ifg_time_offset = 36*u.s
@@ -697,7 +785,9 @@ for side in ['a', 'b']:
     for i, grt in enumerate(grt_names):
         not_ok = grts[f'{side}_lo_{grt}'] == -9999
         grts[f'{side}_lo_{grt}'][not_ok] = np.nan
+        grts[f'{side}_hi_{grt}'][not_ok] = np.nan
         not_ok = grts[f'{side}_hi_{grt}'] == -9999
+        grts[f'{side}_lo_{grt}'][not_ok] = np.nan
         grts[f'{side}_hi_{grt}'][not_ok] = np.nan
 
         grts[f'{side}_lo_{grt}'][filters] = np.nan
@@ -712,30 +802,50 @@ for side in ['a', 'b']:
             grt_times[f'{side}_lo_{grt}'] = time  + ifg_time_offset
             grt_times[f'{side}_hi_{grt}'] = time + 16*u.s + ifg_time_offset
 
-        if ('xcal' in grt) and (side == 'a'):
-            grt_times[f'{side}_lo_{grt}'] += 8*u.s
-            grt_times[f'{side}_hi_{grt}'] += 8*u.s
-        if ('ical' in grt) and (side == 'b'):
-            grt_times[f'{side}_lo_{grt}'] += 8*u.s
-            grt_times[f'{side}_hi_{grt}'] += 8*u.s
-        if (grt == 'refhorn') and (side == 'a'):
-            grt_times[f'{side}_lo_{grt}'] -= 96*u.s
-            grt_times[f'{side}_hi_{grt}'] -= 96*u.s
-        if (grt == 'dihedral') and (side == 'a'):
-            grt_times[f'{side}_lo_{grt}'] -= 8*u.s
-            grt_times[f'{side}_hi_{grt}'] -= 8*u.s
+        grt_times[f'{side}_lo_{grt}'] += i*u.s
+        grt_times[f'{side}_hi_{grt}'] += i*u.s
+        if side == 'b':
+            grt_times[f'{side}_lo_{grt}'] += 4*u.s
+            grt_times[f'{side}_hi_{grt}'] += 4*u.s
+
+        #if ('xcal_tip' in grt) and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
+        #if ('ical' in grt) and (side == 'b'):
+        #    grt_times[f'{side}_lo_{grt}'] += 4*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 4*u.s
+        #if ('ical' in grt) and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 4*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 4*u.s
+        #if (grt == 'refhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 64*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 64*u.s
+        #if (grt == 'refhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 96*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 96*u.s
+        #if (grt == 'skyhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 64*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 64*u.s
+        #if (grt == 'dihedral') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
 
 
+'''
 for side in ['a', 'b']:
     for curr in ['lo', 'hi']:
         grt_times[f'{side}_{curr}_xcal_cone'] -= 8*u.s
-        grt_times[f'{side}_{curr}_xcal_tip'] -= 40*u.s
+        if side == 'a':
+            grt_times[f'{side}_{curr}_xcal_tip'] -= 40*u.s
 
 
         # skyhorn appears to change temperature at a different rate....
         grt_times[f'{side}_{curr}_skyhorn'] -= 32*u.s
+'''
 
 
+for key in grt_times:
+    print(key, grt_times[key][0] - time[0])
 
 
 # plotting all temperatures
@@ -784,16 +894,16 @@ grt_biases['b_hi_xcal_tip'] = 0
 grt_biases['a_hi_skyhorn'] = 0.002
 grt_biases['b_hi_skyhorn'] = 0.00
 grt_biases['a_hi_refhorn'] = 0.0055
-grt_biases['b_hi_refhorn'] = 0.0045 + 4e-3
+grt_biases['b_hi_refhorn'] = 0.0045 + 4e-3 + 2e-4
 grt_biases['a_hi_ical'] = 0.021
 grt_biases['b_hi_ical'] = 0.005
 grt_biases['a_hi_dihedral'] = 0.26+0.05-0.0025
 grt_biases['b_hi_dihedral'] = 0.54 - 0.2 -0.02
-grt_biases['a_hi_mirror'] = 2.231
-grt_biases['b_hi_mirror'] = 2.302
+grt_biases['a_hi_mirror'] = 2.2328577
+grt_biases['b_hi_mirror'] = 2.3026211
 grt_biases['a_hi_xcal_cone'] = 0.005
 grt_biases['b_hi_xcal_cone'] = 0.0025
-grt_biases['a_hi_collimator'] = 0.69
+grt_biases['a_hi_collimator'] = 2.289626
 grt_biases['b_hi_collimator'] = 0
 
 
@@ -801,17 +911,17 @@ grt_biases['a_lo_xcal_tip'] = 0
 grt_biases['b_lo_xcal_tip'] = 0
 grt_biases['a_lo_skyhorn'] = 0
 grt_biases['b_lo_skyhorn'] = 0
-grt_biases['a_lo_refhorn'] = 0
-grt_biases['b_lo_refhorn'] = 0
+grt_biases['a_lo_refhorn'] = 5e-4
+grt_biases['b_lo_refhorn'] = 2e-3
 grt_biases['a_lo_ical'] = 0
 grt_biases['b_lo_ical'] = 0
 grt_biases['a_lo_dihedral'] = 0.3+0.001
 grt_biases['b_lo_dihedral'] = 0.3
-grt_biases['a_lo_mirror'] = 1.567
-grt_biases['b_lo_mirror'] = 1.557
+grt_biases['a_lo_mirror'] = 1.5799628
+grt_biases['b_lo_mirror'] = 1.5707934
 grt_biases['a_lo_xcal_cone'] = 0
 grt_biases['b_lo_xcal_cone'] = 0
-grt_biases['a_lo_collimator'] = 0
+grt_biases['a_lo_collimator'] = 1.6264564
 grt_biases['b_lo_collimator'] = 0
 
 
@@ -831,23 +941,27 @@ for i in range(8):
         ax_i = fig.add_subplot(4, 4, i+1)
     else:
         ax_i = fig.add_subplot(4, 4, i+1, sharex=ax_first[0])
-    ax_i8 = fig.add_subplot(4, 4, i+1+8, sharex=ax_i, sharey=ax_i)
+    ax_i8 = fig.add_subplot(4, 4, i+1+8, sharex=ax_i)#, sharey=ax_i)
     ax_first.append(ax_i)
     ax_second.append(ax_i8)
 
 axs = ax_first + ax_second
+
+#inds = np.ones_like(inds)
+
 
 for i in range(8):
     #grts[f'a_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
     #grts[f'b_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
     axs[i].plot(time[inds], grts[f'a_hi_{grt_names[i]}'][inds])
     axs[i+8].plot(time[inds], grts[f'b_hi_{grt_names[i]}'][inds])
+    axs[i].plot(time[inds], grts[f'a_lo_{grt_names[i]}'][inds])
+    axs[i+8].plot(time[inds], grts[f'b_lo_{grt_names[i]}'][inds])
 
     axs[i].set_title(grt_names[i])
     axs[i+8].set_title(grt_names[i])
 
 plt.savefig('temperature_stuff.png')
-
 
 
 
@@ -937,58 +1051,68 @@ plt.title('rl')
 plt.plot(ifg_values4)
 plt.show()
 '''
-for ji, j in tqdm(enumerate(np.arange(-32, 33, dn))):
+for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
     for i, grt in enumerate(['collimator', 'mirror']):
         if grt == 'collimator':
             fact = 0.5
         else:
             fact = 1
-        #try:
-        #    plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label=f'A side, high, {grt}')
-        #except:
-        #    pass
-        #try:
-        #    plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label=f'B side, high, {grt}')
-        #except:
-        #    pass
         try:
-            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds]*fact - grt_biases[f'a_lo_{grt}'], '.', label=f'A side, low, {grt}')
+            #plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label=f'A side, high, {grt}')
+            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] -grts[f'a_hi_{grt}'][inds].max() , '.', label=f'A side, high, {grt}')
         except:
             pass
         try:
-            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label=f'B side, low, {grt}')
+            #plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label=f'B side, high, {grt}')
+            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].max(), '.', label=f'B side, high, {grt}')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), (grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'])*fact, '.', label=f'A side, low, {grt}')
+            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), (grts[f'a_lo_{grt}'][inds] - grts[f'a_lo_{grt}'][inds].max())*fact, '.', label=f'A side, low, {grt}')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label=f'B side, low, {grt}')
+            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].max(), '.', label=f'B side, low, {grt}')
         except:
             pass
     plt.legend(loc='best')
     plt.title(f'Extra {j} seconds')
     plt.xlabel(f'Time since epoch {epoch+1} [s]')
     plt.xlim([nt(t0, epoch).value, nt(t1, epoch).value])
+    plt.ylim([-1, 0.5])
     plt.savefig(f'temperature_comp_mirror_plus_coll_{ji:02}.png', bbox_inches='tight', dpi=150)
     plt.close()
 plt.close('all')
 
-#for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
-for ji, j in tqdm(enumerate(np.arange(-32, 33, dn))):
+for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
+#for ji, j in tqdm(enumerate(np.arange(-64, 65, dn))):
     for i, grt in enumerate(grt_names):
         try:
-            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label='A side, high')
+            #plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label='A side, high')
+            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grts[f'a_hi_{grt}'][inds].max() + i, '.', label='A side, high')
         except:
             pass
         try:
-            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label='B side, high')
+            #plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label='B side, high')
+            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].max() + i, '.', label='B side, high')
         except:
             pass
         try:
-            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'], '.', label='A side, low')
+            #plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'], '.', label='A side, low')
+            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] -grts[f'a_lo_{grt}'][inds].max() + i, '.', label='A side, low')
         except:
             pass
         try:
-            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label='B side, low')
+            #plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label='B side, low')
+            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].max() + i, '.', label='B side, low')
         except:
             pass
         if j == 0:
             print(grt)
             print(grts[f'a_hi_{grt}'][inds][0], grts[f'b_hi_{grt}'][inds][0], grts[f'a_lo_{grt}'][inds][0], grts[f'b_lo_{grt}'][inds][0])
+        '''
         if 'xcal' in grt:
             plt.plot(time_ifg, ifg_values/1400/4 + 2.75, label='LL at 359 (scaled)')
             #plt.plot(time_ifg2, (ifg_values2-200)/400/3.8 + 2.75, label='RH at 355 (scaled)')
@@ -1015,13 +1139,18 @@ for ji, j in tqdm(enumerate(np.arange(-32, 33, dn))):
 
             plt.plot(time_ifg,  ifg_v, label='LL at 359 (scaled)')
             plt.plot(time_ifg2, ifg_v2, label='RH at 355 (scaled)')
-            plt.plot(time_ifg2, ifg_v4, label='RL at 355 (scaled)')
-        plt.legend(loc='best')
+            #plt.plot(time_ifg2, ifg_v4, label='RL at 355 (scaled)')
+        '''
+        #plt.legend(loc='best')
         plt.title(f'Extra {j} seconds')
         plt.xlabel(f'Time since epoch {epoch+1} [s]')
         plt.xlim([nt(t0, epoch).value, nt(t1, epoch).value])
-        plt.savefig(f'temperature_comp_{grt}_{ji:02}.png', bbox_inches='tight', dpi=150)
-        plt.close()
+        #plt.ylim([-1, 0.5])
+        #plt.savefig(f'temperature_comp_{grt}_{ji:02}.png', bbox_inches='tight', dpi=150)
+        #plt.close()
+    plt.yticks(np.arange(len(grt_names)), grt_names)
+    plt.savefig(f'temperature_comp_all_{ji:02}.png', bbox_inches='tight', dpi=150)
+    plt.close()
 plt.close('all')
 
 
