@@ -1,5 +1,10 @@
 import h5py
 import matplotlib.pyplot as plt
+
+from scipy.ndimage import gaussian_filter1d as filt
+
+sigma = 5
+
 data = h5py.File('fdq_eng_new.h5')
 data.keys()
 ah_cal = data['en_analog/grt/a_hi_cal_resistors'][()]
@@ -11,8 +16,8 @@ bl_cal = data['en_analog/grt/b_lo_cal_resistors'][()]
 fig, axes = plt.subplots(sharex=True, nrows=2, ncols=2)
 axs = axes.flatten()
 for i in range(4):
-    axs[i].plot(al_cal[:,i])
-    axs[i].plot(bl_cal[:,i])
+    axs[i].plot(filt(al_cal[:,i], sigma))
+    axs[i].plot(filt(bl_cal[:,i], sigma))
 
 
 axs[0].set_ylim([1.0225e4, 1.0225e4 + 50])
