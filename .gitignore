@@ -93,3 +93,4 @@ commander3/parameter_files/defaults/bands/DIRBE/old2
 *.dat
 *.txt
 *.h5
+*.gif
