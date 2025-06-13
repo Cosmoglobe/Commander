@@ -68,23 +68,19 @@ contains
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
-    ! just so that it actually runs
-    c%xi_n_P_uni(2,:) = [0.001d0, 1.0d0]  ! fknee
-    c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    !do k = 1, c%n_xi
-    !   c%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! Placeholder
-    !end do
-    
-    !TODO: These numbers are made up, we should refine them
+
+    c%xi_n_P_uni(2,:)  = [0.001d0, 5.0d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.4d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [3.d0, 10.d0] 
-    c%xi_n_nu_fit(2,:) = [0.d0, 1.25d0]
-    c%xi_n_nu_fit(3,:) = [0.d0, 1.25d0]
-    !c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-    c%xi_n_P_rms      = [-1.d0, 0.1d0, -1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_nu_fit(2,:) = [0.d0, 3d0]
+    c%xi_n_nu_fit(3,:) = [0.d0, 3d0]
+    c%xi_n_P_rms       = [-1.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    
+    
+
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
 
     c%n_cray_temps    = 3
-
     c%ndiode = 1
 
     ! Initialize common parameters
@@ -95,17 +91,11 @@ contains
     c%nhorn           = 1
     c%compressed_tod  = .true.
     c%correct_sl      = .false.
-    if(.true. .or. c%freq(1:3) == '545' .or. c%freq(1:3) == '857') then !currently no sidelobe models 
-      c%correct_sl    = .false.
-    else
-      c%correct_sl    = .true.
-    end if  
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .false.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
-    c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
@@ -116,7 +106,20 @@ contains
     nmaps_beam        = 3
     pol_beam          = .true.
     c%nside_beam      = 512
+    c%nside_pixhist   = 64
 
+    ! Channel specific parameters
+    if (c%freq(1:3) == "100") then
+       c%chisq_threshold  = 100.d9 
+       c%accept_threshold = 0.5d0
+       c%correct_sl       = .false.
+    else
+       c%chisq_threshold  = 100.d0 
+       c%accept_threshold = 0.5d0
+       c%correct_sl       = .false.
+    end if
+
+    
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
     
@@ -157,7 +160,10 @@ contains
   !  allocate(c%xtalk)
     c%xtalk => comm_crosstalk(correlations)
 
- 
+    ! Pre-initialize ADC object
+    allocate(c%adc(c%ndet))
+    allocate(c%adu_range(c%ndet,2))
+
   end function constructor_hfi
 
   !**************************************************
@@ -234,15 +240,20 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = .true.                 
+    sample_gain           = iter > 1 !.true.                 
     sample_ncorr          = iter > 1 !.true.                
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
-    select_data           = self%first_call        ! only perform data selection the first time
+    select_data           = iter == 3 ! self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
     !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
-    flag_threshold     = [  -1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
+    if (self%freq(1:3) == "100") then
+       flag_threshold     = [  1.0,         -5.0, -5.0,         -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
+    else
+       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
+    end if
+
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -346,9 +357,6 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
     end do
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
     
     ! Fit global timestream contaminants 
 
@@ -384,7 +392,12 @@ contains
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
        call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
-       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+       !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+    end if
+
+    ! Create pixel histograms
+    if (self%first_call) then
+       call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
     end if
 
 
@@ -443,8 +456,9 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
-          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
+          !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
        else
           sd%n_corr = 0.d0
           call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
@@ -457,7 +471,7 @@ contains
        end do
 
        ! Select data
-       !if (select_data) call remove_bad_data(self, i, sd%flag)
+       if (select_data) call remove_bad_data(self, i, sd%flag)
 
        ! Compute chisquare for bandpass fit
        !if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -467,13 +481,13 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
-       if (self%scanid(i) == 500) then
-          open(58,file='res'//samptext//'.dat', recl=1024)
-          do j = 1, sd%ntod
-             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
-          end do
-          close(58)
-       end if
+!!$       if (self%scanid(i) == 500) then
+!!$          open(58,file='res'//samptext//'.dat', recl=1024)
+!!$          do j = 1, sd%ntod
+!!$             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
+!!$          end do
+!!$          close(58)
+!!$       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -494,9 +508,20 @@ contains
 
     end do
 
+        ! Initialize ADC objects
+    if (self%first_call) then
+       call self%compute_adu_range
+       do i = 1, self%ndet
+          self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
+               & self%adu_range(i,1), self%adu_range(i,2), 40)
+       end do
+    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
-
+    if (self%first_call) then
+       call self%report_dynamic_mask_stats
+    end if
+    
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
 
@@ -616,6 +641,10 @@ contains
        end do
        A1 = A1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b1 = b1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
+       if (A1 == 0.d0) then
+          tod%scans(scan)%d(i)%accept = .false.
+          cycle
+       end if
        tod%scans(scan)%d(i)%baseline1  = b1/A1 + rand_gauss(handle)/sqrt(A1)
 
        ! Even samples
@@ -630,6 +659,10 @@ contains
        end do
        A2 = A2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
+       if (A2 == 0.d0) then
+          tod%scans(scan)%d(i)%accept = .false.
+          cycle
+       end if       
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
 
        !write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
@@ -699,7 +732,6 @@ contains
     end do
 
   end subroutine set_modulation_phase
-  
 
   module subroutine demodulate_tod(self, tod, scan)
     ! 
@@ -753,6 +785,64 @@ contains
 !!$    close(58)
     
   end subroutine demodulate_tod
+
+  module subroutine compute_adu_range(self)
+    ! 
+    ! Computes ADU range over all scans and unmasked samples; for ADC correction
+    ! Must be called after dynamic mask definition
+    !
+    ! Arguments:
+    ! ----------
+    ! self:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! Returns
+    ! ----------
+    !   None, but updates tod%adu_range
+    !
+    implicit none
+    class(comm_hfi_tod),                  intent(inout) :: self
+    
+    integer(i4b) :: i, j, ntod, scan, ierr
+    real(sp),     allocatable, dimension(:)   :: tod
+    integer(i4b), allocatable, dimension(:,:) :: pix, psi
+    integer(i4b), allocatable, dimension(:)   :: flag
+
+    do i = 1, self%ndet
+       self%adu_range(i,:) = [40*2**16,0]
+       do scan = 1, self%nscan
+          if (.not. self%scans(scan)%d(i)%accept) cycle
+          ntod = self%scans(scan)%ntod
+          allocate(tod(ntod), pix(ntod,1), psi(ntod,1), flag(ntod))
+          call self%decompress_tod(scan, i, tod)
+          call self%decompress_pointing_and_flags(scan, i, pix, psi, flag)
+          do j = 1, self%scans(scan)%ntod
+             if (iand(flag(j), self%flag0) .eq. 0) then
+                self%adu_range(i,1) = min(self%adu_range(i,1), nint(tod(j)))
+                self%adu_range(i,2) = max(self%adu_range(i,2), nint(tod(j)))
+             end if
+          end do
+          deallocate(tod, pix, psi, flag)
+       end do
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, self%adu_range(:,1), self%ndet, &
+         & MPI_INTEGER, MPI_MIN, self%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, self%adu_range(:,2), self%ndet, &
+         & MPI_INTEGER, MPI_MAX, self%comm, ierr)
+    self%adu_range(:,1) = self%adu_range(:,1) / 40 - 16 ! Add a little buffer
+    self%adu_range(:,2) = self%adu_range(:,2) / 40 + 16
+    
+    if (self%myid == 0) then
+       write(*,*) '  ADU range       min        max        n_ADU'
+       do i = 1, self%ndet
+          write(*,*) '   ', trim(self%label(i)), self%adu_range(i,:), self%adu_range(i,2)-self%adu_range(i,1)
+       end do
+    end if
+
+!!$    call mpi_finalize(i)
+!!$    stop
+    
+  end subroutine compute_adu_range
 
   
   module subroutine read_tod_inst_HFI(self, file)
@@ -903,8 +993,17 @@ contains
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
 
+    integer(i4b) :: i
+    
     ! Apply ADC corrections to raw self%tod
-    !    Not implemented yet
+    if (associated(self%adc(1)%p)) then
+       do i = 1, self%ndet
+          if (.not. self%scans(scan)%d(i)%accept) cycle
+          call self%adc(i)%p%adc_correct(self%scanid(scan), i, sd%tod(:,i), &
+               & iand(sd%flag(:,i), self%flag0) .eq. 0, &
+               & self%scans(scan)%d(i)%N_psd%sigma0)
+       end do
+    end if
 
     ! Demodulate TOD
     call demodulate_tod(sd, self, scan)

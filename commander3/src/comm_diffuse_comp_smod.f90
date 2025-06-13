@@ -354,8 +354,8 @@ contains
 
     if (self%npar==0) then
        allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind     = cpar%cs_lmax_ind_pol(p,i,id_abs)
-       self%lmax_ind_mix = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       self%lmax_ind     = 0
+       self%lmax_ind_mix = 0
        return !do not go further, lmax_ind is set in initDiffuse
     end if
 
@@ -2105,7 +2105,6 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)

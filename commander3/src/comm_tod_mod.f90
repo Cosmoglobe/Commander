@@ -228,8 +228,8 @@ module comm_tod_mod
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
      real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
      real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
-     integer(i4b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
-     real(sp),           allocatable, dimension(:,:)   :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
+     integer(i8b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
+     real(sp),           allocatable, dimension(:,:,:) :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
@@ -3233,7 +3233,8 @@ contains
      real(sp),            dimension(:), intent(in), optional :: s_tot
 
      
-     integer(i4b) :: i, j, k, n, pix_nest, ntod, nmax, window, ntot, iter, ncut, b_elon, output_scan, flag_dyn, q
+     integer(i4b) :: i, j, k, n, pix_nest, ntod, nmax, window, ntot, iter, b_elon, output_scan, flag_dyn, q
+     integer(i8b) :: ncut
      real(dp) :: rms0
      real(sp) :: var0, gain
      logical(lgt), allocatable, dimension(:)   :: cut
@@ -3242,7 +3243,7 @@ contains
 
      if (sum(mask) == 0) return 
 
-     output_scan = -1 !116 
+     output_scan = 849 !-1 !116 
      flag_dyn    = 2**30
      ntod        = size(res)
      ntot        = count(iand(flag,self%flag0) .eq. 0)
@@ -3273,7 +3274,7 @@ contains
            if (iand(flag(i),self%flag0) .eq. 0) then
               call ring2nest(self%nside, pix(i), pix_nest)
               pix_nest = pix_nest / q
-              if (tod(i) < self%pixhist(4,pix_nest) .or. tod(i) > self%pixhist(5,pix_nest)) then
+              if (tod(i) < self%pixhist(4,pix_nest,det) .or. tod(i) > self%pixhist(5,pix_nest,det)) then
                  mask_dyn(i) = 0.
                  mask(i)     = 0.
                  flag(i)     = flag(i) + flag_dyn
@@ -3613,26 +3614,27 @@ contains
      implicit none
      class(comm_tod), intent(in) :: self
 
-     integer(i4b) :: ierr, ntod
+     integer(i4b) :: ierr
+     integer(i8b) :: ntod
 
      ! Synchronize stats across cores
-     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER, MPI_SUM, self%comm, ierr)
+     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER8, MPI_SUM, self%comm, ierr)
 
      if (self%myid == 0) then
         ntod = self%mask_dyn_stats(-1)
         write(*,fmt='(a,a,a)')      'TOD flagging stats for ', trim(self%freq), ' (      frac,          ntot     )'
-        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),sp)/ntod, ntod
-        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),sp)/ntod, self%mask_dyn_stats( 0)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),sp)/ntod, self%mask_dyn_stats( 1)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),sp)/ntod, self%mask_dyn_stats( 2)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),sp)/ntod, self%mask_dyn_stats( 3)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),sp)/ntod, self%mask_dyn_stats( 4)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),sp)/ntod, self%mask_dyn_stats( 5)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),sp)/ntod, self%mask_dyn_stats( 6)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),sp)/ntod, self%mask_dyn_stats( 7)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),sp)/ntod, self%mask_dyn_stats( 8)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),sp)/ntod, self%mask_dyn_stats( 9)
-        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),sp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
+        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),dp)/ntod, ntod
+        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),dp)/ntod, self%mask_dyn_stats( 0)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),dp)/ntod, self%mask_dyn_stats( 1)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),dp)/ntod, self%mask_dyn_stats( 2)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),dp)/ntod, self%mask_dyn_stats( 3)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),dp)/ntod, self%mask_dyn_stats( 4)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),dp)/ntod, self%mask_dyn_stats( 5)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),dp)/ntod, self%mask_dyn_stats( 6)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),dp)/ntod, self%mask_dyn_stats( 7)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),dp)/ntod, self%mask_dyn_stats( 8)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),dp)/ntod, self%mask_dyn_stats( 9)
+        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),dp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
      end if
         
    end subroutine report_dynamic_mask_stats

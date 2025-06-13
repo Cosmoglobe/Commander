@@ -34,14 +34,18 @@ module comm_tod_hfi_mod
   use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
+  use comm_tod_pixhist_mod
+  use comm_tod_adc_binfit_mod
   implicit none
 
   private
   public comm_hfi_tod
 
   type, extends(comm_tod) :: comm_hfi_tod
-     real(sp), allocatable, dimension(:,:)   :: mod_phase
-     class(comm_crosstalk), pointer :: xtalk
+     integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
+     real(sp),     allocatable, dimension(:,:) :: mod_phase
+     class(comm_crosstalk),    pointer :: xtalk
+     type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
@@ -54,6 +58,7 @@ module comm_tod_hfi_mod
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
+     procedure, private     :: compute_adu_range
   end type comm_hfi_tod
 
   interface comm_hfi_tod
@@ -432,6 +437,24 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
 
+  module subroutine compute_adu_range(self)
+    ! 
+    ! Computes ADU range over all scans and unmasked samples; for ADC correction
+    ! Must be called after dynamic mask definition
+    !
+    ! Arguments:
+    ! ----------
+    ! self:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! Returns
+    ! ----------
+    !   None, but updates tod%adu_range
+    !
+    implicit none
+    class(comm_hfi_tod),                  intent(inout) :: self
+  end subroutine compute_adu_range
+
+  
 end interface
 
 end module comm_tod_hfi_mod

@@ -713,7 +713,7 @@ contains
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) then
-          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          !write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
           cycle
        end if
        call wall_time(t1)
@@ -725,7 +725,7 @@ contains
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
-       
+
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
@@ -788,7 +788,7 @@ contains
              end if
           end do
           call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-              & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
+               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
        else
           ! Time-variable gain terms
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
