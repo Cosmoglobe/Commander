@@ -1,3 +1,5 @@
+# Try just printing out the times! We know that there are 64 possible readings between the two chunks of header data. It should be something like half a second between each of them.
+
 '''
 
  According to the calibrator design paper (Mather 1999) and the design document
@@ -101,10 +103,16 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) - 136*u.s + 42*u.s
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) #+ 42*u.s
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) - 36*u.s
+    time1 = sci_mode1['ct_head/time'][()]*(100*u.ns)
     time1 = time1.to('s')
     time2 = sci_mode2['ct_head/time'][()]*(100*u.ns) #- 136*u.s + 42*u.s
     time2 = sci_mode2['ct_head/time'][()]*(100*u.ns) - 36*u.s
+    time2 = sci_mode2['ct_head/time'][()]*(100*u.ns)
     time2 = time2.to('s')
+
+
+    print('time1 min', np.diff(time1).min())
+    print('time2 min', np.diff(time2).min())
     data_ready = sci_mode1['sci_head/data_ready'][()] # (N_ifgs x 8)
                                                      # Flagged if anything != 1
                                                      # See line 206 of
@@ -139,7 +147,6 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     axs = axes.flatten()
 
     if (eng_time is not None):
-        print(eng_time, time1, time2)
         axs[0].plot(nt(eng_time,epoch), eng_data3, '.')
         #axs[0].plot(eng_time, eng_data1, '.')
         #axs[1].plot(eng_time, eng_data2)
@@ -168,9 +175,10 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, figsize=(12, 8))
     axs = axes.flatten()
 
-    d = np.arange(512)[::-1]
+    d = np.arange(512)
     xx,yy = np.meshgrid(time1.value, d)
-    axs[1].pcolormesh(xx, yy, ifgs1, vmin=vmin, vmax=vmax, cmap='RdBu_r')
+    im = axs[1].pcolormesh(xx, yy, ifgs1, vmin=vmin, vmax=vmax, cmap='RdBu_r')
+    fig.colorbar(im, ax=axs[1])
 
     ifgs = sci_mode2['ifg_data/ifg'][inds2].astype(float)
     med = np.median(ifgs, axis=1)
@@ -180,18 +188,22 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     #ifgs2[:,xcal2!=1] = np.nan
 
     xx,yy = np.meshgrid(time2.value, d)
-    axs[0].pcolormesh(xx, yy, ifgs2, vmin=vmin, vmax=vmax, cmap='RdBu_r')
+    im = axs[0].pcolormesh(xx, yy, ifgs2, vmin=vmin, vmax=vmax, cmap='RdBu_r')
+    fig.colorbar(im, ax=axs[0])
     plt.subplots_adjust(wspace=0, hspace=0)
 
 
-    '''
     #for i in range(352, 358):
+    '''
     i = 359
-    #for i in range(355, 365):
-    plt.plot(time1, ifgs1[i], label=f'Pos. {i}')
+    plt.figure()
+    plt.close('all')
+    for i in range(355, 365):
+        plt.plot(time1, ifgs1[i], label=f'Pos. {i}')
     plt.xlabel('Time')
     plt.ylabel('Signal')
     plt.legend(loc='best')
+    plt.show()
     plt.title('IFGs1 times')
     plt.savefig('ifg_at_359.png', bbox_inches='tight')
     plt.close()
@@ -203,7 +215,7 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     #plt.show()
     '''
 
-    return time1, ifgs1[i], time2, -ifgs2[356]
+    return time1, ifgs1, time2, -ifgs2
 
 # cubic interpolation clearly fits to noise fluctuations
 kind = 'cubic'
@@ -293,6 +305,8 @@ offsets = {}
 # ADT Time, in units of 100ns since 1858-11-17
 bin_time = data['fdq_eng']['ct_head']['time']*(100*u.ns)
 
+reord = np.argsort(bin_time)
+
 # Getting bad flags
 stat_word_5 = eng['en_stat/stat_word_5'][()]
 stat_word_9 = eng['en_stat/stat_word_9'][()]
@@ -304,12 +318,15 @@ xcal_eng = eng['en_xcal/pos'][()]
 
 filters = (stat_word_9 == 16185)
 
+filters = filters[reord]
+
 
 
 dn = 8
 dn = 0.5
-dn = 1
-dn = 4
+dn = 8
+dn = 16
+dn = 8
 '''
 # GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
@@ -331,9 +348,15 @@ time = Time(times, format='yday')
 ind0 = 0
 for i in range(len(names_en_analog_grt)):
     grts[names_en_analog_grt[i]] = data['fdq_eng']['en_analog']['grt'][:,ind0:ind0+lens_grt[i]].flatten()
+    grts[names_en_analog_grt[i]] = grts[names_en_analog_grt[i]][reord]
     offsets[names_en_analog_grt[i]] = ind0
     ind0 += lens_grt[i]
-time = bin_time
+time = bin_time[reord]
+
+
+
+
+
 
 
 
@@ -503,11 +526,6 @@ t1 = (4.153e9 + 480_000)*u.s
 t0 = (4.156e9 + 300_000)*u.s
 t1 = (4.156e9 + 900_000)*u.s
 
-print(t0.to('s'), t1.to('s'))
-print(t_09.to('s'))
-print(find_epoch(t0), find_epoch(t1))
-#asdf
-
 # Calibration campaign
 t0 = t_09 + 8e5*u.s
 t1 = t_09 + 9e5*u.s
@@ -517,14 +535,16 @@ t0 = t_09 + 8.4e5*u.s
 t1 = t_09 + 8.6e5*u.s
 
 # Calibration campaign, ICAL step
-t0 = t_09 + 8.41e5*u.s
-t1 = t_09 + 8.44e5*u.s
+# t0 = t_09 + 8.41e5*u.s
+# t1 = t_09 + 8.44e5*u.s
+# 
+# t1 = t_09 + 8.54e5*u.s
 
-t1 = t_09 + 8.54e5*u.s
 
-# Constant ICAL, varying XCAL; there's a sort of "gaussian bump"
-t0 = t_09 + 8.36e5*u.s
-t1 = t_09 + 8.38e5*u.s
+
+
+
+
 
 '''
 # Nine
@@ -576,13 +596,179 @@ t0 = 1.853e6*u.s + t_10
 t1 = 1.856e6*u.s + t_10
 '''
 
+
+
+# I think I've found a time when ICAL changes but XCAL stays the same
+t0 = (4.159e9 + 89_000)*u.s
+t1 = (4.159e9 + 96_000)*u.s
+
+# Ah, now this is a very high ICAL temp in a calibration campaign
+
+t0 = (4.156e9 + 600_000)*u.s
+t1 = (4.156e9 + 740_000)*u.s
+
+
+#t0 = (4.156e9 + 705_000)*u.s
+#t0 = (4.156e9 + 608_000)*u.s
+#t1 = (4.156e9 + 612_000)*u.s
+
+
+#t1 = (4.156e9 + 650_000)*u.s
+#
+#t0 = (4.156e9 + 639_500)*u.s
+#
+#t0 = (4.156e9 + 642_000)*u.s
+#t1 = (4.156e9 + 644_500)*u.s
+#
+#t0 = (4.156e9 + 642_250)*u.s
+#t1 = (4.156e9 + 643_250)*u.s
+
+
 # This seems to have the ifgs being aligned well with the temperature data.
 # I am also not sure that the plateau information is necessary.
+
+'''
+t0 = (4.14e9 - 0.3e6)*u.s
+t1 = (4.14e9 + 0.9e6)*u.s
+
+t0 = (4.14e9 -75000)*u.s
+t1 = (4.14e9 + 250_000)*u.s
+
+
+t0 = (4.1596e9 +  4_000)*u.s
+t0 = (4.1596e9 + 12_000)*u.s
+t1 = (4.1596e9 + 14_000)*u.s
+
+# Interesting, the skyhorn has a spike that seems to be picked up in the ifgs...
+# The amplitud doesn't quite match though.
+t0 = (4.1596e9 + 6_000)*u.s
+t1 = (4.1596e9 + 8_000)*u.s
+
+
+# Zooms in more closely on the transition
+t0 = (4.1596e9 + 5_000)*u.s
+t1 = (4.1596e9 + 5_500)*u.s
+
+
+
+
+
+# Trying to look at dihedral mirror now;
+t0 = (4.139e9 + 390_000)*u.s
+
+# First half good for dihedral, second half good for others
+t0 = (4.139e9 + 425_000)*u.s
+t1 = (4.139e9 + 430_000)*u.s
+
+
+
+'''
+
+
+
+# Mirror and collimator now
+
+t0 = (4.156e9 + 700_000)*u.s
+t1 = (4.156e9 + 702_500)*u.s
+
+'''
+# Pretty good for the dihedral mirror
+t0 = (4.139e9 + 425_000)*u.s
+t1 = (4.139e9 + 426_000)*u.s
+
+
+t0 = (4.139e9 + 427_500)*u.s
+t0 = (4.139e9 + 429_250)*u.s
+t1 = (4.139e9 + 430_250)*u.s
+
+
+
+# Trying to look at skyhorn and refhorn
+t0 = (4.1497e9 + 30_000)*u.s
+t1 = (4.1497e9 + 90_000)*u.s
+
+#t0 = (4.1497e9 + 33_000)*u.s
+#t1 = (4.1497e9 + 34_500)*u.s
+
+t0 = (4.1497e9 + 45_000)*u.s
+t1 = (4.1497e9 + 50_000)*u.s
+#
+#t0 = (4.1497e9 + 39_000)*u.s
+#t1 = (4.1497e9 + 40_500)*u.s
+
+#t0 = (4.1497e9 + 88_500)*u.s
+#t1 = (4.1497e9 + 90_000)*u.s
+'''
+
+# Trying to look at the mirror and collimator.
+t0 = (4.138e9 + 895_500)*u.s
+t1 = (4.138e9 + 904_000)*u.s
+
+t_start = 4.138e9*u.s + 3e5*u.s + 2.5e5*u.s + 1.25e5*u.s
+t0 = t_start + 2.5e4*u.s
+t1 = t_start + 5e4*u.s
+
+t_start = 4.138e9*u.s
+# There are three spikes in mirror and collimator here that I want to understand, and hopefully use them to match them up.
+t0 = t_start + 5e5*u.s
+t1 = t_start + 1e6*u.s
+
+# First spike
+t_start = 4.138e9*u.s + 6e5*u.s + 7.5e4*u.s + 2.5e4*u.s
+t0 = t_start + 8.75e3*u.s
+t1 = t_start + 1.0e4*u.s
+
+# Second spike
+# Also a big jump, but not quite the same shape
+# t_start += 7.5e5*u.s + 1e5*u.s
+# t0 = t_start + 4e4*u.s
+# t1 = t_start + 6e4*u.s
+
+# Third spike
+# Not all look especially similar here
+# t_start = 4.138e9*u.s
+# t_start += 7.5e5*u.s
+#t_start += 2.5e5*u.s + 2.5e4*u.s
+#t0 = t_start + 2e3*u.s
+#t1 = t_start + 5e3*u.s
+
+print((np.diff(time).to('s').value < 30).sum())
+
+inds = (np.gradient(time).to('s').value < 30)
+print(inds)
+print(t_00)
+t0 = time[inds][50].to('s') - 5_000*u.s
+t1 = (t0 + 5_000*u.s).to('s')
+
+print(t0)
+
+# Constant ICAL, varying XCAL; there's a sort of "gaussian bump"
+# This is VERY USEFUL for getting the XCAL timings.
+t0 = t_09 + 8.36e5*u.s
+t1 = t_09 + 8.38e5*u.s
+# Should be just the rise
+# t1 = t_09 + 8.37e5*u.s
+
+
+# This avoids the spike, but still shows the ICAL transition
+t0 = (4.1596e9 + 4_500)*u.s
+t0 = (4.1596e9 + 4_750)*u.s
+t1 = (4.1596e9 + 5_500)*u.s
+
+
+
+# Heating up at the end...
+
+t_start = 4.160625e9*u.s
+t0 = t_start + 520*u.s
+t1 = t0 + 150*u.s
 
 
 epoch = find_epoch(t0)
 time = time.to('s')
 inds = (time > t0) & (time < t1)
+
+
 
 
 
@@ -592,14 +778,16 @@ inds = (time > t0) & (time < t1)
 
 grt_times = {}
 
-
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
+ifg_time_offset = 36*u.s
 for side in ['a', 'b']:
     for i, grt in enumerate(grt_names):
         not_ok = grts[f'{side}_lo_{grt}'] == -9999
         grts[f'{side}_lo_{grt}'][not_ok] = np.nan
+        grts[f'{side}_hi_{grt}'][not_ok] = np.nan
         not_ok = grts[f'{side}_hi_{grt}'] == -9999
+        grts[f'{side}_lo_{grt}'][not_ok] = np.nan
         grts[f'{side}_hi_{grt}'][not_ok] = np.nan
 
         grts[f'{side}_lo_{grt}'][filters] = np.nan
@@ -608,14 +796,87 @@ for side in ['a', 'b']:
 
         # This ordering is an artifact of the time-domain multiplexing, likely wires being plugged in a non-ideal order.
         if (grt == 'collimator') or (grt == 'xcal_cone'):
-            grt_times[f'{side}_lo_{grt}'] = time + 16*u.s
-            grt_times[f'{side}_hi_{grt}'] = time #- 16*u.s
+            grt_times[f'{side}_lo_{grt}'] = time + 16*u.s + ifg_time_offset
+            grt_times[f'{side}_hi_{grt}'] = time  + ifg_time_offset
         else:
-            grt_times[f'{side}_lo_{grt}'] = time #- 16*u.s
-            grt_times[f'{side}_hi_{grt}'] = time + 16*u.s
+            grt_times[f'{side}_lo_{grt}'] = time  + ifg_time_offset
+            grt_times[f'{side}_hi_{grt}'] = time + 16*u.s + ifg_time_offset
+
+        grt_times[f'{side}_lo_{grt}'] += i*u.s
+        grt_times[f'{side}_hi_{grt}'] += i*u.s
+        if side == 'b':
+            grt_times[f'{side}_lo_{grt}'] += 4*u.s
+            grt_times[f'{side}_hi_{grt}'] += 4*u.s
+
+        #if ('xcal_tip' in grt) and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
+        #if ('ical' in grt) and (side == 'b'):
+        #    grt_times[f'{side}_lo_{grt}'] += 4*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 4*u.s
+        #if ('ical' in grt) and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 4*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 4*u.s
+        #if (grt == 'refhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 64*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 64*u.s
+        #if (grt == 'refhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 96*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 96*u.s
+        #if (grt == 'skyhorn') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] -= 64*u.s
+        #    grt_times[f'{side}_hi_{grt}'] -= 64*u.s
+        #if (grt == 'dihedral') and (side == 'a'):
+        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
+
+
+'''
+for side in ['a', 'b']:
+    for curr in ['lo', 'hi']:
+        grt_times[f'{side}_{curr}_xcal_cone'] -= 8*u.s
+        if side == 'a':
+            grt_times[f'{side}_{curr}_xcal_tip'] -= 40*u.s
+
+
+        # skyhorn appears to change temperature at a different rate....
+        grt_times[f'{side}_{curr}_skyhorn'] -= 32*u.s
+'''
+
+
+for key in grt_times:
+    print(key, grt_times[key][0] - time[0])
+
+
+# plotting all temperatures
+
+
+
+#inds = np.ones_like(inds)
+'''
+fig, axes = plt.subplots(sharex=True, nrows=2)
+xcal_tip = np.copy(grts['a_hi_xcal_tip'])
+ical = np.copy(grts['a_hi_ical'])
+grts['a_hi_xcal_tip'][xcal_eng[:,0] != 1] = np.nan
+grts['a_hi_ical'][xcal_eng[:,0] != 1] = np.nan
+axes[0].plot(time[inds].to('s'), grts['a_hi_xcal_tip'][inds])
+axes[0].set_title('XCAL')
+axes[1].plot(time[inds].to('s'), grts['a_hi_ical'][inds])
+axes[1].set_title('ICAL')
+
+xcal_tip[xcal_eng[:,0] == 1] = np.nan
+ical[xcal_eng[:,0] == 1] = np.nan
+axes[0].plot(time[inds].to('s'), xcal_tip[inds])
+axes[1].plot(time[inds].to('s'), ical[inds])
+plt.savefig('t_xcal_ical.png')
+#plt.show()
+plt.close()
+#asdf
+'''
 
 not_ok = np.isfinite(grts['a_lo_xcal_tip'])
 
+'''
 fig, axes = plt.subplots(sharex=True, nrows=2, ncols=1)
 axs = axes.flatten()
 axs[0].plot(nt(time[inds],epoch), grts[f'a_hi_xcal_cone'][inds] - grts[f'a_hi_ical'][inds],'.')
@@ -623,30 +884,84 @@ axs[1].plot(nt(time[inds],epoch), grts[f'a_lo_xcal_cone'][inds] - grts[f'a_lo_ic
 axs[0].margins(0)
 axs[1].set_xlabel(f'Time since epoch {epoch+1} [s]')
 plt.close()
+'''
 
 # This is essentially a way to get the peaks to match so that it is easier to see when the changes occur.
+#2.2312765 2.3015332 1.5666196 1.5565823
 grt_biases = {}
 grt_biases['a_hi_xcal_tip'] = 0.007
 grt_biases['b_hi_xcal_tip'] = 0
 grt_biases['a_hi_skyhorn'] = 0.002
 grt_biases['b_hi_skyhorn'] = 0.00
 grt_biases['a_hi_refhorn'] = 0.0055
-grt_biases['b_hi_refhorn'] = 0.0045 + 4e-3
+grt_biases['b_hi_refhorn'] = 0.0045 + 4e-3 + 2e-4
 grt_biases['a_hi_ical'] = 0.021
 grt_biases['b_hi_ical'] = 0.005
-grt_biases['a_hi_dihedral'] = 0.31
-grt_biases['b_hi_dihedral'] = 0.54
-grt_biases['a_hi_mirror'] = 0.65 + 0.015
-grt_biases['b_hi_mirror'] = 0.73 + 0.002
+grt_biases['a_hi_dihedral'] = 0.26+0.05-0.0025
+grt_biases['b_hi_dihedral'] = 0.54 - 0.2 -0.02
+grt_biases['a_hi_mirror'] = 2.2328577
+grt_biases['b_hi_mirror'] = 2.3026211
 grt_biases['a_hi_xcal_cone'] = 0.005
 grt_biases['b_hi_xcal_cone'] = 0.0025
-grt_biases['a_hi_collimator'] = 0.69
+grt_biases['a_hi_collimator'] = 2.289626
 grt_biases['b_hi_collimator'] = 0
+
+
+grt_biases['a_lo_xcal_tip'] = 0
+grt_biases['b_lo_xcal_tip'] = 0
+grt_biases['a_lo_skyhorn'] = 0
+grt_biases['b_lo_skyhorn'] = 0
+grt_biases['a_lo_refhorn'] = 5e-4
+grt_biases['b_lo_refhorn'] = 2e-3
+grt_biases['a_lo_ical'] = 0
+grt_biases['b_lo_ical'] = 0
+grt_biases['a_lo_dihedral'] = 0.3+0.001
+grt_biases['b_lo_dihedral'] = 0.3
+grt_biases['a_lo_mirror'] = 1.5799628
+grt_biases['b_lo_mirror'] = 1.5707934
+grt_biases['a_lo_xcal_cone'] = 0
+grt_biases['b_lo_xcal_cone'] = 0
+grt_biases['a_lo_collimator'] = 1.6264564
+grt_biases['b_lo_collimator'] = 0
 
 
 
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
+
+
+
+#fig, axes = plt.subplots(sharex=True, nrows=4, ncols=4)
+#axs = axes.flatten()
+fig = plt.figure(figsize=(16, 12))
+ax_first = []
+ax_second = []
+for i in range(8):
+    if i == 0:
+        ax_i = fig.add_subplot(4, 4, i+1)
+    else:
+        ax_i = fig.add_subplot(4, 4, i+1, sharex=ax_first[0])
+    ax_i8 = fig.add_subplot(4, 4, i+1+8, sharex=ax_i)#, sharey=ax_i)
+    ax_first.append(ax_i)
+    ax_second.append(ax_i8)
+
+axs = ax_first + ax_second
+
+#inds = np.ones_like(inds)
+
+
+for i in range(8):
+    #grts[f'a_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
+    #grts[f'b_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
+    axs[i].plot(time[inds], grts[f'a_hi_{grt_names[i]}'][inds])
+    axs[i+8].plot(time[inds], grts[f'b_hi_{grt_names[i]}'][inds])
+    axs[i].plot(time[inds], grts[f'a_lo_{grt_names[i]}'][inds])
+    axs[i+8].plot(time[inds], grts[f'b_lo_{grt_names[i]}'][inds])
+
+    axs[i].set_title(grt_names[i])
+    axs[i+8].set_title(grt_names[i])
+
+plt.savefig('temperature_stuff.png')
 
 
 
@@ -684,13 +999,15 @@ lh = sdf['fdq_sdf_lh']
 rl = sdf['fdq_sdf_rl']
 t0 = t0.to('s')
 t1 = t1.to('s')
-time_ifg, ifg_values, time_ifg2, ifg_values2 = plot_sdf(lh, rl, t0, t1, vmin=-100, vmax=100,
+time_ifg, ifg_values3, time_ifg2, ifg_values4 = plot_sdf(lh, rl, t0, t1, vmin=-100, vmax=100,
         eng_time=time[inds], 
         eng_data1=stat_word_9[inds],
         eng_data2=stat_word_13[inds],
         eng_data3=not_ok[inds],
         #eng_data3=lvdt_stat_b[inds],
         eng_xcal=xcal_eng[inds])
+ifg_values3 = ifg_values3[356]
+ifg_values4 = ifg_values4[356]
 
 plt.savefig('ifg_with_eng_lhrl.png')
 plt.close('all')
@@ -706,6 +1023,9 @@ time_ifg, ifg_values, time_ifg2, ifg_values2 = plot_sdf(ll, rh, t0, t1, vmin=-10
 plt.savefig('ifg_with_eng_llrh.png')
 plt.close('all')
 
+ifg_values = ifg_values[359]
+ifg_values2 = ifg_values2[356]
+
 #plt.show()
 #plt.close()
 
@@ -716,22 +1036,123 @@ stat_word_13 = eng['en_stat/stat_word_13'][()]
 stat_word_16 = eng['en_stat/stat_word_16'][()]
 lvdt_stat_a, lvdt_stat_b = eng['en_stat/lvdt_stat'][()].T
 
+'''
+plt.figure()
+plt.title('ll')
+plt.plot(ifg_values)
+plt.figure()
+plt.title('rh')
+plt.plot(ifg_values2)
+plt.figure()
+plt.title('lh')
+plt.plot(ifg_values3)
+plt.figure()
+plt.title('rl')
+plt.plot(ifg_values4)
+plt.show()
+'''
 for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
+    for i, grt in enumerate(['collimator', 'mirror']):
+        if grt == 'collimator':
+            fact = 0.5
+        else:
+            fact = 1
+        try:
+            #plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label=f'A side, high, {grt}')
+            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] -grts[f'a_hi_{grt}'][inds].max() , '.', label=f'A side, high, {grt}')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label=f'B side, high, {grt}')
+            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].max(), '.', label=f'B side, high, {grt}')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), (grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'])*fact, '.', label=f'A side, low, {grt}')
+            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), (grts[f'a_lo_{grt}'][inds] - grts[f'a_lo_{grt}'][inds].max())*fact, '.', label=f'A side, low, {grt}')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label=f'B side, low, {grt}')
+            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].max(), '.', label=f'B side, low, {grt}')
+        except:
+            pass
+    plt.legend(loc='best')
+    plt.title(f'Extra {j} seconds')
+    plt.xlabel(f'Time since epoch {epoch+1} [s]')
+    plt.xlim([nt(t0, epoch).value, nt(t1, epoch).value])
+    plt.ylim([-1, 0.5])
+    plt.savefig(f'temperature_comp_mirror_plus_coll_{ji:02}.png', bbox_inches='tight', dpi=150)
+    plt.close()
+plt.close('all')
+
+for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
+#for ji, j in tqdm(enumerate(np.arange(-64, 65, dn))):
     for i, grt in enumerate(grt_names):
-        if (grt == 'xcal_tip') | (grt == 'collimator'):
-            continue
-        plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], 'o-', label='A side, high')
-        plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], 'o-', label='B side, low')
-        if grt == 'xcal_cone':
+        try:
+            #plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label='A side, high')
+            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grts[f'a_hi_{grt}'][inds].max() + i, '.', label='A side, high')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label='B side, high')
+            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].max() + i, '.', label='B side, high')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'], '.', label='A side, low')
+            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] -grts[f'a_lo_{grt}'][inds].max() + i, '.', label='A side, low')
+        except:
+            pass
+        try:
+            #plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label='B side, low')
+            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].max() + i, '.', label='B side, low')
+        except:
+            pass
+        if j == 0:
+            print(grt)
+            print(grts[f'a_hi_{grt}'][inds][0], grts[f'b_hi_{grt}'][inds][0], grts[f'a_lo_{grt}'][inds][0], grts[f'b_lo_{grt}'][inds][0])
+        '''
+        if 'xcal' in grt:
             plt.plot(time_ifg, ifg_values/1400/4 + 2.75, label='LL at 359 (scaled)')
-            plt.plot(time_ifg2, (ifg_values2-200)/400/3.8 + 2.75, label='RH at 355 (scaled)')
-        plt.legend(loc='best')
+            #plt.plot(time_ifg2, (ifg_values2-200)/400/3.8 + 2.75, label='RH at 355 (scaled)')
+            #plt.plot(time_ifg2, (ifg_values4)/1000 + 2.75, label='RL at 355 (scaled)')
+        if grt == 'ical':
+            ifg_v = -ifg_values
+            ifg_v2 = -ifg_values2
+            ifg_v4 = -ifg_values4
+            ifg_v /= ifg_v.max()
+            ifg_v2 /= ifg_v2.max()
+            ifg_v4 /= ifg_v4.max()
+
+            ifg_v  -= ifg_v.min()
+            ifg_v2 -= ifg_v2.min()
+            ifg_v4 -= ifg_v4.min()
+            # Maybe scale here?
+            ifg_v *= 1.15
+            ifg_v2 *= 1.15
+            ifg_v4 *= 1.15
+
+            ifg_v  += 3.48
+            ifg_v2 += 3.45
+            ifg_v4 += 3.48
+
+            plt.plot(time_ifg,  ifg_v, label='LL at 359 (scaled)')
+            plt.plot(time_ifg2, ifg_v2, label='RH at 355 (scaled)')
+            #plt.plot(time_ifg2, ifg_v4, label='RL at 355 (scaled)')
+        '''
+        #plt.legend(loc='best')
         plt.title(f'Extra {j} seconds')
         plt.xlabel(f'Time since epoch {epoch+1} [s]')
         plt.xlim([nt(t0, epoch).value, nt(t1, epoch).value])
-        plt.savefig(f'temperature_comp_{grt}_{ji:02}.png', bbox_inches='tight', dpi=150)
-        plt.close()
+        #plt.ylim([-1, 0.5])
+        #plt.savefig(f'temperature_comp_{grt}_{ji:02}.png', bbox_inches='tight', dpi=150)
+        #plt.close()
+    plt.yticks(np.arange(len(grt_names)), grt_names)
+    plt.savefig(f'temperature_comp_all_{ji:02}.png', bbox_inches='tight', dpi=150)
+    plt.close()
 plt.close('all')
+
 
 for i, grt in enumerate(grt_names):
     if 'xcal' not in grt:
