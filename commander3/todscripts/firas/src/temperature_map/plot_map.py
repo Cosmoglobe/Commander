@@ -17,7 +17,7 @@ from healpy.rotator import Rotator
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from my_utils import planck
+from my_utils import generate_frequencies, planck
 
 user = os.environ["USER"]
 save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
@@ -65,25 +65,13 @@ for channel in channels.keys():
                             ecl_lat, ecl_lon = r(gal_lat, gal_lon)
                             pix_ecl[mode] = hp.ang2pix(NSIDE, ecl_lon, ecl_lat, lonlat=True)
 
-
-nu0 = {"ss": 68.020812, "lf": 23.807283}
-dnu = {"ss": 13.604162, "lf": 3.4010405}
-nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
-
 f_ghz = {}
 for channel in channels.keys():
-    if channel not in CHANNELS:
+    if channel in CHANNELS:
         for mode in modes.keys():
             if mode in MODES:
-                if mode == "lf" and (channel == "lh" or channel == "rh"):
-                    continue
-                else:
-                    f_ghz[f"{channel}_{mode}"] = np.linspace(
-                        nu0[mode],
-                        nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
-                        nf[f"{channel}_{mode}"],
-                    )
-                    # print(f"{channel}_{mode}: {f_ghz[f"{channel}_{mode}"]}")
+                if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+                    f_ghz[f"{channel}_{mode}"] = generate_frequencies(channel, mode)
 
 print("plotting sky")
 

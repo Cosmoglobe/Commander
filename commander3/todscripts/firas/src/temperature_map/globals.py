@@ -16,7 +16,7 @@ PNG = True
 FITS = False
 
 # plotting parameters
-MODES = ["ll"]
-CHANNELS = ["ss"]
+CHANNELS = ["ll"]
+MODES = ["ss"]
 JOINT = False
 SCANUPDOWN = False
