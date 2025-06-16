@@ -1,9 +1,10 @@
-import constants
 import healpy as hp
 import numpy as np
 from numba import prange
 from scipy import interpolate
 from scipy.interpolate import RegularGridInterpolator
+
+import constants
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
@@ -655,12 +656,11 @@ def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
     Interpolate the pointing to different offsets depending on the operating mode.
     Doing this on the main script for now because it is mostly an experiment and doesn't need a lot of precision.
     """
-    if offset == 0:
-        return gal_lon, gal_lat
-
     times = {"00": 55.36, "10": 44.92, "01": 39.36, "11": 31.76}
 
     gal_vec = hp.pixelfunc.ang2vec(gal_lon, gal_lat, lonlat=True)
+    if offset == 0:
+        return gal_vec
     new_gal_vec = np.empty_like(gal_vec)
     # gmt = np.array(gmt).timestamp().values
 
