@@ -10,13 +10,13 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-from globals import (CHANNELS, COORDINATES, FITS, JOINT, MODES, NSIDE, OFFSET,
-                     PNG, PROCESSED_DATA_PATH, SCANUPDOWN, T_CMB)
 from healpy.rotator import Rotator
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+from globals import (CHANNELS, COORDINATES, FITS, JOINT, MODES, NSIDE, OFFSET,
+                     PNG, PROCESSED_DATA_PATH, SCANUPDOWN, T_CMB)
 from my_utils import generate_frequencies, planck
 
 user = os.environ["USER"]
@@ -195,7 +195,7 @@ for channel in channels.keys():
                         if PNG:
                             max_freq = 200
                             if channel == "ll" and mode == "ss":
-                                max_freq = 50
+                                max_freq = 25
                             hp.mollview(
                                 m[f"{channel}_{mode}"][:, freq],
                                 # coord="G",

@@ -1,6 +1,14 @@
-import globals as g
+
+import os
+import sys
+
 import numpy as np
 from astropy.io import fits
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import globals as g
 
 # modes = {"ss": 0, "lf": 3}
 # modes = {"ss": 0}

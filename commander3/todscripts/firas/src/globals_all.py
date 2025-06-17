@@ -1,2 +1,0 @@
-PREPROCESSED_DATA_PATH_SKY = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.4.h5"
-PREPROCESSED_DATA_PATH_CAL = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v4.4.h5"

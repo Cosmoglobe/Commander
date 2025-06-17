@@ -6,14 +6,14 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-from globals import PROCESSED_DATA_PATH
 from scipy.optimize import minimize
-from utils.config import gen_nyquistl
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+from globals import PROCESSED_DATA_PATH
 from my_utils import planck, residuals
+from utils.config import gen_nyquistl
 
 user = os.environ["USER"]
 save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"

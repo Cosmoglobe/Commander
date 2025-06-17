@@ -10,12 +10,11 @@ import h5py
 import healpy as hp
 import numpy as np
 from astropy.io import fits
-from globals import OFFSET, PROCESSED_DATA_PATH
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-import globals_all as ga
+import globals as g
 from my_utils import clean_ifg, filter_junk, ifg_to_spec, planck, tune_pointing
 from utils.config import gen_nyquistl
 
@@ -26,7 +25,7 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
-    ga.PREPROCESSED_DATA_PATH_SKY,
+    g.PREPROCESSED_DATA_PATH_SKY,
     "r",
 )
 
@@ -103,7 +102,7 @@ gal_vec = tune_pointing(
     gmt=variables["gmt"],
     mtm_length=variables["mtm_length"],
     mtm_speed=variables["mtm_speed"],
-    offset=OFFSET,
+    offset=g.OFFSET,
 )
 
 # filter out nans that come from gal_vec into all variables
@@ -662,7 +661,7 @@ for variable in extra_variables:
 
 # save the sky
 np.savez(
-    PROCESSED_DATA_PATH,
+    g.PROCESSED_DATA_PATH,
     **variablesm,
     **sky,
 )

@@ -1,7 +1,6 @@
 import os
 import sys
 
-import globals as g
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +9,7 @@ from astropy.io import fits
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+import globals as g
 from utils.config import gen_nyquistl
 
 # m = hp.fitsfunc.read_map(
