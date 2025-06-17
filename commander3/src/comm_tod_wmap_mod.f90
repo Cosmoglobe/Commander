@@ -1262,7 +1262,7 @@ contains
 
   end subroutine sample_baseline_WMAP
 
-  subroutine construct_corrtemp_wmap(self, scan, pix, psi, s)
+  subroutine construct_corrtemp_wmap(self, scan, pix, psi, s, det)
     !  Construct an WMAP instrument-specific correction template; for now contains baseline
     !
     !  Arguments:
@@ -1285,6 +1285,7 @@ contains
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
 
     integer(i4b) :: i, j, k, nbin, b
     real(dp)     :: dt, t

@@ -1798,7 +1798,7 @@ contains
 
   end subroutine sample_1Hz_spikes
 
-  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -1821,20 +1821,27 @@ contains
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
 
-    integer(i4b) :: i, j, k, nbin, b
+    integer(i4b) :: i, j, k, l, nbin, b, ndet
     real(dp)     :: dt, t_tot, t
 
     dt    = 1.d0/self%samprate   ! Sample time
     t_tot = 1.d0                ! Time range in sec
-    nbin  = self%nbin_spike      ! Number of bins 
+    nbin  = self%nbin_spike      ! Number of bins
+    if (present(det)) then
+       ndet = 1
+    else
+       ndet = self%ndet
+    end if
 
-    do j = 1, self%ndet
+    do l = 1, ndet
+       j = l; if (present(det)) j = det
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
-          s(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+          s(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
 

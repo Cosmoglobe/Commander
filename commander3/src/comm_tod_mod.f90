@@ -43,6 +43,7 @@ module comm_tod_mod
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      real(dp)          :: baseline1, baseline2
+     integer(i4b)      :: nsamp_unmasked                    ! Number of unmasked samples
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -2039,7 +2040,7 @@ contains
 !!$  end subroutine construct_sl_template2
 
 
-  subroutine construct_corrtemp_inst(self, scan, pix, psi, s)
+  subroutine construct_corrtemp_inst(self, scan, pix, psi, s, det)
     !  Construct an instrument-specific correction template
     !
     !  Arguments:
@@ -2052,6 +2053,8 @@ contains
     !       index for pixel
     !  psi: int
     !       integer label for polarization angle
+    !  det: int
+    !       Optional detector index; if present, only evaluate for given detector
     !
     !  Returns:
     !  --------
@@ -2062,12 +2065,13 @@ contains
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
 
     s = 0.d0
 
   end subroutine construct_corrtemp_inst
 
-  subroutine apply_nonlin_corr_inst(self, scan, sd)
+  subroutine apply_nonlin_corr_inst(self, scan, sd, det)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2078,13 +2082,14 @@ contains
     class(comm_tod),                       intent(in)       :: self
     integer(i4b),                          intent(in)       :: scan
     class(comm_scandata),                  intent(inout)    :: sd
+    integer(i4b),                          intent(in), optional :: det
 
     return
 
   end subroutine apply_nonlin_corr_inst
   
   
-  subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
+  subroutine construct_dipole_template(self, scan, pix, psi, s_dip, det)
     !  construct a CMB dipole template in the time domain
     !
     !  Arguments:
@@ -2107,40 +2112,41 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
+    integer(i4b),                      intent(in), optional :: det
 
-    integer(i4b) :: i, j, ntod
+    integer(i4b) :: i, j, k, ntod, ndet
     real(dp)     :: v_ref(3)
     real(dp), allocatable, dimension(:,:) :: P
     logical(lgt)  :: relativistic
 
     relativistic = .true.
-
-    ntod = self%scans(scan)%ntod
+    ntod         = self%scans(scan)%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
 
     allocate(P(3,ntod))
-    do j = 1, self%ndet
+    do k = 1, ndet
+       j = k; if (present(det)) j = det
        if (.not. self%scans(scan)%d(j)%accept) cycle
-       if (self%orbital) then
 
+       if (self%orbital) then
          if (self%orb_4pi_beam) then
            v_ref = self%scans(scan)%v_sun
            do i = 1, ntod
-               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
-                       & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                       & self%psi(psi(i,j))] ! [phi, theta, psi]
+               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,k))), &
+                       & self%ind2ang(1,self%pix2ind(pix(i,k))), &
+                       & self%psi(psi(i,k))] ! [phi, theta, psi]
            end do
          else
             v_ref = self%scans(scan)%v_sun 
             do i = 1, ntod
-             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
+               P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,k))) ! [v_x, v_y, v_z]
             end do
          end if
-
        else
           v_ref = v_solar
        end if
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
+            & self%orbital, self%orb_4pi_beam, P, s_dip(:,k))
     end do
     deallocate(P)
 

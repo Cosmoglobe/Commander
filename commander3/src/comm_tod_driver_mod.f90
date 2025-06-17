@@ -304,6 +304,145 @@ contains
   end subroutine init_scan_data_singlehorn
 
 
+  
+  subroutine init_scan_data_singlehorn_singledet(sd, tod, det, scan, map_sky, procmask, &
+         & skip_nonlin, skip_zodi, darkdata)
+    implicit none
+    class(comm_scandata),                      intent(inout)          :: sd    
+    class(comm_tod),                           intent(inout)          :: tod
+    integer(i4b),                              intent(in)             :: det
+    integer(i4b),                              intent(in)             :: scan
+    real(sp),          dimension(1:,1:),       intent(in)             :: map_sky
+    real(sp),          dimension(0:),          intent(in)             :: procmask
+    logical(lgt),                              intent(in),   optional :: skip_nonlin
+    logical(lgt),                              intent(in),   optional :: skip_zodi
+    logical(lgt),                              intent(in),   optional :: darkdata
+
+    integer(i4b) :: i, j, k, ndelta
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
+
+    call timer%start(TOD_ALLOC, tod%band)
+
+
+    if (tod%nhorn /= 1) then
+       write(*,*) 'Error: init_scan_data_singlehorn_singlescan only applicable for 1-horn experiments'
+       stop
+    end if
+        !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
+    darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
+ 
+    sd%ntod   = tod%scans(scan)%ntod
+    sd%ndet   = 1
+    sd%nhorn  = 1
+    sd%ndelta = 0
+
+    ! Allocate data structures
+    allocate(sd%tod(sd%ntod, sd%ndet))
+    allocate(sd%n_corr(sd%ntod, sd%ndet))
+    allocate(sd%s_sl(sd%ntod, sd%ndet))
+    allocate(sd%s_sky(sd%ntod, sd%ndet))
+    allocate(sd%s_orb(sd%ntod, sd%ndet))
+    allocate(sd%s_tot(sd%ntod, sd%ndet))
+    allocate(sd%mask(sd%ntod, sd%ndet))
+    allocate(sd%pix(sd%ntod, sd%ndet, sd%nhorn))
+    allocate(sd%psi(sd%ntod, sd%ndet, sd%nhorn))
+    allocate(sd%flag(sd%ntod, sd%ndet))
+    if (tod%apply_inst_corr) allocate(sd%s_inst(sd%ntod, sd%ndet))
+    if (darkdata_) allocate(sd%dark(sd%ntod, tod%ndark))
+
+    if (tod%subtract_zodi) then
+      allocate(sd%s_zodi(sd%ntod, sd%ndet))
+      if (tod%sample_zodi) allocate(sd%mask_zodi(sd%ntod, sd%ndet))
+    end if
+    !call update_status(status, "todinit_alloc")
+    call timer%stop(TOD_ALLOC, tod%band)
+
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+    ! Decompress pointing, psi and flags for current scan
+    call timer%start(TOD_DECOMP, tod%band)
+    call tod%decompress_pointing_and_flags(scan, det, sd%pix(:,1,:), &
+            & sd%psi(:,1,:), sd%flag(:,1))
+
+    if(darkdata_) then
+      do j=1, tod%ndark
+        call tod%decompress_dark_data(scan, det, sd%dark(:,j))
+      end do
+    end if
+    
+    call timer%stop(TOD_DECOMP, tod%band)
+    
+    ! Prepare TOD
+    call timer%start(TOD_DECOMP, tod%band)
+    if (tod%compressed_tod) then
+       call tod%decompress_tod(scan, det, sd%tod(:,1))
+    else
+       sd%tod(:,1) = tod%scans(scan)%d(det)%tod
+    end if
+    call timer%stop(TOD_DECOMP, tod%band)
+
+    ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
+    call project_sky(tod, det, map_sky, sd%pix(:,1,1), &
+         & sd%psi(:,1,1), sd%flag(:,1), procmask, scan, sd%s_sky(:,1), sd%mask(:,1))
+    call timer%stop(TOD_PROJECT, tod%band)
+    
+    ! Construct orbital dipole template
+    if (tod%correct_orb) then
+       call timer%start(TOD_ORBITAL, tod%band)
+       call tod%construct_dipole_template(scan, sd%pix(:,:,1), sd%psi(:,:,1), sd%s_orb, det=det)
+       call timer%stop(TOD_ORBITAL, tod%band)
+    else
+       sd%s_orb = 0.
+    end if
+
+    ! Construct zodical light template
+    if (tod%subtract_zodi) then
+       if (skip_zodi_) then
+          sd%s_zodi = 0.
+       else
+          call timer%start(TOD_ZODI, tod%band)
+          call get_s_tot_zodi(zodi_model, tod, det, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,1,:))
+          call timer%stop(TOD_ZODI, tod%band)
+       end if
+    end if
+
+    ! Construct sidelobe template
+    if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
+       call tod%construct_sl_template(tod%slconv(det)%p, &
+               & sd%pix(:,1,1), sd%psi(:,1,1), sd%s_sl(:,1), tod%mbang(det))
+       sd%s_sl(:,1) = 2.d0 * sd%s_sl(:,1) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+       call timer%stop(TOD_SL_INT, tod%band)
+    else
+       sd%s_sl = 0.
+    end if
+
+    ! Generate and apply instrument-specific correction template
+    if (tod%apply_inst_corr) then
+       call tod%construct_corrtemp_inst(scan, sd%pix(:,:,1), sd%psi(:,:,1), sd%s_inst)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+
+    ! Construct total sky signal
+    if (tod%subtract_zodi) then 
+       sd%s_tot(:,1) = sd%s_sky(:,1) + sd%s_sl(:,1) + sd%s_orb(:,1) + sd%s_zodi(:,1)
+    else
+       sd%s_tot(:,1) = sd%s_sky(:,1) + sd%s_sl(:,1) + sd%s_orb(:,1)
+    end if
+    if (tod%apply_inst_corr) sd%s_tot(:,1) = sd%s_tot(:,1) + sd%s_inst(:,1)
+
+    ! Apply non-linearity corrections
+    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd, det)
+    
+    !call update_status(status, "todinit_stot")
+
+  end subroutine init_scan_data_singlehorn_singledet
+
+
   subroutine init_scan_data_differential(sd, tod, scan, map_sky, map_gain, procmask, procmask2, &
        & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
     implicit none
@@ -409,10 +548,10 @@ contains
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
-       call project_sky_differential(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+       call project_sky_differential_multi(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, sd%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
     else
-       call project_sky_differential(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+       call project_sky_differential_multi(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, sd%mask)
     end if
     do j = 1, sd%ndet
@@ -428,7 +567,7 @@ contains
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do k = 2, sd%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+          call project_sky_differential_multi(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
                & procmask2, scan, s_bufA, s_bufB, sd%mask2, s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -438,7 +577,7 @@ contains
        end do
     else if (init_s_sky_prop_) then
        do k = 2, sd%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+          call project_sky_differential_multi(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
                & procmask2, scan, s_bufA, s_bufB, sd%mask2)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle

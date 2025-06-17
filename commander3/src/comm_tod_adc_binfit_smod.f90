@@ -52,7 +52,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
 
-    integer(i4b) :: i, ierr
+    integer(i4b) :: i, j, c0, ierr
     real(dp)     :: delta
     
     allocate(c)
@@ -71,21 +71,51 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     allocate(c%INL(min_adu:max_adu))
     allocate(c%DNL(min_adu:max_adu))
     allocate(c%invF(c%min_coadd:c%max_coadd))
-    allocate(c%P_mu(min_adu:max_adu))
-    allocate(c%P_rms(min_adu:max_adu))
-    
-    ! Initialize work spaces
-    c%Q     = 1.
-    c%P_mu  = 1.d0
-    c%P_rms = 1.d3
 
-    c%Q(32768) = 0.2
+    ! Count number of free parameters
+    c%npar_adc = 63              ! Global repeated 64-code pattern
+    c%npar_adc = c%npar_adc + 64 ! 64 individual codes after midpoint
+    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+       c0 = c%min_adu
+    else
+       c0 = c%min_adu - mod(c%min_adu,64) + 64
+    end if
+    do i = c0, c%max_adu, 64
+       if (i == 32768) cycle
+       c%npar_adc = c%npar_adc + 1 ! Jump between 64-code patterns
+    end do
+    if (c%myid == 0) write(*,*) '  Number of ADC parameters = ', c%npar_adc, trim(label)
+    
+    ! Initialize parameter structure
+    allocate(c%param_adc(c%npar_adc,3), c%p(c%npar_adc))
+    do i = 1, 63
+       c%param_adc(i,:) = [i,1,-64]  ! Global repeated 64-code pattern
+    end do
+    do i = 0, 63
+       c%param_adc(64+i,:) = [32768+i,1,1]  ! 64 individual codes after midpoint
+    end do
+    j = 1
+     if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+       c0 = c%min_adu
+    else
+       c0 = c%min_adu - mod(c%min_adu,64) + 64
+    end if
+    do i = c0, c%max_adu, 64
+       if (i == 32768) cycle
+       c%param_adc(127+j,:) = [i,1,1]  ! Jump between 64-code patterns 
+       j            = j+1
+    end do
+    
+    ! Initialize bin widths
+    c%p     = 1.
+    !c%p(64) = 0.2
+    call c%param2Q(c%p)
 
     ! Testing
     if (.false.) then
        if (c%myid == 0) then
-          c%Q(32768) = 0.2
-          call c%Q2As(3.7)
+          !c%Q(32768) = 0.2
+          call c%Q2As(92.)
 
           open(58, file='adc_fast_'//trim(label)//'.dat', recl=1024)
           write(58,*) '# ADU        Q          v_min         DNL         INL'
@@ -117,7 +147,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, scan, det, tod, mask, sigma0)
+  module subroutine adc_correct(self, scan, det, tod, sigma0, mask)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -139,8 +169,8 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     class(comm_adc_binfit),          intent(inout) :: self
     integer(i4b),                    intent(in)    :: scan, det
     real(sp),     dimension(:),      intent(inout) :: tod
-    logical(lgt), dimension(:),      intent(in)    :: mask
     real(sp),                        intent(in)    :: sigma0
+    logical(lgt), dimension(:),      intent(in), optional :: mask
 
     integer(i4b) :: i
     real(dp)     :: delta
@@ -149,8 +179,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     
     ! Initialize transfer function
     !call self%Q2As(sigma0)
-    !write(*,*) 'a', trim(self%label), scan, det
-    call self%Q2As(3.7*sqrt(40.))
+    call self%Q2As(92.)
     call self%As2F
 
 !!$    call int2string(scan, scan_text)
@@ -163,16 +192,78 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 !!$    close(58)          
 
     ! Apply correction
-    !write(*,*) 'b', trim(self%label), scan, det
-    do i = 1, size(tod)
-       if (mask(i)) then
-          !write(*,*) i, tod(i)
+    if (present(mask)) then
+       do i = 1, size(tod)
+          if (mask(i)) then
+             tod(i) = self%invF(nint(tod(i)))
+          end if
+       end do
+    else
+       do i = 1, size(tod)
           tod(i) = self%invF(nint(tod(i)))
-       end if
-    end do
-    !write(*,*) 'c', trim(self%label), scan, det
+       end do
+    end if
   end subroutine adc_correct
 
+  module subroutine param2Q(self, p)
+    !=========================================================================
+    ! 
+    ! 
+    ! Inputs:
+    !
+    ! self:     comm_adc object
+    !           Base ADC object
+    ! p:        real(sp)
+    !           Parameter vector; must be of length npar_adc
+    implicit none
+    class(comm_adc_binfit),             intent(inout) :: self
+    real(sp), dimension(self%npar_adc), intent(in), optional    :: p
+
+    integer(i4b) :: i, m, w, c, c0, c1, b
+    
+    do i = 1, self%npar_adc
+       if (self%param_adc(i,3) < 0) then
+          ! Global parameter; affects all indices with modulo m
+          c0 =  self%param_adc(i,1)
+          w  =  self%param_adc(i,2)
+          m  = -self%param_adc(i,3)
+          do b = 0, w-1
+             if (mod(self%min_adu,m) == 0) then
+                c1 = self%min_adu + c0 + b
+                !if (self%myid == 0) write(*,*) 'a', i, c0, w, m, b, c1, self%min_adu
+             else
+                c1 = self%min_adu - mod(self%min_adu,m) + c0 + b
+                !if (self%myid == 0) write(*,*) 'b', i, c0, w, m, b, c1, self%min_adu
+             end if
+             do c = c1, self%max_adu, m
+                if (c < self%min_adu) cycle
+                if (present(p)) then
+                   self%Q(c) = p(i)
+                else
+                   self%Q(c) = self%p(i)
+                end if
+             end do
+          end do
+       else
+          ! Local parameter; affects only specified codes
+          c0                = self%param_adc(i,1)
+          w                 = self%param_adc(i,2)
+          if (present(p)) then
+             self%Q(c0:c0+w-1) = p(i)
+          else
+             self%Q(c0:c0+w-1) = self%p(i)
+          end if
+       end if
+    end do
+!!$    do i = self%min_adu, self%max_adu
+!!$       if (self%myid == 0) write(*,*) i, self%Q(i)
+!!$    end do
+
+    ! Normalize widths to unit average
+    self%Q = self%Q/sum(self%Q) * size(self%Q) 
+    
+  end subroutine param2Q
+  
   module subroutine Q2As(self, sigma0)
     !=========================================================================
     ! Compute noise weighted transfer function from bin widths
@@ -343,20 +434,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     
   end subroutine As2F
 
-  
-  module subroutine mcmc_init(self)
-    !=========================================================================
-    ! Initialize (reset) MCMC parameters
-    ! 
-    ! Inputs:
-    !
-    ! self:     comm_adc object
-    !           Base ADC object
-    implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-  end subroutine mcmc_init
-
-  module subroutine mcmc_sample(self, d, s, sigma0)
+  module subroutine mcmc_sample_adc(self, handle, chisq_adc)
     !=========================================================================
     ! Sample bin widths for single scan; coadd into posterior
     ! 
@@ -366,20 +444,83 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !           Base ADC object
     implicit none
     class(comm_adc_binfit),          intent(inout) :: self
-    real(sp), dimension(:),          intent(in)    :: d, s
-    real(sp),                        intent(in)    :: sigma0
-  end subroutine mcmc_sample
+    type(planck_rng),                intent(inout) :: handle
+    interface
+       function chisq_adc(p, ndof)
+         use healpix_types
+         implicit none
+         real(sp), dimension(:), intent(in),  optional :: p
+         integer(i8b),           intent(out), optional :: ndof
+         real(dp)                                      :: chisq_adc
+       end function chisq_adc
+    end interface
+    
+    integer(i4b) :: i, j, k, n_gibbs, npar, blocksize, b0, b1
+    integer(i8b) :: ndof
+    logical(lgt) :: accept
+    real(sp)     :: eta, chisq0, chisq_old, chisq_prop, a, mu, sigma
+    integer(i4b), allocatable, dimension(:)   :: n_accept
+    real(sp),     allocatable, dimension(:)   :: x_prop, rms_prop
+    real(sp),     allocatable, dimension(:,:) :: x
 
-  module subroutine mcmc_finalize(self)
-    !=========================================================================
-    ! Finalize MCMC results; synchronize over cores
-    ! 
-    ! Inputs:
-    !
-    ! self:     comm_adc object
-    !           Base ADC object
-    implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-  end subroutine mcmc_finalize
+    npar      = self%npar_adc
+    n_gibbs   = 3
+    blocksize = 5
+
+    allocate(x(0:n_gibbs,npar), x_prop(npar), rms_prop(npar), n_accept(npar))
+    rms_prop = 0.01
+    n_accept = 0
+
+    x(0,:)    = self%p
+    chisq_old = chisq_adc(x(0,:), ndof)
+    chisq0    = chisq_old
+    open(58,file='adc_mcmc.dat', recl=8192)
+    do i = 1, n_gibbs
+       x_prop  = x(i-1,:)
+       do j = 1, npar, blocksize
+          b0 = j
+          b1 = min(j+blocksize-1,npar)
+          
+          ! Draw proposal
+          do k = b0, b1
+             x_prop(k) = x_prop(k) + rand_gauss(handle) * rms_prop(k)
+          end do
+
+          if (any(x_prop(b0:b1) < 0.)) then
+             x_prop(b0:b1) = x(i-1,b0:b1) ! Reset to previous sample
+             cycle
+          end if
+          
+          ! Compute chisq, and apply Metropolis rule
+          chisq_prop = chisq_adc(x_prop)
+          if (chisq_prop < chisq_old) then
+             accept = .true.
+          else
+             a      = exp(-0.5d0*(chisq_prop-chisq_old))
+             accept = rand_uni(handle) < a
+          end if
+
+          write(58,*) i, j, accept, chisq_old/ndof, chisq_prop/ndof, x_prop
+          write(*,fmt='(i4,i4,l,4f8.3)')  i, j, accept, chisq_old/ndof, chisq_prop/ndof, x(i-1,b0), x_prop(b0)
+          
+          if (accept) then
+             chisq_old       = chisq_prop
+             n_accept(b0:b1) = n_accept(b0:b1) + 1
+          else
+             x_prop(b0:b1)   = x(i-1,b0:b1) ! Reset to previous sample
+          end if
+       end do
+       x(i,:) = x_prop
+    end do
+    close(58)
+
+    ! Update main parameter
+    self%p = x(n_gibbs,:)
+    
+    write(*,fmt='(a,f8.3,a,f8.3,a,f8.3)') ' adc mcmc -- X^2 old = ', chisq0/ndof, ', new =', chisq_old/ndof, ', mean accept = ', mean(n_accept/real(n_gibbs,dp))
+
+    ! Clean up
+    deallocate(x, x_prop, rms_prop, n_accept)
+  end subroutine mcmc_sample_adc
 
 end submodule comm_tod_adc_binfit_smod

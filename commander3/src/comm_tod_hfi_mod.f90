@@ -58,6 +58,7 @@ module comm_tod_hfi_mod
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
+     procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
   end type comm_hfi_tod
 
@@ -333,7 +334,7 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_hfi
 
-  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -356,9 +357,10 @@ interface
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd)
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -379,6 +381,7 @@ interface
     class(comm_hfi_tod),                   intent(in)    :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in), optional :: det
   end subroutine apply_nonlin_corr_hfi
 
   module subroutine stitch_hfi_dc_level(self, scan, sd)
@@ -417,6 +420,21 @@ interface
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine hfi_dark_correction
+
+  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
+    !  Sample ADC parameters
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(planck_rng),                    intent(inout) :: handle
+    integer(i4b),                        intent(in)    :: det
+    real(sp),          dimension(1:,1:), intent(in)    :: map_sky
+    real(sp),          dimension(0:),    intent(in)    :: procmask
+  end subroutine sample_adc_and_baselines
 
   module subroutine estimate_hfi_4k_lines(self, scan, sd)
     !  Construct and apply HFI instrument-specific corrections

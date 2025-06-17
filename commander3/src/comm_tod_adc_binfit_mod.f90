@@ -33,9 +33,11 @@ module comm_tod_adc_binfit_mod
   public comm_adc_binfit, adc_binfit_pointer
 
   type :: comm_adc_binfit
-     integer(i4b)       :: comm, myid
+     integer(i4b)       :: comm, myid, npar_adc
      character(len=128) :: label
      integer(i4b)       :: min_adu, max_adu, min_coadd, max_coadd, ncoadd, nbit
+     integer(i4b), allocatable, dimension(:,:) :: param_adc ! (code, width, global mod/local)
+     real(sp),   allocatable, dimension(:) :: p ! (npar_adc)
      real(sp),   allocatable, dimension(:) :: Q     ! ADU bin widths (fast samp)
      real(sp),   allocatable, dimension(:) :: v     ! Voltage boundaries
      real(sp),   allocatable, dimension(:) :: DNL   ! ADU bin widths (fast samp)
@@ -43,15 +45,12 @@ module comm_tod_adc_binfit_mod
      type(spline_type)                     :: A_s   ! Noise weighted transfer functio
      type(spline_type)                     :: F     ! ADC transfer function (coadded)
      real(dp),   allocatable, dimension(:) :: invF  ! ADC correction function 
-     real(dp),   allocatable, dimension(:) :: P_mu  ! Posterior mean (single samp)
-     real(dp),   allocatable, dimension(:) :: P_rms ! Posterior rms (single samp)
   contains
     procedure :: adc_correct
+    procedure :: param2Q
     procedure :: Q2As
     procedure :: As2F
-    procedure :: mcmc_init
-    procedure :: mcmc_sample
-    procedure :: mcmc_finalize
+    procedure :: mcmc_sample_adc
   end type comm_adc_binfit
 
   interface comm_adc_binfit
@@ -95,7 +94,7 @@ interface
     class(comm_adc_binfit), pointer    :: c
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, scan, det, tod, mask, sigma0)
+  module subroutine adc_correct(self, scan, det, tod, sigma0, mask)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -117,8 +116,8 @@ interface
     class(comm_adc_binfit),          intent(inout) :: self
     integer(i4b),                    intent(in)    :: scan, det
     real(sp), dimension(:),          intent(inout) :: tod
-    logical(lgt), dimension(:),      intent(in)    :: mask
     real(sp),                        intent(in)    :: sigma0
+    logical(lgt), dimension(:),      intent(in), optional    :: mask
   end subroutine adc_correct
 
   module subroutine Q2As(self, sigma0)
@@ -159,20 +158,23 @@ interface
     real(sp), dimension(40), intent(in), optional :: gain
     real(sp), dimension(40), intent(in), optional :: offset
   end subroutine As2F
-  
-  module subroutine mcmc_init(self)
+
+  module subroutine param2Q(self, p)
     !=========================================================================
-    ! Initialize (reset) MCMC parameters
+    ! 
     ! 
     ! Inputs:
     !
     ! self:     comm_adc object
     !           Base ADC object
+    ! p:        real(sp)
+    !           Parameter vector; must be of length npar_adc
     implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-  end subroutine mcmc_init
-
-  module subroutine mcmc_sample(self, d, s, sigma0)
+    class(comm_adc_binfit),             intent(inout) :: self
+    real(sp), dimension(self%npar_adc), intent(in), optional    :: p
+  end subroutine param2Q
+  
+  module subroutine mcmc_sample_adc(self, handle, chisq_adc)
     !=========================================================================
     ! Sample bin widths for single scan; coadd into posterior
     ! 
@@ -182,21 +184,17 @@ interface
     !           Base ADC object
     implicit none
     class(comm_adc_binfit),          intent(inout) :: self
-    real(sp), dimension(:),          intent(in)    :: d, s
-    real(sp),                        intent(in)    :: sigma0
-  end subroutine mcmc_sample
-
-  module subroutine mcmc_finalize(self)
-    !=========================================================================
-    ! Finalize MCMC results; synchronize over cores
-    ! 
-    ! Inputs:
-    !
-    ! self:     comm_adc object
-    !           Base ADC object
-    implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-  end subroutine mcmc_finalize
+    type(planck_rng),                intent(inout) :: handle
+    interface
+       function chisq_adc(p, ndof)
+         use healpix_types
+         implicit none
+         real(sp), dimension(:), intent(in),  optional :: p
+         integer(i8b),           intent(out), optional :: ndof
+         real(dp)                                      :: chisq_adc
+       end function chisq_adc
+    end interface
+  end subroutine mcmc_sample_adc
 
 end interface
 
