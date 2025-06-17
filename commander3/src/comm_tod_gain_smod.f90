@@ -186,7 +186,7 @@ contains
     if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
@@ -217,7 +217,7 @@ contains
        end do
 
        ! Perform poly-fit
-       allocate(xx(tod%nscan_tot), yy(tod%nscan_tot))
+       allocate(xx(tod%last_scan), yy(tod%last_scan))
        allocate(a(0:16))
        do j = 1, tod%ndet
           xx = 0.d0
@@ -1283,7 +1283,7 @@ contains
     integer*8       :: plan_fwd, plan_back
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
     ! Collect gains on all processors
     allocate(g(nscan_tot,ndet))
     g = 0.d0
@@ -1564,8 +1564,10 @@ contains
      end if
      !lambda = 1e8
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
-     
-     psd_loglike = -sum(gain_ps(1:2000) * inv_N_corr(1:2000) - log(inv_N_corr(1:2000))) !- lambda*sigma_0
+   
+
+     !TODO: fix this hardcoding issue here 
+     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike

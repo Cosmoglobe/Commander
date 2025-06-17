@@ -30,7 +30,8 @@ module comm_tod_DIRBE_mod
    !   process_DIRBE_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-   use comm_tod_driver_mod
+  use comm_tod_driver_mod
+  use comm_tod_pixhist_mod
    implicit none
 
    private
@@ -123,7 +124,8 @@ contains
       c%nmaps           = info%nmaps
       c%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
       c%sol_elong_range = cpar%zs_sol_elong
-
+      c%nside_pixhist   = 64
+      
       c%gain_tune_sigma0 = .false.
       c%gain_samprate    = 1.d0 / 3600.d0 / 24.d0
       c%gain_sigma_0     = 0.005
@@ -251,7 +253,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -260,6 +262,7 @@ contains
       character(len=6)    :: samptext, scantext
       character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
+      real(sp),              dimension(9)       :: flag_threshold
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -302,12 +305,15 @@ contains
         & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
         & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
          sample_gain        =  iter > 1
-         only_solar_mask    = .false.
+         !                     Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
+         flag_threshold     = [1.0,    -20., -5.0,       -3.0, -2.0, -1.5,     1.0,      -0.30,     1.0]
       else
          sample_gain        =  iter > 1
-         only_solar_mask    = .true.
+         !                     Pixhist    Extreme            RMS ranges     Single     Ranges   Pointing
+         flag_threshold     = [1.0,    -50., -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
+         !flag_threshold     = [-1.0, -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
       end if
-      !sample_gain = .false.
+      sample_gain = .false.
 
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -358,6 +364,11 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
+      ! Create pixel histograms
+      if (self%first_call) then
+         call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
+      end if
+      
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
@@ -392,8 +403,8 @@ contains
          if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                    & [-5.,5.], sd%mask(:,j), sd%flag(:,j), only_solar_mask)
+               call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                    & sd%mask(:,j), sd%flag(:,j), flag_threshold, s_tot=sd%s_tot(:,j))
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -480,6 +491,9 @@ contains
          deallocate(d_calib)
       end do
 
+      ! Synchronize and output flagging statistics in first iteration
+      if (self%first_call) call self%report_dynamic_mask_stats
+      
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Output latest scan list with new timing information

@@ -221,6 +221,7 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
+    real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
@@ -240,6 +241,9 @@ contains
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
+    !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
+    flag_threshold     = [  -1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
+    
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta
@@ -379,8 +383,8 @@ contains
     if (sample_gain) then
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask2, procmask2)
-       !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
-       !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
     end if
 
 
@@ -421,8 +425,8 @@ contains
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%create_dynamic_mask(i, j, (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                  & [-5.,5.], sd%mask(:,j), sd%flag(:,j), .false., [.true.,.true.,.true.,.true.,.false.,.true.,.false.,.false.])
+             call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                  & sd%mask(:,j), sd%flag(:,j), flag_threshold)
           end do
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -466,7 +470,7 @@ contains
        if (self%scanid(i) == 500) then
           open(58,file='res'//samptext//'.dat', recl=1024)
           do j = 1, sd%ntod
-             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1)))
+             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
           end do
           close(58)
        end if
@@ -529,13 +533,13 @@ contains
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
     if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
-       do i = 1, zodi_model%n_comps
-          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
-       end do
-    endif
+!!$    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+!!$    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+!!$    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+!!$       do i = 1, zodi_model%n_comps
+!!$          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+!!$       end do
+!!$    endif
 
     ! Clean up
     call binmap%dealloc()

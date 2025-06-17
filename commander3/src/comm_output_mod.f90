@@ -89,7 +89,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max
+    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max, nmaps
     real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
@@ -104,6 +104,7 @@ contains
     class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
+    real(dp), allocatable, dimension(:,:) :: map_out
 
     call update_status(status, "output_start")
     
@@ -343,7 +344,7 @@ contains
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
-             info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%pol)
              chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
 
@@ -351,18 +352,23 @@ contains
              ! of bands with different units comparable
              uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
-                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                !N => data(i)%N
-                ! select type (N)
-                ! Defining chisq_eff = -2*log(L) such that
-                ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
-                ! log(det(Sigma)) -> 2*log(2*pi*sigma)
-                ! class is (comm_N_rms)
-                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                ! class is (comm_N_lcut)
-                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                ! end select
+                if(data(i)%info%nmaps > 3) then
+                  chisq_map%map(:,1) = chisq_map%map(:,1) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                  chisq_map_eff%map(:,1) = chisq_map_eff%map(:,1) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                else
+                  chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                  chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                  !N => data(i)%N
+                  ! select type (N)
+                  ! Defining chisq_eff = -2*log(L) such that
+                  ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
+                  ! log(det(Sigma)) -> 2*log(2*pi*sigma)
+                  ! class is (comm_N_rms)
+                  !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                  ! class is (comm_N_lcut)
+                  !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                  ! end select
+               end if
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -460,6 +466,22 @@ contains
                    write(58,*) real(j+0.5,sp)*pi/NBIN_EARTH_ELON, data(i)%tod%map_earth(j)
                 end do
                 close(58)
+             end if
+          end do
+       end if
+
+       ! Output pixel histogram summary
+       if (cpar%myid_chain == 0 .and. iter == 1) then
+          do i = 1, numband
+             if (trim(data(i)%tod_type) == 'none') cycle
+             if (allocated(data(i)%tod%pixhist)) then
+                allocate(map_out(0:size(data(i)%tod%pixhist,2)-1,5))
+                map_out = transpose(data(i)%tod%pixhist)
+                do j = 1, size(map_out,2)
+                   call convert_nest2ring(data(i)%tod%nside_pixhist, map_out(:,j))
+                end do
+                call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_pixhist.fits', map_out)
+                deallocate(map_out)
              end if
           end do
        end if
