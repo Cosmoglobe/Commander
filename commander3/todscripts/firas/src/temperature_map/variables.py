@@ -2,8 +2,8 @@
 import os
 import sys
 
+import healpy as hp
 import numpy as np
-from astropy.io import fits
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -31,8 +31,10 @@ variables_names = [
     "lvdt_stat_b",
 ]
 
-mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
-mask = mask[1].data.astype(int)
+mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
+mask = hp.sphtfunc.map2alm(mask, pol=False)
+mask = hp.alm2map(mask, g.NSIDE, pol=False)
+mask = np.where(mask < 0.5, 0, 1)
 
 variables = {}
 print(f"mode: {mode}")
@@ -44,7 +46,7 @@ for name in variables_names:
 for name in variables_names:
     print(f"{name}: {variables[name].shape}")
 
-ind = 52500
+ind = 10
 
 print(f"stat_word_1: {variables["stat_word_1"][ind]}")
 print(f"stat_word_12: {variables["stat_word_12"][ind]}")

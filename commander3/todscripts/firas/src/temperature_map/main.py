@@ -21,19 +21,12 @@ from utils.config import gen_nyquistl
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
-# channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
     g.PREPROCESSED_DATA_PATH_SKY,
     "r",
 )
-
-# print(f"sky_data keys: {sky_data["df_data"].keys()}")
-# cal_data = h5py.File(
-#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
-#     "r",
-# )
 
 print("getting variables")
 variable_names = [

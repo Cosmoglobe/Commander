@@ -19,8 +19,10 @@ T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rl": 1, "ll": 3}
 
-mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
-mask = mask[1].data.astype(int)
+mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
+mask_alm = hp.sphtfunc.map2alm(mask, pol=False)
+mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
+mask = np.where(mask < 0.5, 0, 1)
 
 data = np.load(g.PROCESSED_DATA_PATH)
 

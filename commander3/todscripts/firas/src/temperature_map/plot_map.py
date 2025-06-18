@@ -186,17 +186,17 @@ for channel in channels.keys():
                 if not (mode == "lf" and (channel == "lh" or channel == "rh")):
                     for freq in range(len(f_ghz[f"{channel}_{mode}"])):
                         if g.PNG:
-                            max_freq = 200
+                            max_amp = 200
                             if channel == "ll" and mode == "ss":
-                                max_freq = 25
+                                max_amp = 25
                             hp.mollview(
                                 m[f"{channel}_{mode}"][:, freq],
                                 # coord="G",
                                 title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                                 unit="MJy/sr",
                                 # norm="hist",
-                                min=0,
-                                max=max_freq,
+                                min=-max_amp,
+                                max=max_amp,
                             )
                             # hp.graticule(coord="G")
                             plt.savefig(

@@ -1,10 +1,9 @@
 import os
 import sys
 
-import h5py
+import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.io import fits
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -136,8 +135,10 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
-mask = mask[1].data.astype(int)
+mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
+mask_alm = hp.sphtfunc.map2alm(mask, pol=False)
+mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
+mask = np.where(mask < 0.5, 0, 1)
 
 # remove data inside the mask
 for mode in modes.keys():

@@ -6,7 +6,7 @@ import healpy as hp
 OFFSET = 0
 
 # data paths
-ORIGINAL_DATA = "/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5"
+ORIGINAL_DATA = "firas/initial_data/fdq_sdf_new.h5"
 ORIGINAL_DATA_ENG = "/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5"
 PREPROCESSED_DATA_PATH_SKY = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.4.h5"
 PREPROCESSED_DATA_PATH_CAL = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v4.4.h5"
