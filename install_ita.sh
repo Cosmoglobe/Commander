@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
+buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -20,6 +20,7 @@ owl2528="$prefix+(2[5-8])+$suffix"
 owl2930="$prefix+(29|30)+$suffix"
 owl3135="$prefix+(3[1-5])+$suffix"
 owl3637="$prefix+(3[6-7])+$suffix"
+owl3845="$prefix+(3[8-9]|4[0-5])+$suffix"
 # Using regex to figure out which beehive I am on.
 prefix="beehive"
 bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
@@ -94,6 +95,8 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl3845 ]]; then
+    build_dir="build_owl3845_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
     build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
