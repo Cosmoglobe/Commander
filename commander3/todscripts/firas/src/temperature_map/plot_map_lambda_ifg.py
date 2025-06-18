@@ -1,13 +1,15 @@
+import os
+import sys
+
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-import os
-import sys
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+import globals as g
 from my_utils import planck
 
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
@@ -37,7 +39,7 @@ for channel in channels.keys():
                 vmax=500,
             )
             plt.savefig(
-                f"../../output/plots/sky_over_time_lambda_{f"{channel}_{mode}"}.png"
+                f"{g.SAVE_PATH}plots/sky_over_time_lambda_{f"{channel}_{mode}"}.png"
             )
             plt.clf()
 
@@ -57,9 +59,6 @@ for channel in channels.keys():
                 nf[f"{channel}_{mode}"],
             )
 
-NSIDE = 32
-npix = hp.nside2npix(NSIDE)
-
 # get the position on the sky
 data_path = "/mn/stornext/d16/cmbco/ola/firas/coadded_interferograms/"
 pix_gal = {}
@@ -73,7 +72,7 @@ for channel in channels.keys():
         gal_lon = data["GAL_LON"]
         gal_lat = data["GAL_LAT"]
         pix_gal[f"{channel}_{mode}"] = hp.ang2pix(
-            NSIDE, gal_lon, gal_lat, lonlat=True
+            g.NSIDE, gal_lon, gal_lat, lonlat=True
         ).astype(int)
 
 hpxmap = {}
@@ -82,9 +81,9 @@ for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             hpxmap[f"{channel}_{mode}"] = np.zeros(
-                (npix, len(f_ghz[f"{channel}_{mode}"]))
+                (g.NPIX, len(f_ghz[f"{channel}_{mode}"]))
             )
-            data_density[f"{channel}_{mode}"] = np.zeros(npix)
+            data_density[f"{channel}_{mode}"] = np.zeros(g.NPIX)
             for i in range(len(pix_gal[f"{channel}_{mode}"])):
                 hpxmap[f"{channel}_{mode}"][pix_gal[f"{channel}_{mode}"][i]] += np.abs(
                     sky[f"{channel}_{mode}"][i]
@@ -95,7 +94,7 @@ m = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            m[f"{channel}_{mode}"] = np.zeros((npix, len(sky[f"{channel}_{mode}"][0])))
+            m[f"{channel}_{mode}"] = np.zeros((g.NPIX, len(sky[f"{channel}_{mode}"][0])))
             mask = data_density[f"{channel}_{mode}"] == 0
             monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
             m[f"{channel}_{mode}"][~mask] = (
@@ -117,6 +116,6 @@ for channel in channels.keys():
                     max=200,
                 )
                 plt.savefig(
-                    f"../../output/maps/lambda_ifg/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"{g.SAVE_PATH}maps/lambda_ifg/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
                 )
                 plt.close()

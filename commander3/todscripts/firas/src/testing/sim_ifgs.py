@@ -1,20 +1,23 @@
+import os
 import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-import os
+
 sys.path.append('..')
 import h5py
-import my_utils as mu
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling.models import BlackBody
 
+import my_utils as mu
+
 sys.path.append('..')
 import h5py
-import my_utils as mu
 from astropy.io import fits
+
+import globals as g
+import my_utils as mu
 from utils.config import gen_nyquistl
 
 sys.path.append('../utils')
@@ -36,8 +39,8 @@ def convert_gain(gain_array):
 
     return gain_array
 
-sdf = h5py.File('../engineering_timing/fdq_sdf_new.h5')
-eng = h5py.File('../engineering_timing/fdq_eng_new.h5')
+sdf = h5py.File(g.ORIGINAL_DATA)
+eng = h5py.File(g.ORIGINAL_DATA_ENG)
 
 
 channels = {'ll':3, 'lh':2, 'rl':1, 'rh':0}
@@ -78,7 +81,7 @@ sweepss = sdf[f'fdq_sdf_{ch}/sci_head/sc_head11'][()]
 eng_times = sdf[f'fdq_sdf_{ch}/dq_data/eng_time'][()]
 
 
-pub_model = fits.open(f'FIRAS_CALIBRATION_MODEL_{ch.upper()}{SM}.FITS')
+pub_model = fits.open(f'{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{ch.upper()}{SM}.FITS')
 NU_ZERO =            pub_model[0].header['NU_ZERO']
 DELTA_NU=            pub_model[0].header['DELTA_NU']
 NUM_FREQ=            pub_model[0].header['NUM_FREQ']
@@ -232,14 +235,16 @@ dihedral = eng['en_analog/grt/b_lo_dihedral'][()]
 bol_assem_temps = eng['en_analog/grt/b_lo_bol_assem'][:,1]
 struct = eng['en_analog/grt/b_lo_mirror'][()]
 
+stat_word_1 = eng['en_stat/stat_word_1'][()]
 stat_word_5 = eng['en_stat/stat_word_5'][()]
 stat_word_9 = eng['en_stat/stat_word_9'][()]
+stat_word_12 = eng['en_stat/stat_word_12'][()]
 stat_word_13 = eng['en_stat/stat_word_13'][()]
 stat_word_16 = eng['en_stat/stat_word_16'][()]
 lvdt_stats = eng['en_stat/lvdt_stat'][()]
 lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
 
-filter_bad = mu.filter_junk(stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b)
+filter_bad = mu.filter_junk(stat_word_1= stat_word_1, stat_word_5=stat_word_5, stat_word_9=stat_word_9, stat_word_12 = stat_word_12, stat_word_13=stat_word_13, stat_word_16=stat_word_16, lvdt_stat_a=lvdt_stat_a, lvdt_stat_b=lvdt_stat_b)
 filter_bad = np.logical_and(filter_bad, (xcals[:,0] < 3))
 filter_bad = np.logical_and(filter_bad, (icals[:,0] < 3))
 
@@ -455,21 +460,20 @@ plt.colorbar()
 mtm_speed = mtm_speed[0]
 mtm_length = mtm_length[0]
 
-afreq_out, spec_out = mu.ifg_to_spec(ifg,
-                          mtm_speed,
-                          channel,
-                          adds_per_group,
-                          bol_cmd_bias,
-                          bol_volt,
-                          fnyq_icm,
-                          fnyq_hz,
-                          otf,
-                          Jo,
-                          Jg,
-                          Tbol, rho,
-                          R0, T0, beta, G1, C3, C1,
-                          mtm_length,gain,sweeps,
-                          apod)
+afreq_out, spec_out = mu.ifg_to_spec(ifg=ifg,
+                          mtm_speed=mtm_speed,
+                          channel=channel,
+                          adds_per_group=adds_per_group,
+                          bol_cmd_bias=bol_cmd_bias,
+                          bol_volt=bol_volt,
+                          fnyq_icm=fnyq_icm,
+                          otf=otf,
+                          Jo=Jo,
+                          Jg=Jg,
+                          Tbol=Tbol, rho=rho,
+                          R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1,
+                          gain=gain, sweeps=sweeps,
+                          apod=apod)
 
 
 spec_out[~np.isfinite(spec_out)] = 0

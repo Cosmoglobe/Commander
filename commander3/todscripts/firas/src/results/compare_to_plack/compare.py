@@ -2,18 +2,23 @@
 Script to compare the current FIRAS maps to the Planck official maps in the corresponding frequencies.
 """
 import os
+import sys
 
 import healpy as hp
 import matplotlib.pyplot as plt
 from astropy.io import fits
 
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+grandparent = os.path.dirname(parent)
+sys.path.append(grandparent)
+import globals as g
+
 path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
 planck_path = "planck/"
 firas_path = "maps/frequency_maps/rh_ss/galactic/"
 
-save_path = "/mn/stornext/d16/www_cmb/aimartin/firas/maps/comparison/"
-if not os.path.exists(save_path):
-    os.makedirs(save_path)
+save_path = f"{g.SAVE_PATH}maps/comparison/"
 
 bands = ["070", "100", "143", "217", "353", "545", "857"]
 firas_bands = ["0068", "0095", "0149", "0217", "0353", "0544", "0857"]

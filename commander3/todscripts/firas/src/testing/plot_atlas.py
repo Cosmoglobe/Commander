@@ -1,20 +1,23 @@
+import os
 import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-import os
+
 sys.path.append('..')
 import h5py
-import my_utils as mu
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling.models import BlackBody
 
+import globals as g
+import my_utils as mu
+
 sys.path.append('..')
 import h5py
-import my_utils as mu
 from astropy.io import fits
+
+import my_utils as mu
 from utils.config import gen_nyquistl
 
 sys.path.append('../utils')
@@ -36,8 +39,8 @@ def convert_gain(gain_array):
 
     return gain_array
 
-sdf = h5py.File('../engineering_timing/fdq_sdf_new.h5')
-eng = h5py.File('../engineering_timing/fdq_eng_new.h5')
+sdf = h5py.File(g.ORIGINAL_DATA)
+eng = h5py.File(g.ORIGINAL_DATA_ENG)
 
 
 detector_factors_defaults = {'bol_cmd_bias': 1.1,
@@ -106,7 +109,7 @@ sweepss = sdf[f'fdq_sdf_{ch}/sci_head/sc_head11'][()]
 eng_times = sdf[f'fdq_sdf_{ch}/dq_data/eng_time'][()]
 
 
-pub_model = fits.open(f'FIRAS_CALIBRATION_MODEL_{ch.upper()}{SM}.FITS')
+pub_model = fits.open(f'{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{ch.upper()}{SM}.FITS')
 NU_ZERO =            pub_model[0].header['NU_ZERO']
 DELTA_NU=            pub_model[0].header['DELTA_NU']
 NUM_FREQ=            pub_model[0].header['NUM_FREQ']
@@ -377,34 +380,33 @@ for param in change_parameters:
     axs[6].plot(mirror_a_lo)
     plt.savefig('all_temps.png', bbox_inches='tight')
     
-    
-    
-    
     # mtm_speed, mtm_length should all be the same
     mtm_speed = mtm_speed[0]
     mtm_length = mtm_length[0]
     
-    afreq_out, spec_out = mu.ifg_to_spec(ifg,
-                              mtm_speed,
-                              channel,
-                              adds_per_group,
-                              bol_cmd_bias,
-                              bol_volt,
-                              fnyq_icm,
-                              fnyq_hz,
-                              otf,
-                              Jo,
-                              Jg,
-                              Tbol, rho,
-                              R0, T0, beta, G1, C3, C1,
-                              mtm_length,gain,sweeps,
-                              apod)#, etf)
-    
-    
+    afreq_out, spec_out = mu.ifg_to_spec(ifg=ifg,
+                                         mtm_speed=mtm_speed,
+                                         channel=channel,
+                                         adds_per_group=adds_per_group,
+                                         bol_cmd_bias=bol_cmd_bias,
+                                         bol_volt=bol_volt,
+                                         fnyq_icm=fnyq_icm,
+                                         otf=otf,
+                                         Jo=Jo,
+                                         Jg=Jg,
+                                         Tbol=Tbol,
+                                         rho=rho,
+                                         R0=R0,
+                                         T0=T0,
+                                         beta=beta,
+                                         G1=G1,
+                                         C3=C3,
+                                         C1=C1,gain=gain,sweeps=sweeps,
+                              apod=apod)
+
     spec_out[~np.isfinite(spec_out)] = 0
     
     plt.close('all')
-    
     
     spec_mbb = np.zeros((5, len(spec_out[0])), dtype=complex)
     spec_mbb[0][offset:offset+NUM_FREQ] = BlackBody(temperature=20*u.K)(nu).value*(nu/(353*u.GHz)).to('').value**1.6
@@ -415,7 +417,6 @@ for param in change_parameters:
     x = np.zeros(len(nu))
     x[nu.value==299.291566] = 1
     spec_mbb[4][offset:offset+NUM_FREQ] = x
-    
     
     labels = ['MBB, 20 K, 1.6', 'BB, 10 K', 'BB 2.73 K', 'Synch, -3', r'$\delta(\nu-300\,\mathrm{GHz})$']
     

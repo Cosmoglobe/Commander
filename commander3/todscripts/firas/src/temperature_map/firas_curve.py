@@ -11,12 +11,9 @@ from scipy.optimize import minimize
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from globals import PROCESSED_DATA_PATH
+import globals as g
 from my_utils import planck, residuals
 from utils.config import gen_nyquistl
-
-user = os.environ["USER"]
-save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/"
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
@@ -25,7 +22,7 @@ channels = {"rl": 1, "ll": 3}
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-data = np.load(PROCESSED_DATA_PATH)
+data = np.load(g.PROCESSED_DATA_PATH)
 
 sky = {}
 pix_gal = {}
@@ -51,9 +48,6 @@ for channel in channels.keys():
                 nf[f"{channel}_{mode}"],
             )
 
-NSIDE = 32
-npix = hp.nside2npix(NSIDE)
-
 # print(f"sky shape: {sky.shape} and pix_gal shape: {pix_gal.shape}")
 
 print("Calculating BB curve")
@@ -74,14 +68,14 @@ for channel in channels.keys():
         )
 
         for freq in range(len(f_ghz[f"{channel}_{mode}"])):
-            hpxmap = np.zeros(npix)
-            data_density = np.zeros(npix)
+            hpxmap = np.zeros(g.NPIX)
+            data_density = np.zeros(g.NPIX)
 
             for i in range(len(pix_gal)):
                 hpxmap[pix_gal[mode][i]] += sky[f"{channel}_{mode}"][i][freq]
                 data_density[pix_gal[mode][i]] += 1
 
-            m = np.zeros(npix)
+            m = np.zeros(g.NPIX)
             mask2 = data_density == 0
             m[~mask2] = (hpxmap[~mask2] - dust[freq]) / data_density[~mask2]
             # m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
@@ -117,5 +111,5 @@ for channel in channels.keys():
         plt.ylabel("Brightness [MJy/sr]")
         plt.title("BB curve")
         plt.legend()
-        plt.savefig(f"{save_path}/plots/bb_curve/{f"{channel}_{mode}"}.png")
+        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}"}.png")
         plt.clf()

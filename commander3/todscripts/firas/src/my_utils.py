@@ -159,43 +159,25 @@ def calculate_time_constant(
 # @njit(parallel=True)
 def clean_ifg(
     ifg,
-    mtm_length,
-    mtm_speed,
-    # channel,
-    # adds_per_group,
     gain,
     sweeps,
     apod,
 ):
-    # print("ifg shape before subtraction:", ifg.shape)
-
     median_ifg = np.expand_dims(np.median(ifg, axis=1), axis=-1)
 
     # subtract dither
     ifg = ifg - median_ifg
-
-    # print("ifg shape after subtraction:", ifg.shape)
 
     # Ensure gain and sweeps are reshaped for broadcasting
     gain = np.expand_dims(gain, axis=-1)
     sweeps = np.expand_dims(sweeps, axis=-1)
 
     ifg = ifg / gain / sweeps
-
-    # print("ifg shape after division:", ifg.shape)
-
-    # apodize
-    sm = 2 * mtm_length + mtm_speed
-
     ifg = ifg * apod
-
-    # print("ifg shape after apodization:", ifg.shape)
 
     # roll
     peak_pos = 360
     ifg = np.roll(ifg, -peak_pos, axis=1)
-
-    # print("ifg shape after roll:", ifg.shape)
 
     return ifg
 
@@ -229,7 +211,6 @@ def ifg_to_spec(
     bol_cmd_bias,
     bol_volt,
     fnyq_icm,
-    fnyq_hz,
     otf,
     Jo,
     Jg,
@@ -241,10 +222,9 @@ def ifg_to_spec(
     G1,
     C3,
     C1,
-    mtm_length,
-    gain,
-    sweeps,
     apod,
+    gain=1,
+    sweeps=1,
 ):
     '''
     Inputs are the same as spec_to_ifg, except for the ifg argument, which is the interferogram to be converted.
@@ -291,7 +271,7 @@ def ifg_to_spec(
     apod: apodization function, from the calibration model
     '''
 
-    ifg = clean_ifg(ifg, mtm_length, mtm_speed, gain, sweeps, apod)
+    ifg = clean_ifg(ifg, gain, sweeps, apod)
 
     spec = np.fft.rfft(ifg)
     # freqs = np.fft.rfftfreq(constants.ifg_size, 1 / (fnyq_hz * 2)) TODO: find out why this doesn't work
@@ -452,10 +432,7 @@ def spec_to_ifg(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    # spec_len = len(spec_r[0])
-    # dw = 2.0 * np.pi * fnyq_hz / spec_len
-    # afreq = np.arange(spec_len) * dw
-    afreq = get_afreq(mtm_speed, channel)
+    afreq = get_afreq(mtm_speed, channel, 257)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,
@@ -521,6 +498,9 @@ def planck(freq, temp):
         temp = temp[:, np.newaxis]
 
     b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20  # MJy sr-1
+
+    # print shapes of everything
+    print(f"freq shape: {freq.shape}, temp shape: {temp.shape}, b shape: {b.shape}")
 
     return b
 

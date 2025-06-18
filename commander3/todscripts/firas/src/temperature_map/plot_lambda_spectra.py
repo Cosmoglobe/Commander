@@ -1,14 +1,15 @@
+import os
+import sys
+
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-import os
-import sys
-
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
+import globals as g
 from my_utils import planck
 
 T_CMB = 2.72548  # Fixsen 2009
@@ -30,9 +31,6 @@ for channel in channels.keys():
                 nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
                 nf[f"{channel}_{mode}"],
             )
-
-NSIDE = 32
-npix = hp.nside2npix(NSIDE)
 
 for channel in channels.keys():
     for mode in modes.keys():
@@ -61,18 +59,18 @@ for channel in channels.keys():
             )
             plt.title(f"Sky over time for channel {channel} and mode {mode}")
             plt.savefig(
-                f"../../output/plots/sky_over_time_lambda_spectra_{channel}_{mode}.png"
+                f"{g.SAVE_PATH}plots/sky_over_time_lambda_spectra_{channel}_{mode}.png"
             )
 
-            pix_gal = hp.ang2pix(NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
+            pix_gal = hp.ang2pix(g.NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
 
-            hpxmap = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
-            data_density = np.zeros(npix)
+            hpxmap = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
+            data_density = np.zeros(g.NPIX)
             for i in range(len(pix_gal)):
                 hpxmap[pix_gal[i]] += np.abs(sky[i])
                 data_density[pix_gal[i]] += 1
 
-            m = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            m = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
             mask = data_density == 0
             monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
             m[~mask] = hpxmap[~mask] / data_density[~mask][:, np.newaxis] - monopole
@@ -87,6 +85,6 @@ for channel in channels.keys():
                     norm="hist",
                 )
                 plt.savefig(
-                    f"../../output/maps/lambda_spectra/{channel}{mode}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"{g.SAVE_PATH}maps/lambda_spectra/{channel}{mode}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
                 )
                 plt.close()

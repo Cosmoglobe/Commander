@@ -1,14 +1,15 @@
-import numpy as np
-from astropy.io import fits
-from utils.config import gen_nyquistl
 import os
 import sys
+
+import numpy as np
+from astropy.io import fits
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from my_utils import ifg_to_spec, planck
-
+import globals as g
+import my_utils as mu
+from utils.config import gen_nyquistl
 
 data_path = "/mn/stornext/d16/cmbco/ola/firas/coadded_interferograms/"
 
@@ -40,7 +41,7 @@ for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
             fits_data[f"{channel}_{mode}"] = fits.open(
-                f"/mn/stornext/d16/cmbco/ola/firas/pub_calibration_model/FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
+                f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
             )
 
 ifg = {}
@@ -58,6 +59,9 @@ R0 = {}
 rho = {}
 G1 = {}
 beta = {}
+C3 = {}
+C1 = {}
+apod = {}
 
 for channel in channels.keys():
     for mode in modes.keys():
@@ -105,15 +109,21 @@ for channel in channels.keys():
             beta[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
                 "BOLPARM4"
             ][0]
-
-# print(f"ifg: {ifg}")
+            C3[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "BOLPARM7"
+            ][0]
+            C1[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "BOLPARM6"
+            ][0]
+            apod[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "APODIZAT"
+            ][0]
 
 spec = {}
 for channel, channel_value in channels.items():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            # print(f"{channel}_{mode}")
-            spec[f"{channel}_{mode}"] = ifg_to_spec(
+            afreq, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=ifg[f"{channel}_{mode}"],
                 mtm_speed=0 if mode == "ss" else 1,
                 channel=channel_value,
@@ -121,7 +131,6 @@ for channel, channel_value in channels.items():
                 bol_cmd_bias=bol_cmd_bias[f"{channel}_{mode}"],
                 bol_volt=bol_volt[f"{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
-                fnyq_hz=fnyq["hz"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
                 Jo=Jo[f"{channel}_{mode}"],
                 Jg=Jg[f"{channel}_{mode}"],
@@ -131,25 +140,21 @@ for channel, channel_value in channels.items():
                 T0=T0[f"{channel}_{mode}"],
                 beta=beta[f"{channel}_{mode}"],
                 G1=G1[f"{channel}_{mode}"],
-                tau=tau[f"{channel}_{mode}"],
+                C3=C3[f"{channel}_{mode}"],
+                C1=C1[f"{channel}_{mode}"],
+                gain=1,
+                sweeps=1,
+                apod=apod[f"{channel}_{mode}"],
             )
-            # print(f"spec: {spec[f'{channel}_{mode}']}")
-
-# print(f"spec: {spec}")
-
+            
 # frequency mapping
-nu0 = {"ss": 68.020812, "lf": 23.807283}
-dnu = {"ss": 13.604162, "lf": 3.4010405}
-nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
-
 f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            f_ghz[f"{channel}_{mode}"] = np.linspace(
-                nu0[mode],
-                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
-                nf[f"{channel}_{mode}"],
+            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(
+                mode=mode,
+                channel=channel
             )
 
 ical_temp = {}
@@ -183,8 +188,8 @@ bol_emiss = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            bb_ical[f"{channel}_{mode}"] = planck(
-                f_ghz[f"{channel}_{mode}"][: len(spec[f"{channel}_{mode}"])],
+            bb_ical[f"{channel}_{mode}"] = mu.planck(
+                f_ghz[f"{channel}_{mode}"],
                 ical_temp[f"{channel}_{mode}"],
             )
             ical_emiss[f"{channel}_{mode}"] = (
@@ -195,8 +200,8 @@ for channel in channels.keys():
                 np.abs(ical_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_dihedral[f"{channel}_{mode}"] = planck(
-                f_ghz[f"{channel}_{mode}"][: len(spec[f"{channel}_{mode}"])],
+            bb_dihedral[f"{channel}_{mode}"] = mu.planck(
+                f_ghz[f"{channel}_{mode}"],
                 dihedral_temp[f"{channel}_{mode}"],
             )
             dihedral_emiss[f"{channel}_{mode}"] = (
@@ -207,8 +212,8 @@ for channel in channels.keys():
                 np.abs(dihedral_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_skyhorn[f"{channel}_{mode}"] = planck(
-                f_ghz[f"{channel}_{mode}"][: len(spec[f"{channel}_{mode}"])],
+            bb_skyhorn[f"{channel}_{mode}"] = mu.planck(
+                f_ghz[f"{channel}_{mode}"],
                 skyhorn_temp[f"{channel}_{mode}"],
             )
             skyhorn_emiss[f"{channel}_{mode}"] = (
@@ -219,8 +224,8 @@ for channel in channels.keys():
                 np.abs(skyhorn_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_refhorn[f"{channel}_{mode}"] = planck(
-                f_ghz[f"{channel}_{mode}"][: len(spec[f"{channel}_{mode}"])],
+            bb_refhorn[f"{channel}_{mode}"] = mu.planck(
+                f_ghz[f"{channel}_{mode}"],
                 refhorn_temp[f"{channel}_{mode}"],
             )
             refhorn_emiss[f"{channel}_{mode}"] = (
@@ -232,8 +237,8 @@ for channel in channels.keys():
             ]
 
             # bolometer spectrum
-            bb_bol[f"{channel}_{mode}"] = planck(
-                f_ghz[f"{channel}_{mode}"][: len(spec[f"{channel}_{mode}"])],
+            bb_bol[f"{channel}_{mode}"] = mu.planck(
+                f_ghz[f"{channel}_{mode}"],
                 bath_temp[f"{channel}_{mode}"],
             )
             bol_emiss[f"{channel}_{mode}"] = (
@@ -248,12 +253,30 @@ sky = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            # print(f"{channel}_{mode}")
-            # print(
-            #     f"size of bb_ical: {bb_ical[f'{channel}_{mode}'].shape} and ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}"
-            # )
+            if mode[1] == "s":
+                cutoff = 5
+            else:
+                cutoff = 7
+            # print shapes of everything
+            print(
+                f"{channel}_{mode}: "
+                f"spec: {len(spec[f'{channel}_{mode}'])}, "
+                f"spec[0]: {len(spec[f'{channel}_{mode}'][0])}, "
+                f"bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, "
+                f"ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, "
+                f"bb_dihedral: {bb_dihedral[f'{channel}_{mode}'].shape}, "
+                f"dihedral_emiss: {dihedral_emiss[f'{channel}_{mode}'].shape}, "
+                f"bb_refhorn: {bb_refhorn[f'{channel}_{mode}'].shape}, "
+                f"refhorn_emiss: {refhorn_emiss[f'{channel}_{mode}'].shape}, "
+                f"bb_skyhorn: {bb_skyhorn[f'{channel}_{mode}'].shape}, "
+                f"skyhorn_emiss: {skyhorn_emiss[f'{channel}_{mode}'].shape}, "
+                f"bb_bol: {bb_bol[f'{channel}_{mode}'].shape}, "
+                f"bol_emiss: {bol_emiss[f'{channel}_{mode}'].shape}"
+            )
             sky[f"{channel}_{mode}"] = (
-                spec[f"{channel}_{mode}"]
+                spec[f"{channel}_{mode}"][
+                    :, cutoff : (len(otf[f"{channel}_{mode}"]) + cutoff)
+                ]
                 - (
                     (bb_ical[f"{channel}_{mode}"] * ical_emiss[f"{channel}_{mode}"])
                     + (

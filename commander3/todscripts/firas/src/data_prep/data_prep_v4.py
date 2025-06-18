@@ -12,13 +12,14 @@ import numpy as np
 import pandas as pd
 import tables as tb
 from scipy import interpolate
+
 from utils.my_utils import (clean_variable, convert_gain, get_temperature_hl,
                             parse_date_string, scan_up_down)
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-import commander3.todscripts.firas.src.globals_all as g
+import globals as g
 
 # check how much time the script takes to run
 start_time = time.time()
@@ -966,7 +967,7 @@ print(f"Saving calibration data")
 with tb.open_file(g.PREPROCESSED_DATA_PATH_CAL, mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Calibration Data")
 
-    h5file.create_array(group, "gmt", gmt_str_sky)
+    h5file.create_array(group, "gmt", gmt_str_cal)
     h5file.create_array(group, "ifg_lh", np.stack(calibration_df["ifg_lh"].values))
     h5file.create_array(group, "ifg_ll", np.stack(calibration_df["ifg_ll"].values))
     h5file.create_array(group, "ifg_rh", np.stack(calibration_df["ifg_rh"].values))

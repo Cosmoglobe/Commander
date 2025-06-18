@@ -3,11 +3,18 @@ Script to check that the smoothed Planck maps are correctly generated.
 """
 
 import os
+import sys
 
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+grandparent = os.path.dirname(parent)
+sys.path.append(grandparent)
+import globals as g
 
 planck = False
 firas = True
@@ -18,10 +25,7 @@ if planck:
     path = f"/mn/stornext/u3/{user}/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/planck/"
     bands = ["070", "100", "143", "217", "353", "545", "857"]
 
-    save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/maps/planck/"
-    # check if path exists and create it if it doesn't
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+    save_path = f"{g.SAVE_PATH}maps/planck/"
 
     for band in bands:
         map = fits.open(path + "planck_" + band + "_smoothed.fits")[0].data
@@ -33,9 +37,7 @@ if firas:
     path = f"/mn/stornext/u3/{user}/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
     bands = ["0068", "0095", "0149", "0217", "0353", "0544", "0857"]
 
-    save_path = f"/mn/stornext/d16/www_cmb/{user}/firas/maps/planck_equivalent/"
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+    save_path = f"{g.SAVE_PATH}maps/planck_equivalent/"
 
     channel = "rh_ss"
 
