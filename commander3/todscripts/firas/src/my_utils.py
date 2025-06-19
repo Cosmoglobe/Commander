@@ -498,10 +498,6 @@ def planck(freq, temp):
         temp = temp[:, np.newaxis]
 
     b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20  # MJy sr-1
-
-    # print shapes of everything
-    print(f"freq shape: {freq.shape}, temp shape: {temp.shape}, b shape: {b.shape}")
-
     return b
 
 

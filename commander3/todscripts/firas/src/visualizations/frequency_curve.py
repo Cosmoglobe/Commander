@@ -24,11 +24,10 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 high_lat_mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
 mask_alm = hp.sphtfunc.map2alm(high_lat_mask, pol=False)
 high_lat_mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
-high_lat_mask = np.where(high_lat_mask < 0.5, 0, 1)
+high_lat_mask = np.where(high_lat_mask < 0.5, 1, 0)
 low_lat_mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/mask_common_dx12_firas_n0016.fits")
 mask_alm = hp.sphtfunc.map2alm(low_lat_mask, pol=False)
 low_lat_mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
-low_lat_mask = np.logical_not(low_lat_mask)
 low_lat_mask = np.where(low_lat_mask < 0.5, 0, 1)
 
 for channel in channels.keys():
@@ -38,29 +37,46 @@ for channel in channels.keys():
 
             pix_gal = data[f"pix_gal_{mode}"]
             sky = np.abs(data[f"{channel}_{mode}"])
+            monopole = mu.planck(f_ghz, np.array(g.T_CMB))
+            high_lat_amp = np.zeros(len(f_ghz))
+            low_lat_amp = np.zeros(len(f_ghz))
 
-            hpxmap = np.zeros((g.NPIX, len(sky[0])))
+            hpxmap = np.zeros((g.NPIX, len(f_ghz)))
             data_density = np.zeros(g.NPIX)
 
-            for i in range(len(pix_gal)):
-                hpxmap[pix_gal[i]] += sky[i]
-                data_density[pix_gal[i]] += 1
-            
-            monopole = mu.planck(f_ghz, np.array(g.T_CMB))
-            mask = data_density == 0
-            print(f"Shape of hpxmap: {hpxmap.shape}, data_density: {data_density.shape}, monopole: {monopole.shape}")
-            hpxmap = hpxmap / data_density[:, np.newaxis] - monopole
-            hpxmap[mask] = np.nan
+            for todi in range(len(pix_gal)):
+                hpxmap[pix_gal[todi]] += sky[todi]
+                data_density[pix_gal[todi]] += 1
 
-            high_lat = np.where((high_lat_mask == 0)[:, np.newaxis], np.nan, hpxmap)
-            low_lat = np.where((low_lat_mask == 0)[:, np.newaxis], np.nan, hpxmap)
-            for i in range(len(f_ghz)):
-                hp.mollview(
-                    high_lat[:, i],
-                    title=f"{channel} {mode} high lat",
-                    unit="MJy/sr",
-                    min=0,
-                    max=200,
-                )
-                hp.graticule()
-                plt.show()
+            mask = data_density == 0
+            high_lat_mask = high_lat_mask | mask
+            low_lat_mask = low_lat_mask | mask  
+
+            m = hpxmap / data_density[:, np.newaxis]  # divide by data density
+
+            high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
+            low_lat_map = np.where(low_lat_mask[:, np.newaxis] == 1, np.nan, m)
+
+            high_lat_amp = np.nanmean(high_lat_map, axis=0)
+            low_lat_amp = np.nanmean(low_lat_map, axis=0)
+            plt.plot(
+                f_ghz,
+                high_lat_amp,
+                label=f"{channel}_{mode} high lat",
+                marker="o",
+                markersize=2,
+            )
+            plt.show()
+            plt.plot(
+                f_ghz,
+                low_lat_amp,
+                label=f"{channel}_{mode} low lat",
+                marker="x",
+                markersize=2,
+            )
+            plt.xlabel("Frequency (GHz)")
+            plt.ylabel("Intensity (MJy/sr)")
+            plt.title("Frequency Curve of Firas Data")
+            plt.legend()
+            plt.grid()
+            plt.show()

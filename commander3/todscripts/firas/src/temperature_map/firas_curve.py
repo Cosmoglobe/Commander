@@ -12,103 +12,78 @@ current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
 import globals as g
-from my_utils import planck, residuals
+import my_utils as mu
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rl": 1, "ll": 3}
 
-mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
-mask_alm = hp.sphtfunc.map2alm(mask, pol=False)
-mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
-mask = np.where(mask < 0.5, 0, 1)
+mask_gal = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
+mask_alm = hp.sphtfunc.map2alm(mask_gal, pol=False)
+mask_gal = hp.alm2map(mask_alm, g.NSIDE, pol=False)
+mask_gal = np.where(mask_gal < 0.5, 1, 0)
 
 data = np.load(g.PROCESSED_DATA_PATH)
 
-sky = {}
-pix_gal = {}
-for channel in channels.keys():
-    for mode in modes.keys():
-        sky[f"{channel}_{mode}"] = np.abs(data[f"{channel}_{mode}"])
-        pix_gal[mode] = data[f"pix_gal_{mode}"]
+# subtract dust emission
+nu0_dust = 353  # using Planck values
+beta_dust = 1.55
+t_dust = np.array(20.8)  # u.K
+optical_depth_nu0 = 9.6 * 10 ** (-7)
 
-# frequency mapping
-nu0 = {"ss": 68.020812, "lf": 23.807283}
-dnu = {"ss": 13.604162, "lf": 3.4010405}
-nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
+for mode in modes.keys():
+    pix_gal = data[f"pix_gal_{mode}"]
+    for channel in channels.keys():
+        sky = np.abs(data[f"{channel}_{mode}"])
+        f_ghz = mu.generate_frequencies(channel, mode)
 
-f_ghz = {}
-for channel in channels.keys():
-    for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            f_ghz[f"{channel}_{mode}"] = np.linspace(
-                nu0[mode],
-                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
-                nf[f"{channel}_{mode}"],
-            )
-
-# print(f"sky shape: {sky.shape} and pix_gal shape: {pix_gal.shape}")
-
-print("Calculating BB curve")
-
-for channel in channels.keys():
-    for mode in modes.keys():
-        bb_curve = np.zeros(len(f_ghz[f"{channel}_{mode}"]))
-
-        # subtract dust emission
-        nu0_dust = 353  # using Planck values
-        beta_dust = 1.55
-        t_dust = np.array(20.8)  # u.K
-        optical_depth_nu0 = 9.6 * 10 ** (-7)
+        print("Calculating BB curve")
+        
         dust = (
             optical_depth_nu0
-            * planck(f_ghz[f"{channel}_{mode}"], t_dust)
-            * (f_ghz[f"{channel}_{mode}"] / nu0_dust) ** beta_dust
+            * mu.planck(f_ghz, t_dust)
+            * (f_ghz / nu0_dust) ** beta_dust
         )
 
-        for freq in range(len(f_ghz[f"{channel}_{mode}"])):
-            hpxmap = np.zeros(g.NPIX)
-            data_density = np.zeros(g.NPIX)
+        hpxmap = np.zeros((g.NPIX, len(f_ghz)))
+        data_density = np.zeros(g.NPIX)
 
-            for i in range(len(pix_gal)):
-                hpxmap[pix_gal[mode][i]] += sky[f"{channel}_{mode}"][i][freq]
-                data_density[pix_gal[mode][i]] += 1
+        for todi in range(len(sky)):
+            hpxmap[pix_gal[todi]] += sky[todi]
+            data_density[pix_gal[todi]] += 1
 
-            m = np.zeros(g.NPIX)
-            mask2 = data_density == 0
-            m[~mask2] = (hpxmap[~mask2] - dust[freq]) / data_density[~mask2]
-            # m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
+        mask_nodata = data_density == 0
+        
+        m = (hpxmap - dust) / data_density[:, np.newaxis]
+        
+        mask_high = np.where(m > 1000, 1, 0)
+        mask_low = np.where(m < 0, 1, 0)
 
-            # mask the map with the points of no data
-            m[mask2] = hp.UNSEEN
-            # mask the galaxy
-            m[mask] = hp.UNSEEN
+        mask_total = mask_nodata[:, np.newaxis] | mask_gal[:, np.newaxis] | mask_high | mask_low
 
-            # average all points at this frequency to get each frequency point in the bb curve
-            bb_curve[freq] = np.mean(m[m != hp.UNSEEN])
+        m = np.where(mask_total == 1, np.nan, m)
 
-        # print(f"Fitting BB curve: {bb_curve}")
+        # average all points at this frequency to get each frequency point in the bb curve
+        bb_curve = np.nanmean(m, axis=0)
 
-        t0 = np.array(2.726)
-        fit = minimize(residuals, t0, args=(f_ghz[f"{channel}_{mode}"], bb_curve))
+        t0 = np.array(g.T_CMB)
+        fit = minimize(mu.residuals, t0, args=(f_ghz, bb_curve))
 
         print(f"Plotting BB curve: {fit.x[0]}")
 
-        plt.plot(f_ghz[f"{channel}_{mode}"], bb_curve, label="Data")
+        plt.plot(f_ghz, bb_curve, label="Data")
         plt.plot(
-            f_ghz[f"{channel}_{mode}"],
-            planck(f_ghz[f"{channel}_{mode}"], fit.x[0]),
+            f_ghz,
+            mu.planck(f_ghz, fit.x[0]),
             label="Fit",
         )
         plt.plot(
-            f_ghz[f"{channel}_{mode}"],
-            planck(f_ghz[f"{channel}_{mode}"], t0),
+            f_ghz,
+            mu.planck(f_ghz, t0),
             label="Original",
         )
-        plt.plot(f_ghz[f"{channel}_{mode}"], dust, label="Dust")
+        plt.plot(f_ghz, dust, label="Dust")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
         plt.title("BB curve")
