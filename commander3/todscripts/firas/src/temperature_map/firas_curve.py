@@ -56,28 +56,41 @@ for mode in modes.keys():
         mask_nodata = data_density == 0
         
         m = (hpxmap - dust) / data_density[:, np.newaxis]
-        
-        mask_high = np.where(m > 1000, 1, 0)
-        mask_low = np.where(m < 0, 1, 0)
-
-        mask_total = mask_nodata[:, np.newaxis] | mask_gal[:, np.newaxis] | mask_high | mask_low
-
+        mask_total = mask_nodata[:, np.newaxis] | mask_gal[:, np.newaxis]
         m = np.where(mask_total == 1, np.nan, m)
 
-        # average all points at this frequency to get each frequency point in the bb curve
-        bb_curve = np.nanmean(m, axis=0)
+        # bb_curve = np.nanmean(m, axis=0)
 
         t0 = np.array(g.T_CMB)
-        fit = minimize(mu.residuals, t0, args=(f_ghz, bb_curve))
+        temps = np.zeros(g.NPIX)
+        for pixi in range(g.NPIX):
+            temps[pixi] = minimize(mu.residuals, t0, args=(f_ghz, m[pixi, :])).x[0]
 
-        print(f"Plotting BB curve: {fit.x[0]}")
+        # get rid of 5sigma outliers
+        std = np.nanstd(temps)
+        median = np.nanmedian(temps)
+        dist = np.abs(temps - median) / std
+        temps = np.where(dist > 5, np.nan, temps)
 
-        plt.plot(f_ghz, bb_curve, label="Data")
+        # get index of the pixels with nan
+        nan_indices = np.where(np.isnan(temps))[0]
+        bb_temp = np.nanmean(temps)
+        bb_curve_data = np.nanmean(m[~nan_indices], axis=0)
+
+        # plt.plot(f_ghz, bb_curve, label="Data")
+        tf = minimize(mu.residuals, t0, args=(f_ghz, bb_curve_data)).x[0]
+        print(f"BB temperature according to {channel.upper()}{mode.upper()} average temperature after fitting per pixel and fitting after averaging over sky: {bb_temp:.5f} K and {tf:.5f} K")
         plt.plot(
             f_ghz,
-            mu.planck(f_ghz, fit.x[0]),
-            label="Fit",
+            mu.planck(f_ghz, bb_temp),
+            label=f"Averaged after fitting: {bb_temp:.5f} K",
         )
+        plt.plot(
+            f_ghz,
+            mu.planck(f_ghz, tf),
+            label=f"Fitting after averaging: {tf:.5f} K",
+        )
+        plt.plot(f_ghz, bb_curve_data, label="Data")
         plt.plot(
             f_ghz,
             mu.planck(f_ghz, t0),
@@ -86,7 +99,8 @@ for mode in modes.keys():
         plt.plot(f_ghz, dust, label="Dust")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
-        plt.title("BB curve")
+        plt.title(f"{channel.upper()}{mode.upper()}")
+        plt.grid()
         plt.legend()
         plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}"}.png")
         plt.clf()

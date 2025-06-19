@@ -21,6 +21,8 @@ data = np.load(g.PROCESSED_DATA_PATH)
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
+spectral_lines = [115, 230, 345, 425, 460, 492, 575, 690, 805, 810, 920, 1035, 1114, 1150, 1462, 1897, 2053, 2306, 2457, 2584]
+
 high_lat_mask = hp.read_map("/mn/stornext/d16/cmbco/ola/masks/HI_mask_4e20_n1024.fits")
 mask_alm = hp.sphtfunc.map2alm(high_lat_mask, pol=False)
 high_lat_mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
@@ -57,26 +59,79 @@ for channel in channels.keys():
             high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
             low_lat_map = np.where(low_lat_mask[:, np.newaxis] == 1, np.nan, m)
 
+            # get rid of 5sigma outliers
+            std_high = np.nanstd(high_lat_map, axis=0)
+            median_high = np.nanmedian(high_lat_map, axis=0)
+            dist = np.abs(high_lat_map - median_high)/std_high
+            
+            high_lat_map = np.where(dist > 5, np.nan, high_lat_map)
+
+            std_low = np.nanstd(low_lat_map, axis=0)
+            median_low = np.nanmedian(low_lat_map, axis=0)
+            dist = np.abs(low_lat_map - median_low)/std_low
+
+            low_lat_map = np.where(dist > 5, np.nan, low_lat_map)
+
             high_lat_amp = np.nanmean(high_lat_map, axis=0)
             low_lat_amp = np.nanmean(low_lat_map, axis=0)
-            plt.plot(
-                f_ghz,
-                high_lat_amp,
-                label=f"{channel}_{mode} high lat",
-                marker="o",
-                markersize=2,
-            )
-            plt.show()
-            plt.plot(
-                f_ghz,
-                low_lat_amp,
-                label=f"{channel}_{mode} low lat",
-                marker="x",
-                markersize=2,
-            )
-            plt.xlabel("Frequency (GHz)")
-            plt.ylabel("Intensity (MJy/sr)")
-            plt.title("Frequency Curve of Firas Data")
-            plt.legend()
-            plt.grid()
-            plt.show()
+
+            for freqi in range(len(f_ghz)):
+                fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
+                plt.subplots_adjust(wspace=0.3)
+                plt.axes(ax1)
+                ax1.plot(
+                    f_ghz,
+                    high_lat_amp,
+                    markevery=[freqi],
+                    marker="o",
+                    markersize=5,
+                )
+                ax1.set_title(f"Frequency Curve of {channel} {mode} Data")
+                ax1.set_xlabel("Frequency (GHz)")
+                ax1.set_ylabel("Intensity (MJy/sr)")
+                ax1.legend(["High Latitude"])
+                ax1.set_ylim(0, 600)
+
+                plt.axes(ax2)
+                hp.mollview(
+                    high_lat_map[:, freqi],
+                    title=f"High Latitude {channel} {mode} Data",
+                    unit="Intensity (MJy/sr)",
+                    cmap="jet",
+                    hold=True,
+                    min=0,
+                    max=500,
+                )
+                # plt.show()
+                plt.savefig(f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png")
+                plt.clf()
+
+                fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
+                plt.subplots_adjust(wspace=0.3)
+                plt.axes(ax1)
+                ax1.plot(
+                    f_ghz,
+                    low_lat_amp,
+                    markevery=[freqi],
+                    marker="o",
+                    markersize=5,
+                )
+                ax1.vlines(spectral_lines, 0, 500, linestyles="dashed", colors="red")
+                ax1.set_title(f"Frequency Curve of {channel} {mode} Data")
+                ax1.set_xlabel("Frequency (GHz)")
+                ax1.set_ylabel("Intensity (MJy/sr)")
+                ax1.legend(["Low Latitude"])
+                ax1.set_ylim(0, 500)
+                plt.axes(ax2)
+                hp.mollview(
+                    low_lat_map[:, freqi],
+                    title=f"Low Latitude {channel} {mode} Data",
+                    unit="Intensity (MJy/sr)",
+                    min=0,
+                    max=400,
+                    cmap="jet",
+                    hold=True
+                )
+                # plt.show()
+                plt.savefig(f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/low_lat/{int(f_ghz[freqi]):04d}.png")
+                plt.clf()
