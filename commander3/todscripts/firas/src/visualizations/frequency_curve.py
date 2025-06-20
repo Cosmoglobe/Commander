@@ -65,20 +65,25 @@ for channel in channels.keys():
             dist = np.abs(high_lat_map - median_high)/std_high
             
             high_lat_map = np.where(dist > 5, np.nan, high_lat_map)
+            std_high = np.nanstd(high_lat_map, axis=0)
 
             std_low = np.nanstd(low_lat_map, axis=0)
             median_low = np.nanmedian(low_lat_map, axis=0)
             dist = np.abs(low_lat_map - median_low)/std_low
 
             low_lat_map = np.where(dist > 5, np.nan, low_lat_map)
+            std_low = np.nanstd(low_lat_map, axis=0)
 
             high_lat_amp = np.nanmean(high_lat_map, axis=0)
             low_lat_amp = np.nanmean(low_lat_map, axis=0)
+
 
             for freqi in range(len(f_ghz)):
                 fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
                 plt.subplots_adjust(wspace=0.3)
                 plt.axes(ax1)
+
+                ax1.fill_between(f_ghz, high_lat_amp - std_high, high_lat_amp + std_high, alpha=0.2, color="blue", label="1sigma")
                 ax1.plot(
                     f_ghz,
                     high_lat_amp,
@@ -109,6 +114,7 @@ for channel in channels.keys():
                 fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
                 plt.subplots_adjust(wspace=0.3)
                 plt.axes(ax1)
+                ax1.fill_between(f_ghz, low_lat_amp - std_low, low_lat_amp + std_low, alpha=0.2, color="blue", label="1sigma")
                 ax1.plot(
                     f_ghz,
                     low_lat_amp,

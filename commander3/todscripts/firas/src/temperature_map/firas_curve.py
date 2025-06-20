@@ -38,7 +38,7 @@ for mode in modes.keys():
         sky = np.abs(data[f"{channel}_{mode}"])
         f_ghz = mu.generate_frequencies(channel, mode)
 
-        print("Calculating BB curve")
+        print(f"Calculating BB curve for {channel.upper()}{mode.upper()}...")
         
         dust = (
             optical_depth_nu0
@@ -64,18 +64,34 @@ for mode in modes.keys():
         t0 = np.array(g.T_CMB)
         temps = np.zeros(g.NPIX)
         for pixi in range(g.NPIX):
-            temps[pixi] = minimize(mu.residuals, t0, args=(f_ghz, m[pixi, :])).x[0]
+            if not np.isnan(m[pixi, :]).all():
+                temps[pixi] = minimize(mu.residuals, t0, args=(f_ghz, m[pixi, :])).x[0]
+            else:
+                temps[pixi] = np.nan
+
+        hp.mollview(
+            (temps - g.T_CMB)*1e3,
+            title=f"{channel.upper()}{mode.upper()} Deviation from Fixsen 2009 CMB temperature",
+            unit="uK",
+            min=-100,
+            max=100,
+            cmap="seismic",
+            norm="linear",
+            fig=1,
+        )
+        plt.savefig(f"{g.SAVE_PATH}/maps/bb_temp/{channel}_{mode}.png")
+        plt.close()
 
         # get rid of 5sigma outliers
         std = np.nanstd(temps)
         median = np.nanmedian(temps)
+        print(f"Median temperature: {median:.5f} K, Standard deviation: {std:.5f} K")
         dist = np.abs(temps - median) / std
         temps = np.where(dist > 5, np.nan, temps)
-
-        # get index of the pixels with nan
-        nan_indices = np.where(np.isnan(temps))[0]
         bb_temp = np.nanmean(temps)
-        bb_curve_data = np.nanmean(m[~nan_indices], axis=0)
+
+        m_excl_outliers = np.where(dist[:, np.newaxis] > 5, np.nan, m)
+        bb_curve_data = np.nanmean(m_excl_outliers, axis=0)
 
         # plt.plot(f_ghz, bb_curve, label="Data")
         tf = minimize(mu.residuals, t0, args=(f_ghz, bb_curve_data)).x[0]

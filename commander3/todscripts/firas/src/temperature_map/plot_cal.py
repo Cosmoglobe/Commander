@@ -2,16 +2,17 @@
 Script to take the previously generated cal spectra (cal.npy) and plot them
 """
 
+import os
+import sys
+
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import sys
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from my_utils import planck
+import my_utils as mu
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
@@ -19,11 +20,11 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
 data = np.load("../../data/processed_cal.npz")
 user = os.environ['USER']
-# print(data.files)
 
 cal = {}
 pix_gal = {}
 scan = {}
+f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
@@ -31,28 +32,12 @@ for channel in channels.keys():
             cal[f"xcal_{mode}"] = data[f"xcal_{mode}"]
             cal[f"ical_{mode}"] = data[f"ical_{mode}"]
 
-
-nu0 = {"ss": 68.020812, "lf": 23.807283}
-dnu = {"ss": 13.604162, "lf": 3.4010405}
-nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
-
-f_ghz = {}
-for channel in channels.keys():
-    for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            f_ghz[f"{channel}_{mode}"] = np.linspace(
-                nu0[mode],
-                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
-                nf[f"{channel}_{mode}"],
-            )
-            # print(f"{channel}_{mode}: {f_ghz[f"{channel}_{mode}"]}")
+            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(channel, mode)
 
 print("plotting cal")
 
-
 from pathlib import Path
+
 Path(f"/mn/stornext/d16/www_cmb/{user}/firas/plots/cal_over_diff").mkdir(parents=True, exist_ok=True)
 for channel in channels.keys():
     for mode in modes.keys():
