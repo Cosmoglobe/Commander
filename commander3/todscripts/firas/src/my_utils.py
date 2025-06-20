@@ -347,22 +347,21 @@ def spec_to_ifg(
     adds_per_group,
     bol_cmd_bias,
     bol_volt,
-    fnyq_icm,
-    fnyq_hz,
-    otf,
-    Jo,
-    Jg,
     Tbol,
-    rho,
-    R0,
-    T0,
-    beta,
-    G1,
-    C3,
-    C1,
     gain,
     sweeps,
+    otf,
     apod,
+    fnyq_icm,
+    R0,
+    T0,
+    G1,
+    beta,
+    rho,
+    C1,
+    C3,
+    Jo,
+    Jg,
 ):
     '''
     Converts spectrum to interferogram using the pipeline's etf and otf. Expects the spectrum to be in units of MJy/sr.
@@ -371,41 +370,41 @@ def spec_to_ifg(
 
     spec is spectrum to be converted in units of MJy/sr. Its frequency values are set specifically by the mode of operation.
 
-    mtm_speed: speed of the mirror transport mechanism, 0 or 1
-    channel: channel number, left low, left high, right low, right high
-    adds_per_group: number of interferograms added per group.
-    bol_cmd_bias: bias command to the bolometer. Found in fdq_eng/en_stat/bol_cmd_bias, (589069, 4) int8 array
-    bol_volt: Found in fdq_eng/en_analog/group1/bol_volt, (589069, 4) float32 array
-    gain: Found in fdq_sdf_??/sci_head/gain, (589069,) int16 array, values from -1 to 7 inclusive.
-    sweeps: Found in fdq_sdf_??/sci_head/sc_head11, (589069,) int16 array, values from -1 to 16 inclusive.
+    Specific to the spectrum/ifg:
+        mtm_speed: speed of the mirror transport mechanism, 0 or 1
+        channel: channel number, left low, left high, right low, right high
+        adds_per_group: number of interferograms added per group.
+        bol_cmd_bias: bias command to the bolometer. Found in fdq_eng/en_stat/bol_cmd_bias, (589069, 4) int8 array
+        bol_volt: Found in fdq_eng/en_analog/group1/bol_volt, (589069, 4) float32 array
+        gain: Found in fdq_sdf_??/sci_head/gain, (589069,) int16 array, values from -1 to 7 inclusive.
+        sweeps: Found in fdq_sdf_??/sci_head/sc_head11, (589069,) int16 array, values from -1 to 16 inclusive.
 
 
     These parameters all come directly from the calibration model files. We should try to fit these (or in apod, tune).
-    apod: the apodization function, length 512 array, specially tuned by FIRAS team.
     otf: optical transfer function, from the published calibration model.
-    Jo, Jg, Tbol, rho, R0, T0, beta, G1, C3, C1: parameters for the bolometers, from the published calibration model.
+    apod: the apodization function, length 512 array, specially tuned by FIRAS team.
+    R0, T0, G1, beta, rho, C1, C3, Jo, Jg,: parameters for the bolometers, from the published calibration model.
     As an example:
-    Jo = data[1].data['BOLPARM8'][0]
-    Jg = data[1].data['BOLPARM9'][0]
-    Tbol = data[1].data['BOLOM_B2'][0]
-    rho = data[1].data['BOLPARM5'][0]
-    R0 = data[1].data['BOLPARM_'][0]
-    T0 = data[1].data['BOLPARM2'][0]
-    beta = data[1].data['BOLPARM4'][0]
-    G1 = data[1].data['BOLPARM5'][0]
-    C3 = data[1].data['BOLPARM7'][0]
-    C1 = data[1].data['BOLPARM6'][0]
+    R0 = fits_data[1].data["BOLPARAM_"][0]
+    T0 = fits_data[1].data["BOLPARAM2"][0]
+    G1 = fits_data[1].data["BOLPARAM3"][0]
+    beta = fits_data[1].data["BOLPARAM4"][0]
+    rho = fits_data[1].data["BOLPARAM5"][0]
+    C1 = fits_data[1].data["BOLPARAM6"][0]
+    C3 = fits_data[1].data["BOLPARAM7"][0]
+    Jo = fits_data[1].data["JO"][0]
+    Jg = fits_data[1].data["JG"][0]
     Typical values for LLSS:
+    R0=11.938669
+    T0=371.645
+    G1=2.3263578
+    beta=1.172
+    rho=2.3263578
+    C1=5.8665056e-10
+    C3=2.428e-10
     Jo=1.662232
     Jg=0.92
     Tbol=1.5309418
-    rho=2.3263578
-    R0=11.938669
-    T0=371.645
-    beta=1.172
-    G1=2.3263578
-    C3=2.428e-10
-    C1=5.8665056e-10
     '''
     if mtm_speed == 0:
         cutoff = 5

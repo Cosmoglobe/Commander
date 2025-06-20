@@ -163,9 +163,6 @@ for mode, mode_value in modes.items():
             Jg = fits_data[1].data[
                 "BOLPARM9"
             ][0]
-            Tbol = fits_data[1].data[
-                "BOLOM_B2"
-            ][0]
             T0 = fits_data[1].data[
                 "BOLPARM2"
             ][0]
@@ -201,7 +198,7 @@ for mode, mode_value in modes.items():
                 otf=otf,
                 Jo=Jo,
                 Jg=Jg,
-                Tbol=Tbol,
+                Tbol=variablesm[f"bolometer_{channel}_{mode}"],
                 rho=rho,
                 R0=R0,
                 T0=T0,

@@ -195,7 +195,7 @@ for channel in channels.keys():
                                 title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                                 unit="MJy/sr",
                                 # norm="hist",
-                                min=-max_amp,
+                                min=0,
                                 max=max_amp,
                             )
                             # hp.graticule(coord="G")

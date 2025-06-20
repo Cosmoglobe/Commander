@@ -371,7 +371,6 @@ for channel, channel_value in channels.items():
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
-                fnyq_hz=fnyq["hz"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
                 Jo=Jo[f"{channel}_{mode}"],
                 Jg=Jg[f"{channel}_{mode}"],

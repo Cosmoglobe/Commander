@@ -423,9 +423,9 @@ for param in change_parameters:
     for i in range(len(spec_mbb)):
         spec_mbb[i] /= max(1e-12, max(abs(spec_mbb[i])))
     
-    ifg_mbb = mu.spec_to_ifg(spec_mbb, mtm_speed, channel, adds_per_group[:5],
-                            bol_cmd_bias[:5], bol_volt[:5], fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                            Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:5],sweeps[:5], apod)#, etf)
+    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
+                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod)#, etf)
     #ifg_mbb[~np.isfinite(ifg_mbb)] = 0
     fig, axes = plt.subplots(nrows=5, ncols=2, sharex='col', figsize=(12,12))
     for i in range(5):
@@ -439,11 +439,11 @@ for param in change_parameters:
     spec_mbb[0][offset:offset+NUM_FREQ] = (nu/(300*u.GHz)).value**-1
     spec_mbb[1][offset:offset+NUM_FREQ] = (nu/(300*u.GHz)).value**0
     spec_mbb[2][offset:offset+NUM_FREQ] = (nu/(300*u.GHz)).value**1
-    
-    
-    ifg_mbb = mu.spec_to_ifg(spec_mbb, mtm_speed, channel, adds_per_group[:5],
-                            bol_cmd_bias[:5], bol_volt[:5], fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                            Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:5],sweeps[:5], apod)#, etf)
+
+
+    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
+                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod)#, etf)
     fig, axes = plt.subplots(ncols=2)
     for i in range(3):
         axes[0].plot(nu, spec_mbb[i][offset:offset+NUM_FREQ])
@@ -526,20 +526,20 @@ for param in change_parameters:
     spec_ical[~np.isfinite(spec_ical)] = 0
     
     
-    ifg_th = mu.spec_to_ifg(spec_th, mtm_speed, channel, adds_per_group[:len(spec_th)],
-                            bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                            Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)#, etf)
+    ifg_th = mu.spec_to_ifg(spec=spec_th, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_th)],
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
     ifg_th[~np.isfinite(ifg_th)] = 0
-    
-    
-    ifg_xcal = mu.spec_to_ifg(spec_xcal, mtm_speed, channel, adds_per_group[:len(spec_xcal)],
-                            bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                            Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)#, etf)
+
+
+    ifg_xcal = mu.spec_to_ifg(spec=spec_xcal, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_xcal)],
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
     ifg_xcal[~np.isfinite(ifg_xcal)] = 0
-    
-    ifg_ical = mu.spec_to_ifg(spec_ical, mtm_speed, channel, adds_per_group[:len(spec_ical)],
-                            bol_cmd_bias[:len(spec_th)], bol_volt[:len(spec_th)], fnyq_icm, fnyq_hz, otf, Jo, Jg,
-                            Tbol, rho, R0, T0, beta, G1, C3, C1, gain[:len(spec_th)],sweeps[:len(spec_th)], apod)#, etf)
+
+    ifg_ical = mu.spec_to_ifg(spec=spec_ical, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_ical)],
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
     ifg_ical[~np.isfinite(ifg_ical)] = 0
     
     plt.figure()
