@@ -135,9 +135,6 @@ def calculate_time_constant(
     """
     Taken largely from calc_responsivity in fsl.
     """
-    # print(
-    #     f"shapes of arguments:\nC3: {C3.shape}\nTbol: {Tbol.shape}\nC1: {C1.shape}\nG1: {G1.shape}\nbeta: {beta.shape}\nbol_volt: {bol_volt.shape}\nJo: {Jo.shape}\nJg: {Jg.shape}\nbol_cmd_bias: {bol_cmd_bias.shape}\nrho: {rho.shape}\nT0: {T0.shape}"
-    # )
     C = C3 * Tbol**3 + C1 * Tbol
 
     G = G1 * Tbol**beta
@@ -275,9 +272,6 @@ def ifg_to_spec(
 
     spec = np.fft.rfft(ifg)
     # freqs = np.fft.rfftfreq(constants.ifg_size, 1 / (fnyq_hz * 2)) TODO: find out why this doesn't work
-    # print(freqs * 1e-9)
-
-    # print("spec after rfft:", spec)
 
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
@@ -297,7 +291,6 @@ def ifg_to_spec(
     # afreq = np.arange(spec_len) * dw
 
     afreq = get_afreq(mtm_speed, channel, 257)
-    print(afreq)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,

@@ -71,7 +71,7 @@ for channel in channels.keys():
             median_low = np.nanmedian(low_lat_map, axis=0)
             dist = np.abs(low_lat_map - median_low)/std_low
 
-            low_lat_map = np.where(dist > 5, np.nan, low_lat_map)
+            low_lat_map = np.where(dist > 5, np.nan, low_lat_map) - monopole
             std_low = np.nanstd(low_lat_map, axis=0)
 
             high_lat_amp = np.nanmean(high_lat_map, axis=0)
@@ -95,7 +95,7 @@ for channel in channels.keys():
                 ax1.set_xlabel("Frequency (GHz)")
                 ax1.set_ylabel("Intensity (MJy/sr)")
                 ax1.legend(["High Latitude"])
-                ax1.set_ylim(0, 600)
+                # ax1.set_ylim(0, 600)
 
                 plt.axes(ax2)
                 hp.mollview(
@@ -104,8 +104,8 @@ for channel in channels.keys():
                     unit="Intensity (MJy/sr)",
                     cmap="jet",
                     hold=True,
-                    min=0,
-                    max=500,
+                    min=np.nanmin(high_lat_amp),
+                    max=np.nanmax(high_lat_amp),
                 )
                 # plt.show()
                 plt.savefig(f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png")
@@ -122,19 +122,23 @@ for channel in channels.keys():
                     marker="o",
                     markersize=5,
                 )
-                ax1.vlines(spectral_lines, 0, 500, linestyles="dashed", colors="red")
-                ax1.set_title(f"Frequency Curve of {channel} {mode} Data")
+                if channel[1] == "l":
+                    max_freq = 7
+                else:
+                    max_freq = -1
+                ax1.vlines(spectral_lines[:max_freq], np.nanmin(low_lat_amp), np.nanmax(low_lat_amp), linestyles="dashed", colors="red")
+                ax1.set_title(f"Frequency Curve of {channel.upper()}{mode.upper()} Data (monopole subtracted)")
                 ax1.set_xlabel("Frequency (GHz)")
                 ax1.set_ylabel("Intensity (MJy/sr)")
                 ax1.legend(["Low Latitude"])
-                ax1.set_ylim(0, 500)
+                # ax1.set_ylim(-10, 75)
                 plt.axes(ax2)
                 hp.mollview(
                     low_lat_map[:, freqi],
-                    title=f"Low Latitude {channel} {mode} Data",
+                    title=f"Low Latitude {channel.upper()}{mode.upper()} Data",
                     unit="Intensity (MJy/sr)",
-                    min=0,
-                    max=400,
+                    min=np.nanmin(low_lat_amp),
+                    max=np.nanmax(low_lat_amp),
                     cmap="jet",
                     hold=True
                 )
