@@ -1059,6 +1059,10 @@ contains
           write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
+       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
+          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
+          tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
     if (tod%symm_flags) then

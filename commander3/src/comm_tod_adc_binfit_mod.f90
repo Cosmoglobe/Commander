@@ -51,6 +51,7 @@ module comm_tod_adc_binfit_mod
     procedure :: Q2As
     procedure :: As2F
     procedure :: mcmc_sample_adc
+    procedure :: outputASCII
   end type comm_adc_binfit
 
   interface comm_adc_binfit
@@ -196,6 +197,19 @@ interface
     end interface
   end subroutine mcmc_sample_adc
 
+  module subroutine outputASCII(self)
+    !=========================================================================
+    ! Sample bin widths for single scan; coadd into posterior
+    ! 
+    ! Inputs:
+    !
+    ! self:     comm_adc object
+    !           Base ADC object
+    implicit none
+    class(comm_adc_binfit),          intent(inout) :: self
+  end subroutine outputASCII
+
+  
 end interface
 
 end module comm_tod_adc_binfit_mod
