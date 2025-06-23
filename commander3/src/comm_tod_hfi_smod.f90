@@ -110,7 +110,7 @@ contains
 
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
-       c%chisq_threshold  = 100.d0
+       c%chisq_threshold  = 120.d0
        c%sigma0_threshold = 100.d0
        c%accept_threshold = 0.5d0
        c%correct_sl       = .false.
@@ -242,11 +242,21 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = iter  > 0 !.true.                 
-    make_dyn_mask         = iter == 2
-    sample_ncorr          = iter  > 2 !.true.
-    select_data           = iter == 3 ! self%first_call  
-    sample_adc            = .false. !iter  > 3 !.true.
+    if (trim(self%init_from_HDF) == 'none') then
+       ! Initialize slowly if not HDF init
+       sample_gain           = iter  > 0 !.true.                 
+       make_dyn_mask         = iter == 2
+       sample_ncorr          = iter  > 2 !.true.
+       select_data           = iter == 3 ! self%first_call  
+       sample_adc            = iter  > 6 ! 3 !.true.
+    else
+       ! Do data selection, then start sampling
+       sample_gain           = .false. ! iter  > 0 !.true.                 
+       make_dyn_mask         = iter == 1
+       sample_ncorr          = .false. !iter  > 0 !.true.
+       select_data           = iter == 1 ! self%first_call  
+       sample_adc            = iter  > 1 !.true.
+    end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -444,13 +454,13 @@ contains
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
        end if
 
-       if (self%myid == 0) then
-          open(58,file='tod_gain.dat', recl=1024)
-          do j = 1, sd%ntod
-             write(58,*) j, sd%s_tot(j,:), sd%tod(j,:)
-          end do
-          close(58)
-       end if
+!!$       if (self%myid == 0) then
+!!$          open(58,file='tod_gain.dat', recl=1024)
+!!$          do j = 1, sd%ntod
+!!$             write(58,*) j, sd%s_tot(j,:), sd%tod(j,:)
+!!$          end do
+!!$          close(58)
+!!$       end if
        
        ! Create dynamic mask
        if (make_dyn_mask) then
@@ -1129,26 +1139,26 @@ contains
 
     integer(i4b)        :: i, j, k, flag, ierr, ntod, decimation, offset, ind
     integer(i8b)        :: ntot
+    real(sp)            :: gain, phase, base1, base2
     real(dp)            :: chisq
     type(comm_scandata) :: sd
     character(len=4)    :: id
     integer(i8b), allocatable, dimension(:)   :: numsamp
-    real(sp),     allocatable, dimension(:)   :: tod, s_tot, phase, tod_corr
-    real(sp),     allocatable, dimension(:)   :: sigma0, gain
+    real(sp),     allocatable, dimension(:)   :: s_volt, tod, tod_corr
+    real(sp),     allocatable, dimension(:)   :: sigma0
 
     decimation = 45 ! Downsampling rate; MUST BE ODD, to explore both parities
     
     ! Count number of unmasked and decimated samples
-    allocate(numsamp(self%nscan), sigma0(self%nscan), gain(self%nscan))
+    allocate(numsamp(self%nscan), sigma0(self%nscan))
     do i = 1, self%nscan
        numsamp(i) = self%scans(i)%d(det)%nsamp_unmasked / decimation
        sigma0(i)  = self%scans(i)%d(det)%N_psd%sigma0
-       gain(i)    = self%scans(i)%d(det)%gain
-    end do
+     end do
     ntot = sum(numsamp)
 
     ! Prepare reduced dataset
-    allocate(tod(ntot), s_tot(ntot), phase(ntot), tod_corr(maxval(numsamp)))
+    allocate(s_volt(ntot), tod(ntot), tod_corr(maxval(numsamp)))
     ind = 1
     do i = 1, self%nscan
        if (.not. self%scans(i)%d(det)%accept) then
@@ -1157,25 +1167,22 @@ contains
        end if
        call init_scan_data_singlehorn_singledet(sd, self, det, i, map_sky, &
             & procmask, skip_nonlin=.true.)
-       !call init_scan_data_singlehorn(sd, self, det, i, map_sky, &
-       !     & procmask, skip_nonlin=.true.)
-       !call init_scan_data_singlehorn(sd, self, i, m_sky, m_sky, procmask, procmask, skip_nonlin=.true.)
-       
+
+      gain    = self%scans(i)%d(det)%gain
+      phase   = self%mod_phase(det,i)
+      base1   = self%scans(i)%d(det)%baseline1
+      base2   = self%scans(i)%d(det)%baseline2
+      
        ! Decimate data
        j = 0; k = decimation*j+1
        do while (k <= sd%ntod .and. j < numsamp(i))
           if (sd%mask(k,1) == 1.) then
              tod(ind)   = sd%tod(k,1)
-             s_tot(ind) = gain(i) * sd%s_tot(k,1)
              if (mod(k,2) == 1) then
-                phase(ind) =  self%mod_phase(det,i)
+                s_volt(ind) =  phase*gain * sd%s_tot(k,1) + base1
              else
-!                if (.not. allocated(self%mod_phase)) then
-!                   write(*,*) 'q4', self%myid, k, ind, allocated(self%mod_phase)
-!                end if
-                phase(ind) = -self%mod_phase(det,i)
+                s_volt(ind) = -phase*gain * sd%s_tot(k,1) + base2
              end if
-             !if (self%myid == 0) write(*,*) 'tod = ', ind, numsamp(i), tod(ind), s_tot(ind), phase(ind)
              ind = ind+1
           end if
           j = j+1; k = decimation*j+1
@@ -1194,19 +1201,23 @@ contains
     end do
     ntot = sum(numsamp)
 
-    call int2string(self%myid, id)
-    open(58,file='adc_data_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
-    do i = 1, ntot
-       write(58,*) i, tod(i), s_tot(i), phase(i)
-    end do
-    close(58)
+!!$    call int2string(self%myid, id)
+!!$    open(58,file='adc_data_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
+!!$    do i = 1, ntot
+!!$       write(58,*) i, tod(i), s_volt(i), tod(i)-s_volt(i)
+!!$    end do
+!!$    close(58)
     
     
     !write(*,*) self%myid, self%nscan, numsamp, ntot
     
     !  Perform sampling
     if (self%myid == 0) then
-       call self%adc(det)%p%mcmc_sample_adc(handle, chisq_adc_hfi2)
+       if (.true.) then
+          call self%adc(det)%p%powell_adc(powell_chisq_adc_hfi)
+       else
+          call self%adc(det)%p%mcmc_sample_adc(handle, chisq_adc_hfi)
+       end if
        ! Release workers
        flag = 0
        call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
@@ -1214,7 +1225,7 @@ contains
        do while (.true.)
           call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
           if (flag > 0) then
-             chisq = chisq_adc_hfi2()
+             chisq = chisq_adc_hfi()
           else
              exit
           end if
@@ -1228,9 +1239,19 @@ contains
     call self%adc(det)%p%param2Q
 
     ! Clean up
-    deallocate(tod, s_tot, phase, sigma0, gain, tod_corr)
+    deallocate(s_volt, tod, sigma0, tod_corr)
     
   contains
+
+    function powell_chisq_adc_hfi(x)
+      implicit none
+      real(dp), dimension(:), intent(in),  optional :: x
+      real(dp)                                      :: powell_chisq_adc_hfi
+
+      powell_chisq_adc_hfi = chisq_adc_hfi(real(x,sp))
+
+    end function powell_chisq_adc_hfi
+
 
     function chisq_adc_hfi(x, ndof) result (chisq)
       implicit none
@@ -1254,12 +1275,19 @@ contains
       call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
       output_ndof = (flag == 2)
 
+      ! Check priors
+      if (any(p < 0.0)) then
+         chisq = 1.d30
+         deallocate(p)
+         return
+      end if
+      
       ! Update ADC parameters; assume constant sigma0 fir niw
       call self%adc(det)%p%param2Q(p)
       call self%adc(det)%p%Q2As(92.)
       call self%adc(det)%p%As2F
 
-!!$      if (self%myid == 134) then
+!!$      if (self%myid == 0 .and. det==1) then
 !!$         call int2string(self%myid, id)
 !!$         open(58,file='adc_reddata_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
 !!$      end if
@@ -1272,156 +1300,34 @@ contains
          if (.not. self%scans(i)%d(det)%accept) cycle
          n = numsamp(i); k1 = k2+1; k2 = k2+n
          
-         ! Apply ADC correction
-         tod_corr(1:n) = tod(k1:k2)
-         !write(*,*) self%myid, i, n, k1, k2, shape(tod_corr), shape(tod), minval(tod_corr(1:n)), maxval(tod_corr(1:n))
-         call self%adc(det)%p%adc_correct(self%scanid(i), det, &
-              & tod_corr(1:n), sigma0(i))          
-
-         ! Sample baseline for and demodulate positive parity samples
-         A = 0.d0; b = 0.d0
+         ! Apply ADC to voltages
          do j = 1, n
-            if (phase(k1+j-1) == -1.) cycle
-            A = A + 1.d0
-            b = b + tod_corr(j) - s_tot(k1+j-1)
+            tod_corr(j) = splint(self%adc(det)%p%F, real(s_volt(k1+j-1),dp))
          end do
-         baseline = b/A + sigma0(i)*rand_gauss(handle)/sqrt(A)
-         do j = 1, n
-            if (phase(k1+j-1) == -1.) cycle
-            tod_corr(j) = tod_corr(j) - baseline
-         end do
-
-         ! Sample baseline for and demodulate negative parity samples
-         A = 0.d0; b = 0.d0
-         do j = 1, n
-            if (phase(k1+j-1) == 1.) cycle
-            A = A + 1.d0
-            b = b + tod_corr(j) + s_tot(k1+j-1)
-         end do
-         baseline = b/A + sigma0(i)*rand_gauss(handle)/sqrt(A)
-         do j = 1, n
-            if (phase(k1+j-1) == 1.) cycle
-            tod_corr(j) = -tod_corr(j) + baseline
-         end do
-
-!!$         if (self%myid == 134) then
+         
+!!$         if (self%myid == 0 .and. det==1) then
 !!$            do j = 1, n
-!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), s_tot(k1+j-1), tod_corr(j)-s_tot(k1+j-1)
+!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), tod(k1+j-1)-tod_corr(j), (tod(k1+j-1)-tod_corr(j))/sigma0(i), sigma0(i)
 !!$            end do
 !!$         end if
          
          ! Compute chisq
          do j = 1, n
-            !write(*,*) i, j, tod_corr(j), s_tot(k1+j-1), sigma0(i)
-            chisq_sub = chisq_sub + (tod_corr(j)-s_tot(k1+j-1))**2/sigma0(i)**2
+            chisq_sub = chisq_sub + (tod(k1+j-1)-tod_corr(j))**2/sigma0(i)**2
          end do
       end do
 
-!!$      if (self%myid == 134) close(58)
-
-!!$      if (ntot > 0) write(*,*) 'adc chisq =', chisq_sub/ntot, ', myid = ', self%myid
+!!$      if (self%myid == 0 .and. det==1) close(58)
       
       call mpi_reduce(chisq_sub, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
       if (output_ndof) then
          call mpi_reduce(ntot, ndof_tot, 1, MPI_INTEGER8, MPI_SUM, 0, self%comm, ierr)
          if (self%myid == 0) ndof = ndof_tot
       end if
+
+      if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
 
     end function chisq_adc_hfi
-
-
-    function chisq_adc_hfi2(x, ndof) result (chisq)
-      implicit none
-      real(sp), dimension(:), intent(in),  optional :: x
-      integer(i8b),           intent(out), optional :: ndof
-      real(dp)                                      :: chisq
-
-      integer(i4b) :: i, j, n
-      integer(i8b) :: ndof_sub, ndof_tot, k1, k2
-      real(dp)     :: chisq_sub, A, b
-      real(sp)     :: baseline
-      logical(lgt) :: output_ndof
-      real(sp), allocatable, dimension(:) :: p
-
-      allocate(p(self%adc(det)%p%npar_adc))
-      if (self%myid == 0) then
-         flag = 1; if (present(ndof)) flag = 2
-         call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
-         p = x
-      end if
-      call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
-      output_ndof = (flag == 2)
-
-      ! Update ADC parameters; assume constant sigma0 fir niw
-      call self%adc(det)%p%param2Q(p)
-      call self%adc(det)%p%Q2As(92.)
-      call self%adc(det)%p%As2F
-
-      if (self%myid == 0 .and. det==2) then
-         call int2string(self%myid, id)
-         open(58,file='adc_reddata_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
-      end if
-      
-      ! Evaluate chisq
-      chisq_sub = 0.d0
-      k2 = 0 
-      do i = 1, self%nscan
-         ! Skip scan if no accepted data
-         if (.not. self%scans(i)%d(det)%accept) cycle
-         n = numsamp(i); k1 = k2+1; k2 = k2+n
-         
-         ! Apply ADC correction
-         !tod_corr(1:n) = tod(k1:k2)
-         !write(*,*) self%myid, i, n, k1, k2, shape(tod_corr), shape(tod), minval(tod_corr(1:n)), maxval(tod_corr(1:n))
-         !call self%adc(det)%p%adc_correct(self%scanid(i), det, &
-         !     & tod_corr(1:n), sigma0(i))          
-
-         ! Add modulated signal and baseline
-         do j = 1, n
-            if (gain(i) > 0.) then
-               if (phase(k1+j-1) == 1.) then
-                  tod_corr(j) =  s_tot(k1+j-1) + self%scans(i)%d(det)%baseline1
-               else
-                  tod_corr(j) = -s_tot(k1+j-1) + self%scans(i)%d(det)%baseline2
-               end if
-            else
-               if (phase(k1+j-1) == 1.) then
-                  tod_corr(j) = -s_tot(k1+j-1) + self%scans(i)%d(det)%baseline2
-               else
-                  tod_corr(j) =  s_tot(k1+j-1) + self%scans(i)%d(det)%baseline1
-               end if
-            end if
-         end do
-
-         ! Apply ADC
-         do j = 1, n
-            tod_corr(j) = splint(self%adc(det)%p%F, real(tod_corr(j),dp))
-         end do
-         
-         if (self%myid == 0 .and. det==2) then
-            do j = 1, n
-               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), s_tot(k1+j-1), tod(k1+j-1)-tod_corr(j)
-            end do
-         end if
-         
-         ! Compute chisq
-         do j = 1, n
-            !write(*,*) i, j, tod_corr(j), s_tot(k1+j-1), sigma0(i)
-            chisq_sub = chisq_sub + (tod_corr(j)-tod(k1+j-1))**2/sigma0(i)**2
-         end do
-      end do
-
-      if (self%myid == 0 .and. det==2) close(58)
-
-!!$      if (ntot > 0) write(*,*) 'adc chisq =', chisq_sub/ntot, ', myid = ', self%myid
-      
-      call mpi_reduce(chisq_sub, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-      if (output_ndof) then
-         call mpi_reduce(ntot, ndof_tot, 1, MPI_INTEGER8, MPI_SUM, 0, self%comm, ierr)
-         if (self%myid == 0) ndof = ndof_tot
-      end if
-
-    end function chisq_adc_hfi2
 
   end subroutine sample_adc_and_baselines
   

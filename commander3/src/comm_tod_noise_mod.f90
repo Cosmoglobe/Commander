@@ -190,7 +190,7 @@ contains
        pcg_converged = pcg_converged .and. var1 < var2
 
        if (.not. pcg_converged) then
-          !write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
+          write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
 
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
@@ -234,9 +234,9 @@ contains
           !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
        end if
 
-       !if (.true. .and. mod(self%scanid(scan),1000) == 1) then
+       if (.true. .and. mod(self%scanid(scan),1000) == 1) then
        !if (.true. .and. self%scanid(scan) == 5013) then
-       if (.false.) then
+       !if (.false.) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
           open(65,file=trim(filename),status='REPLACE',recl=1024)
           do j = 1, ntod
@@ -281,7 +281,7 @@ contains
     real(dp),     allocatable, dimension(:) :: invNcorr, invM
     integer(i4b), allocatable, dimension(:) :: u
 
-    n_iter    = 15
+    n_iter    = 30
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
@@ -356,7 +356,7 @@ contains
        xp    = xp + alp*p
        rp    = rp - alp * Ad(u)
        r2new = sum(rp**2)
-       !write(*,*) 'CG ncorr -- ', k, r2new, sigma_bp
+       if (scan == 12114) write(*,*) 'CG ncorr -- ', scan, det, k, r2new, sigma_bp
        if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           exit

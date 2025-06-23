@@ -51,6 +51,7 @@ module comm_tod_adc_binfit_mod
     procedure :: Q2As
     procedure :: As2F
     procedure :: mcmc_sample_adc
+    procedure :: powell_adc
     procedure :: outputASCII
   end type comm_adc_binfit
 
@@ -174,6 +175,26 @@ interface
     class(comm_adc_binfit),             intent(inout) :: self
     real(sp), dimension(self%npar_adc), intent(in), optional    :: p
   end subroutine param2Q
+
+  module subroutine powell_adc(self, powell_chisq_adc)
+    !=========================================================================
+    ! Sample bin widths for single scan; coadd into posterior
+    ! 
+    ! Inputs:
+    !
+    ! self:     comm_adc object
+    !           Base ADC object
+    implicit none
+    class(comm_adc_binfit),          intent(inout) :: self
+    interface
+       function powell_chisq_adc(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                           :: powell_chisq_adc
+       end function powell_chisq_adc
+    end interface
+  end subroutine powell_adc
   
   module subroutine mcmc_sample_adc(self, handle, chisq_adc)
     !=========================================================================

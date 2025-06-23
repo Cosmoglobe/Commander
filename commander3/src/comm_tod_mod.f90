@@ -1657,12 +1657,16 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
-          output(k,j,1)             = self%scans(i)%d(j)%gain
-          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)             = self%scans(i)%d(j)%chisq
-          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
-          if (self%baseline_order >= 0) then
-             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+          if (.not. self%scans(i)%d(j)%accept) then
+             output(k,j,:) = 0.d0
+          else
+             output(k,j,1)             = self%scans(i)%d(j)%gain
+             output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+             output(k,j,3)             = self%scans(i)%d(j)%chisq
+             output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+             if (self%baseline_order >= 0) then
+                output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+             end if
           end if
           if (j == 1) then
              mjds(k)                = self%scans(i)%t0(1)
