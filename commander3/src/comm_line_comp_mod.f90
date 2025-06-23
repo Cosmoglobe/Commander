@@ -151,7 +151,7 @@ contains
              do k = 0, data(i)%ndet
 !                write(*,*) 'line disabled'
                 c%F_int(l,i,k)%p => comm_F_line(c, data(i)%bp(k)%p, .true., &
-                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%RJ2data(k), j)
+                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%bp(k)%p%RJ2data, j)
              end do
              j = j+1
           else
@@ -326,7 +326,11 @@ contains
           end do
        end if
        
-       write(*,*) '  Line ratio i = ', id, ' = ', par
+       if (band == self%ref_band) then
+          write(*,*) '  Line ratio i = ', id, ' = ', par, ' (at refband)'
+       else
+          write(*,*) '  Line ratio i = ', id, ' = ', par
+       end if
     end if
     
     ! Distribute new relative line ratio, and update

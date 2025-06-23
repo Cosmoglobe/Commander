@@ -30,7 +30,8 @@ module comm_tod_akari_mod
    !   process_akari_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-   use comm_tod_driver_mod
+  use comm_tod_driver_mod
+  use comm_tod_pixhist_mod
    implicit none
 
    private

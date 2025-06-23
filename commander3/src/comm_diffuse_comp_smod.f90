@@ -72,12 +72,6 @@ contains
     self%nu_min        = cpar%cs_nu_min(id_abs)
     self%nu_max        = cpar%cs_nu_max(id_abs)
 
-    if(self%npar == 0) then
-       self%lmax_ind = 0 !default
-       allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind_mix = 0
-    end if
-
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
@@ -141,6 +135,21 @@ contains
     self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
          & init_realspace=.false.)
 
+    ! Deconvolve the existing beam if initialized from an input map
+    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          where (self%B_out%b_l(l,:) > 1d-6) 
+             self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+          elsewhere
+             self%x%alm(i,:) = 0.d0
+          end where
+!!$          if (l > 500) then
+!!$             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+!!$          end if
+       end do
+    end if
+    
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
@@ -225,15 +234,18 @@ contains
             self%F(i,j)%p    => comm_map(info)
             self%F_null(i,j) =  .false.
           else
-            do k=1, j
-               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+            do k=1, j-1
+             if(size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0)) then
+              if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
                   self%F(i,j)%p => self%F(i,k)%p
                   self%F_null(i,j) =  .false.
                   exit
-               else if (k==j-1) then
-                  self%F(i,j)%p    => comm_map(info)
-                  self%F_null(i,j) =  .false.
-               end if
+              end if
+             end if
+             if (k==j-1) then !if we got through the whole loop above
+               self%F(i,j)%p    => comm_map(info)
+               self%F_null(i,j) =  .false.
+             end if
             end do
           end if
           if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
@@ -316,7 +328,7 @@ contains
           filename = get_token(temp_filename, ",", 1)
           info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
           self%mono_prior_map => comm_map(info_tempfit, trim(filename))
-       else          
+       else 
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
@@ -340,7 +352,12 @@ contains
     nmaps = 1
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
-    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+    if (self%npar==0) then
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind     = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       self%lmax_ind_mix = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       return !do not go further, lmax_ind is set in initDiffuse
+    end if
 
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
 
@@ -351,7 +368,7 @@ contains
     do i = 1,self%npar
        do p = 1, self%poltype(i)
           l = cpar%cs_lmax_ind_pol(p,i,id_abs)
-
+          
           !assign lmax per spec ind per polarization (poltype)
           if (self%poltype(i)==1) then !all polarizations have the same lmax
              self%lmax_ind_pol(:,i) = l 
@@ -487,6 +504,7 @@ contains
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
+
 
     call update_status(status, "initPixreg_specind_pixreg_type")
     
@@ -641,7 +659,7 @@ contains
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
-                stop
+                !stop
              end if
           end do !npar
        end if
@@ -1045,7 +1063,7 @@ contains
 !                if (self%myid == 0) write(*,*) 'd1', self%theta(i)%p%map(0,1:self%nmaps)
                 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
 
                    !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
@@ -1136,7 +1154,9 @@ contains
           if (self%lmax_ind_pol(j,i) >= 0) then
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
-             self%lmax_ind_mix(p_min:p_max,i) = 0
+             do k = p_min, p_max
+                self%lmax_ind_mix(k,i) = min(self%lmax_ind_pol(k,i), 0)
+             end do
           else
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i)
           end if
@@ -1287,24 +1307,27 @@ contains
   end subroutine initSpecindProp
 
 
-  module subroutine initDiffPrecond(comm)
+  module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
-       call initDiffPrecond_diagonal(comm)
+       call initDiffPrecond_diagonal(comm, samp_group)
     case ("pseudoinv")
-       call initDiffPrecond_pseudoinv(comm)
+       call initDiffPrecond_pseudoinv(comm, samp_group)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
 
-  module subroutine initDiffPrecond_diagonal(comm)
+  module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
     integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -1315,7 +1338,7 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr%invM_diff)) return
+    if (allocated(P_cr(samp_group)%invM_diff)) return
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1336,7 +1359,7 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1345,15 +1368,18 @@ contains
           call info_pre%i2lm(i1, l, m)
           mat = 0.d0
           do q = 1, numband
+             if (.not. data(q)%cr_active) cycle
              call data(q)%info%lm2i(l,m,i2)
              if (i2 == -1) cycle
              if (j > data(q)%info%nmaps) cycle
              do k1 = 1, npre
                 p1 => diffComps(k1)%p
+                if (.not. p1%active_samp_group(samp_group)) cycle
                 if (l > p1%lmax_amp) cycle
                 if (j > p1%nmaps) cycle
                 do k2 = 1, npre
                    p2 => diffComps(k2)%p
+                   if (.not. p2%active_samp_group(samp_group)) cycle
                    if (l > p2%lmax_amp) cycle
                    if (j > p2%nmaps) cycle
                    mat(k1,k2) = mat(k1,k2) + &
@@ -1365,20 +1391,20 @@ contains
           end do
 
           n = 0
-          allocate(P_cr%invM_diff(i1,j)%comp2ind(npre))
-          P_cr%invM_diff(i1,j)%comp2ind = -1
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
                 n = n+1
                 ind(n) = k1
-                P_cr%invM_diff(i1,j)%comp2ind(k1) = n
+                P_cr(samp_group)%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
-          P_cr%invM_diff(i1,j)%n = n
-          allocate(P_cr%invM_diff(i1,j)%ind(n))
-          allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
-          P_cr%invM_diff(i1,j)%ind = ind(1:n)
-          P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+          P_cr(samp_group)%invM_diff(i1,j)%n = n
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
+          P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
        !!$OMP END DO
     end do
@@ -1390,9 +1416,9 @@ contains
   end subroutine initDiffPrecond_diagonal
 
 
-  module subroutine initDiffPrecond_pseudoinv(comm)
+  module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -1402,7 +1428,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
-    if (allocated(P_cr%invM_diff)) return
+    if (allocated(P_cr(samp_group)%invM_diff)) return
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1422,10 +1448,10 @@ contains
     
     ! Allocate space for pseudo-inverse of U
     call wall_time(t1)
-    allocate(P_cr%invM_diff(0:lmax_pre,info_pre%nmaps))
+    allocate(P_cr(samp_group)%invM_diff(0:lmax_pre,info_pre%nmaps))
     do j = 1, info_pre%nmaps
        do l = 0, lmax_pre
-          allocate(P_cr%invM_diff(l,j)%M(npre,numband+npre))
+          allocate(P_cr(samp_group)%invM_diff(l,j)%M(npre,numband+npre))
        end do
     end do
 
@@ -1437,6 +1463,8 @@ contains
     integer(i4b), intent(in) :: samp_group
     logical(lgt), intent(in) :: force_update
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call updateDiffPrecond_diagonal(samp_group, force_update)
@@ -1468,7 +1496,7 @@ contains
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
+          if (P_cr(samp_group)%invM_diff(i,j)%n > 0) P_cr(samp_group)%invM_diff(i,j)%M = P_cr(samp_group)%invM_diff(i,j)%M0
        end do
     end do
 
@@ -1484,11 +1512,11 @@ contains
           if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = P_cr%invM_diff(i,j)%M(q,p)
+                   alm(i,j) = P_cr(samp_group)%invM_diff(i,j)%M(q,p)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -1501,10 +1529,10 @@ contains
           !stop
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(q,p) = alm(i,j)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr(samp_group)%invM_diff(i,j)%M(q,p) = alm(i,j)
              end do
           end do
        end do
@@ -1524,11 +1552,11 @@ contains
           if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = P_cr%invM_diff(i,j)%M(p,q)
+                   alm(i,j) = P_cr(samp_group)%invM_diff(i,j)%M(p,q)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -1539,10 +1567,10 @@ contains
 !          if (info_pre%myid == 0) write(*,*) 'd', k1, k2, alm(4,1)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(p,q) = alm(i,j)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr(samp_group)%invM_diff(i,j)%M(p,q) = alm(i,j)
              end do
           end do
        end do
@@ -1556,8 +1584,8 @@ contains
     ! Nullify temperature block if only polarization
     if (only_pol) then
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,1)%n == 0) cycle                
-          P_cr%invM_diff(i,1)%M = 0.d0
+          if (P_cr(samp_group)%invM_diff(i,1)%n == 0) cycle                
+          P_cr(samp_group)%invM_diff(i,1)%M = 0.d0
        end do
     end if
 
@@ -1575,9 +1603,9 @@ contains
           !end if
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                if (p > 0) P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                if (p > 0) P_cr(samp_group)%invM_diff(i,j)%M(p,p) = P_cr(samp_group)%invM_diff(i,j)%M(p,p) + 1.d0
              end do
           end if
        end do
@@ -1589,13 +1617,13 @@ contains
     ! Nullify elements that are not involved in current sample group
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n == 0) cycle                
+          if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
           do k1 = 1, npre
              if (diffComps(k1)%p%active_samp_group(samp_group)) cycle
-             p = P_cr%invM_diff(i,j)%comp2ind(k1)
+             p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
              if (p == -1) cycle
-             P_cr%invM_diff(i,j)%M(p,:) = 0.d0
-             P_cr%invM_diff(i,j)%M(:,p) = 0.d0
+             P_cr(samp_group)%invM_diff(i,j)%M(p,:) = 0.d0
+             P_cr(samp_group)%invM_diff(i,j)%M(:,p) = 0.d0
           end do
        end do
     end do
@@ -1609,10 +1637,10 @@ contains
        do j = 1, nmaps_pre
           do i = 0, info_pre%nalm-1
              call info_pre%i2lm(i, l, m)
-             n = P_cr%invM_diff(i,j)%n
+             n = P_cr(samp_group)%invM_diff(i,j)%n
              if (n > 0) then
                 allocate(W(n), ind(n))
-                call get_eigenvalues(P_cr%invM_diff(i,j)%M, W)
+                call get_eigenvalues(P_cr(samp_group)%invM_diff(i,j)%M, W)
                 W_ref    = minval(abs(W))
                 cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
                 W_min(l) = min(W_min(l), minval(W))
@@ -1644,8 +1672,8 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n > 0) then
-             if (any(P_cr%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          if (P_cr(samp_group)%invM_diff(i,j)%n > 0) then
+             if (any(P_cr(samp_group)%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr(samp_group)%invM_diff(i,j)%M)
           end if
        end do
     end do
@@ -1713,8 +1741,8 @@ contains
           end do
 
           ! Store pseudo-inverse of U
-          call compute_pseudo_inverse(mat, P_cr%invM_diff(l,j)%M)
-          !P_cr%invM_diff(l,j)%M = transpose(mat)
+          call compute_pseudo_inverse(mat, P_cr(samp_group)%invM_diff(l,j)%M)
+          !P_cr(samp_group)%invM_diff(l,j)%M = transpose(mat)
        end do
     end do
     deallocate(mat)
@@ -1754,7 +1782,7 @@ contains
     integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
     integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
-    real(dp)     :: lat, lon, t1, t2
+    real(dp)     :: lat, lon, t1, t2, A_ext
     logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
@@ -1782,7 +1810,7 @@ contains
        if (present(band)) then
           if (i /= band) cycle
        end if
-
+       
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
@@ -1882,7 +1910,6 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             !if (info%myid == 0) write(*,*) 'q1, j=',j,  minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1909,6 +1936,14 @@ contains
                 end if
              end if
 
+             ! Initialize dust extinction
+             if (associated(data(i)%A_ext)) then
+                A_ext = data(i)%A_ext%map(j,1)
+             else
+                A_ext = 1.d0
+             end if
+
+             
 !          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
@@ -1937,13 +1972,14 @@ contains
                          write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                          stop !debug, replace by proper stop and error message
                       end if
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
+                      !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
                       self%F(i,l)%p%map(j,1) = 0.0
                    else
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
                    end if
                 end if
              end if
@@ -1960,9 +1996,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
                    end if
                 end if
                 
@@ -1976,9 +2012,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
                    end if
                 end if
              end if
@@ -1988,7 +2024,7 @@ contains
                 if (self%npar > 0) then
                    do k = 1, nmaps
                       if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k)
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
                       end if
                    end do
                 else
@@ -2162,15 +2198,18 @@ contains
   end function projectDiffuseBand
 
 
-  module subroutine applyDiffPrecond(x)
+  module subroutine applyDiffPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
-       call applyDiffPrecond_diagonal(x)
+       call applyDiffPrecond_diagonal(x, samp_group)
     case ("pseudoinv")
-       call applyDiffPrecond_pseudoinv(x)
+       call applyDiffPrecond_pseudoinv(x, samp_group)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
@@ -2178,9 +2217,10 @@ contains
   end subroutine applyDiffPrecond
 
 
-  module subroutine applyDiffPrecond_diagonal(x)
+  module subroutine applyDiffPrecond_diagonal(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
     integer(i4b)              :: i, j, k, l, m, nmaps
     real(dp), allocatable, dimension(:,:)   :: alm
@@ -2205,9 +2245,9 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n == 0) cycle
-          y(P_cr%invM_diff(i,j)%ind,i,j) = &
-               & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
+          if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle
+          y(P_cr(samp_group)%invM_diff(i,j)%ind,i,j) = &
+               & matmul(P_cr(samp_group)%invM_diff(i,j)%M, y(P_cr(samp_group)%invM_diff(i,j)%ind,i,j))
        end do
     end do
 
@@ -2230,9 +2270,10 @@ contains
   end subroutine applyDiffPrecond_diagonal
 
 
-  module subroutine applyDiffPrecond_pseudoinv(x)
+  module subroutine applyDiffPrecond_pseudoinv(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
     integer(i4b)              :: i, ii, j, k, l, m, p, q, qq, nmaps, npre_int
     real(dp)                  :: t1, t2
@@ -2280,7 +2321,7 @@ contains
           do q = 1, npre_int
              qq = ind_pre(q)
              do p = 1, nmaps
-                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(qq,k) * y(q,j,p)
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr(samp_group)%invM_diff(l,p)%M(qq,k) * y(q,j,p)
              end do
           end do
        end do
@@ -2309,7 +2350,7 @@ contains
           do q = 1, npre_int
              qq = ind_pre(q)
              do p = 1, nmaps
-                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
+                z(q,j,p) = z(q,j,p) + P_cr(samp_group)%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
              end do
           end do
        end do
@@ -2335,13 +2376,13 @@ contains
           w2       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w2(j) = w2(j) + P_cr%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
+                w2(j) = w2(j) + P_cr(samp_group)%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
              end do
           end do
           w       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w(j) = w(j) + P_cr%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
+                w(j) = w(j) + P_cr(samp_group)%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
              end do
           end do
           z(:,i,p) = z(:,i,p) + w
@@ -2608,62 +2649,64 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
-               & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_proplen_'  // trim(postfix) // '.fits'
-             call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          if (self%output_localsamp_maps) then
+             if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+                  & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_proplen_'  // trim(postfix) // '.fits'
+                call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+                
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_nprop_'  // trim(postfix) // '.fits'
+                call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             end if
 
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_nprop_'  // trim(postfix) // '.fits'
-             call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-
-          end if
-
-          !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             
-             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-             tp => comm_map(info)
-             tp%map = self%theta(i)%p%map
-             do p = 1,self%poltype(i)
-                if (self%pol_pixreg_type(p,i) /=3) cycle
-                if (self%poltype(i) == 1) then
-                   p_min=1
-                   p_max=info%nmaps
-                   if (only_pol) p_min = 2
-                else if (self%poltype(i)==2) then
-                   if (p == 1) then
-                      p_min = 1
-                      p_max = 1
+             if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%map = self%theta(i)%p%map
+                do p = 1,self%poltype(i)
+                   if (self%pol_pixreg_type(p,i) /=3) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
                    else
-                      p_min = 2
-                      p_max = info%nmaps
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
                    end if
-                else if (self%poltype(i)==3) then
-                   p_min = p
-                   p_max = p
-                else
-                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                   stop
-                end if
-
-                do j = 0,info%np-1
-                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   
+                   do j = 0,info%np-1
+                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   end do
                 end do
-             end do
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_noSmooth_'  // trim(postfix) // '.fits'
-             call tp%writeFITS(trim(dir)//'/'//trim(filename))
-             call tp%dealloc(); deallocate(tp)
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_noSmooth_'  // trim(postfix) // '.fits'
+                call tp%writeFITS(trim(dir)//'/'//trim(filename))
+                call tp%dealloc(); deallocate(tp)
+             end if
 
           end if
 
           !output theta, proposal length and number of proposals per pixel region to HDF
           if (output_hdf) then
              npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             if (.not. allocated(self%pol_pixreg_type)) then
+                continue
+             else if (any(self%pol_pixreg_type(:npol,i) > 0)) then
                 npr=0
                 do j = 1,npol
                    if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -2691,6 +2734,8 @@ contains
 
                    deallocate(dp_pixreg,int_pixreg)
                 end if
+             else
+               continue
              end if
 
           end if
@@ -2890,8 +2935,9 @@ contains
 
   end subroutine sampleDiffuseSpecInd
   
-  module subroutine print_precond_mat
+  module subroutine print_precond_mat(samp_group)
     implicit none
+    integer(i4b), intent(in) :: samp_group
 
     integer(i4b) :: l, m, i, j, p
     real(dp), allocatable, dimension(:)   :: W
@@ -2906,18 +2952,18 @@ contains
           call info_pre%lm2i(l, 0, i)
           write(*,*) 
           write(*,*) l 
-          do j = 1, size(P_cr%invM_diff(i,p)%M(j,:),1)
-             write(*,*) real(P_cr%invM_diff(i,p)%M(j,:),sp)
+          do j = 1, size(P_cr(samp_group)%invM_diff(i,p)%M(j,:),1)
+             write(*,*) real(P_cr(samp_group)%invM_diff(i,p)%M(j,:),sp)
           end do
-          allocate(W(P_cr%invM_diff(i,p)%n))
-          call get_eigenvalues(P_cr%invM_diff(i,p)%M, W)
+          allocate(W(P_cr(samp_group)%invM_diff(i,p)%n))
+          call get_eigenvalues(P_cr(samp_group)%invM_diff(i,p)%M, W)
           write(58,*) l, real(W,sp)
           deallocate(W)
        end do
     else
        allocate(mat(npre,npre))
        do l = 0, info_pre%lmax
-          mat = matmul(P_cr%invM_diff(l,p)%M, transpose(P_cr%invM_diff(l,p)%M))
+          mat = matmul(P_cr(samp_group)%invM_diff(l,p)%M, transpose(P_cr(samp_group)%invM_diff(l,p)%M))
           write(*,*) 
           write(*,*) l 
           do j = 1, npre
@@ -3464,12 +3510,13 @@ contains
 
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in),   optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, ierr, pix
+    integer(i4b) :: i, j, k, l, m, ierr, pix, verbosity_
     real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
     class(comm_map), pointer :: map, lr_map 
     class(comm_mapinfo), pointer :: info => null()
@@ -3482,6 +3529,8 @@ contains
        return
     end if
 
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Compute monopole offset given the specified prior
     mu = 0.d0
 
@@ -3507,7 +3556,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
              write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
              write(*,fmt='(a)') ' | '
@@ -3537,7 +3586,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
              write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
@@ -3552,7 +3601,7 @@ contains
              call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
              self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
           end do
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
              write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
              write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
@@ -3672,7 +3721,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' |  Cross-correlation prior correction for component: '//trim(self%label)
           write(*,fmt='(a,i2)') ' |    Number of linear fits (thresholds): ',&
                & self%mono_prior_Nthresh
@@ -3755,7 +3804,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' Lowest value prior correction for component: '//trim(self%label)
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
@@ -3865,7 +3914,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then 
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then 
           write(*,fmt='(a)') ' |  Band monopole prior correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
           write(*,fmt='(a,f14.3,f14.3)') ' |  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
           write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)

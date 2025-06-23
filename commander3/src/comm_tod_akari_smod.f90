@@ -95,7 +95,10 @@ contains
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
       c%symm_flags      = .false.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      c%chisq_threshold = 50000.
+      ! c%chisq_threshold = 50000.
+      c%chisq_threshold = huge(0.0d0)
+      c%nside_pixhist   = 64
+
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
          c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
@@ -198,7 +201,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -207,6 +210,7 @@ contains
       character(len=6)    :: samptext, scantext
       character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
+      real(sp),              dimension(9)       :: flag_threshold
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -233,16 +237,19 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
+      sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
+      only_solar_mask       = .false.                        ! Only apply solar mask
+      flag_threshold        = [1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
       !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      if (trim(self%freq(1:2)) == '10') then
-         sample_ncorr = .true.
-      else
-         sample_ncorr = .false.
-      end if
+      ! if (trim(self%freq(1:2)) == '10') then
+      !    sample_ncorr = .true.
+      ! else
+      !    sample_ncorr = .false.
+      ! end if
+      sample_ncorr = .false.
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -290,11 +297,15 @@ contains
       end if
 
 
-
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
 
+      ! Create pixel histograms
+      if (self%first_call) then
+         call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
+      end if
+      
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
@@ -321,40 +332,43 @@ contains
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
-         write(*,*) i, self%scans(i)%d%accept
+         !write(*,*) i, self%scans(i)%d%accept
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
-         if (self%myid == 0 .and. i == 1) then
-            open(58,file='tod.dat', recl=1024)
-            do j = 1, sd%ntod
-               write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1), sd%tod(j,2), sd%mask(j,2), sd%flag(j,2), sd%tod(j,3), sd%mask(j,3), sd%flag(j,3), sd%tod(j,4), sd%mask(j,4), sd%flag(j,4), sd%tod(j,5), sd%mask(j,5), sd%flag(j,5)
-            end do
-            close(58)
-         end if
+         ! if (self%myid == 0 .and. i == 1) then
+         !    open(58,file='tod.dat', recl=1024)
+         !    write(*,*)  "debug", shape(sd%tod), "debug"
+         !    do j = 1, sd%ntod
+         !       write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1), sd%tod(j,2), sd%mask(j,2), sd%flag(j,2), sd%tod(j,3), sd%mask(j,3), sd%flag(j,3), sd%tod(j,4), sd%mask(j,4), sd%flag(j,4), sd%tod(j,5), sd%mask(j,5), sd%flag(j,5)
+         !    end do
+         !    close(58)
+         ! end if
          
          ! Create dynamic mask
-!!$         if (self%first_call) then
-!!$            do j = 1, sd%ndet
-!!$               if (.not. self%scans(i)%d(j)%accept) cycle
-!!$               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
-!!$            end do
-!!$            call sd%dealloc
-!!$            if (.not. any(self%scans(i)%d%accept)) cycle
-!!$            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
-!!$         end if
+         if (self%first_call) then
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               if (self%scans(i)%d(j)%N_psd%sigma0 .eq. 0.d0) write(*,*) 'debug sigma0 = 0.0'
+               call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
+                    & sd%mask(:,j), sd%flag(:,j), flag_threshold, s_tot=sd%s_tot(:,j))
+            end do
+            call dealloc_scan_data(sd)
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         end if
 
          ! Sample correlated noise
-!!$         if (sample_ncorr) then
-!!$            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-!!$            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
-!!$           ! Compute noise spectrum parameters
-!!$            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-!!$         else
-!!$            sd%n_corr = 0.d0
-!!$            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
-!!$         end if
+         ! if (sample_ncorr) then
+         !    !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+         !    call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
+         !   ! Compute noise spectrum parameters
+         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         ! else
+         !    sd%n_corr = 0.d0
+         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+         ! end if
 
          ! Compute chisquare
 !!$         do j = 1, sd%ndet
@@ -393,10 +407,6 @@ contains
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
-               do k = 1, size(sd%s_zodi_therm, dim=2)
-                  call int2string(k, scantext)
-                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
-               end do
                call close_hdf_file(tod_file)
             end if
          end if
@@ -415,12 +425,15 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          deallocate(d_calib)
       end do
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
+      ! Synchronize and output flagging statistics in first iteration
+      if (self%first_call) call self%report_dynamic_mask_stats
+      
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
 
@@ -494,6 +507,7 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
+
    end subroutine process_akari_tod   
 
 

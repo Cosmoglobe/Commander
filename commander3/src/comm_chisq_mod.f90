@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -36,6 +36,7 @@ contains
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
     character(len=512),             intent(in),    optional :: maskpath
     integer(i4b), dimension(:),     intent(in),    optional :: band_list
+    integer(i4b),                   intent(out),   optional :: ndof
 
     integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
     integer(i4b), dimension(:), allocatable :: bandlist
@@ -78,6 +79,7 @@ contains
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
+       if (present(ndof))          ndof          = 0
        do p = 1, nbands
           i = bandlist(p)
           if (i == 0) cycle
@@ -143,8 +145,10 @@ contains
           if (present(chisq_fullsky)) then
              if (lowres) then
                 chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
+                if (present(ndof)) ndof = ndof + count(res_lowres%map /= 0.)
              else
                 chisq_fullsky = chisq_fullsky + sum(res%map)
+                if (present(ndof)) ndof = ndof + count(res%map /= 0.)
                 !write(*,*) trim(data(i)%label), sum(res%map), chisq_fullsky
              end if
           end if
@@ -159,6 +163,7 @@ contains
 
     if (present(chisq_fullsky)) then
        call mpi_allreduce(MPI_IN_PLACE, chisq_fullsky, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+       if (present(ndof)) call mpi_allreduce(MPI_IN_PLACE, ndof, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
     end if
 
   end subroutine compute_chisq

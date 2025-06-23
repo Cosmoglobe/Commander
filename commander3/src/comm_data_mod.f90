@@ -23,6 +23,7 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_tod_inst_mod
+  use comm_dust_extinction_mod
   implicit none
 
   type comm_data_set
@@ -55,6 +56,7 @@ module comm_data_mod
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
      class(comm_map),     pointer :: gainmask  => null()
+     class(comm_map),     pointer :: A_ext     => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
      class(B_ptr),         allocatable, dimension(:) :: B
@@ -63,7 +65,6 @@ module comm_data_mod
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
-     procedure :: RJ2data
      procedure :: chisq => get_chisq
      !procedure :: apply_proc_mask
   end type comm_data_set
@@ -88,7 +89,7 @@ contains
     class(comm_N), pointer  :: tmp => null()
     class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
-    class(comm_mapinfo), pointer :: smoothed_rms_info => null()
+    class(comm_mapinfo), pointer :: smoothed_rms_info => null(), info_ext => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
 
@@ -190,7 +191,7 @@ contains
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
           end if
-
+          
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
              data(n)%tod_freq       = cpar%ds_tod_freq(i)
@@ -284,24 +285,26 @@ contains
        call update_status(status, "data_N")
 
        ! Initialize bandpass structures; 0 is full freq, j is detector       
-       allocate(data(n)%bp(0:data(n)%ndet))
-      
+       allocate(data(n)%bp(0:data(n)%ndet))      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
+             data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%ds_bpfile(i)), &
-                              & trim(data(n)%tod%label(j)),&
-                              & 0.d0, &
+            call read_bandpass(trim(adjustl(cpar%ds_bpfile(i))), &
+                              & trim(data(n)%tod%label(j)), &
+                              & data(n)%bp(1)%p%threshold, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
-            do k=1, j
-               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+            do k=1, j-1
+               if(size(tau_dummy)==size(data(n)%bp(k)%p%tau0)) then
+                if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
-               else if (k==j-1) then
+                end if
+               end if
+               if(k==j-1) then !if we got through the whole loop above
                   data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
                end if
             end do
@@ -314,6 +317,23 @@ contains
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
+       ! Set up bp pointers in the TOD object
+       if (cpar%enable_TOD_analysis) then
+          allocate(data(n)%tod%bp(0:data(n)%ndet))
+          do j = 0, data(n)%ndet
+             data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
+          end do
+       end if
+
+       ! Initialize dust extinction map
+       if (active_dust_ext_model(data(n)%bp(0)%p%nu_c)) then
+          info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+               & -1, 1, .false.)
+          data(n)%A_ext => comm_map(data(n)%info)
+          call get_dust_attenuation_map(data(n)%bp(0)%p%nu_c, data(n)%A_ext)
+          call data(n)%A_ext%writeFITS(trim(cpar%outdir)//'/dust_ext_'//trim(data(n)%label)//'.fits')
+       end if
+  
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))
@@ -392,37 +412,6 @@ contains
 
   end function get_chisq
 
-  function RJ2data(self, det)
-    implicit none
-
-    class(comm_data_set), intent(in)           :: self
-    integer(i4b),         intent(in), optional :: det
-    real(dp)                                   :: RJ2data
-
-    integer(i4b) :: d
-
-    d = 0; if (present(det)) d = det
-
-    select case (trim(self%unit))
-    case ('uK_cmb') 
-       RJ2data = self%bp(d)%p%a2t
-    case ('mK_cmb') 
-       RJ2data = self%bp(d)%p%a2t * 1d-3
-    case ('K_cmb') 
-       RJ2data = self%bp(d)%p%a2t * 1d-6
-    case ('MJy/sr') 
-       RJ2data = self%bp(d)%p%a2f
-    case ('y_SZ') 
-       RJ2data = self%bp(d)%p%a2sz
-    case ('uK_RJ') 
-       RJ2data = 1.d0
-    case ('K km/s') 
-       RJ2data = 1.d0
-    case default
-       RJ2data = 1.d0
-    end select
-    
-  end function RJ2data
 
   subroutine dump_unit_conversion(dir)
     implicit none
@@ -676,7 +665,7 @@ contains
     integer(i4b),      intent(in)    :: band
     character(len=*),  intent(out)   :: mapfile
 
-    integer(i4b)       :: i, n, unit
+    integer(i4b)       :: i, j, n, unit
     character(len=512) :: filename
 
     filename = trim(adjustl(cpar%ds_mapfile(band)))
@@ -701,6 +690,7 @@ contains
     type(comm_params), intent(in)    :: cpar
     
     integer(i4b) :: i, j
+    real(sp)           :: elon
     character(len=512) :: model
     
     ! Initialize solar centric maps
@@ -728,6 +718,61 @@ contains
        end if
     end do
 
+    ! Initialize Moon centric maps
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_moon_allocated = .false.
+       model = cpar%ds_tod_moon_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_moon => data(j)%tod%map_moon
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_moon_allocated = .true.
+          allocate(data(i)%tod%map_moon(0:data(i)%info%npix-1,1))
+          if (trim(cpar%ds_tod_moon_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_moon = 0.d0
+          else
+             call read_map(cpar%ds_tod_moon_init(data(i)%tod%band), data(i)%tod%map_moon)
+          end if
+       end if
+    end do
+
+    ! Initialize Earth elongation profiles
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_earth_allocated = .false.
+       model = cpar%ds_tod_earth_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_earth => data(j)%tod%map_earth
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_earth_allocated = .true.
+          allocate(data(i)%tod%map_earth(1:NBIN_EARTH_ELON))
+          if (trim(cpar%ds_tod_earth_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_earth = 0.d0
+          else
+             open(58,file=trim(cpar%ds_tod_earth_init(data(i)%tod%band)))
+             do j = 1, NBIN_EARTH_ELON
+                read(58,*) elon, data(i)%tod%map_earth(j)
+             end do
+             close(58)
+          end if
+       end if
+    end do
+
+    
   end subroutine initialize_inter_tod_params
 
   
