@@ -329,7 +329,7 @@ interface
     ! None
     !
     implicit none
-    class(comm_HFI_tod),                 intent(in)     :: self
+    class(comm_hfi_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_hfi

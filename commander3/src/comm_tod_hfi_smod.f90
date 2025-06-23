@@ -886,6 +886,7 @@ contains
     
   end subroutine compute_adu_range
 
+
   
   module subroutine read_tod_inst_HFI(self, file)
     ! 
@@ -957,16 +958,61 @@ contains
     class(comm_HFI_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: base
+    real(sp), allocatable, dimension(:,:)   :: phase
+    real(sp), allocatable, dimension(:,:)   :: Q
+
+    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
+    if (self%myid == 0) then
+       call read_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
+       call read_hdf(chainfile, trim(adjustl(path))//'mod_phase',    phase)
+       call read_hdf(chainfile, trim(adjustl(path))//'adu_range', self%adu_range)
+
+       ! Read ADC tables
+       if (self%adu_range(1,1) > 0) then
+          allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+          call read_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+       end if
+    end if
+
+    call mpi_bcast(base,  size(base) , MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(phase, size(phase), MPI_REAL, 0, self%comm, ierr)
+    call mpi_bcast(self%adu_range, size(self%adu_range), MPI_INTEGER, 0, self%comm, ierr)
+
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%scans(i)%d(j)%baseline1 = base(k,j,1) 
+          self%scans(i)%d(j)%baseline2 = base(k,j,2) 
+          self%mod_phase(i,j) = phase(k,j)
+       end do
+    end do
+
+    if (self%adu_range(1,1) > 0) then
+       if (self%myid /= 0) allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+       call mpi_bcast(Q, size(Q), MPI_REAL, 0, self%comm, ierr)
+       do j = 1, self%ndet
+          allocate(self%adc(j)%p%Q(self%adu_range(j,1):self%adu_range(j,2)))
+          self%adc(j)%p%Q = Q(self%adu_range(j,1):self%adu_range(j,2),j)
+       end do
+       deallocate(Q)
+    end if
+    
+    deallocate(base, phase)
+
   end subroutine initHDF_HFI
   
-  module subroutine dumpToHDF_HFI(self, chainfile, path)
+  module subroutine dumpToHDF_hfi(self, chainfile, path)
     ! 
-    ! Writes HFI-specific TOD parameters to existing chain file
+    ! Writes instrument-specific TOD parameters to existing chain file
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_HFI_tod)
-    !           HFI-specific TOD object
+    ! self:     derived class (comm_tod)
+    !           TOD object
     ! chainfile: derived type (hdf_file)
     !           Already open HDF file handle to existing chainfile
     ! path:   string
@@ -977,10 +1023,56 @@ contains
     ! None
     !
     implicit none
-    class(comm_HFI_tod),                 intent(in)     :: self
+    class(comm_hfi_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine dumpToHDF_HFI
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: base
+    real(sp), allocatable, dimension(:,:)   :: phase
+    real(sp), allocatable, dimension(:,:)   :: Q
+
+    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
+    base  = 0.d0
+    phase = 0.0
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          base(k,j,1) = self%scans(i)%d(j)%baseline1
+          base(k,j,2) = self%scans(i)%d(j)%baseline2
+          phase(k,j)  = self%mod_phase(i,j)
+       end do
+    end do
+    if (self%myid == 0) then
+       call mpi_reduce(mpi_in_place, base, size(base), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call write_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
+       call mpi_reduce(mpi_in_place, phase, size(phase), &
+            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
+       call write_hdf(chainfile, trim(adjustl(path))//'mod_phase', phase)
+       call write_hdf(chainfile, trim(adjustl(path))//'adu_range', self%adu_range)
+
+       ! Pad ADC tables
+       if (associated(self%adc(1)%p)) then
+          allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+          Q = 1.
+          do j = 1, self%ndet
+             Q(self%adu_range(j,1):self%adu_range(j,2),j) = self%adc(j)%p%Q
+          end do
+          call write_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+          deallocate(Q)
+       end if
+    else
+       call mpi_reduce(base,         base, size(base), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(phase,        phase, size(phase), &
+            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
+    end if
+    deallocate(base, phase)
+
+  end subroutine dumpToHDF_hfi
+
 
   module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
     !  Construct an HFI instrument-specific correction template; for now contains 1Hz template only
