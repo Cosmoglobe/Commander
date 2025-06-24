@@ -8,6 +8,7 @@ from datetime import datetime
 
 import h5py
 import healpy as hp
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
@@ -111,6 +112,14 @@ filter_bad = mu.filter_junk(
     variables["stat_word_16"],
     variables["lvdt_stat_a"],
     variables["lvdt_stat_b"],
+    variables["a_bol_assem_rh"],
+    variables["a_bol_assem_rl"],
+    variables["a_bol_assem_lh"],
+    variables["b_bol_assem_lh"],
+    variables["a_bol_assem_ll"],
+    variables["b_bol_assem_ll"],
+    variables["bol_cmd_bias_lh"],
+    variables["bol_cmd_bias_rh"],
 )
 
 for variable in variables.keys():
@@ -182,20 +191,11 @@ for channel, channel_value in channels.items():
                 fits_data[1].data["RTRANSFE"][0]
                 + 1j * fits_data[1].data["ITRANSFE"][0]
             )
-            otf = otf[
-                np.abs(otf) > 0
-            ]
+            otf = otf[np.abs(otf) > 0]
 
             apod = fits_data[1].data[
                 "APODIZAT"
             ][0]
-            etf = (
-                fits_data[1].data["RELEX_GA"][0]
-                + 1j * fits_data[1].data["IELEX_GA"][0]
-            )
-            etf = etf[
-                np.abs(etf) > 0
-            ]
 
             # bolometer parameters
             R0 = fits_data[1].data[
@@ -332,13 +332,14 @@ for channel, channel_value in channels.items():
                 np.abs(bolometer_emiss) > 0
             ]
 
-
-            # setting the frequency cut-off according to the header of the fits file
             if mode[1] == "s":
                 cutoff = 5
             else:
                 cutoff = 7
 
+            print(f"Cutting off the first {cutoff} frequencies")
+
+            # setting the frequency cut-off according to the header of the fits file
             sky[f"{channel}_{mode}"] = (
                 spec[
                     :, cutoff : (len(otf) + cutoff)
@@ -358,7 +359,7 @@ for channel, channel_value in channels.items():
                         * skyhorn_emiss
                     )
                     + (
-                        bb_bolometer_rh
+                        bb_bolometer_rh # TODO: keep just the one that is being used to measure?
                         * bolometer_emiss
                     )
                     + (

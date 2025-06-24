@@ -126,6 +126,8 @@ dihedral_emiss = dihedral_emiss[:NUM_FREQ]
 ical_emiss = ical_emiss[:NUM_FREQ]
 struct_emiss = struct_emiss[:NUM_FREQ]
 
+otf257 = np.zeros(257, dtype=complex)
+otf257[5:5+NUM_FREQ] = otf
 
 plt.figure()
 plt.plot(nu, refhorn_emiss, label='Refhorn')
@@ -235,6 +237,15 @@ dihedral = eng['en_analog/grt/b_lo_dihedral'][()]
 bol_assem_temps = eng['en_analog/grt/b_lo_bol_assem'][:,1]
 struct = eng['en_analog/grt/b_lo_mirror'][()]
 
+a_bol_assem_rh = eng['en_analog/grt/a_lo_bol_assem'][:,0]
+a_bol_assem_rl = eng['en_analog/grt/a_lo_bol_assem'][:,1]
+a_bol_assem_lh = eng['en_analog/grt/a_lo_bol_assem'][:,2]
+a_bol_assem_ll = eng['en_analog/grt/a_lo_bol_assem'][:,3]
+b_bol_assem_rh = eng['en_analog/grt/b_lo_bol_assem'][:,0]
+b_bol_assem_rl = eng['en_analog/grt/b_lo_bol_assem'][:,1]
+b_bol_assem_lh = eng['en_analog/grt/b_lo_bol_assem'][:,2]
+b_bol_assem_ll = eng['en_analog/grt/b_lo_bol_assem'][:,3]
+
 stat_word_1 = eng['en_stat/stat_word_1'][()]
 stat_word_5 = eng['en_stat/stat_word_5'][()]
 stat_word_9 = eng['en_stat/stat_word_9'][()]
@@ -244,7 +255,7 @@ stat_word_16 = eng['en_stat/stat_word_16'][()]
 lvdt_stats = eng['en_stat/lvdt_stat'][()]
 lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
 
-filter_bad = mu.filter_junk(stat_word_1= stat_word_1, stat_word_5=stat_word_5, stat_word_9=stat_word_9, stat_word_12 = stat_word_12, stat_word_13=stat_word_13, stat_word_16=stat_word_16, lvdt_stat_a=lvdt_stat_a, lvdt_stat_b=lvdt_stat_b)
+filter_bad = mu.filter_junk(stat_word_1= stat_word_1, stat_word_5=stat_word_5, stat_word_9=stat_word_9, stat_word_12 = stat_word_12, stat_word_13=stat_word_13, stat_word_16=stat_word_16, lvdt_stat_a=lvdt_stat_a, lvdt_stat_b=lvdt_stat_b, a_bol_assem_rh=a_bol_assem_rh, a_bol_assem_rl=a_bol_assem_rl, a_bol_assem_lh=a_bol_assem_lh, b_bol_assem_lh=b_bol_assem_lh, a_bol_assem_ll=a_bol_assem_ll, b_bol_assem_ll=b_bol_assem_ll, bol_cmd_bias_lh=bol_cmd_biass[:,2], bol_cmd_bias_rh=bol_cmd_biass[:,0])
 filter_bad = np.logical_and(filter_bad, (xcals[:,0] < 3))
 filter_bad = np.logical_and(filter_bad, (icals[:,0] < 3))
 
@@ -586,47 +597,47 @@ plt.show()
 
 
 ifg_th = mu.spec_to_ifg(spec=spec_th, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_th)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_th[~np.isfinite(ifg_th)] = 0
 
 
 ifg_xcal = mu.spec_to_ifg(spec=spec_xcal, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_xcal)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
 ifg_ical = mu.spec_to_ifg(spec=spec_ical, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_ical)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_ical[~np.isfinite(ifg_ical)] = 0
 
 
 ifg_skyh = mu.spec_to_ifg(spec=spec_skyh, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_skyh)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_skyh[~np.isfinite(ifg_skyh)] = 0
 
 ifg_refh = mu.spec_to_ifg(spec=spec_refh, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_refh)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_refh[~np.isfinite(ifg_refh)] = 0
 
 
 ifg_dih = mu.spec_to_ifg(spec=spec_dih, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_dih)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_dih[~np.isfinite(ifg_dih)] = 0
 
 
 ifg_struct = mu.spec_to_ifg(spec=spec_struct, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_struct)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_struct[~np.isfinite(ifg_struct)] = 0
 
 ifg_bol = mu.spec_to_ifg(spec=spec_bol, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_bol)],
-                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)
+                        bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                        Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)
 ifg_bol[~np.isfinite(ifg_bol)] = 0
 
 '''

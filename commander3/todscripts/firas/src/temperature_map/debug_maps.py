@@ -11,40 +11,19 @@ sys.path.append(parent)
 import globals as g
 from utils.config import gen_nyquistl
 
-# m = hp.fitsfunc.read_map(
-#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/maps/fits/0179.fits",
-# )
-
-# hp.mollview(m, coord="G", title="179", unit="MJy/sr", min=0, max=500)
-# plt.show()
-
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
-
-# comparing otf with ical emiss ---------------
-# fits_data_ss = fits.open(
-#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
-# )
-
-# otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
-# otf_ss = otf_ss[np.abs(otf_ss) > 0]
-
-# ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
-# ical_emiss_ss = ical_emiss_ss[np.abs(ical_emiss_ss) > 0]
-
-# plt.plot(ical_emiss_ss / otf_ss)
-# plt.show()
-
 data = np.load(
-    g.PROCESSED_DATA_PATH,
+    # g.PROCESSED_DATA_PATH,
+    g.PROCESSED_DATA_PATH_CAL,
     allow_pickle=True,
 )
 
 sky = {}
 spec = {}
-pix_gal = {}
+# pix_gal = {}
 variables = {}
 variable_names = [
     # "gmt",
@@ -68,10 +47,10 @@ variable_names = [
     # "mtm_speed",
     # "pix_gal",
     # # "adds_per_group_ll",
-    # "bol_cmd_bias_ll",
-    # "bol_cmd_bias_lh",
-    # "bol_cmd_bias_rl",
-    # "bol_cmd_bias_rh",
+    "bol_cmd_bias_ll",
+    "bol_cmd_bias_lh",
+    "bol_cmd_bias_rl",
+    "bol_cmd_bias_rh",
     # "dwell_stat_a",
     # "dwell_stat_b",
     # "engstat_spares_1",
@@ -119,18 +98,18 @@ variable_names = [
     # "int_ref_temp_b",
     # "sky_hrn_temp_a",
     # "sky_hrn_temp_b",
+    "bol_volt_ll",
+    "bol_volt_lh",
+    "bol_volt_rl",
+    "bol_volt_rh",
 ]
 
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
+        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
             sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
-            print(f"sky[{channel}_{mode}]: {sky[f"{channel}_{mode}"].shape}")
             spec[f"{channel}_{mode}"] = np.abs(sky[f"{channel}_{mode}"])
-            print(f"spec[{channel}_{mode}]: {spec[f"{channel}_{mode}"].shape}")
-            pix_gal[mode] = data[f"pix_gal_{mode}"]
+            # pix_gal[mode] = data[f"pix_gal_{mode}"]
             # variables = data["variables"]
             for variable_name in variable_names:
                 variables[f"{variable_name}_{mode}"] = data[f"{variable_name}_{mode}"]
@@ -151,17 +130,15 @@ mask = np.where(mask < 0.5, 0, 1)
 # remove data inside the mask
 for mode in modes.keys():
     for name in variable_names:
-        variables[f"{name}_{mode}"] = variables[f"{name}_{mode}"][
-            mask[pix_gal[mode]] == 1
-        ]
+        # variables[f"{name}_{mode}"] = variables[f"{name}_{mode}"][
+        #     mask[pix_gal[mode]] == 1
+        # ]
         print(f"size of {name}_{mode}: {variables[f'{name}_{mode}'].shape}")
     for channel in channels.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            spec[f"{channel}_{mode}"] = spec[f"{channel}_{mode}"][
-                mask[pix_gal[mode]] == 1
-            ]
+        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+            # spec[f"{channel}_{mode}"] = spec[f"{channel}_{mode}"][
+            #     mask[pix_gal[mode]] == 1
+            # ]
             print(f"size of spec: {spec[f"{channel}_{mode}"].shape}")
 
 # for freq in range(1, len(spec[0])):
@@ -187,7 +164,6 @@ for channel in channels.keys():
             continue
         else:
             print(f"Mode: {f"{channel}_{mode}"}")
-            print(f"Shape of spec: {spec[f"{channel}_{mode}"].shape}")
 
             fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
 

@@ -72,7 +72,7 @@ for mode in modes.keys():
         hp.mollview(
             (temps - g.T_CMB)*1e3,
             title=f"{channel.upper()}{mode.upper()} Deviation from Fixsen 2009 CMB temperature",
-            unit="uK",
+            unit="mK",
             min=-100,
             max=100,
             cmap="seismic",

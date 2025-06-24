@@ -36,18 +36,12 @@ cal_data = h5py.File(
 # )
 
 # frequency mapping
-nu0 = {"ss": 68.020812, "lf": 23.807283}
-dnu = {"ss": 13.604162, "lf": 3.4010405}
-nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
-
 f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            f_ghz[f"{channel}_{mode}"] = np.linspace(
-                nu0[mode],
-                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
-                nf[f"{channel}_{mode}"],
+            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(
+                channel, mode
             )
 
 print("getting variables")
@@ -71,8 +65,10 @@ variable_names = [
     "b_bol_assem_lh",
     "a_bol_assem_ll",
     "b_bol_assem_ll",
+    "stat_word_1",
     "stat_word_5",
     "stat_word_9",
+    "stat_word_12",
     "stat_word_13",
     "stat_word_16",
     "lvdt_stat_a",
@@ -102,6 +98,28 @@ variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
+
+filter_bad = mu.filter_junk(
+    variables["stat_word_1"],
+    variables["stat_word_5"],
+    variables["stat_word_9"],
+    variables["stat_word_12"],
+    variables["stat_word_13"],
+    variables["stat_word_16"],
+    variables["lvdt_stat_a"],
+    variables["lvdt_stat_b"],
+    variables["a_bol_assem_rh"],
+    variables["a_bol_assem_rl"],
+    variables["a_bol_assem_lh"],
+    variables["b_bol_assem_lh"],
+    variables["a_bol_assem_ll"],
+    variables["b_bol_assem_ll"],
+    variables["bol_cmd_bias_lh"],
+    variables["bol_cmd_bias_rh"],
+)
+
+for variable in variables.keys():
+    variables[variable] = variables[variable][filter_bad]
 
 variables["ical"] = (variables["a_ical"] + variables["b_ical"]) / 2
 variables["xcal"] = (variables["a_xcal"] + variables["b_xcal"]) / 2
@@ -210,19 +228,28 @@ for channel, channel_value in channels.items():
 
 # optical transfer function
 otf = {}
+otf257 = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            otf[f"{channel}_{mode}"] = (
+        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+            if mode[1] == "s":
+                cutoff = 5
+            else:
+                cutoff = 7
+            length = len(fits_data[f"{channel}_{mode}"][1].data["RTRANSFE"][0])
+            otf[f"{channel}_{mode}"]= (
                 fits_data[f"{channel}_{mode}"][1].data["RTRANSFE"][0]
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["ITRANSFE"][0]
             )
-            # plt.show()
+            otf257[f"{channel}_{mode}"] = np.zeros(257, dtype=np.complex128)
+            otf257[f"{channel}_{mode}"][cutoff:cutoff + length] = otf[f"{channel}_{mode}"]
+            # print shape of otf
             otf[f"{channel}_{mode}"] = otf[f"{channel}_{mode}"][
                 np.abs(otf[f"{channel}_{mode}"]) > 0
             ]
+            print(
+                f"otf[{channel}_{mode}]: {otf[f'{channel}_{mode}'].shape}"
+            )
 
 apod = {}
 etf = {}
@@ -267,9 +294,9 @@ for channel in channels.keys():
             Jg[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
                 "BOLPARM9"
             ][0]
-            Tbol[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
-                "BOLOM_B2"
-            ][0]
+            # Tbol[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+            #     "BOLOM_B2"
+            # ][0]
             T0[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
                 "BOLPARM2"
             ][0]
@@ -340,14 +367,14 @@ for channel, channel_value in channels.items():
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
-                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
-                / 25.5,  # needs this factor to put it into volts (from pipeline)
+                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]/ 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
                 Jo=Jo[f"{channel}_{mode}"],
                 Jg=Jg[f"{channel}_{mode}"],
-                Tbol=Tbol[f"{channel}_{mode}"],
+                # Tbol=Tbol[f"{channel}_{mode}"],
+                Tbol=variablesm[f"bolometer_{channel}_{mode}"],
                 rho=rho[f"{channel}_{mode}"],
                 R0=R0[f"{channel}_{mode}"],
                 T0=T0[f"{channel}_{mode}"],
@@ -359,6 +386,10 @@ for channel, channel_value in channels.items():
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
+            # check spec for NaNs and infs
+            if np.any(np.isnan(spec[f"{channel}_{mode}"])) or np.any(np.isinf(spec[f"{channel}_{mode}"])):
+                print(f"NaN or inf in spec of {channel}_{mode}")
+                exit(0)
             bla = mu.spec_to_ifg(
                 spec=spec[f"{channel}_{mode}"],
                 # spec=bb_ical[f"{channel}_{mode}"],
@@ -371,10 +402,10 @@ for channel, channel_value in channels.items():
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
-                otf=otf[f"{channel}_{mode}"],
                 Jo=Jo[f"{channel}_{mode}"],
                 Jg=Jg[f"{channel}_{mode}"],
-                Tbol=Tbol[f"{channel}_{mode}"],
+                # Tbol=Tbol[f"{channel}_{mode}"],
+                Tbol=variablesm[f"bolometer_{channel}_{mode}"],
                 rho=rho[f"{channel}_{mode}"],
                 R0=R0[f"{channel}_{mode}"],
                 T0=T0[f"{channel}_{mode}"],
@@ -385,7 +416,10 @@ for channel, channel_value in channels.items():
                 gain=variablesm[f"gain_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
+                otf=otf257[f"{channel}_{mode}"],
             )
+            print(f"bla shape: {bla.shape}")
+            print(f"bla: {bla[n]}")
             axes[1].plot(bla[n])
             axes[1].set_xlabel("Distance")
             axes[0].set_ylabel("Input IFG")
@@ -528,9 +562,7 @@ for channel in channels.keys():
                 cutoff = 5
             else:
                 cutoff = 7
-            print(
-                f"shape of bb_ical: {bb_ical[f'{channel}_{mode}'].shape}, ical_emiss: {ical_emiss[f'{channel}_{mode}'].shape}, bb_bolometer_rh: {bb_bolometer_rh[f'{channel}_{mode}'].shape}, bolometer_emiss: {bolometer_emiss[f'{channel}_{mode}'].shape}"
-            )
+
             cal[f"{channel}_{mode}"] = (
                 spec[f"{channel}_{mode}"][
                     :, cutoff : (len(otf[f"{channel}_{mode}"]) + cutoff)

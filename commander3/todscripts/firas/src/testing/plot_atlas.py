@@ -154,7 +154,6 @@ for param in change_parameters:
     tau = pub_model[1].data["TIME_CON"][0]
     Jo = pub_model[1].data["BOLPARM8"][0]*detector_factors['Jo']
     Jg = pub_model[1].data["BOLPARM9"][0]*detector_factors['Jg']
-    Tbol = pub_model[1].data["BOLOM_B2"][0]*detector_factors['Tbol']
     T0 = pub_model[1].data["BOLPARM2"][0]*detector_factors['T0']
     R0 = pub_model[1].data["BOLPARM_"][0]*detector_factors['R0']
     rho = pub_model[1].data["BOLPARM5"][0]*detector_factors['rho']
@@ -187,6 +186,8 @@ for param in change_parameters:
     ical_emiss = ical_emiss[:NUM_FREQ]
     struct_emiss = struct_emiss[:NUM_FREQ]
     
+    otf257 = np.zeros(257, dtype=complex)
+    otf257[offset:offset+NUM_FREQ] = otf
     
     ind = (sci_times >= 41574611466410000) & (sci_times <=  41574863373910000)
     
@@ -240,8 +241,16 @@ for param in change_parameters:
     stat_word_16 = eng['en_stat/stat_word_16'][()]
     lvdt_stats = eng['en_stat/lvdt_stat'][()]
     lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
-   
-    filter_bad = mu.filter_junk(stat_word_1, stat_word_5, stat_word_9, stat_word_12, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b)
+    a_bol_assem_rh = eng['en_analog/grt/a_lo_bol_assem'][:,0]
+    a_bol_assem_rl = eng['en_analog/grt/a_lo_bol_assem'][:,1]
+    a_bol_assem_lh = eng['en_analog/grt/a_lo_bol_assem'][:,2]
+    b_bol_assem_lh = eng['en_analog/grt/b_lo_bol_assem'][:,2]
+    a_bol_assem_ll = eng['en_analog/grt/a_lo_bol_assem'][:,3]
+    b_bol_assem_ll = eng['en_analog/grt/b_lo_bol_assem'][:,3]
+    bol_cmd_bias_lh = eng['en_stat/bol_cmd_bias'][:, 2]
+    bol_cmd_bias_ll = eng['en_stat/bol_cmd_bias'][:, 3]
+
+    filter_bad = mu.filter_junk(stat_word_1, stat_word_5, stat_word_9, stat_word_12, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b, a_bol_assem_rh, a_bol_assem_rl, a_bol_assem_lh, b_bol_assem_lh, a_bol_assem_ll, b_bol_assem_ll, bol_cmd_bias_lh, bol_cmd_bias_ll)
     filter_bad = np.logical_and(filter_bad, (xcals[:,0] < 3))
     filter_bad = np.logical_and(filter_bad, (icals[:,0] < 3))
     
@@ -308,6 +317,8 @@ for param in change_parameters:
     
     bol_cmd_bias = bol_cmd_biass[eng_inds,channel]
     bol_volt = bol_volts[eng_inds,channel]
+    Tbol = (a_bol_assem_ll + b_bol_assem_ll)/2 # TODO: change this when we have the new temperatures
+    Tbol = Tbol[eng_inds]
     
     icals = icals[eng_inds]
     xcals = xcals[eng_inds]
@@ -424,8 +435,8 @@ for param in change_parameters:
         spec_mbb[i] /= max(1e-12, max(abs(spec_mbb[i])))
     
     ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
-                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod)#, etf)
+                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol[:5], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod, otf=otf257)#, etf)
     #ifg_mbb[~np.isfinite(ifg_mbb)] = 0
     fig, axes = plt.subplots(nrows=5, ncols=2, sharex='col', figsize=(12,12))
     for i in range(5):
@@ -442,8 +453,8 @@ for param in change_parameters:
 
 
     ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
-                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod)#, etf)
+                            bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol[:5], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod, otf=otf257)#, etf)
     fig, axes = plt.subplots(ncols=2)
     for i in range(3):
         axes[0].plot(nu, spec_mbb[i][offset:offset+NUM_FREQ])
@@ -527,19 +538,19 @@ for param in change_parameters:
     
     
     ifg_th = mu.spec_to_ifg(spec=spec_th, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_th)],
-                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_th[~np.isfinite(ifg_th)] = 0
 
 
     ifg_xcal = mu.spec_to_ifg(spec=spec_xcal, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_xcal)],
-                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
     ifg_ical = mu.spec_to_ifg(spec=spec_ical, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_ical)],
-                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, otf=otf, Jo=Jo, Jg=Jg,
-                            Tbol=Tbol, rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod)#, etf)
+                            bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
+                            Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_ical[~np.isfinite(ifg_ical)] = 0
     
     plt.figure()

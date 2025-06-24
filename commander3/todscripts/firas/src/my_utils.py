@@ -1,8 +1,7 @@
 import healpy as hp
+import matplotlib.pyplot as plt
 import numpy as np
-from numba import prange
 from scipy import interpolate
-from scipy.interpolate import RegularGridInterpolator
 
 import constants
 from utils.frd import elex_transfcnl
@@ -90,11 +89,10 @@ def get_afreq(mtm_speed, channel, nfreq=None):
     return afreq
 
 
-def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
+def calculate_dc_response(bol_cmd_bias, bol_volt, Tbol, R0, T0, G1, beta, rho, Jo, Jg):
     """
     Taken largely from calc_responsivity in fsl.
     """
-
     rscale = 1.0e-7
 
     cmd_bias = bol_cmd_bias.astype(
@@ -105,7 +103,7 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, bet
 
     RL = 4.0e7
     R = RL * V / (cmd_bias - V)
-
+    
     X = V * rho
     Y = R / R0 / X
 
@@ -278,7 +276,6 @@ def ifg_to_spec(
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
@@ -286,9 +283,6 @@ def ifg_to_spec(
     spec = spec / etf
     spec = spec / spec_norm
 
-    # spec_len = len(ifg[0]) // 2 + 1
-    # dw = 2.0 * np.pi * fnyq_hz / spec_len
-    # afreq = np.arange(spec_len) * dw
 
     afreq = get_afreq(mtm_speed, channel, 257)
 
@@ -320,7 +314,6 @@ def ifg_to_spec(
     )
 
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-
     spec = spec / S0[:, np.newaxis] * B
 
     if mtm_speed == 0:
@@ -411,12 +404,13 @@ def spec_to_ifg(
     else:
         cutoff = 7
 
-    #spec_r = np.zeros((len(spec), 257))
-    #spec_r[:, cutoff : (len(otf) + cutoff)] = spec
-    spec_r = spec
+    spec_r = np.zeros((len(spec), 257))
+    if len(spec[0]) == 257:
+        spec_r = spec
+    else:
+        spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
 
     # Defining constants, getting data model
-
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
 
@@ -424,19 +418,17 @@ def spec_to_ifg(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    afreq = get_afreq(mtm_speed, channel, 257)
-
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,
         bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol,
-        rho=rho,
         R0=R0,
         T0=T0,
-        beta=beta,
         G1=G1,
+        beta=beta,
+        rho=rho,
+        Jo=Jo,
+        Jg=Jg,
     )
 
     tau = calculate_time_constant(
@@ -452,24 +444,20 @@ def spec_to_ifg(
         rho=rho,
         T0=T0,
     )
-    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec_r[0]))
+    etfl_all = elex_transfcnl(samprate=681.43, nfreq=257)
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
+    afreq = get_afreq(mtm_speed, channel, 257)
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
 
     spec_r = spec_r / fac_erg_to_mjy
-
-    spec_r[:, cutoff : len(otf) + cutoff] = spec_r[:, cutoff : len(otf) + cutoff] * otf
-
+    spec_r = spec_r * otf
     spec_r = S0[:, np.newaxis] * spec_r / B
-
     spec_r = spec_r * spec_norm
-
     spec_r = spec_r * etf
 
-    ifg = np.fft.irfft(spec_r)
-
+    ifg = np.fft.irfft(spec_r, )
     ifg = unclean_ifg(ifg, gain, sweeps, apod)
 
     return ifg
@@ -504,7 +492,7 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
 
 
 def filter_junk(
-    stat_word_1, stat_word_5, stat_word_9, stat_word_12, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
+    stat_word_1, stat_word_5, stat_word_9, stat_word_12, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b, a_bol_assem_rh, a_bol_assem_rl, a_bol_assem_lh, b_bol_assem_lh, a_bol_assem_ll, b_bol_assem_ll, bol_cmd_bias_lh, bol_cmd_bias_rh
 ):
     """
     Sets the filters needed to remove junk data according to flags.
@@ -614,7 +602,10 @@ def filter_junk(
         & (lvdt_stat_b != 121)
     )
 
-    full_filter = filter0 & filter1 & filter2 & filter25 &  filter3 & filter4 & filter5 & filter6
+    filtergrt = (a_bol_assem_rh > 0) & (a_bol_assem_rl > 0) & (a_bol_assem_lh > 0) & (b_bol_assem_lh > 0) & (a_bol_assem_ll > 0) & (b_bol_assem_ll > 0)
+    filtercmd = (bol_cmd_bias_lh > 0) & (bol_cmd_bias_rh > 0)
+
+    full_filter = filter0 & filter1 & filter2 & filter25 &  filter3 & filter4 & filter5 & filter6 & filtergrt & filtercmd
 
     return full_filter
 
@@ -639,7 +630,6 @@ def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
         target_time = (
             gmt[i] + offset * times[f"{int(mtm_length[i])}{int(mtm_speed[i])}"]
         )
-        # print(f"target_time: {target_time}")
 
         # using two minutes around the target time
         lower_bound = target_time - 120
@@ -649,14 +639,11 @@ def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
         end_id = np.searchsorted(gmt, upper_bound, side="right")
         idx = np.arange(start_id, end_id)
 
-        # print(f"idx: {idx}")
-
         if len(idx) > 1 and gmt[start_id] <= target_time <= gmt[end_id - 1]:
             new_gal_vec[i] = interpolate.interp1d(
                 gmt[idx], gal_vec[idx], axis=0, kind="linear"
             )(target_time)
         else:
-            # print(f"no interpolation for {i}")
             new_gal_vec[i] = np.nan
 
     return new_gal_vec

@@ -49,8 +49,10 @@ variable_names = [
     "b_bol_assem_lh",
     "a_bol_assem_ll",
     "b_bol_assem_ll",
+    "stat_word_1",
     "stat_word_5",
     "stat_word_9",
+    "stat_word_12",
     "stat_word_13",
     "stat_word_16",
     "lvdt_stat_a",
@@ -82,6 +84,28 @@ variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
+
+filter_bad = mu.filter_junk(
+    variables["stat_word_1"],
+    variables["stat_word_5"],
+    variables["stat_word_9"],
+    variables["stat_word_12"],
+    variables["stat_word_13"],
+    variables["stat_word_16"],
+    variables["lvdt_stat_a"],
+    variables["lvdt_stat_b"],
+    variables["a_bol_assem_rh"],
+    variables["a_bol_assem_rl"],
+    variables["a_bol_assem_lh"],
+    variables["b_bol_assem_lh"],
+    variables["a_bol_assem_ll"],
+    variables["b_bol_assem_ll"],
+    variables["bol_cmd_bias_lh"],
+    variables["bol_cmd_bias_rh"],
+)
+
+for variable in variables.keys():
+    variables[variable] = variables[variable][filter_bad]
 
 variables["ical"] = (variables["a_ical"] + variables["b_ical"]) / 2
 variables["xcal"] = (variables["a_xcal"] + variables["b_xcal"]) / 2
