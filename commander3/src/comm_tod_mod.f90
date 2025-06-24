@@ -182,6 +182,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      character(len=512) :: datadir
+     character(len=512) :: map_type                               ! type of mapmaker to use, {nplus2, binned, differential}
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
@@ -446,6 +447,7 @@ contains
     self%flag0         = cpar%ds_tod_flag(id_abs)
     self%abscal_comps  = cpar%ds_tod_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
+    self%map_type      = cpar%ds_tod_map_type(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
     self%output_zodi_comps = cpar%zs_output_comps
@@ -463,7 +465,7 @@ contains
     self%sol_elong_range = [0., 180.]
     self%sample_mono     = .false.
     self%nside_pixhist   = -1
-    
+ 
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
@@ -956,7 +958,9 @@ contains
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    
     self%gain0(0) = sum(self%gain0)/sum(ns)
+
     where (ns > 0)
        self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
@@ -1625,7 +1629,6 @@ contains
 
   end subroutine get_scan_ids
 
-
   subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
     class(comm_tod),                   intent(inout) :: self
@@ -1743,6 +1746,8 @@ contains
     deallocate(output, mjds)
 
   end subroutine dumpToHDF
+
+  
 
   subroutine initHDF(self, chainfile, iter, map, rms)
     implicit none
@@ -3301,17 +3306,17 @@ contains
         ncut = 0
         if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
         do iter = 1, 1
-           ! Compute full-scan, masked rms0
-           rms0 = 0.d0
-           n   = 0
-           do i = 1, ntod
-              if (mask(i) == 1.) then
-                 rms0 = rms0 + res(i)**2
-                 n   = n   + 1
-              end if
-           end do
-           rms0 = sqrt(rms0/(n-1))
-           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
+!!$           ! Compute full-scan, masked rms0
+!!$           rms0 = 0.d0
+!!$           n   = 0
+!!$           do i = 1, ntod
+!!$              if (mask(i) == 1.) then
+!!$                 rms0 = rms0 + res(i)**2
+!!$                 n   = n   + 1
+!!$              end if
+!!$           end do
+!!$           rms0 = 0.; if (n > 1) rms0 = sqrt(rms0/(n-1))
+!!$           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
@@ -3343,7 +3348,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(cut)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
-        self%mask_dyn_stats(3) = self%mask_dyn_stats(3) + ncut
+        self%mask_dyn_stats(3) = self%mask_dyn_stats(3)
      end if
      
      if (threshold(4) > 0.) then
@@ -3663,7 +3668,7 @@ contains
           end if
        end do
        do k = 1, tod%nobs
-          do l = 1, tod%nmaps
+          do l = 1, nmaps
              map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
           end do
        end do

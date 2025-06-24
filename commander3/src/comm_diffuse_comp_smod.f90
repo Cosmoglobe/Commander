@@ -271,7 +271,8 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
-       if(temp2(1:1) /= '/') then
+       !!raelyn changed temp2 (never initialized) to temp_filename, needed to add the data directroy to the file names
+       if(temp_filename(1:1) /= '/') then
           if(trim(self%mono_prior_type) /= 'bandmono') then
             temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
           end if
@@ -1821,8 +1822,8 @@ contains
           do j = 1,self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-             td => comm_map(info)
-             
+             td => comm_map(info) !empty array, commander type map
+             ! if self%theta(j)%p%info%lmax=0 constant on the sky
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
              if (any(self%lmax_ind_pol(1:self%poltype(j),j) >= 0)) then
                 t => comm_map(info)
@@ -1923,7 +1924,6 @@ contains
              cycle
           end if
           
-          
           ! Loop over all pixels, computing mixing matrix for each
           !allocate(theta_p(self%npar,self%nmaps))
           call wall_time(t1)
@@ -1945,14 +1945,13 @@ contains
              end if
 
              
-!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
-!             cycle
-!          end if
+!          if (all(self%lmax_ind_mix(1:min(self%nmaps,da
+             !if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (s
 
              ! NEW ! Check band sensitivity before mixing matrix update
              ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
              if (data(i)%comp_sens == "broadband") then
-                ! If broadband, calculate mixing matrix
+               ! If broadband, calculate mixing matrix
                 mixmatnull = .false.
              else
                 ! If component sensitivity, only calculate mixmat on that component.
@@ -2034,8 +2033,6 @@ contains
              end if
 
           end do
-
-          call wall_time(t2)
           !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
                 
           ! Compute mixing matrix average; for preconditioning only
@@ -2987,17 +2984,27 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
     integer(i4b),             intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k
+    integer(i4b) :: i, j, k, nmaps
+
+    ! only do the computation for the I,Q,U maps, not for the individual det maps
+    ! that info is instead stored in the j index in this structure
 
     if (present(band)) then
-       do i = 1, data(band)%info%nmaps
+       ! only do the computation for the I,Q,U maps, not for the individual det maps
+       ! that info is instead stored in the j index in this structure
+       nmaps = data(band)%info%nmaps
+       if (nmaps > 3) nmaps = 3
+
+       do i = 1, nmaps
           do j = 0, data(band)%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
     else
        do k = 1, numband
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(k)%info%nmaps
+          if (nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
