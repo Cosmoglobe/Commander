@@ -34,6 +34,7 @@ COMP_CL_DEFAULT_BETA_B&&      =  30.d0
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               =  500
 COMP_L_APOD&&                 =  200
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_AMP_INPUT_MAP&&          = zero_n512.fits
 COMP_AMP_PRIOR_MAP&&          = none
 

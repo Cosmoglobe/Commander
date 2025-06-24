@@ -323,7 +323,7 @@ contains
        end if
 
        ! Initialize dust extinction map
-       if (active_dust_ext_model(data(i)%bp(0)%p%nu_c)) then
+       if (active_dust_ext_model(data(n)%bp(0)%p%nu_c)) then
           info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                & -1, 1, .false.)
           data(n)%A_ext => comm_map(data(n)%info)

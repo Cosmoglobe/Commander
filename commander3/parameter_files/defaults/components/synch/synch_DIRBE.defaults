@@ -11,6 +11,7 @@ COMP_NSIDE&&                  = 1024
 COMP_MONOPOLE_PRIOR&&         = bandmono:0.4-Haslam  #<band label>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_OUTPUT_FWHM&&            = 60         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0

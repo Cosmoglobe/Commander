@@ -284,7 +284,6 @@ contains
           if (c%F_null(i)) cycle
           ia = c%b2a(i)
           call get_dust_attenuation_pos(c%src(j)%vec, data(i)%bp(0)%p%nu_c, c%src(j)%T(ia)%A_ext)
-          if(cpar%myid == 0) write(*,*) j, i, c%src(j)%T(ia)%A_ext
        end do
     end do
     
