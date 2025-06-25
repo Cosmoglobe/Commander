@@ -112,11 +112,20 @@ for mode in modes.keys():
             mu.planck(f_ghz, t0),
             label="Original",
         )
-        plt.plot(f_ghz, dust, label="Dust")
+        # plt.plot(f_ghz, dust, label="Dust")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
         plt.title(f"{channel.upper()}{mode.upper()}")
         plt.grid()
         plt.legend()
         plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}"}.png")
+        plt.clf()
+
+        # plot also subtracted
+        difference = bb_curve_data - mu.planck(f_ghz, t0)
+        plt.plot(f_ghz, difference, label="Difference")
+        plt.xlabel("Frequency [GHz]")
+        plt.ylabel("Brightness [MJy/sr]")
+        plt.title(f"{channel.upper()}{mode.upper()} difference from original")
+        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}_difference"}.png")
         plt.clf()
