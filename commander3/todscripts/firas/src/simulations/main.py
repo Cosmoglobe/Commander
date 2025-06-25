@@ -30,7 +30,7 @@ temps = {
     "bolometer_rh": np.array([1.53]),
 }
 
-def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), bol_cmd_bias=np.array([40]), bol_volt=np.array([2]), gain=np.array([1]), sweeps=np.array([1])):
+def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.array([1]), bol_cmd_bias=np.array([40]), bol_volt=np.array([2]), gain=np.array([1])):
     frequency = mu.generate_frequencies(channel, mode, 257)
 
     bb_xcal = mu.planck(frequency, np.array(temps["xcal"]))
@@ -63,28 +63,23 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), bol_cmd_bia
     emiss_skyhorn[cutoff:cutoff+length] = fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
     emiss_bolometer[cutoff:cutoff+length] = fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
 
-    total_spectra = np.nan_to_num((bb_xcal * emiss_xcal+ bb_ical * emiss_ical+ bb_dihedral * emiss_dihedral + bb_refhorn * emiss_refhorn + bb_skyhorn * emiss_skyhorn + bb_bolometer_ll * emiss_bolometer + bb_bolometer_lh * emiss_bolometer + bb_bolometer_rl * emiss_bolometer + bb_bolometer_rh * emiss_bolometer)/emiss_xcal, nan=0)
-    plt.plot(frequency, np.nan_to_num(emiss_xcal/emiss_xcal, nan=0), label="xcal")
-    plt.plot(frequency, np.nan_to_num(emiss_ical/emiss_xcal, nan=0), label="ical")
-    plt.plot(frequency, np.nan_to_num(emiss_dihedral/emiss_xcal, nan=0), label="dihedral")
-    plt.plot(frequency, np.nan_to_num(emiss_refhorn/emiss_xcal, nan=0), label="refhorn")
-    plt.plot(frequency, np.nan_to_num(emiss_skyhorn/emiss_xcal, nan=0), label="skyhorn")
-    plt.plot(frequency, np.nan_to_num(emiss_bolometer/emiss_xcal, nan=0), label="bolometer")
+    total_spectra = np.nan_to_num((bb_xcal * emiss_xcal + bb_ical * emiss_ical+ bb_dihedral * emiss_dihedral + bb_refhorn * emiss_refhorn + bb_skyhorn * emiss_skyhorn + bb_bolometer_ll * emiss_bolometer + bb_bolometer_lh * emiss_bolometer + bb_bolometer_rl * emiss_bolometer + bb_bolometer_rh * emiss_bolometer)/emiss_xcal, nan=0) #* gain[:, np.newaxis]
+
+    n = 4757
+
+    print(f"total_spectra peak: {np.max(np.abs(total_spectra[n]))}")
+    print(f"adds_per_group: {adds_per_group[n]}")
+    print(f"sweeps: {sweeps[n]}")
+    print(f"bol_cmd_bias: {bol_cmd_bias[n]}")
+    print(f"bol_volt: {bol_volt[n]}")
+    print(f"gain: {gain[n]}")
+    
+    plt.plot(frequency, np.abs(total_spectra[n]), label="Total Spectra")
+    plt.plot(frequency, bb_xcal[n] - bb_ical[n], label="XCAL - ICAL")
+    plt.plot(frequency, bb_xcal[n], label=f"XCAL = {temps['xcal'][n]} K")
+    plt.plot(frequency, bb_ical[n], label=f"ICAL = {temps['ical'][n]} K")
     plt.legend()
-    plt.title(f"Emissivity for {channel.upper()}{mode.upper()}")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Emissivity")
-    plt.grid()
-    plt.show()
-    plt.plot(
-        frequency,
-        np.abs(total_spectra)[0],
-        label=f"{channel.upper()}{mode.upper()}",
-    )
-    plt.title(f"Total Spectra for {channel.upper()}{mode.upper()}")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Total Spectra")
-    plt.grid()
+
     plt.show()
 
     fnyq = gen_nyquistl(
@@ -106,20 +101,8 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), bol_cmd_bia
     ifg = mu.spec_to_ifg(spec=total_spectra, mtm_speed=mtm_speed, channel=channels[channel], adds_per_group=adds_per_group, bol_cmd_bias=bol_cmd_bias/25.5, # convert to volts
                          bol_volt=bol_volt, Tbol=temps[f"bolometer_{channel}"], gain=gain, sweeps=sweeps, apod=apod,otf=emiss_xcal,fnyq_icm=fnyq["icm"][frec], R0=R0, T0=T0, G1=G1, beta=beta, rho=rho, C1=C1, C3=C3, Jo=Jo, Jg=Jg)
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
-    ifg_plot = ifg[0]  # Extract first row since it's a 2D array
-    
-    # Replace extreme values with NaN
-    mask = np.abs(ifg_plot) > 1e5  # Identify extreme values
-    ifg_plot_clean = ifg_plot.copy()
-    ifg_plot_clean[mask] = np.nan  # Replace with NaN to ignore in plot
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(ifg_plot_clean)
-    plt.title(f"IFG for {channel.upper()}{mode.upper()}")
-    plt.xlabel("Sample")
-    plt.ylabel("Amplitude")
-    plt.grid(True)
-    plt.show()
+
+    return ifg, total_spectra
 
 if __name__ == "__main__":
     for channel in channels.keys():

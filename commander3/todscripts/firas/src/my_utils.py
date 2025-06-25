@@ -192,7 +192,7 @@ def unclean_ifg(
     ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod
-    ifg[:, apod < 0.1] = np.nan
+    ifg[:, apod < 0.15] = np.nan
 
     return ifg
 
@@ -398,6 +398,93 @@ def spec_to_ifg(
     Jo=1.662232
     Jg=0.92
     Tbol=1.5309418
+    '''
+    if mtm_speed == 0:
+        cutoff = 5
+    else:
+        cutoff = 7
+
+    spec_r = np.zeros((len(spec), 257))
+    if len(spec[0]) == 257:
+        spec_r = spec
+    else:
+        spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
+
+    # Defining constants, getting data model
+    fac_icm_ghz = 29.9792458
+    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
+
+    fac_etendu = 1.5  # nathan's pipeline
+    fac_adc_scale = 204.75  # nathan's pipeline
+    spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
+
+    S0 = calculate_dc_response(
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        Tbol=Tbol,
+        R0=R0,
+        T0=T0,
+        G1=G1,
+        beta=beta,
+        rho=rho,
+        Jo=Jo,
+        Jg=Jg,
+    )
+
+    tau = calculate_time_constant(
+        C3=C3,
+        Tbol=Tbol,
+        C1=C1,
+        G1=G1,
+        beta=beta,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        bol_cmd_bias=bol_cmd_bias,
+        rho=rho,
+        T0=T0,
+    )
+    etfl_all = elex_transfcnl(samprate=681.43, nfreq=257)
+    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
+    etf = etfl_all[erecno, :]
+
+    afreq = get_afreq(mtm_speed, channel, 257)
+    B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
+
+    spec_r = spec_r / fac_erg_to_mjy
+    spec_r = spec_r * otf
+    spec_r = S0[:, np.newaxis] * spec_r / B
+    spec_r = spec_r * spec_norm
+    spec_r = spec_r * etf
+
+    ifg = np.fft.irfft(spec_r, )
+    ifg = unclean_ifg(ifg, gain, sweeps, apod)
+
+    return ifg
+
+def spec_to_ifg_normalized(
+    spec,
+    mtm_speed,
+    channel,
+    adds_per_group,
+    bol_cmd_bias,
+    bol_volt,
+    Tbol,
+    otf,
+    apod,
+    fnyq_icm,
+    R0,
+    T0,
+    G1,
+    beta,
+    rho,
+    C1,
+    C3,
+    Jo,
+    Jg,
+):
+    '''
+    Similar to spec_to_ifg, but assumes the spectrum is only taken from one on-board IFG and its gain is 1.
     '''
     if mtm_speed == 0:
         cutoff = 5

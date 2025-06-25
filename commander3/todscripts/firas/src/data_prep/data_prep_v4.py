@@ -661,30 +661,50 @@ df_eng = df_eng.drop(
     ]
 )
 
-df_eng["a_bol_assem_rh"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_rh", "a", "bolometer")
-).astype(np.float64)
-df_eng["b_bol_assem_rh"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_rh", "b", "bolometer")
-).astype(np.float64)
-df_eng["a_bol_assem_rl"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_rl", "a", "bolometer")
-).astype(np.float64)
-df_eng["b_bol_assem_rl"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_rl", "b", "bolometer")
-).astype(np.float64)
-df_eng["a_bol_assem_lh"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_lh", "a", "bolometer")
-).astype(np.float64)
-df_eng["b_bol_assem_lh"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_lh", "b", "bolometer")
-).astype(np.float64)
-df_eng["a_bol_assem_ll"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_ll", "a", "bolometer")
-).astype(np.float64)
-df_eng["b_bol_assem_ll"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem_ll", "b", "bolometer")
-).astype(np.float64)
+# df_eng["a_bol_assem_rh"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_rh", "a", "bolometer")
+# ).astype(np.float64)
+# df_eng["b_bol_assem_rh"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_rh", "b", "bolometer")
+# ).astype(np.float64)
+# df_eng["a_bol_assem_rl"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_rl", "a", "bolometer")
+# ).astype(np.float64)
+# df_eng["b_bol_assem_rl"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_rl", "b", "bolometer")
+# ).astype(np.float64)
+# df_eng["a_bol_assem_lh"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_lh", "a", "bolometer")
+# ).astype(np.float64)
+# df_eng["b_bol_assem_lh"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_lh", "b", "bolometer")
+# ).astype(np.float64)
+# df_eng["a_bol_assem_ll"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_ll", "a", "bolometer")
+# ).astype(np.float64)
+# df_eng["b_bol_assem_ll"] = df_eng.apply(
+#     get_temperature_hl, axis=1, args=("bol_assem_ll", "b", "bolometer")
+# ).astype(np.float64)
+
+# all high current readings for the bolometers are bad?
+# check if all channels are -9999
+for channel in channels:
+    if (
+        (df_eng[f"a_hi_bol_assem_{channel}"] == -9999).all()
+        and (df_eng[f"b_hi_bol_assem_{channel}"] == -9999).all()
+    ):
+        print(f"All high current readings for {channel} are -9999, dropping them")
+    else:
+        print(f"Not all high current readings for {channel} are -9999, keeping them")
+
+df_eng["a_bol_assem_rh"] = df_eng["a_lo_bol_assem_rh"]
+df_eng["b_bol_assem_rh"] = df_eng["b_lo_bol_assem_rh"]
+df_eng["a_bol_assem_rl"] = df_eng["a_lo_bol_assem_rl"]
+df_eng["b_bol_assem_rl"] = df_eng["b_lo_bol_assem_rl"]
+df_eng["a_bol_assem_lh"] = df_eng["a_lo_bol_assem_lh"]
+df_eng["b_bol_assem_lh"] = df_eng["b_lo_bol_assem_lh"]
+df_eng["a_bol_assem_ll"] = df_eng["a_lo_bol_assem_ll"]
+df_eng["b_bol_assem_ll"] = df_eng["b_lo_bol_assem_ll"]
 df_eng = df_eng.drop(
     columns=[
         "a_hi_bol_assem_rh",

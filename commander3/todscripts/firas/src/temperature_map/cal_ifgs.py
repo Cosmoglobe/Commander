@@ -361,7 +361,7 @@ for channel, channel_value in channels.items():
             fig, axes = plt.subplots(sharex=True, sharey=False, nrows=2)
             axes[0].plot(variablesm[f"ifg_{channel}_{mode}"][n])
 
-            print(f"ifg to spec of {channel}_{mode}")
+            print(f"IFG to spec of {channel}_{mode}")
             f, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_speed=0 if mode[1] == "s" else 1,
@@ -386,10 +386,7 @@ for channel, channel_value in channels.items():
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
-            # check spec for NaNs and infs
-            if np.any(np.isnan(spec[f"{channel}_{mode}"])) or np.any(np.isinf(spec[f"{channel}_{mode}"])):
-                print(f"NaN or inf in spec of {channel}_{mode}")
-                exit(0)
+
             bla = mu.spec_to_ifg(
                 spec=spec[f"{channel}_{mode}"],
                 # spec=bb_ical[f"{channel}_{mode}"],
