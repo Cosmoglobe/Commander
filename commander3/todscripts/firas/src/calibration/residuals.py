@@ -16,6 +16,7 @@ from utils.config import gen_nyquistl
 
 # get temperatures
 data = np.load(g.PROCESSED_DATA_PATH_CAL)
+print(data.files)
 
 print("Loading calibration data...")
 
@@ -30,6 +31,7 @@ for mode in modes:
     dihedral = data[f"dihedral_{mode}"][:]
     refhorn = data[f"refhorn_{mode}"][:]
     skyhorn = data[f"skyhorn_{mode}"][:]
+    collimator = data[f"collimator_{mode}"][:]
     bolometer_ll = data[f"bolometer_ll_{mode}"][:]
     bolometer_lh = data[f"bolometer_lh_{mode}"][:]
     bolometer_rl = data[f"bolometer_rl_{mode}"][:]
@@ -41,6 +43,7 @@ for mode in modes:
         "dihedral": dihedral,
         "refhorn": refhorn,
         "skyhorn": skyhorn,
+        "collimator": collimator,
         "bolometer_ll": bolometer_ll,
         "bolometer_lh": bolometer_lh,
         "bolometer_rl": bolometer_rl,
@@ -56,6 +59,11 @@ for mode in modes:
             bol_volt = data[f"bol_volt_{channel}_{mode}"][:]
             gain = data[f"gain_{channel}_{mode}"][:]
 
+            fits_data = fits.open(
+                f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
+            )
+            apod = fits_data[1].data["APODIZAT"][0]
+
             simulated_ifgs, simulated_spectra = generate_ifg(
                 channel=channel,
                 mode=mode,
@@ -67,17 +75,20 @@ for mode in modes:
                 gain=gain
             )
 
+            n = np.random.randint(0, simulated_spectra.shape[0])
+            print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
+
+            np.save("./ifgdata", simulated_ifgs[n])
+
             print(f"Simulated IFGs for {channel.upper()} {mode.upper()}")
             print(f"shape of simulated IFGs: {simulated_ifgs.shape}")
 
-            original_ifgs = data[f"ifg_{channel}_{mode}"][:] - np.median(data[f"ifg_{channel}_{mode}"][:], axis=1, keepdims=True)
+            original_ifgs = data[f"ifg_{channel}_{mode}"][:]
 
             # stuff to process the original IFGs into spectra
             fnyq = gen_nyquistl("../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int")
             frec = 4 * (channels[channel] % 2) + modes[mode]
-            fits_data = fits.open(
-                f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
-            )
+            
             otf = (
                 fits_data[1].data["RTRANSFE"][0]
                 + 1j * fits_data[1].data["ITRANSFE"][0]
@@ -112,9 +123,11 @@ for mode in modes:
                 "BOLPARM9"
             ][0]
 
-            _, processed_spectra = mu.ifg_to_spec(original_ifgs, mtm_speed=0 if mode[1] == "s" else 1, channel=channels[channel], adds_per_group=adds_per_group, sweeps=sweeps, bol_cmd_bias=bol_cmd_bias, bol_volt=bol_volt, gain=gain, fnyq_icm=fnyq["icm"][frec], otf=otf, Jo=Jo, Jg=Jg, T0=T0, R0=R0, G1=G1, C1=C1, C3=C3, beta=beta, rho=rho, Tbol=temps[f"bolometer_{channel}"], apod=fits_data[1].data["APODIZAT"][0])
+            _, processed_spectra = mu.ifg_to_spec(original_ifgs, mtm_speed=0 if mode[1] == "s" else 1, channel=channels[channel], adds_per_group=adds_per_group, sweeps=sweeps, bol_cmd_bias=bol_cmd_bias/25.5, bol_volt=bol_volt, gain=gain, fnyq_icm=fnyq["icm"][frec], otf=otf, Jo=Jo, Jg=Jg, T0=T0, R0=R0, G1=G1, C1=C1, C3=C3, beta=beta, rho=rho, Tbol=temps[f"bolometer_{channel}"], apod=apod)
+            # processed_spectra = data[f"spec_{channel}_{mode}"][:]
 
-            n = 4757
+            print(f"processed spectra peak: {np.max(np.abs(processed_spectra[n]))}")
+            print(f"ratio (processed/simulated): {np.max(np.abs(processed_spectra[n])) / np.nanmax(np.abs(simulated_spectra[n]))}")
 
             plt.plot(
                 np.abs(simulated_spectra[n, :]),
@@ -128,13 +141,14 @@ for mode in modes:
             )
             plt.title(f"{channel.upper()} {mode.upper()} Spectra {n+1}")
             plt.xlabel("Frequency (GHz)")
-            plt.ylabel("Brightness Temperature (K)")
+            plt.ylabel("MJy/sr")
             plt.legend()
             plt.show()
 
-            print(f"original ifg peak: {np.max(np.abs(original_ifgs[n]))}")
+            print(f"original ifg shape: {original_ifgs.shape}")
+            print(f"original ifg peak: {np.nanmax(np.abs(original_ifgs[n]) - np.median(original_ifgs[n]))}")
             print(f"simulated ifg peak: {np.nanmax(np.abs(simulated_ifgs[n]))}")
-            print(f"ratio (original/simulated): {np.max(np.abs(original_ifgs[n])) / np.nanmax(np.abs(simulated_ifgs[n]))}")
+            print(f"ratio (original/simulated): {(np.max(np.abs(original_ifgs[n])) - np.median(original_ifgs[n]))/ np.nanmax(np.abs(simulated_ifgs[n]))}")
 
             # for ifg in range(simulated_ifgs.shape[0]):
             for ifg in range(n, n+1, 1):
@@ -143,15 +157,18 @@ for mode in modes:
                 plt.suptitle(f"{channel.upper()} {mode.upper()} IFG {ifg+1}")
 
                 plt.subplot(3, 1, 1)
-                plt.plot(original_ifgs[ifg, :])
+                plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]))
+                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
                 plt.title("Original IFG")
             
                 plt.subplot(3, 1, 2)
                 plt.plot(simulated_ifgs[ifg, :])
+                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
                 plt.title("Simulated IFG")
 
                 plt.subplot(3, 1, 3)
-                plt.plot(original_ifgs[ifg, :] - simulated_ifgs[ifg, :])
+                plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]) - simulated_ifgs[ifg, :])
+                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
                 plt.title("Residuals (original - simulated)")
 
                 plt.show()

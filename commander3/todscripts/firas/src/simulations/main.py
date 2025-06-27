@@ -15,22 +15,25 @@ import globals as g
 import my_utils as mu
 from utils.config import gen_nyquistl
 
-modes = {"ss": 0, "lf": 3}
-channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+# modes = {"ss": 0, "lf": 3}
+modes = {"ss": 0}   
+# channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+channels = {"ll": 3}
 
 temps = {
-    "xcal": np.array([g.T_CMB]),
-    "ical": np.array([2.76]),
-    "dihedral": np.array([2.00]),
-    "refhorn": np.array([2.72]),
-    "skyhorn": np.array([2.72]),
-    "bolometer_ll": np.array([1.53]),
-    "bolometer_lh": np.array([1.53]),
-    "bolometer_rl": np.array([1.53]),
-    "bolometer_rh": np.array([1.53]),
+    "xcal": np.array([2.70413828]),
+    "ical": np.array([2.71052694]),
+    "dihedral": np.array([5.0066607]),
+    "refhorn": np.array([2.6955471]),
+    "skyhorn": np.array([2.69618714]),
+    "collimator": np.array([2.69618714]),
+    "bolometer_ll": np.array([1.55804986]),
+    "bolometer_lh": np.array([1.55815428]),
+    "bolometer_rl": np.array([1.54744506]),
+    "bolometer_rh": np.array([1.54760718]),
 }
 
-def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.array([1]), bol_cmd_bias=np.array([40]), bol_volt=np.array([2]), gain=np.array([1])):
+def generate_ifg(channel, mode, temps, adds_per_group=np.array([3]), sweeps=np.array([16]), bol_cmd_bias=np.array([35]), bol_volt=np.array([2.048020362854004]), gain=np.array([300])):
     frequency = mu.generate_frequencies(channel, mode, 257)
 
     bb_xcal = mu.planck(frequency, np.array(temps["xcal"]))
@@ -38,6 +41,7 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.a
     bb_dihedral = mu.planck(frequency, np.array(temps["dihedral"]))
     bb_refhorn = mu.planck(frequency, np.array(temps["refhorn"]))
     bb_skyhorn = mu.planck(frequency, np.array(temps["skyhorn"]))
+    bb_collimator = mu.planck(frequency, np.array(temps["collimator"]))
     bb_bolometer_ll = mu.planck(frequency, np.array(temps["bolometer_ll"]))
     bb_bolometer_lh = mu.planck(frequency, np.array(temps["bolometer_lh"]))
     bb_bolometer_rl = mu.planck(frequency, np.array(temps["bolometer_rl"]))
@@ -47,7 +51,7 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.a
         f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
     )
 
-    emiss_xcal, emiss_ical, emiss_dihedral, emiss_refhorn, emiss_skyhorn, emiss_bolometer = np.zeros((6, 257), dtype=np.complex128)
+    emiss_xcal, emiss_ical, emiss_dihedral, emiss_refhorn, emiss_skyhorn, emiss_bolometer, emiss_collimator = np.zeros((7, 257), dtype=np.complex128)
     print(f"Processing {channel.upper()}{mode.upper()}...")
     
     mtm_speed = 0 if mode[1] == "s" else 1
@@ -61,11 +65,31 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.a
     emiss_dihedral[cutoff:cutoff+length] = fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
     emiss_refhorn[cutoff:cutoff+length] = fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
     emiss_skyhorn[cutoff:cutoff+length] = fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
+    emiss_collimator[cutoff:cutoff+length] = fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
     emiss_bolometer[cutoff:cutoff+length] = fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
 
-    total_spectra = np.nan_to_num((bb_xcal * emiss_xcal + bb_ical * emiss_ical+ bb_dihedral * emiss_dihedral + bb_refhorn * emiss_refhorn + bb_skyhorn * emiss_skyhorn + bb_bolometer_ll * emiss_bolometer + bb_bolometer_lh * emiss_bolometer + bb_bolometer_rl * emiss_bolometer + bb_bolometer_rh * emiss_bolometer)/emiss_xcal, nan=0) #* gain[:, np.newaxis]
+    total_spectra = np.nan_to_num((bb_xcal * emiss_xcal + bb_ical * emiss_ical + bb_dihedral * emiss_dihedral + bb_refhorn * emiss_refhorn + bb_skyhorn * emiss_skyhorn + bb_collimator * emiss_collimator + bb_bolometer_ll * emiss_bolometer + bb_bolometer_lh * emiss_bolometer + bb_bolometer_rl * emiss_bolometer + bb_bolometer_rh * emiss_bolometer)/emiss_xcal, nan=0)
+    #total_spectra = np.nan_to_num((bb_xcal + bb_ical * emiss_ical / emiss_xcal), nan=0)
+    # total_spectra = np.nan_to_num((bb_xcal + bb_ical * emiss_ical / emiss_xcal), nan=0)
+    
+    # plt.plot((emiss_ical / emiss_xcal).real, label="Emissivity ICAL Real")
+    # plt.plot((emiss_ical / emiss_xcal).imag, label="Emissivity ICAL Imaginary")
+    # plt.plot((emiss_xcal / emiss_xcal).real, label="Emissivity XCAL Real")
+    # plt.plot((emiss_xcal / emiss_xcal).imag, label="Emissivity XCAL Imaginary")
+    # plt.legend()
 
-    n = 4757
+    # plt.figure(figsize=(10, 6))
+    # plt.plot((-emiss_ical / emiss_xcal).real, label="Emissivity ICAL Real")
+    # plt.plot((-emiss_ical / emiss_xcal).imag, label="Emissivity ICAL Imaginary")
+    # plt.plot((emiss_xcal / emiss_xcal).real, label="Emissivity XCAL Real")
+    # plt.plot((emiss_xcal / emiss_xcal).imag, label="Emissivity XCAL Imaginary")
+    # plt.legend()
+    # plt.show()
+
+    print(f"Total spectra shape: {total_spectra.shape}")
+
+    # n = np.random.randint(0, len(total_spectra) - 1)
+    n = 0
 
     print(f"total_spectra peak: {np.max(np.abs(total_spectra[n]))}")
     print(f"adds_per_group: {adds_per_group[n]}")
@@ -73,14 +97,15 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([1]), sweeps=np.a
     print(f"bol_cmd_bias: {bol_cmd_bias[n]}")
     print(f"bol_volt: {bol_volt[n]}")
     print(f"gain: {gain[n]}")
+    print(f"temps: {temps}")
     
-    plt.plot(frequency, np.abs(total_spectra[n]), label="Total Spectra")
-    plt.plot(frequency, bb_xcal[n] - bb_ical[n], label="XCAL - ICAL")
-    plt.plot(frequency, bb_xcal[n], label=f"XCAL = {temps['xcal'][n]} K")
-    plt.plot(frequency, bb_ical[n], label=f"ICAL = {temps['ical'][n]} K")
-    plt.legend()
+    # plt.plot(frequency, np.abs(total_spectra[n]), label="Total Spectra")
+    # plt.plot(frequency, bb_xcal[n] - bb_ical[n], label="XCAL - ICAL")
+    # plt.plot(frequency, bb_xcal[n], label=f"XCAL = {temps['xcal'][n]} K")
+    # plt.plot(frequency, bb_ical[n], label=f"ICAL = {temps['ical'][n]} K")
+    # plt.legend()
 
-    plt.show()
+    # plt.show()
 
     fnyq = gen_nyquistl(
         "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
@@ -108,4 +133,23 @@ if __name__ == "__main__":
     for channel in channels.keys():
         for mode in modes.keys():
             if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-                generate_ifg(channel, mode, temps)
+                ifg, total_spectra = generate_ifg(channel, mode, temps)
+
+                # save this ifg to a file
+                np.save("./ifgsim.npy", ifg)
+
+                plt.plot((ifg[0]), label=f"{channel.upper()}{mode.upper()} IFG")
+                plt.title(f"{channel.upper()}{mode.upper()} IFG")
+                plt.xlabel("Sample")
+                plt.ylabel("Amplitude")
+                plt.legend()
+                plt.grid()
+                plt.show()
+
+                plt.plot(np.abs(total_spectra[0]), label=f"{channel.upper()}{mode.upper()} Total Spectra")
+                plt.title(f"{channel.upper()}{mode.upper()} Total Spectra")
+                plt.xlabel("Frequency (GHz)")
+                plt.ylabel("Brightness Temperature (K)")
+                plt.legend()
+                plt.grid()
+                plt.show()

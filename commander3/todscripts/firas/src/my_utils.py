@@ -192,7 +192,7 @@ def unclean_ifg(
     ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod
-    ifg[:, apod < 0.15] = np.nan
+    ifg[:, apod < 0.3] = np.nan
 
     return ifg
 
@@ -405,7 +405,7 @@ def spec_to_ifg(
         cutoff = 7
 
     spec_r = np.zeros((len(spec), 257))
-    if len(spec[0]) == 257:
+    if spec.shape[1] == 257:
         spec_r = spec
     else:
         spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec

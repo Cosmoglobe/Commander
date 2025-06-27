@@ -419,9 +419,25 @@ ical = {}
 dihedral = {}
 refhorn = {}
 skyhorn = {}
-bol_assem = {}  # ONLY SAVING LL FOR NOW -----------------------
+collimator = {}
+bol_assem = {}
+
+print(f"grts: {fdq_eng['en_analog/grt'].keys()}")
 
 for side in sides:
+    # there are no high current readings for the bolometers
+    bol_assem[f"{side}_rh"] = fdq_eng[
+        f"en_analog/grt/{side}_lo_bol_assem"
+    ][:, 0]
+    bol_assem[f"{side}_rl"] = fdq_eng[
+        f"en_analog/grt/{side}_lo_bol_assem"
+    ][:, 1]
+    bol_assem[f"{side}_lh"] = fdq_eng[
+        f"en_analog/grt/{side}_lo_bol_assem"
+    ][:, 2]
+    bol_assem[f"{side}_ll"] = fdq_eng[
+        f"en_analog/grt/{side}_lo_bol_assem"
+    ][:, 3]
     for current in currents:
         ical[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_ical"][()]
         dihedral[f"{side}_{current}"] = fdq_eng[
@@ -433,19 +449,9 @@ for side in sides:
         skyhorn[f"{side}_{current}"] = fdq_eng[
             f"en_analog/grt/{side}_{current}_skyhorn"
         ][()]
-        bol_assem[f"{side}_{current}_rh"] = fdq_eng[
-            f"en_analog/grt/{side}_{current}_bol_assem"
-        ][:, 0]
-        bol_assem[f"{side}_{current}_rl"] = fdq_eng[
-            f"en_analog/grt/{side}_{current}_bol_assem"
-        ][:, 1]
-        bol_assem[f"{side}_{current}_lh"] = fdq_eng[
-            f"en_analog/grt/{side}_{current}_bol_assem"
-        ][:, 2]
-        bol_assem[f"{side}_{current}_ll"] = fdq_eng[
-            f"en_analog/grt/{side}_{current}_bol_assem"
-        ][:, 3]
-
+        collimator[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_mirror"
+        ][()]
 
 bol_volt = {}
 bol_cmd_bias = {}
@@ -525,22 +531,18 @@ df_eng = pd.DataFrame(
         "a_lo_skyhorn": list(skyhorn["a_lo"]),
         "b_hi_skyhorn": list(skyhorn["b_hi"]),
         "b_lo_skyhorn": list(skyhorn["b_lo"]),
-        "a_hi_bol_assem_rh": list(bol_assem["a_hi_rh"]),
-        "b_hi_bol_assem_rh": list(bol_assem["b_hi_rh"]),
-        "a_lo_bol_assem_rh": list(bol_assem["a_lo_rh"]),
-        "b_lo_bol_assem_rh": list(bol_assem["b_lo_rh"]),
-        "a_hi_bol_assem_rl": list(bol_assem["a_hi_rl"]),
-        "b_hi_bol_assem_rl": list(bol_assem["b_hi_rl"]),
-        "a_lo_bol_assem_rl": list(bol_assem["a_lo_rl"]),
-        "b_lo_bol_assem_rl": list(bol_assem["b_lo_rl"]),
-        "a_hi_bol_assem_lh": list(bol_assem["a_hi_lh"]),
-        "b_hi_bol_assem_lh": list(bol_assem["b_hi_lh"]),
-        "a_lo_bol_assem_lh": list(bol_assem["a_lo_lh"]),
-        "b_lo_bol_assem_lh": list(bol_assem["b_lo_lh"]),
-        "a_lo_bol_assem_ll": list(bol_assem["a_lo_ll"]),
-        "b_lo_bol_assem_ll": list(bol_assem["b_lo_ll"]),
-        "a_hi_bol_assem_ll": list(bol_assem["a_hi_ll"]),
-        "b_hi_bol_assem_ll": list(bol_assem["b_hi_ll"]),
+        "a_hi_collimator": list(collimator["a_hi"]),
+        "a_lo_collimator": list(collimator["a_lo"]),
+        "b_hi_collimator": list(collimator["b_hi"]),
+        "b_lo_collimator": list(collimator["b_lo"]),
+        "a_bol_assem_rh": list(bol_assem["a_rh"]),
+        "b_bol_assem_rh": list(bol_assem["b_rh"]),
+        "a_bol_assem_rl": list(bol_assem["a_rl"]),
+        "b_bol_assem_rl": list(bol_assem["b_rl"]),
+        "a_bol_assem_lh": list(bol_assem["a_lh"]),
+        "b_bol_assem_lh": list(bol_assem["b_lh"]),
+        "a_bol_assem_ll": list(bol_assem["a_ll"]),
+        "b_bol_assem_ll": list(bol_assem["b_ll"]),
         "bol_volt_rh": list(bol_volt["rh"]),
         "bol_volt_rl": list(bol_volt["rl"]),
         "bol_volt_lh": list(bol_volt["lh"]),
@@ -661,68 +663,18 @@ df_eng = df_eng.drop(
     ]
 )
 
-# df_eng["a_bol_assem_rh"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_rh", "a", "bolometer")
-# ).astype(np.float64)
-# df_eng["b_bol_assem_rh"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_rh", "b", "bolometer")
-# ).astype(np.float64)
-# df_eng["a_bol_assem_rl"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_rl", "a", "bolometer")
-# ).astype(np.float64)
-# df_eng["b_bol_assem_rl"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_rl", "b", "bolometer")
-# ).astype(np.float64)
-# df_eng["a_bol_assem_lh"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_lh", "a", "bolometer")
-# ).astype(np.float64)
-# df_eng["b_bol_assem_lh"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_lh", "b", "bolometer")
-# ).astype(np.float64)
-# df_eng["a_bol_assem_ll"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_ll", "a", "bolometer")
-# ).astype(np.float64)
-# df_eng["b_bol_assem_ll"] = df_eng.apply(
-#     get_temperature_hl, axis=1, args=("bol_assem_ll", "b", "bolometer")
-# ).astype(np.float64)
-
-# all high current readings for the bolometers are bad?
-# check if all channels are -9999
-for channel in channels:
-    if (
-        (df_eng[f"a_hi_bol_assem_{channel}"] == -9999).all()
-        and (df_eng[f"b_hi_bol_assem_{channel}"] == -9999).all()
-    ):
-        print(f"All high current readings for {channel} are -9999, dropping them")
-    else:
-        print(f"Not all high current readings for {channel} are -9999, keeping them")
-
-df_eng["a_bol_assem_rh"] = df_eng["a_lo_bol_assem_rh"]
-df_eng["b_bol_assem_rh"] = df_eng["b_lo_bol_assem_rh"]
-df_eng["a_bol_assem_rl"] = df_eng["a_lo_bol_assem_rl"]
-df_eng["b_bol_assem_rl"] = df_eng["b_lo_bol_assem_rl"]
-df_eng["a_bol_assem_lh"] = df_eng["a_lo_bol_assem_lh"]
-df_eng["b_bol_assem_lh"] = df_eng["b_lo_bol_assem_lh"]
-df_eng["a_bol_assem_ll"] = df_eng["a_lo_bol_assem_ll"]
-df_eng["b_bol_assem_ll"] = df_eng["b_lo_bol_assem_ll"]
+df_eng["a_collimator"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("collimator", "a")
+).astype(np.float64)
+df_eng["b_collimator"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("collimator", "b")
+).astype(np.float64)
 df_eng = df_eng.drop(
     columns=[
-        "a_hi_bol_assem_rh",
-        "b_hi_bol_assem_rh",
-        "a_lo_bol_assem_rh",
-        "b_lo_bol_assem_rh",
-        "a_hi_bol_assem_rl",
-        "b_hi_bol_assem_rl",
-        "a_lo_bol_assem_rl",
-        "b_lo_bol_assem_rl",
-        "a_hi_bol_assem_lh",
-        "b_hi_bol_assem_lh",
-        "a_lo_bol_assem_lh",
-        "b_lo_bol_assem_lh",
-        "a_lo_bol_assem_ll",
-        "b_lo_bol_assem_ll",
-        "a_hi_bol_assem_ll",
-        "b_hi_bol_assem_ll",
+        "a_hi_collimator",  
+        "a_lo_collimator",
+        "b_hi_collimator",
+        "b_lo_collimator",
     ]
 )
 
@@ -871,6 +823,8 @@ sky_variables = [
     "b_refhorn",
     "a_skyhorn",
     "b_skyhorn",
+    "a_collimator",
+    "b_collimator",
     "a_bol_assem_rh",
     "b_bol_assem_rh",
     "a_bol_assem_rl",

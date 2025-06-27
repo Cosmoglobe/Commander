@@ -40,6 +40,8 @@ variable_names = [
     "b_refhorn",
     "a_skyhorn",
     "b_skyhorn",
+    "a_collimator",
+    "b_collimator",
     "mtm_length",
     "mtm_speed",
     "pix_gal",
@@ -143,6 +145,9 @@ variables["ical"] = (
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
 variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
 variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
+variables["collimator"] = (
+    variables["a_collimator"] + variables["b_collimator"]
+) / 2
 variables["bolometer_rh"] = (
     variables["a_bol_assem_rh"] + variables["b_bol_assem_rh"]
 ) / 2
@@ -175,6 +180,7 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
+spec = {}
 sky = {}
 
 for channel, channel_value in channels.items():
@@ -228,7 +234,7 @@ for channel, channel_value in channels.items():
 
             print(f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}")
 
-            afreq, spec = mu.ifg_to_spec(
+            afreq, spec[f"spec_{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_speed=0 if mode[1] == "s" else 1,
                 channel=channel_value,
@@ -307,6 +313,18 @@ for channel, channel_value in channels.items():
                 np.abs(skyhorn_emiss) > 0
             ]
 
+            bb_collimator= mu.planck(
+                f_ghz,
+                variablesm[f"collimator_{mode}"],
+            )
+            collimator_emiss = (
+                fits_data[1].data["RSTRUCTU"][0]
+                + 1j * fits_data[1].data["ISTRUCTU"][0]
+            )
+            collimator_emiss = collimator_emiss[
+                np.abs(collimator_emiss) > 0
+            ]
+
             # bolometer spectrum
             bb_bolometer_rh = mu.planck(
                 f_ghz,
@@ -341,7 +359,7 @@ for channel, channel_value in channels.items():
 
             # setting the frequency cut-off according to the header of the fits file
             sky[f"{channel}_{mode}"] = (
-                spec[
+                spec[f"spec_{channel}_{mode}"][
                     :, cutoff : (len(otf) + cutoff)
                 ]
                 - (
@@ -357,6 +375,10 @@ for channel, channel_value in channels.items():
                     + (
                         bb_skyhorn
                         * skyhorn_emiss
+                    )
+                    + (
+                        bb_collimator
+                        * collimator_emiss
                     )
                     + (
                         bb_bolometer_rh # TODO: keep just the one that is being used to measure?
@@ -440,4 +462,5 @@ np.savez(
     g.PROCESSED_DATA_PATH,
     **variablesm,
     **sky,
+    **spec
 )
