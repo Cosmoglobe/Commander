@@ -1683,7 +1683,7 @@ contains
        do j = 1, self%ndet
           do i = 1, npar
              if (i >= 2 .and. i <= 4) cycle
-             do k = 1, self%nscan_tot
+             do k = 1, self%last_scan
                 if (output(k,j,i) == 0.d0) then
                    l = k
                    if (k == 1) then

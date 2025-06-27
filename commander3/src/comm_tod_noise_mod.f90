@@ -25,7 +25,6 @@ module comm_tod_noise_mod
   use comm_status_mod
   implicit none
 
-
 contains
 
   subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
@@ -508,6 +507,7 @@ contains
     threshold = 5.d0 ! Remove outliers
     outscan   = 5013 !-1 !92
 
+
     ! Sample sigma_0 from pairwise differenced TOD
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -515,15 +515,16 @@ contains
        ! Remove outliers
        s0 = 1d30
        do k = 1, 3
-          if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+          !if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
           s    = 0.d0
           nval = 0
+
           do j = 1, self%scans(scan)%ntod-1
              if (any(mask(j:j+1,i) < 0.5)) cycle
              res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
                   & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
              if (abs(res) > s0) cycle
-             if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
+             !if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
              s    = s    + res**2
              nval = nval + 1
           end do
@@ -533,7 +534,7 @@ contains
           else
              exit
           end if
-          if (self%scanid(scan) == outscan) close(58)
+          !if (self%scanid(scan) == outscan) close(58)
        end do
     end do
 
@@ -591,6 +592,7 @@ contains
 
     call timer%stop(TOD_XI_N, self%band)
     
+
   contains
 
     function lnL_xi_n(x) 

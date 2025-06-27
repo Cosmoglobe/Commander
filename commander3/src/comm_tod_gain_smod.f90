@@ -1558,6 +1558,11 @@ contains
      real(dp) :: lambda
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
 
+     integer(i4b) :: minfreq, maxfreq
+     minfreq = 2
+     maxfreq = 2000
+     if(size(gain_ps)-1 < maxfreq) maxfreq = size(gain_ps)-1
+
      if (sigma_0 <= 0.d0 .or. fknee <= 0.d0 .or. alpha < -3.d0) then
         psd_loglike = -1d30
         return
@@ -1567,7 +1572,7 @@ contains
    
 
      !TODO: fix this hardcoding issue here 
-     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
+     psd_loglike = -sum(gain_ps(minfreq:maxfreq) * inv_N_corr(minfreq:maxfreq) - log(inv_N_corr(minfreq:maxfreq))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike

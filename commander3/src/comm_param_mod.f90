@@ -3670,7 +3670,7 @@ end subroutine read_zodi_params_hash
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('spindust2')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_NU_P_INPUT_MAP'//itext)
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(cpar%cs_input_ind(2,i)), 'COMP_DBETA_INPUT_MAP'//itext)
              call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)

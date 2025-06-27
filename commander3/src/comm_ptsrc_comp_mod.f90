@@ -2907,9 +2907,6 @@ n_gibbs=1
 
     if(self%precomputed_amps) return
 
-    nmaps = data(band)%info%nmaps
-    if(nmaps > 3) nmaps = 3
-
     if (present(band)) then
        nmaps = data(band)%info%nmaps
        if(nmaps > 3) nmaps = 3
@@ -2924,7 +2921,7 @@ n_gibbs=1
        do k = 1, numband
           if (self%F_null(k)) cycle
           ka = self%b2a(k)
-          nmaps = data(band)%info%nmaps
+          nmaps = data(k)%info%nmaps
           if(nmaps > 3) nmaps = 3
           do i = 1, nmaps
              do j = 0, data(k)%ndet

@@ -48,13 +48,13 @@ program commander
 
   real(dp), allocatable :: param_test(:)
   real(dp) :: time_step
-  integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
+  !integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
   integer(i4b) :: ntot, npar
   
-  bands_to_sample = (/1,2/)
-  bands_to_calibrate_against= (/1,2/)
+  !bands_to_sample = (/1,2/)
+  !bands_to_calibrate_against= (/1,2/)
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
