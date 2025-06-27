@@ -236,8 +236,8 @@ for channel, channel_value in channels.items():
 
             afreq, spec[f"spec_{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
-                mtm_speed=0 if mode[1] == "s" else 1,
-                channel=channel_value,
+                channel=channel,
+                mode=mode,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
                 bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"] / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],

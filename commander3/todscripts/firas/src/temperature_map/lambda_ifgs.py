@@ -125,8 +125,8 @@ for channel, channel_value in channels.items():
         if not (mode == "lf" and channel in ["rh", "lh"]):
             afreq, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=ifg[f"{channel}_{mode}"],
-                mtm_speed=0 if mode == "ss" else 1,
-                channel=channel_value,
+                channel=channel,
+                mode=mode,
                 adds_per_group=adds_per_group,
                 bol_cmd_bias=bol_cmd_bias[f"{channel}_{mode}"],
                 bol_volt=bol_volt[f"{channel}_{mode}"],

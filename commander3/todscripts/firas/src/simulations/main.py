@@ -86,18 +86,7 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([3]), sweeps=np.a
     # plt.legend()
     # plt.show()
 
-    print(f"Total spectra shape: {total_spectra.shape}")
-
     # n = np.random.randint(0, len(total_spectra) - 1)
-    n = 0
-
-    print(f"total_spectra peak: {np.max(np.abs(total_spectra[n]))}")
-    print(f"adds_per_group: {adds_per_group[n]}")
-    print(f"sweeps: {sweeps[n]}")
-    print(f"bol_cmd_bias: {bol_cmd_bias[n]}")
-    print(f"bol_volt: {bol_volt[n]}")
-    print(f"gain: {gain[n]}")
-    print(f"temps: {temps}")
     
     # plt.plot(frequency, np.abs(total_spectra[n]), label="Total Spectra")
     # plt.plot(frequency, bb_xcal[n] - bb_ical[n], label="XCAL - ICAL")
@@ -112,7 +101,8 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([3]), sweeps=np.a
     )
     frec = 4 * (channels[channel] % 2) + modes[mode]
 
-    apod = fits_data[1].data["APODIZAT"][0]
+    # apod = fits_data[1].data["APODIZAT"][0]
+    apod = np.ones(512, dtype=np.float64)  # No apodization for now
     R0 = fits_data[1].data["BOLPARM_"][0]
     T0 = fits_data[1].data["BOLPARM2"][0]
     G1 = fits_data[1].data["BOLPARM3"][0]
@@ -123,7 +113,7 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([3]), sweeps=np.a
     Jo = fits_data[1].data["BOLPARM8"][0]
     Jg = fits_data[1].data["BOLPARM9"][0]
 
-    ifg = mu.spec_to_ifg(spec=total_spectra, mtm_speed=mtm_speed, channel=channels[channel], adds_per_group=adds_per_group, bol_cmd_bias=bol_cmd_bias/25.5, # convert to volts
+    ifg = mu.spec_to_ifg(spec=total_spectra, channel=channel, mode=mode,adds_per_group=adds_per_group, bol_cmd_bias=bol_cmd_bias/25.5, # convert to volts
                          bol_volt=bol_volt, Tbol=temps[f"bolometer_{channel}"], gain=gain, sweeps=sweeps, apod=apod,otf=emiss_xcal,fnyq_icm=fnyq["icm"][frec], R0=R0, T0=T0, G1=G1, beta=beta, rho=rho, C1=C1, C3=C3, Jo=Jo, Jg=Jg)
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
 

@@ -7,6 +7,17 @@ import constants
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
+peak_positions = {
+    "lh_ss": 357,
+    "rh_ss": 357,
+    "ll_ss": 360,
+    "rl_ss": 360,
+    "ll_lf": 90,
+    "rl_lf": 90
+}
+
+channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+
 
 def ghz_to_icm(ghz):
     """
@@ -154,6 +165,8 @@ def calculate_time_constant(
 # @njit(parallel=True)
 def clean_ifg(
     ifg,
+    channel,
+    mode,
     gain,
     sweeps,
     apod,
@@ -171,7 +184,7 @@ def clean_ifg(
     ifg = ifg * apod
 
     # roll
-    peak_pos = 360
+    peak_pos = peak_positions[f"{channel}_{mode}"]
     ifg = np.roll(ifg, -peak_pos, axis=1)
 
     return ifg
@@ -179,6 +192,8 @@ def clean_ifg(
 
 def unclean_ifg(
     ifg,
+    channel,
+    mode,
     gain,
     sweeps,
     apod,
@@ -188,7 +203,7 @@ def unclean_ifg(
 
     ifg = ifg * gain * sweeps
 
-    peak_pos = 360
+    peak_pos = peak_positions[f"{channel}_{mode}"]
     ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod
@@ -200,8 +215,8 @@ def unclean_ifg(
 # @njit(parallel=True) - can't use it because of rfft
 def ifg_to_spec(
     ifg,
-    mtm_speed,
     channel,
+    mode,
     adds_per_group,
     bol_cmd_bias,
     bol_volt,
@@ -225,8 +240,8 @@ def ifg_to_spec(
     Inputs are the same as spec_to_ifg, except for the ifg argument, which is the interferogram to be converted.
 
     ifg is the interferogram to be converted. Its frequency values are set specifically by the mode of operation.
-    mtm_speed: speed of the mirror transport mechanism, 0 or 1
-    channel: channel number, left low, left high, right low, right high
+    channel: channel abbreviation: "lh", "ll", "rh" or "rl".
+    mode: mode of operation: "ss" or "lf".
     adds_per_group: number of interferograms added per group.
     bol_cmd_bias: bias command to the bolometer. Found in fdq_eng/en_stat/bol_cmd_bias, (589069, 4) int8 array
     bol_volt: Found in fdq_eng/en_analog/group1/bol_volt, (589069, 4) float32 array
@@ -266,14 +281,16 @@ def ifg_to_spec(
     apod: apodization function, from the calibration model
     '''
 
-    ifg = clean_ifg(ifg, gain, sweeps, apod)
+    ifg = clean_ifg(ifg, channel, mode, gain, sweeps, apod)
 
     spec = np.fft.rfft(ifg)
     # freqs = np.fft.rfftfreq(constants.ifg_size, 1 / (fnyq_hz * 2)) TODO: find out why this doesn't work
 
+    mtm_speed = 0 if mode[1] == "s" else 1
+
     # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
-    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
+    erecno = get_recnum(mtm_speed, channels[channel], adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
     fac_etendu = 1.5  # nathan's pipeline
@@ -283,8 +300,7 @@ def ifg_to_spec(
     spec = spec / etf
     spec = spec / spec_norm
 
-
-    afreq = get_afreq(mtm_speed, channel, 257)
+    afreq = get_afreq(mtm_speed, channels[channel], 257)
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,
@@ -335,8 +351,8 @@ def ifg_to_spec(
 
 def spec_to_ifg(
     spec,
-    mtm_speed,
     channel,
+    mode,
     adds_per_group,
     bol_cmd_bias,
     bol_volt,
@@ -399,6 +415,9 @@ def spec_to_ifg(
     Jg=0.92
     Tbol=1.5309418
     '''
+
+    mtm_speed = 0 if mode[1] == "s" else 1
+
     if mtm_speed == 0:
         cutoff = 5
     else:
@@ -445,10 +464,10 @@ def spec_to_ifg(
         T0=T0,
     )
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=257)
-    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
+    erecno = get_recnum(mtm_speed, channels[channel], adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-    afreq = get_afreq(mtm_speed, channel, 257)
+    afreq = get_afreq(mtm_speed, channels[channel], 257)
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
 
     spec_r = spec_r / fac_erg_to_mjy
@@ -458,97 +477,9 @@ def spec_to_ifg(
     spec_r = spec_r * etf
 
     ifg = np.fft.irfft(spec_r, )
-    ifg = unclean_ifg(ifg, gain, sweeps, apod)
+    ifg = unclean_ifg(ifg=ifg, channel=channel, mode=mode, gain=gain, sweeps=sweeps, apod=apod)
 
     return ifg
-
-def spec_to_ifg_normalized(
-    spec,
-    mtm_speed,
-    channel,
-    adds_per_group,
-    bol_cmd_bias,
-    bol_volt,
-    Tbol,
-    otf,
-    apod,
-    fnyq_icm,
-    R0,
-    T0,
-    G1,
-    beta,
-    rho,
-    C1,
-    C3,
-    Jo,
-    Jg,
-):
-    '''
-    Similar to spec_to_ifg, but assumes the spectrum is only taken from one on-board IFG and its gain is 1.
-    '''
-    if mtm_speed == 0:
-        cutoff = 5
-    else:
-        cutoff = 7
-
-    spec_r = np.zeros((len(spec), 257))
-    if len(spec[0]) == 257:
-        spec_r = spec
-    else:
-        spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
-
-    # Defining constants, getting data model
-    fac_icm_ghz = 29.9792458
-    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
-
-    fac_etendu = 1.5  # nathan's pipeline
-    fac_adc_scale = 204.75  # nathan's pipeline
-    spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
-
-    S0 = calculate_dc_response(
-        bol_cmd_bias=bol_cmd_bias,
-        bol_volt=bol_volt,
-        Tbol=Tbol,
-        R0=R0,
-        T0=T0,
-        G1=G1,
-        beta=beta,
-        rho=rho,
-        Jo=Jo,
-        Jg=Jg,
-    )
-
-    tau = calculate_time_constant(
-        C3=C3,
-        Tbol=Tbol,
-        C1=C1,
-        G1=G1,
-        beta=beta,
-        bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
-        bol_cmd_bias=bol_cmd_bias,
-        rho=rho,
-        T0=T0,
-    )
-    etfl_all = elex_transfcnl(samprate=681.43, nfreq=257)
-    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
-    etf = etfl_all[erecno, :]
-
-    afreq = get_afreq(mtm_speed, channel, 257)
-    B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-
-    spec_r = spec_r / fac_erg_to_mjy
-    spec_r = spec_r * otf
-    spec_r = S0[:, np.newaxis] * spec_r / B
-    spec_r = spec_r * spec_norm
-    spec_r = spec_r * etf
-
-    ifg = np.fft.irfft(spec_r, )
-    ifg = unclean_ifg(ifg, gain, sweeps, apod)
-
-    return ifg
-
 
 # @njit(parallel=True)
 def planck(freq, temp):

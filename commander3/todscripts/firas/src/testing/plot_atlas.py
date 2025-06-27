@@ -91,7 +91,6 @@ if sm == 'lf':
 else:
     SM = sm.upper()
 
-channel = channels[ch] 
 scan_mode = scan_modes[sm]
 
 
@@ -315,8 +314,8 @@ for param in change_parameters:
         else:
             eng_inds.append(eng_inds[-1])
     
-    bol_cmd_bias = bol_cmd_biass[eng_inds,channel]
-    bol_volt = bol_volts[eng_inds,channel]
+    bol_cmd_bias = bol_cmd_biass[eng_inds,channels[ch]]
+    bol_volt = bol_volts[eng_inds,channels[ch]]
     Tbol = (a_bol_assem_ll + b_bol_assem_ll)/2 # TODO: change this when we have the new temperatures
     Tbol = Tbol[eng_inds]
     
@@ -370,7 +369,7 @@ for param in change_parameters:
         "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
     )
     
-    frec = 4 * (channel % 2) + scan_mode
+    frec = 4 * (channels[ch] % 2) + scan_mode
     
     fnyq_icm = fnyq['icm'][frec]
     fnyq_hz = fnyq['hz'][frec]
@@ -396,8 +395,8 @@ for param in change_parameters:
     mtm_length = mtm_length[0]
     
     afreq_out, spec_out = mu.ifg_to_spec(ifg=ifg,
-                                         mtm_speed=mtm_speed,
-                                         channel=channel,
+                                         channel=ch,
+                                         mode=sm,
                                          adds_per_group=adds_per_group,
                                          bol_cmd_bias=bol_cmd_bias,
                                          bol_volt=bol_volt,
@@ -434,7 +433,7 @@ for param in change_parameters:
     for i in range(len(spec_mbb)):
         spec_mbb[i] /= max(1e-12, max(abs(spec_mbb[i])))
     
-    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
+    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, channel=ch, mode =sm, adds_per_group=adds_per_group[:5],
                             bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
                             Tbol=Tbol[:5], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod, otf=otf257)#, etf)
     #ifg_mbb[~np.isfinite(ifg_mbb)] = 0
@@ -452,7 +451,7 @@ for param in change_parameters:
     spec_mbb[2][offset:offset+NUM_FREQ] = (nu/(300*u.GHz)).value**1
 
 
-    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:5],
+    ifg_mbb = mu.spec_to_ifg(spec=spec_mbb, channel=ch,mode=sm, adds_per_group=adds_per_group[:5],
                             bol_cmd_bias=bol_cmd_bias[:5], bol_volt=bol_volt[:5], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
                             Tbol=Tbol[:5], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:5], sweeps=sweeps[:5], apod=apod, otf=otf257)#, etf)
     fig, axes = plt.subplots(ncols=2)
@@ -537,18 +536,18 @@ for param in change_parameters:
     spec_ical[~np.isfinite(spec_ical)] = 0
     
     
-    ifg_th = mu.spec_to_ifg(spec=spec_th, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_th)],
+    ifg_th = mu.spec_to_ifg(spec=spec_th, channel=ch, mode=sm, adds_per_group=adds_per_group[:len(spec_th)],
                             bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
                             Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_th[~np.isfinite(ifg_th)] = 0
 
 
-    ifg_xcal = mu.spec_to_ifg(spec=spec_xcal, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_xcal)],
+    ifg_xcal = mu.spec_to_ifg(spec=spec_xcal, channel= ch, mode = sm,adds_per_group=adds_per_group[:len(spec_xcal)],
                             bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
                             Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
-    ifg_ical = mu.spec_to_ifg(spec=spec_ical, mtm_speed=mtm_speed, channel=channel, adds_per_group=adds_per_group[:len(spec_ical)],
+    ifg_ical = mu.spec_to_ifg(spec=spec_ical, channel=ch, mode=sm,adds_per_group=adds_per_group[:len(spec_ical)],
                             bol_cmd_bias=bol_cmd_bias[:len(spec_th)], bol_volt=bol_volt[:len(spec_th)], fnyq_icm=fnyq_icm, Jo=Jo, Jg=Jg,
                             Tbol=Tbol[:len(spec_th)], rho=rho, R0=R0, T0=T0, beta=beta, G1=G1, C3=C3, C1=C1, gain=gain[:len(spec_th)], sweeps=sweeps[:len(spec_th)], apod=apod, otf=otf257)#, etf)
     ifg_ical[~np.isfinite(ifg_ical)] = 0

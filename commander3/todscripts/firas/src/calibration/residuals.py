@@ -16,7 +16,6 @@ from utils.config import gen_nyquistl
 
 # get temperatures
 data = np.load(g.PROCESSED_DATA_PATH_CAL)
-print(data.files)
 
 print("Loading calibration data...")
 
@@ -28,14 +27,20 @@ modes = {"ss":0}
 for mode in modes:
     xcal = data[f"xcal_{mode}"][:]
     ical = data[f"ical_{mode}"][:]
-    dihedral = data[f"dihedral_{mode}"][:]
-    refhorn = data[f"refhorn_{mode}"][:]
-    skyhorn = data[f"skyhorn_{mode}"][:]
-    collimator = data[f"collimator_{mode}"][:]
-    bolometer_ll = data[f"bolometer_ll_{mode}"][:]
-    bolometer_lh = data[f"bolometer_lh_{mode}"][:]
-    bolometer_rl = data[f"bolometer_rl_{mode}"][:]
-    bolometer_rh = data[f"bolometer_rh_{mode}"][:]
+
+    temp_filter = (xcal < 6) & (ical < 6)
+
+    xcal = xcal[temp_filter]
+    ical = ical[temp_filter]
+
+    dihedral = data[f"dihedral_{mode}"][:][temp_filter]
+    refhorn = data[f"refhorn_{mode}"][:][temp_filter]
+    skyhorn = data[f"skyhorn_{mode}"][:][temp_filter]
+    collimator = data[f"collimator_{mode}"][:][temp_filter]
+    bolometer_ll = data[f"bolometer_ll_{mode}"][:][temp_filter]
+    bolometer_lh = data[f"bolometer_lh_{mode}"][:][temp_filter]
+    bolometer_rl = data[f"bolometer_rl_{mode}"][:][temp_filter]
+    bolometer_rh = data[f"bolometer_rh_{mode}"][:][temp_filter]
 
     temps = {
         "xcal": xcal,
@@ -50,19 +55,20 @@ for mode in modes:
         "bolometer_rh": bolometer_rh,
     }
 
-    adds_per_group = data[f"adds_per_group_{mode}"][:]
-    sweeps = data[f"sweeps_{mode}"][:]
-    
+    adds_per_group = data[f"adds_per_group_{mode}"][:][temp_filter]
+    sweeps = data[f"sweeps_{mode}"][:][temp_filter]
+
     for channel in channels:
         if not(mode == "lf" and channel[1] == "h"):
-            bol_cmd_bias = data[f"bol_cmd_bias_{channel}_{mode}"][:]
-            bol_volt = data[f"bol_volt_{channel}_{mode}"][:]
-            gain = data[f"gain_{channel}_{mode}"][:]
+            bol_cmd_bias = data[f"bol_cmd_bias_{channel}_{mode}"][:][temp_filter]
+            bol_volt = data[f"bol_volt_{channel}_{mode}"][:][temp_filter]
+            gain = data[f"gain_{channel}_{mode}"][:][temp_filter]
 
             fits_data = fits.open(
                 f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
             )
-            apod = fits_data[1].data["APODIZAT"][0]
+            # apod = fits_data[1].data["APODIZAT"][0]
+            apod = np.ones(512, dtype=np.float64)  # No apodization for now
 
             simulated_ifgs, simulated_spectra = generate_ifg(
                 channel=channel,
@@ -76,14 +82,14 @@ for mode in modes:
             )
 
             n = np.random.randint(0, simulated_spectra.shape[0])
+            # n = 2091
             print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
 
             np.save("./ifgdata", simulated_ifgs[n])
 
             print(f"Simulated IFGs for {channel.upper()} {mode.upper()}")
-            print(f"shape of simulated IFGs: {simulated_ifgs.shape}")
 
-            original_ifgs = data[f"ifg_{channel}_{mode}"][:]
+            original_ifgs = data[f"ifg_{channel}_{mode}"][:][temp_filter]
 
             # stuff to process the original IFGs into spectra
             fnyq = gen_nyquistl("../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int")
@@ -123,7 +129,7 @@ for mode in modes:
                 "BOLPARM9"
             ][0]
 
-            _, processed_spectra = mu.ifg_to_spec(original_ifgs, mtm_speed=0 if mode[1] == "s" else 1, channel=channels[channel], adds_per_group=adds_per_group, sweeps=sweeps, bol_cmd_bias=bol_cmd_bias/25.5, bol_volt=bol_volt, gain=gain, fnyq_icm=fnyq["icm"][frec], otf=otf, Jo=Jo, Jg=Jg, T0=T0, R0=R0, G1=G1, C1=C1, C3=C3, beta=beta, rho=rho, Tbol=temps[f"bolometer_{channel}"], apod=apod)
+            _, processed_spectra = mu.ifg_to_spec(original_ifgs, channel=channel, mode = mode, adds_per_group=adds_per_group, sweeps=sweeps, bol_cmd_bias=bol_cmd_bias/25.5, bol_volt=bol_volt, gain=gain, fnyq_icm=fnyq["icm"][frec], otf=otf, Jo=Jo, Jg=Jg, T0=T0, R0=R0, G1=G1, C1=C1, C3=C3, beta=beta, rho=rho, Tbol=temps[f"bolometer_{channel}"], apod=apod)
             # processed_spectra = data[f"spec_{channel}_{mode}"][:]
 
             print(f"processed spectra peak: {np.max(np.abs(processed_spectra[n]))}")
@@ -145,14 +151,26 @@ for mode in modes:
             plt.legend()
             plt.show()
 
-            print(f"original ifg shape: {original_ifgs.shape}")
             print(f"original ifg peak: {np.nanmax(np.abs(original_ifgs[n]) - np.median(original_ifgs[n]))}")
             print(f"simulated ifg peak: {np.nanmax(np.abs(simulated_ifgs[n]))}")
             print(f"ratio (original/simulated): {(np.max(np.abs(original_ifgs[n])) - np.median(original_ifgs[n]))/ np.nanmax(np.abs(simulated_ifgs[n]))}")
 
             # for ifg in range(simulated_ifgs.shape[0]):
             for ifg in range(n, n+1, 1):
-            # plot both and residuals
+                print(f"Plotting IFG {ifg+1} for {channel.upper()} {mode.upper()}...")
+                # print temperatures
+                print(f"XCAL: {xcal[ifg]}")
+                print(f"ICAL: {ical[ifg]}")
+                print(f"Dihedral: {dihedral[ifg]}")
+                print(f"Refhorn: {refhorn[ifg]}")
+                print(f"Skyhorn: {skyhorn[ifg]}")
+                print(f"Collimator: {collimator[ifg]}")
+                print(f"Bolometer LL: {bolometer_ll[ifg]}")
+                print(f"Bolometer LH: {bolometer_lh[ifg]}")
+                print(f"Bolometer RL: {bolometer_rl[ifg]}")
+                print(f"Bolometer RH: {bolometer_rh[ifg]}")
+
+                # plot both and residuals
                 plt.subplots(3, 1, figsize=(10, 15), sharex=True, sharey=True)
                 plt.suptitle(f"{channel.upper()} {mode.upper()} IFG {ifg+1}")
 

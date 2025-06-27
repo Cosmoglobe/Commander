@@ -319,23 +319,6 @@ for channel in channels.keys():
                 "BOLPARM6"
             ][0]
 
-"""
-print("cleaning interferograms")
-for channel, channel_value in channels.items():
-    for mode in modes.keys():
-        if mode == "lf" and (channel == "lh" or channel == "rh"):
-            continue
-        else:
-            variablesm[f"ifg_{channel}_{mode}_clean"] = clean_ifg(
-                ifg=variablesm[f"ifg_{channel}_{mode}"],
-                mtm_length=0 if mode[0] == "s" else 1,
-                mtm_speed=0 if mode[1] == "s" else 1,
-                gain=variablesm[f"gain_{mode}"],
-                sweeps=variablesm[f"sweeps_{mode}"],
-                apod=apod[f"{channel}_{mode}"],
-            )
-"""
-
 print("converting interferograms to spectra")
 
 # instrumental gain function normalization (mjy v / w sr)
@@ -364,8 +347,8 @@ for channel, channel_value in channels.items():
             print(f"IFG to spec of {channel}_{mode}")
             f, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
-                mtm_speed=0 if mode[1] == "s" else 1,
-                channel=channel_value,
+                channel=channel,
+                mode=mode,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
                 bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]/ 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
@@ -392,8 +375,8 @@ for channel, channel_value in channels.items():
                 # spec=bb_ical[f"{channel}_{mode}"],
                 # spec=planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"])
                 # - 0.95 * planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"]),
-                mtm_speed=0 if mode[1] == "s" else 1,
-                channel=channel_value,
+                channel=channel,
+                mode=mode,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
                 bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
