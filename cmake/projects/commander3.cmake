@@ -101,6 +101,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_dust_extinction_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
@@ -169,7 +170,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_mh_specind_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_smod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_smod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
         ${COMMANDER3_SOURCE_DIR}/comm_tod_crosstalk_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90

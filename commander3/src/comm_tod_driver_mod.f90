@@ -107,10 +107,7 @@ contains
     end if
 
     if (tod%subtract_zodi) then
-      call tod%clear_zodi_cache()
       allocate(sd%s_zodi(sd%ntod, sd%ndet))
-      allocate(sd%s_zodi_scat(sd%ntod, tod%zodi_n_comps, sd%ndet))
-      allocate(sd%s_zodi_therm(sd%ntod, tod%zodi_n_comps, sd%ndet))
       if (tod%sample_zodi) allocate(sd%mask_zodi(sd%ntod, sd%ndet))
     end if
     !call update_status(status, "todinit_alloc")
@@ -194,22 +191,7 @@ contains
                & procmask2, scan, sd%s_sky_prop(:,:,j), sd%mask2)
        end do
     end if
-
-   !  ! Project zodi sampling mask to timestream
-   !  if (tod%subtract_zodi .and. tod%sample_zodi) then
-   !    if (.not. present(procmask_zodi)) stop "zodi processing mask is not present in init_scan_data_singlehorn but sample zodi is true"
-   !    do j = 1, self%ndet
-   !       do i = 1, tod%scans(scan)%ntod
-   !          self%mask_zodi(i, j) = procmask_zodi(self%pix(i, j, 1))
-   !          if (iand(self%flag(i, j), tod%flag0) .ne. 0) self%mask_zodi(i, j) = 0.
-   !       end do
-   !    end do
-   !  end if
     call timer%stop(TOD_PROJECT, tod%band)
-    !call update_status(status, "todinit_bp")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
 
     ! Perform sanity tests
     do j = 1, sd%ndet
@@ -236,25 +218,9 @@ contains
           sd%s_zodi = 0.
        else
           call timer%start(TOD_ZODI, tod%band)
-          if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
+          if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Computing zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
           do j = 1, sd%ndet
-!!$          call get_zodi_emission(&
-!!$            & tod=tod, &
-!!$            & pix=self%pix(:, j, 1), &
-!!$            & scan=scan, &
-!!$            & det=j, &
-!!$            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
-!!$            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-!!$            & model=zodi_model &
-!!$          &)
-!!$          call get_s_zodi(&
-!!$            & s_therm=self%s_zodi_therm(:, :, j), &
-!!$            & s_scat=self%s_zodi_scat(:, :, j), &
-!!$            & s_zodi=self%s_zodi(:, j), &
-!!$            & emissivity=tod%zodi_emissivity, &
-!!$            & albedo=tod%zodi_albedo &
-!!$            &)
-             call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:), s_scat=sd%s_zodi_scat(:,:,j), s_therm=sd%s_zodi_therm(:,:,j))
+             call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:))
 !!$          if (tod%myid == 0) then
 !!$             open(58,file='zodi.dat')
 !!$             do k =  1, size(self%s_zodi(:,j))
@@ -268,7 +234,6 @@ contains
           call timer%stop(TOD_ZODI, tod%band)
        end if
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
     !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -337,6 +302,145 @@ contains
     !call update_status(status, "todinit_stot")
 
   end subroutine init_scan_data_singlehorn
+
+
+  
+  subroutine init_scan_data_singlehorn_singledet(sd, tod, det, scan, map_sky, procmask, &
+         & skip_nonlin, skip_zodi, darkdata)
+    implicit none
+    class(comm_scandata),                      intent(inout)          :: sd    
+    class(comm_tod),                           intent(inout)          :: tod
+    integer(i4b),                              intent(in)             :: det
+    integer(i4b),                              intent(in)             :: scan
+    real(sp),          dimension(1:,1:),       intent(in)             :: map_sky
+    real(sp),          dimension(0:),          intent(in)             :: procmask
+    logical(lgt),                              intent(in),   optional :: skip_nonlin
+    logical(lgt),                              intent(in),   optional :: skip_zodi
+    logical(lgt),                              intent(in),   optional :: darkdata
+
+    integer(i4b) :: i, j, k, ndelta
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
+
+    call timer%start(TOD_ALLOC, tod%band)
+
+
+    if (tod%nhorn /= 1) then
+       write(*,*) 'Error: init_scan_data_singlehorn_singlescan only applicable for 1-horn experiments'
+       stop
+    end if
+        !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
+    darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
+ 
+    sd%ntod   = tod%scans(scan)%ntod
+    sd%ndet   = 1
+    sd%nhorn  = 1
+    sd%ndelta = 0
+
+    ! Allocate data structures
+    allocate(sd%tod(sd%ntod, sd%ndet))
+    allocate(sd%n_corr(sd%ntod, sd%ndet))
+    allocate(sd%s_sl(sd%ntod, sd%ndet))
+    allocate(sd%s_sky(sd%ntod, sd%ndet))
+    allocate(sd%s_orb(sd%ntod, sd%ndet))
+    allocate(sd%s_tot(sd%ntod, sd%ndet))
+    allocate(sd%mask(sd%ntod, sd%ndet))
+    allocate(sd%pix(sd%ntod, sd%ndet, sd%nhorn))
+    allocate(sd%psi(sd%ntod, sd%ndet, sd%nhorn))
+    allocate(sd%flag(sd%ntod, sd%ndet))
+    if (tod%apply_inst_corr) allocate(sd%s_inst(sd%ntod, sd%ndet))
+    if (darkdata_) allocate(sd%dark(sd%ntod, tod%ndark))
+
+    if (tod%subtract_zodi) then
+      allocate(sd%s_zodi(sd%ntod, sd%ndet))
+      if (tod%sample_zodi) allocate(sd%mask_zodi(sd%ntod, sd%ndet))
+    end if
+    !call update_status(status, "todinit_alloc")
+    call timer%stop(TOD_ALLOC, tod%band)
+
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+    ! Decompress pointing, psi and flags for current scan
+    call timer%start(TOD_DECOMP, tod%band)
+    call tod%decompress_pointing_and_flags(scan, det, sd%pix(:,1,:), &
+            & sd%psi(:,1,:), sd%flag(:,1))
+
+    if(darkdata_) then
+      do j=1, tod%ndark
+        call tod%decompress_dark_data(scan, det, sd%dark(:,j))
+      end do
+    end if
+    
+    call timer%stop(TOD_DECOMP, tod%band)
+    
+    ! Prepare TOD
+    call timer%start(TOD_DECOMP, tod%band)
+    if (tod%compressed_tod) then
+       call tod%decompress_tod(scan, det, sd%tod(:,1))
+    else
+       sd%tod(:,1) = tod%scans(scan)%d(det)%tod
+    end if
+    call timer%stop(TOD_DECOMP, tod%band)
+
+    ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
+    call project_sky(tod, det, map_sky, sd%pix(:,1,1), &
+         & sd%psi(:,1,1), sd%flag(:,1), procmask, scan, sd%s_sky(:,1), sd%mask(:,1))
+    call timer%stop(TOD_PROJECT, tod%band)
+    
+    ! Construct orbital dipole template
+    if (tod%correct_orb) then
+       call timer%start(TOD_ORBITAL, tod%band)
+       call tod%construct_dipole_template(scan, sd%pix(:,:,1), sd%psi(:,:,1), sd%s_orb, det=det)
+       call timer%stop(TOD_ORBITAL, tod%band)
+    else
+       sd%s_orb = 0.
+    end if
+
+    ! Construct zodical light template
+    if (tod%subtract_zodi) then
+       if (skip_zodi_) then
+          sd%s_zodi = 0.
+       else
+          call timer%start(TOD_ZODI, tod%band)
+          call get_s_tot_zodi(zodi_model, tod, det, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,1,:))
+          call timer%stop(TOD_ZODI, tod%band)
+       end if
+    end if
+
+    ! Construct sidelobe template
+    if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
+       call tod%construct_sl_template(tod%slconv(det)%p, &
+               & sd%pix(:,1,1), sd%psi(:,1,1), sd%s_sl(:,1), tod%mbang(det))
+       sd%s_sl(:,1) = 2.d0 * sd%s_sl(:,1) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+       call timer%stop(TOD_SL_INT, tod%band)
+    else
+       sd%s_sl = 0.
+    end if
+
+    ! Generate and apply instrument-specific correction template
+    if (tod%apply_inst_corr) then
+       call tod%construct_corrtemp_inst(scan, sd%pix(:,:,1), sd%psi(:,:,1), sd%s_inst)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+
+    ! Construct total sky signal
+    if (tod%subtract_zodi) then 
+       sd%s_tot(:,1) = sd%s_sky(:,1) + sd%s_sl(:,1) + sd%s_orb(:,1) + sd%s_zodi(:,1)
+    else
+       sd%s_tot(:,1) = sd%s_sky(:,1) + sd%s_sl(:,1) + sd%s_orb(:,1)
+    end if
+    if (tod%apply_inst_corr) sd%s_tot(:,1) = sd%s_tot(:,1) + sd%s_inst(:,1)
+
+    ! Apply non-linearity corrections
+    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd, det)
+    
+    !call update_status(status, "todinit_stot")
+
+  end subroutine init_scan_data_singlehorn_singledet
 
 
   subroutine init_scan_data_differential(sd, tod, scan, map_sky, map_gain, procmask, procmask2, &
@@ -444,10 +548,10 @@ contains
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
-       call project_sky_differential(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+       call project_sky_differential_multi(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, sd%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
     else
-       call project_sky_differential(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+       call project_sky_differential_multi(tod, map_sky(:,:,:,1), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, sd%mask)
     end if
     do j = 1, sd%ndet
@@ -463,7 +567,7 @@ contains
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do k = 2, sd%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+          call project_sky_differential_multi(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
                & procmask2, scan, s_bufA, s_bufB, sd%mask2, s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -473,7 +577,7 @@ contains
        end do
     else if (init_s_sky_prop_) then
        do k = 2, sd%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
+          call project_sky_differential_multi(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
                & procmask2, scan, s_bufA, s_bufB, sd%mask2)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -602,8 +706,6 @@ contains
     if (allocated(sd%s_mono))        deallocate(sd%s_mono)
     if (allocated(sd%mask2))         deallocate(sd%mask2)
     if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
-    if (allocated(sd%s_zodi_scat))   deallocate(sd%s_zodi_scat)
-    if (allocated(sd%s_zodi_therm))  deallocate(sd%s_zodi_therm)
     if (allocated(sd%mask_zodi))     deallocate(sd%mask_zodi)
     if (allocated(sd%s_totA))        deallocate(sd%s_totA)
     if (allocated(sd%s_totB))        deallocate(sd%s_totB)
@@ -750,7 +852,7 @@ contains
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) then
-          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          !write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
           cycle
        end if
        call wall_time(t1)
@@ -762,7 +864,7 @@ contains
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
-       
+
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
@@ -825,7 +927,7 @@ contains
              end if
           end do
           call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-              & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
+               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
        else
           ! Time-variable gain terms
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
@@ -1026,11 +1128,11 @@ contains
     !  d_calib(8,:,:) - instrument correction
     !  d_calib(9 - 9 + n_zodi_comps,:,:) - zodiacal light components
     implicit none
-    class(comm_tod),                       intent(in)   :: tod
-    integer(i4b),                          intent(in)   :: scan
-    type(comm_scandata),                   intent(in)   :: sd
-    real(sp),            dimension(:,:,:), intent(out)  :: d_calib
-    real(sp), dimension(:,:), intent(in), optional      :: jump_template
+    class(comm_tod),                       intent(inout)   :: tod
+    integer(i4b),                          intent(in)      :: scan
+    type(comm_scandata),                   intent(in)      :: sd
+    real(sp),            dimension(:,:,:), intent(out)     :: d_calib
+    real(sp), dimension(:,:), intent(in), optional         :: jump_template
     integer(i4b) :: i, j, k, nout
     real(dp)     :: inv_gain
    !  write(*, *) "s_bp:", sd%s_sky(:,1)
@@ -1062,10 +1164,9 @@ contains
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)          
        if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
-       if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
-          do i = 1, size(sd%s_zodi_therm, dim=2)
-             !write(*,*) 'b',j,i,  tod%scanid(scan), any(sd%s_zodi_scat(:,i:i,j)/=sd%s_zodi_scat(:,i:i,j)), any(sd%s_zodi_therm(:,i:i,j)/=sd%s_zodi_therm(:,i:i,j))
-             call get_s_zodi(tod%id, sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(8 + i, :, j), comp_id=i)
+       if (tod%output_n_maps > 8) then
+          do i = 1, zodi_model%n_comps
+             call get_s_tot_zodi(zodi_model, tod, j, scan, d_calib(8+i,:,j), pix_dynamic=sd%pix(:,j,:), exclude_static='all', comp=i)
          end do
        end if
       !  Bandpass proposals

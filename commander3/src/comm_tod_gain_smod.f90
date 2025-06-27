@@ -100,18 +100,18 @@ contains
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
-!!$          if (present(mask_lowres)) then
-!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
-!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
-!!$          else
-!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
-!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
-!!$          end if
-          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
-          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
-          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
-             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
+          if (present(mask_lowres)) then
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
+          else
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
           end if
+!!$          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
+!!$             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
+!!$          end if
        end if
     end do
 !    tod%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
@@ -486,7 +486,7 @@ contains
 
     do j = 1, tod%nscan
        do i = 1, tod%ndet
-          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
+          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain
        end do
     end do
 

@@ -484,10 +484,11 @@ interface
     integer(i4b),                          intent(out) :: ndef
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in), optional   :: verbosity
   end subroutine applyMonoDipolePrior
 
   module subroutine nullify_monopole_amp(band)

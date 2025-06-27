@@ -491,6 +491,9 @@ contains
          deallocate(d_calib)
       end do
 
+      ! Synchronize and output flagging statistics in first iteration
+      if (self%first_call) call self%report_dynamic_mask_stats
+      
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Output latest scan list with new timing information

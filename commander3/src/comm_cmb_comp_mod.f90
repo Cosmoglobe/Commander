@@ -57,6 +57,7 @@ contains
     ! General parameters
     allocate(c)
     c%npar         = 0
+    call c%initLmaxSpecind(cpar, id, id_abs)
     call c%initDiffuse(cpar, id, id_abs)
 
     ! Precompute mixmat integrator for each band

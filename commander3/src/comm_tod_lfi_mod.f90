@@ -328,7 +328,7 @@ interface
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
   end subroutine sample_1Hz_spikes
 
-  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -351,6 +351,7 @@ interface
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
   end subroutine construct_corrtemp_lfi
 
 

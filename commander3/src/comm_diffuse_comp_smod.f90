@@ -72,12 +72,6 @@ contains
     self%nu_min        = cpar%cs_nu_min(id_abs)
     self%nu_max        = cpar%cs_nu_max(id_abs)
 
-    if(self%npar == 0) then
-       self%lmax_ind = 0 !default
-       allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind_mix = 0
-    end if
-
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
@@ -150,9 +144,9 @@ contains
           elsewhere
              self%x%alm(i,:) = 0.d0
           end where
-          if (l > 500) then
-             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
-          end if
+!!$          if (l > 500) then
+!!$             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+!!$          end if
        end do
     end if
     
@@ -358,7 +352,12 @@ contains
     nmaps = 1
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
-    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+    if (self%npar==0) then
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind     = 0
+       self%lmax_ind_mix = 0
+       return !do not go further, lmax_ind is set in initDiffuse
+    end if
 
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
 
@@ -369,7 +368,7 @@ contains
     do i = 1,self%npar
        do p = 1, self%poltype(i)
           l = cpar%cs_lmax_ind_pol(p,i,id_abs)
-
+          
           !assign lmax per spec ind per polarization (poltype)
           if (self%poltype(i)==1) then !all polarizations have the same lmax
              self%lmax_ind_pol(:,i) = l 
@@ -1155,7 +1154,9 @@ contains
           if (self%lmax_ind_pol(j,i) >= 0) then
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
-             self%lmax_ind_mix(p_min:p_max,i) = 0
+             do k = p_min, p_max
+                self%lmax_ind_mix(k,i) = min(self%lmax_ind_pol(k,i), 0)
+             end do
           else
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i)
           end if
@@ -1781,7 +1782,7 @@ contains
     integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
     integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
-    real(dp)     :: lat, lon, t1, t2
+    real(dp)     :: lat, lon, t1, t2, A_ext
     logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
@@ -1809,7 +1810,7 @@ contains
        if (present(band)) then
           if (i /= band) cycle
        end if
-
+       
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
@@ -1935,6 +1936,14 @@ contains
                 end if
              end if
 
+             ! Initialize dust extinction
+             if (associated(data(i)%A_ext)) then
+                A_ext = data(i)%A_ext%map(j,1)
+             else
+                A_ext = 1.d0
+             end if
+
+             
 !          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
@@ -1963,14 +1972,14 @@ contains
                          write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                          stop !debug, replace by proper stop and error message
                       end if
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
                       !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
                       self%F(i,l)%p%map(j,1) = 0.0
                    else
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
                    end if
                 end if
              end if
@@ -1987,9 +1996,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
                    end if
                 end if
                 
@@ -2003,9 +2012,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
                    end if
                 end if
              end if
@@ -2015,7 +2024,7 @@ contains
                 if (self%npar > 0) then
                    do k = 1, nmaps
                       if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k)
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
                       end if
                    end do
                 else
@@ -2096,7 +2105,6 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
@@ -3511,12 +3519,13 @@ contains
 
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in),   optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, ierr, pix
+    integer(i4b) :: i, j, k, l, m, ierr, pix, verbosity_
     real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
     class(comm_map), pointer :: map, lr_map 
     class(comm_mapinfo), pointer :: info => null()
@@ -3529,6 +3538,8 @@ contains
        return
     end if
 
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Compute monopole offset given the specified prior
     mu = 0.d0
 
@@ -3554,7 +3565,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
              write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
              write(*,fmt='(a)') ' | '
@@ -3584,7 +3595,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
              write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
@@ -3599,7 +3610,7 @@ contains
              call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
              self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
           end do
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
              write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
              write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
@@ -3719,7 +3730,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' |  Cross-correlation prior correction for component: '//trim(self%label)
           write(*,fmt='(a,i2)') ' |    Number of linear fits (thresholds): ',&
                & self%mono_prior_Nthresh
@@ -3802,7 +3813,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' Lowest value prior correction for component: '//trim(self%label)
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
@@ -3912,7 +3923,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then 
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then 
           write(*,fmt='(a)') ' |  Band monopole prior correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
           write(*,fmt='(a,f14.3,f14.3)') ' |  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
           write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)
