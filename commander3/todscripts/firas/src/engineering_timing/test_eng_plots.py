@@ -81,6 +81,8 @@ time_support()
 
 from tqdm import tqdm
 
+plt.rcParams["xtick.minor.visible"] =  True
+
 def find_epoch(time):
     '''
     Takes time in seconds since MJD=0, returns index of the epoch.
@@ -240,8 +242,10 @@ t_09 = (Time('1990:208:11:20').mjd*u.day).to(u.ns) # Horns commanded to final te
 t_10 = (Time('1990:220:05:00').mjd*u.day).to(u.ns) # XCAL placed under temperature control
 t_11 = (Time('1990:264:09:36').mjd*u.day).to(u.ns) # Final period over
 
-time_periods = np.array([t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
-period_labels = ['First light',
+time_periods = np.array([t_launch.value, t_apco.value, t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
+period_labels = ['Launch',
+                 'APCO ejection',
+                 'First light',
                  'First ICAL nulling',
                  'SAA, MTM on',
                  '2.70 to 2.75 K',
@@ -749,6 +753,8 @@ t1 = t_09 + 8.38e5*u.s
 # Should be just the rise
 # t1 = t_09 + 8.37e5*u.s
 
+'''
+
 
 # This avoids the spike, but still shows the ICAL transition
 t0 = (4.1596e9 + 4_500)*u.s
@@ -762,6 +768,42 @@ t1 = (4.1596e9 + 5_500)*u.s
 t_start = 4.160625e9*u.s
 t0 = t_start + 520*u.s
 t1 = t0 + 150*u.s
+
+
+
+t0 = 4149995850.804*u.s
+t1 = 4150004001.0540004*u.s
+
+t0 = 4_149_978_331.3040004*u.s
+t1 = 4_150_020_737.3040004*u.s
+
+t0 = 4.15e9*u.s - 1.5e3*u.s
+t1 = 4.15e9*u.s - 0.5e3*u.s
+
+
+# Beginning of mission
+t0 = 4.1344e9*u.s + 1.2e4*u.s
+t1 = 4.1344e9*u.s + 1.4e4*u.s
+
+# End of mission
+t0 = 4.1606e9*u.s
+t1 = t0 + 7e3*u.s
+
+
+# Interesting shapes in xcal, perhaps due to looking at the galactic plane
+
+t0 = 4.1515e9*u.s + 1e3*u.s
+t1 = t0 + 5e3*u.s
+
+
+t0 = 4.149e9*u.s
+t1 = t0 + 1e5*u.s
+
+
+t0 = 4.15e9*u.s - 5e3*u.s
+t1 = 4.15e9*u.s + 5e3*u.s
+'''
+
 
 
 epoch = find_epoch(t0)
@@ -780,6 +822,7 @@ grt_times = {}
 
 grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
+offset_ind = [0, 1, 2, 3, 4, 9, 14, 15]
 ifg_time_offset = 36*u.s
 for side in ['a', 'b']:
     for i, grt in enumerate(grt_names):
@@ -802,11 +845,11 @@ for side in ['a', 'b']:
             grt_times[f'{side}_lo_{grt}'] = time  + ifg_time_offset
             grt_times[f'{side}_hi_{grt}'] = time + 16*u.s + ifg_time_offset
 
-        grt_times[f'{side}_lo_{grt}'] += i*u.s
-        grt_times[f'{side}_hi_{grt}'] += i*u.s
-        if side == 'b':
-            grt_times[f'{side}_lo_{grt}'] += 4*u.s
-            grt_times[f'{side}_hi_{grt}'] += 4*u.s
+        grt_times[f'{side}_lo_{grt}'] += offset_ind[i]*u.s
+        grt_times[f'{side}_hi_{grt}'] += offset_ind[i]*u.s
+        #if side == 'b':
+        #    grt_times[f'{side}_lo_{grt}'] += 4*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 4*u.s
 
         #if ('xcal_tip' in grt) and (side == 'a'):
         #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
@@ -823,9 +866,9 @@ for side in ['a', 'b']:
         #if (grt == 'refhorn') and (side == 'a'):
         #    grt_times[f'{side}_lo_{grt}'] -= 96*u.s
         #    grt_times[f'{side}_hi_{grt}'] -= 96*u.s
-        #if (grt == 'skyhorn') and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] -= 64*u.s
-        #    grt_times[f'{side}_hi_{grt}'] -= 64*u.s
+        #if (grt == 'skyhorn') and (side == 'b'):
+        #    grt_times[f'{side}_lo_{grt}'] += 68*u.s
+        #    grt_times[f'{side}_hi_{grt}'] += 68*u.s
         #if (grt == 'dihedral') and (side == 'a'):
         #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
         #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
@@ -930,6 +973,7 @@ grt_names = ['xcal_tip', 'skyhorn', 'refhorn', 'ical', 'dihedral',
         'mirror', 'xcal_cone', 'collimator']
 
 
+#inds = np.ones_like(inds)
 
 #fig, axes = plt.subplots(sharex=True, nrows=4, ncols=4)
 #axs = axes.flatten()
@@ -947,22 +991,68 @@ for i in range(8):
 
 axs = ax_first + ax_second
 
-#inds = np.ones_like(inds)
 
 
 for i in range(8):
     #grts[f'a_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
     #grts[f'b_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
-    axs[i].plot(time[inds], grts[f'a_hi_{grt_names[i]}'][inds])
-    axs[i+8].plot(time[inds], grts[f'b_hi_{grt_names[i]}'][inds])
-    axs[i].plot(time[inds], grts[f'a_lo_{grt_names[i]}'][inds])
-    axs[i+8].plot(time[inds], grts[f'b_lo_{grt_names[i]}'][inds])
+    if i == 0:
+        axs[i].plot(grt_times[f'a_hi_{grt_names[i]}'][inds], grts[f'a_hi_{grt_names[i]}'][inds], label='High')
+    else:
+        axs[i].plot(grt_times[f'a_hi_{grt_names[i]}'][inds], grts[f'a_hi_{grt_names[i]}'][inds])
+    axs[i+8].plot(grt_times[f'b_hi_{grt_names[i]}'][inds], grts[f'b_hi_{grt_names[i]}'][inds])
+    if i == 0:
+        axs[i].plot(grt_times[f'a_lo_{grt_names[i]}'][inds], grts[f'a_lo_{grt_names[i]}'][inds], label='Low')
+        axs[i].legend()
+    else:
+        axs[i].plot(grt_times[f'a_lo_{grt_names[i]}'][inds], grts[f'a_lo_{grt_names[i]}'][inds])
+    axs[i+8].plot(grt_times[f'b_lo_{grt_names[i]}'][inds], grts[f'b_lo_{grt_names[i]}'][inds])
 
-    axs[i].set_title(grt_names[i])
-    axs[i+8].set_title(grt_names[i])
+    axs[i].set_title(grt_names[i] + ' A')
+    axs[i+8].set_title(grt_names[i] + ' B')
+
+plt.tight_layout()
 
 plt.savefig('temperature_stuff.png')
 
+fig = plt.figure(figsize=(16, 12))
+ax_first = []
+ax_second = []
+for i in range(8):
+    if i == 0:
+        ax_i = fig.add_subplot(4, 4, i+1)
+    else:
+        ax_i = fig.add_subplot(4, 4, i+1, sharex=ax_first[0])
+    ax_i8 = fig.add_subplot(4, 4, i+1+8, sharex=ax_i)#, sharey=ax_i)
+    ax_first.append(ax_i)
+    ax_second.append(ax_i8)
+
+axs = ax_first + ax_second
+
+
+
+for i in range(8):
+    #grts[f'a_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
+    #grts[f'b_hi_{grt_names[i]}'][xcal_eng[:,0] != 1] = np.nan
+    if i == 0:
+        axs[i].plot(grt_times[f'a_hi_{grt_names[i]}'][inds], grts[f'a_hi_{grt_names[i]}'][inds], label='A')
+    else:
+        axs[i].plot(grt_times[f'a_hi_{grt_names[i]}'][inds], grts[f'a_hi_{grt_names[i]}'][inds])
+    axs[i+8].plot(grt_times[f'a_lo_{grt_names[i]}'][inds], grts[f'a_lo_{grt_names[i]}'][inds])
+
+    if i == 0:
+        axs[i].plot(grt_times[f'b_hi_{grt_names[i]}'][inds], grts[f'b_hi_{grt_names[i]}'][inds], label='B')
+        axs[i].legend()
+    else:
+        axs[i].plot(grt_times[f'b_hi_{grt_names[i]}'][inds], grts[f'b_hi_{grt_names[i]}'][inds])
+    axs[i+8].plot(grt_times[f'b_lo_{grt_names[i]}'][inds], grts[f'b_lo_{grt_names[i]}'][inds])
+
+    axs[i].set_title(grt_names[i] + ' hi')
+    axs[i+8].set_title(grt_names[i] + ' lo')
+
+plt.tight_layout()
+
+plt.savefig('temperature_stuff_ab.png')
 
 
 fig, axes = plt.subplots(sharex=True, nrows=2, ncols=3)
@@ -1088,25 +1178,31 @@ plt.close('all')
 
 for ji, j in tqdm(enumerate(np.arange(-128, 129, dn))):
 #for ji, j in tqdm(enumerate(np.arange(-64, 65, dn))):
+    plt.figure(figsize=(12, 8))
     for i, grt in enumerate(grt_names):
+        print(grt_names[i])
         try:
             #plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grt_biases[f'a_hi_{grt}'], '.', label='A side, high')
-            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grts[f'a_hi_{grt}'][inds].max() + i, '.', label='A side, high')
+            plt.plot(nt(grt_times[f'a_hi_{grt}'][inds] + j*u.s, epoch), grts[f'a_hi_{grt}'][inds] - grts[f'a_hi_{grt}'][inds].min() + i, '.', label='A side, high',
+                     color='C0')
         except:
             pass
         try:
             #plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grt_biases[f'b_hi_{grt}'], '.', label='B side, high')
-            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].max() + i, '.', label='B side, high')
+            plt.plot(nt(grt_times[f'b_hi_{grt}'][inds], epoch), grts[f'b_hi_{grt}'][inds] - grts[f'b_hi_{grt}'][inds].min() + i, '.', label='B side, high',
+                     color='C1')
         except:
             pass
         try:
             #plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] - grt_biases[f'a_lo_{grt}'], '.', label='A side, low')
-            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] -grts[f'a_lo_{grt}'][inds].max() + i, '.', label='A side, low')
+            plt.plot(nt(grt_times[f'a_lo_{grt}'][inds] + j*u.s, epoch), grts[f'a_lo_{grt}'][inds] -grts[f'a_lo_{grt}'][inds].min() + i, '.', label='A side, low',
+                     color='C2')
         except:
             pass
         try:
             #plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grt_biases[f'b_lo_{grt}'], '.', label='B side, low')
-            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].max() + i, '.', label='B side, low')
+            plt.plot(nt(grt_times[f'b_lo_{grt}'][inds], epoch), grts[f'b_lo_{grt}'][inds] - grts[f'b_lo_{grt}'][inds].min() + i, '.', label='B side, low',
+                     color='C3')
         except:
             pass
         if j == 0:
