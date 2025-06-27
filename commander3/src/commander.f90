@@ -44,7 +44,6 @@ program commander
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)
-  real(dp) :: time_step
   real(dp) :: time_step, lambda, A_ext(1)
   !integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
