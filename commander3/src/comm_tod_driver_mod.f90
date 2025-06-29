@@ -713,7 +713,7 @@ contains
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) then
-          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          ! write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
           cycle
        end if
        call wall_time(t1)
