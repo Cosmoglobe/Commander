@@ -999,6 +999,7 @@ contains
    !  write(*, *) "s_bp:", sd%s_sky(:,1)
     call timer%start(TOD_MAPBIN, tod%band)
     nout = size(d_calib,1)
+    d_calib = 0d0
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
