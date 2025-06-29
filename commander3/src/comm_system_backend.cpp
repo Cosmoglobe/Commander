@@ -41,6 +41,7 @@
 #include <fstream>
 #include <sstream>
 #include <limits>
+#include <inttypes.h>
 using namespace std;
 
 typedef int (*forthandler)(int*);
@@ -68,7 +69,7 @@ extern "C"
 		stringstream path; path << "/proc/" << getpid() << "/statm";
 		FILE * f = fopen(path.str().c_str(),"r");
 		int64_t npage;
-		fscanf(f, "%lld", &npage);
+		fscanf(f, "%" SCNd64, &npage);
 		fclose(f);
 		return npage*getpagesize();
 	}

@@ -3640,7 +3640,7 @@ end subroutine read_zodi_params_hash
                call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
           
-          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+          if (trim(cpar%cs_mono_prior(i)) /= 'none' .and. cpar%cs_mono_prior(i)(1:8) .ne. 'bandmono') then
             filename = get_token(cpar%cs_mono_prior(i), ":", 2)
             filename1 = get_token(filename, ",", 1)
             call validate_file(trim(cpar%datadir) //"/"// trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)

@@ -331,10 +331,12 @@ contains
        end if
        ! Set up bp pointers in the TOD object
        if (cpar%enable_TOD_analysis) then
-          allocate(data(n)%tod%bp(0:data(n)%ndet))
-          do j = 0, data(n)%ndet
-             data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
-          end do
+          if (data(n)%ndet .ne. 0) then
+             allocate(data(n)%tod%bp(0:data(n)%ndet))
+             do j = 0, data(n)%ndet
+                data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
+             end do
+          end if
        end if
 
        ! Initialize dust extinction map
