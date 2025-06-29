@@ -250,6 +250,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
      integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
      integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
+     real(sp),           allocatable, dimension(:,:) :: mod_phase  ! Modulation phase (ndet,nscan)
 
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
@@ -2563,6 +2564,7 @@ contains
     integer(i4b) :: i, det
 
     do det = 1, self%ndet
+       if (self%partner(det) == -1) cycle
        do i = 1, size(flag,1)
           if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)

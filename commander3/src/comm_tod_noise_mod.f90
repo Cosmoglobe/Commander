@@ -77,6 +77,7 @@ contains
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
     real(dp)     :: power, fft_norm, var1, var2
+    character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -162,12 +163,13 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       if (.false. .and. self%scanid(scan) == 5012) then
+       if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
           !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          open(58,file='noise_psd.dat', recl=1024)
+          call int2string(self%scanid(scan), stext)
+          open(58,file='noise_psd'//stext//'.dat', recl=1024)
           do l = 1, n-1
              ps(l) = abs(dv(l)) ** 2 / ntod
              write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
@@ -190,7 +192,7 @@ contains
        pcg_converged = pcg_converged .and. var1 < var2
 
        if (.not. pcg_converged) then
-          write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
+          !write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
 
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
@@ -356,7 +358,7 @@ contains
        xp    = xp + alp*p
        rp    = rp - alp * Ad(u)
        r2new = sum(rp**2)
-       if (scan == 12114) write(*,*) 'CG ncorr -- ', scan, det, k, r2new, sigma_bp
+       !if (scan == 12114) write(*,*) 'CG ncorr -- ', scan, det, k, r2new, sigma_bp
        if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           exit
@@ -506,7 +508,7 @@ contains
     samprate = self%samprate
     n_gibbs  = 1
     threshold = 5.d0 ! Remove outliers
-    outscan   = 5013 !-1 !92
+    outscan   = -1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
     do i = 1, ndet
@@ -748,5 +750,27 @@ contains
 
   end subroutine multiply_inv_N
 
+
+  subroutine create_spin_freqmask(ntod, f_samp, f_spin, delta_f, f_max, freqmask)
+    implicit none
+    integer(i4b),                            intent(in)  :: ntod
+    real(sp),                                intent(in)  :: f_samp, f_spin, delta_f, f_max
+    real(sp),     allocatable, dimension(:), intent(out) :: freqmask
+
+    integer(i4b) :: i, j, n
+    real(dp)     :: f, df
+
+    n = ntod/2 + 1
+    allocate(freqmask(0:n-1))
+    freqmask = 1.
+    do i = 0, n-1
+       f = i*(f_samp/2)/(n-1)
+       if (f > f_max) return
+       f = modulo(f,f_samp)
+       if (f < delta_f .or. f > f_samp-delta_f) freqmask(i) = 0.
+    end do
+    
+  end subroutine create_spin_freqmask
+  
 
 end module comm_tod_noise_mod

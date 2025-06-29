@@ -79,15 +79,15 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           c%npar_adc = c%npar_adc + 1
        end if
     end do
-!!$    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
-!!$       c0 = c%min_adu
-!!$    else
-!!$       c0 = c%min_adu - mod(c%min_adu,64) + 64
-!!$    end if
-!!$    do i = c0, c%max_adu, 64
-!!$       if (i == 32768) cycle
-!!$       c%npar_adc = c%npar_adc + 1 ! Jump between 64-code patterns
-!!$    end do
+    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+       c0 = c%min_adu
+    else
+       c0 = c%min_adu - mod(c%min_adu,64) + 64
+    end if
+    do i = c0, c%max_adu, 64
+       if (i == 32768) cycle
+       c%npar_adc = c%npar_adc + 1 ! Jump between 64-code patterns
+    end do
 !!$    c%npar_adc = c%npar_adc + 63 ! Global repeated 64-code pattern
     if (c%myid == 0) write(*,*) '  Number of ADC parameters = ', c%npar_adc, trim(label)
     
@@ -100,16 +100,16 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           c%param_adc(j,:) = [32768+i,1,1]  ! 64 individual codes after midpoint
        end if
     end do
-!!$    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
-!!$       c0 = c%min_adu
-!!$    else
-!!$       c0 = c%min_adu - mod(c%min_adu,64) + 64
-!!$    end if
-!!$    do i = c0, c%max_adu, 64
-!!$       if (i == 32768) cycle
-!!$       j = j+1
-!!$       c%param_adc(j,:) = [i,1,1]  ! Jump between 64-code patterns 
-!!$    end do
+    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+       c0 = c%min_adu
+    else
+       c0 = c%min_adu - mod(c%min_adu,64) + 64
+    end if
+    do i = c0, c%max_adu, 64
+       if (i == 32768) cycle
+       j = j+1
+       c%param_adc(j,:) = [i,1,1]  ! Jump between 64-code patterns 
+    end do
 !!$    do i = 1, 63
 !!$       j = j+1
 !!$       c%param_adc(j,:) = [i,1,-64]  ! Global repeated 64-code pattern

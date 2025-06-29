@@ -42,8 +42,8 @@ module comm_tod_hfi_mod
   public comm_hfi_tod
 
   type, extends(comm_tod) :: comm_hfi_tod
+     real(sp) :: f_spin
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
-     real(sp),     allocatable, dimension(:,:) :: mod_phase
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
    contains

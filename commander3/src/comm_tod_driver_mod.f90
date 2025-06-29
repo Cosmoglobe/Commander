@@ -1049,24 +1049,24 @@ contains
     ndet = size(flag,2)
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
+       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than a given percentage of good data
           tod%scans(scan)%d(j)%accept = .false.
           write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
-       else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
-            & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-               & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
-          tod%scans(scan)%d(j)%accept = .false.
-       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
-          tod%scans(scan)%d(j)%accept = .false.
-       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-               & tod%scanid(scan), j, ', fknee = ', tod%scans(scan)%d(j)%N_psd%xi_n(2)
-          tod%scans(scan)%d(j)%accept = .false.
+!!$       else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
+!!$            & isNaN(tod%scans(scan)%d(j)%chisq)) then
+!!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+!!$               & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
+!!$          tod%scans(scan)%d(j)%accept = .false.
+!!$       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
+!!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+!!$               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
+!!$          tod%scans(scan)%d(j)%accept = .false.
+!!$       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then
+!!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+!!$               & tod%scanid(scan), j, ', fknee = ', tod%scans(scan)%d(j)%N_psd%xi_n(2)
+!!$          tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
     if (tod%symm_flags) then
@@ -1076,6 +1076,126 @@ contains
     end if
   end subroutine remove_bad_data
 
+  subroutine remove_tod_outliers(tod, window, threshold)
+    implicit none 
+    class(comm_tod),               intent(inout) :: tod
+    integer(i4b),                  intent(in)    :: window
+    real(sp),        dimension(7), intent(in)    :: threshold
+
+    integer(i4b) :: i, j, k, l, iter, scan, n, ierr
+    integer(i4b), parameter :: nstat = 7
+    real(dp)     :: mu, sigma
+    real(sp),     allocatable, dimension(:,:,:) :: stat
+    logical(lgt), allocatable, dimension(:,:)   :: accept
+    character(len=6), dimension(nstat) :: label
+
+    label = ['chisq ', 'sigma0', 'fknee ', 'alpha ', 'base  ', 'base1 ', 'base2 ']
+    
+    ! Collect test statistics from all cores 
+    allocate(stat(tod%nscan_tot,tod%ndet,-1:nstat), accept(tod%nscan_tot,tod%ndet))
+    stat = 0.
+    do i = 1, tod%nscan
+       scan = tod%scanid(i)
+       do j = 1, tod%ndet
+          stat(scan,j,0)  = 0.; if (tod%scans(i)%d(j)%accept) stat(scan,j,0) = 1.
+          stat(scan,j,-1) = tod%mod_phase(j,i)
+          if (.not. tod%scans(i)%d(j)%accept) cycle
+          if (threshold(1) > 0.) stat(scan,j,1) = tod%scans(i)%d(j)%chisq
+          if (threshold(2) > 0.) stat(scan,j,2) = tod%scans(i)%d(j)%N_psd%xi_n(1)
+          if (threshold(3) > 0.) stat(scan,j,3) = tod%scans(i)%d(j)%N_psd%xi_n(2)
+          if (threshold(4) > 0.) stat(scan,j,4) = tod%scans(i)%d(j)%N_psd%xi_n(3)
+          if (threshold(5) > 0.) stat(scan,j,5) = tod%scans(i)%d(j)%baseline(0)
+          if (threshold(6) > 0.) then
+             if (tod%mod_phase(j,i) == 1.) then
+                stat(scan,j,6) = tod%scans(i)%d(j)%baseline1
+             else
+                stat(scan,j,6) = tod%scans(i)%d(j)%baseline2
+             end if
+          end if
+          if (threshold(7) > 0.) then
+             if (tod%mod_phase(j,i) == 1.) then
+                stat(scan,j,7) = tod%scans(i)%d(j)%baseline2
+             else
+                stat(scan,j,7) = tod%scans(i)%d(j)%baseline1
+             end if
+          end if
+       end do
+    end do
+
+    ! Find and exclude outliers
+    if (tod%myid == 0) then
+       call mpi_reduce(mpi_in_place, stat, size(stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+
+       ! Search for outliers; compare given scan to surrounding scans. Iterate,
+       ! and let the window separation decrease in each step to eliminate extended
+       ! regions of outliers
+       accept = .true.
+       do iter = 1, 5
+          do j = 1, tod%ndet
+             do l = 1, nstat
+                if (threshold(l) <= 0.) cycle
+                do i = 1, tod%nscan_tot
+                   if (stat(i,j,0) <= 0. .or. .not. accept(i,j)) cycle
+                   mu = 0.0; n = 0
+                   do k = max(i-iter*window,1), max(i-(iter-1)*window-1,1)
+                      if (stat(k,j,0) == 0.) cycle
+                      mu    = mu    + stat(k,j,l)
+                      sigma = sigma + real(stat(k,j,l),dp)**2
+                      n     = n     + 1
+                   end do
+                   do k = min(i+(iter-1)*window+1,tod%nscan_tot), min(i+iter*window,tod%nscan_tot)
+                      if (stat(k,j,0) == 0.) cycle
+                      mu    = mu    + stat(k,j,l)
+                      sigma = sigma + real(stat(k,j,l),dp)**2
+                      n     = n     + 1
+                   end do
+                   if (n > window/2) then
+                      mu    = mu / n
+                      sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
+                      if (sigma > 0.) then
+                         accept(i,j) =  (abs(stat(i,j,l)-mu) < threshold(l)*sigma)
+                         if (.not. accept(i,j)) write(*,fmt='(a,i8,i4,a,a,a,f16.3,a,f8.3)') '  Rejecting scan = ', i, j, ', ', label(l), ' = ', stat(i,j,l), ', sigma = ', (stat(i,j,l)-mu)/sigma
+                         !if (accept(i,j)) write(*,fmt='(a,i8,i4,a,a,a,f16.3,a,f8.3)') '  Accepting scan = ', i, j, ', ', label(l), ' = ', stat(i,j,l), ', sigma = ', (stat(i,j,l)-mu)/sigma
+                      end if
+                   end if
+                end do
+             end do
+          end do
+       end do
+
+       open(58,file='stat.dat', recl=1024)
+       do i = 1, tod%nscan_tot
+          write(58,*) i, accept(i,1) .and. stat(i,1,0)==1., accept(i,1), stat(i,1,:)
+       end do
+       close(58)
+       open(58,file='stat2.dat', recl=1024)
+       do i = 1, tod%nscan_tot
+          if (accept(i,1) .and. stat(i,1,0) == 1.) then
+             write(58,*) i, accept(i,1), stat(i,1,:)
+          end if
+       end do
+       close(58)
+
+    else
+       call mpi_reduce(stat, stat, size(stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+    end if
+
+    ! Distribute final accept list, and update local data structure
+    call mpi_bcast(accept,  size(accept) , MPI_LOGICAL, 0, tod%comm, ierr)
+    do i = 1, tod%nscan
+       scan = tod%scanid(i)
+       do j = 1, tod%ndet
+          tod%scans(i)%d(j)%accept = tod%scans(i)%d(j)%accept .and. accept(scan,j)
+       end do
+    end do
+
+    ! Clean up
+    deallocate(stat, accept)
+    
+  end subroutine remove_tod_outliers
+  
   subroutine compute_chisq_abs_bp(tod, scan, sd, chisq)
     implicit none
     class(comm_tod),                       intent(inout) :: tod
