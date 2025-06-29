@@ -476,24 +476,25 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0)
+  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0, decimation_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
     type(planck_rng),                   intent(inout)  :: handle
     integer(i4b),                       intent(in)     :: scan
-    real(sp),         dimension(:,:),   intent(in)     :: mask, s_tot, n_corr
+    real(sp),         dimension(1:,1:), intent(in)     :: mask, s_tot, n_corr
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
+    integer(i4b),                       intent(in), optional :: dec_wn
 
     integer*8    :: plan_fwd
-    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
+    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2
     integer(i4b) :: ndet, outscan
     real(sp)     :: f
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=1024) :: filename
-    real(sp),     allocatable, dimension(:) :: dt, ps
+    real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
 
@@ -511,21 +512,38 @@ contains
     outscan   = -1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
+    ntod0 = ntod; if (present(decimation_wn)) ntod0 = ntod/decimation_wn-1
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
 
+       if (present(dec_wn)) then
+          do j = 1, ntod0
+             j1 = (j-1)*dec_wn+1
+             j2 = j*dec_wn
+             if (any(mask(j1:j2,i) < 0.5)) then
+                mask0(j) = 0.
+                res0(j)  = 1e30
+             else
+                mask0(j) = 1.
+                res0     = sum(tod(j1:j2,i) - self%scans(scan)%d(i)%gain*s_tot(j1:j2,i) - n_corr(j1:j2,i)) / (j2-j1+1)
+             end if
+          end do
+       else
+          res0  = tod(:,i) - self%scans(scan)%d(i)%gain*s_tot(:,i) - n_corr(:,i)
+          mask0 = mask(:,i)
+       end if
+       
        ! Remove outliers
        s0 = 1d30
        do k = 1, 3
           if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
           s    = 0.d0
           nval = 0
-          do j = 1, self%scans(scan)%ntod-1
-             if (any(mask(j:j+1,i) < 0.5)) cycle
-             res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
-                  & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
+          do j = 1, ntod0
+             if (mask0(j) < 0.5 .or. mask(j+1) < 0.5) cycle
+             res = (res0(j)-res0(j+1))/sqrt(2.)
              if (abs(res) > s0) cycle
-             if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
+             if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
              s    = s    + res**2
              nval = nval + 1
           end do
@@ -538,6 +556,7 @@ contains
           if (self%scanid(scan) == outscan) close(58)
        end do
     end do
+    deallocate(res0, mask0)
 
     ! Exit if user only wants to estimate sigma0
     if (present(only_sigma0)) then

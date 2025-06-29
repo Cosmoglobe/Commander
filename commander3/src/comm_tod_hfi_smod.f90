@@ -239,7 +239,7 @@ contains
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
+    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, dec_wn
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask
     type(comm_binmap)   :: binmap
@@ -287,6 +287,7 @@ contains
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
+    dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
 
     !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
     if (self%freq(1:3) == "100") then
@@ -504,7 +505,7 @@ contains
           ! Estimate sigma0 for masking
           if (trim(self%init_from_HDF) == 'none') then
              sd%n_corr = 0.d0
-             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true., dec_wn=dec_wn)
           end if
 
           ! Create mask
@@ -532,12 +533,12 @@ contains
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
           if (.not. self%first_call) then
              call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/100., 3.0, freqmask)
-             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask)
+             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
              deallocate(freqmask)
           end if
        else
           sd%n_corr = 0.d0
-          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true., dec_wn=dec_wn)
        end if
 
        ! Compute chisquare
