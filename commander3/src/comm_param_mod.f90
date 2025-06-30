@@ -556,6 +556,12 @@ contains
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_INITMAP',  par_string=cpar%zodi_solar_initmap)
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
+       else
+         cpar%sample_zodi = .false.
+         cpar%sample_solar_maps = .false.
+         cpar%sample_moon_maps = .false.
+         cpar%sample_earth_maps = .false.
+         cpar%incl_zodi_solar_comp = .false.
        end if
     else
       cpar%tod_freq = cpar%num_gibbs_iter + 1
@@ -3114,6 +3120,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_REFERENCE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_zodi_reference_band(i))
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)), 'BAND_TOD_ZODI_MASK'//itext)
+               write(*,*) cpar%ds_tod_procmask_zodi(i)
           end if
      end do
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)

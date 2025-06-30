@@ -25,8 +25,8 @@ module comm_tod_driver_mod
     integer(i4b), allocatable, dimension(:) :: ntod, scans
     real(sp), allocatable, dimension(:,:) :: tod
   contains
-    procedure init_singlehorn => init_det_data_singlehorn
-    procedure dealloc         => dealloc_det_data
+    procedure :: init_singlehorn => init_det_data_singlehorn
+    procedure :: dealloc         => dealloc_det_data
   end type comm_detdata
 
 contains
@@ -922,12 +922,12 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
-          write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
+          write(*, fmt='(a, i6, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          write(*,fmt='(a,i6,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        end if

@@ -470,10 +470,13 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
-   end if
-   self%use_solar_point = self%subtract_zodi
-   self%use_moon_point  = .false.
-   self%use_earth_elon  = .false.
+    else
+      self%subtract_zodi = .false.
+      self%sample_zodi = .false.
+    end if
+    self%use_solar_point = self%subtract_zodi
+    self%use_moon_point  = .false.
+    self%use_earth_elon  = .false.
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -808,7 +811,8 @@ contains
    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
    character(len=100000)                         :: det_buf
    character(len=128), dimension(:), allocatable :: dets
-   
+
+  
     ! Read common fields
     allocate(self%polang(self%ndet))
     allocate(self%mbang(self%ndet))
@@ -1171,21 +1175,23 @@ contains
        end if
        deallocate(xi_n)
 
+
+
        ! Read Huffman coded data arrays
        if (nhorn == 2 .and. i == 1) then
-         ! For a single DA, this is redundant, so we are loading 4 times the
-         ! necessary pointing (and flags) information. Strictly speaking, this
-         ! would involve needing to have a self%pixA and self%pixB attribute for
-         ! WMAP only and not allocate self%d(i)%pix(j)
-         do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
-         end do
+           ! For a single DA, this is redundant, so we are loading 4 times the
+           ! necessary pointing (and flags) information. Strictly speaking, this
+           ! would involve needing to have a self%pixA and self%pixB attribute for
+           ! WMAP only and not allocate self%d(i)%pix(j)
+           do j = 1, nhorn 
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+           end do
        else if (nhorn .ne. 2) then
-         do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-         end do
+           do j = 1, nhorn
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+           end do
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 

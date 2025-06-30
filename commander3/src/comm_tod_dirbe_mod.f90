@@ -194,7 +194,7 @@ contains
 
 
       if (self%myid == 0) then
-         if (self%map_solar_allocated == .true.) then
+         if (self%map_solar_allocated .eqv. .true.) then
            call write_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          end if
       end if

@@ -340,7 +340,7 @@ contains
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
     if (file%status == -1) then
-       write(*,*) 'Error reading file ', trim(file%filename), trim(setname)
+       write(*,*) 'Error reading file ', trim(file%filename), '/', trim(setname)
        stop
     end if 
     n = min(size(ext),rank)
@@ -2582,7 +2582,9 @@ contains
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
+
     allocate(val(numint))
+
     f_ptr = c_loc(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
     call h5tclose_f(dtype, file%status)
