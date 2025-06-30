@@ -324,13 +324,14 @@ contains
           end if
        end do
        call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
        ! Set up bp pointers in the TOD object
-       if (cpar%enable_TOD_analysis) then
+       if (cpar%enable_TOD_analysis .and. data(n)%tod_type /= 'none') then
           allocate(data(n)%tod%bp(0:data(n)%ndet))
           do j = 0, data(n)%ndet
              data(n)%tod%bp(j)%p => data(n)%bp(j)%p 

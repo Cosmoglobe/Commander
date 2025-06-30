@@ -940,6 +940,7 @@ contains
     
              if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
                 ! Build template internally from b_l
+                write(*,*) "building template for source", j, "for band", i, self%src(j)%glon, self%src(j)%glat
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(ia), bl=data(i)%B(0)%p%b_l)
              else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
@@ -1462,6 +1463,7 @@ contains
     npix  = 4*(tmax / (pi/3/nside))**2  ! Rough npix estimate for current beam
     call ang2vec(0.5d0*pi-glat, glon, vec0)
     allocate(listpix(0:npix-1), beam(0:npix-1,T%nmaps))
+    write(*,*) nside, vec0, tmax, nlist, npix, T%nmaps
     call query_disc(nside, vec0, tmax, listpix, nlist)
     !call wall_time(t4)
 !    write(*,*) 'query = ', t4-t3
