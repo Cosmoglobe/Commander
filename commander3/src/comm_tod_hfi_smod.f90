@@ -125,7 +125,7 @@ contains
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
 
     ! Identify partners
-    c%partner(i) = -1
+    c%partner = -1
     do i = 1, c%ndet
        if (len(trim(c%label(i))) == 5) cycle ! Spider web
        ! Search for detector with a instead of b
@@ -532,7 +532,7 @@ contains
           !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
           if (.not. self%first_call) then
-             call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/100., 3.0, freqmask)
+             call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask)
              call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
              deallocate(freqmask)
           end if
@@ -1047,7 +1047,7 @@ contains
           if (.not. self%scans(i)%d(j)%accept) cycle
           self%scans(i)%d(j)%baseline1 = base(k,j,1) 
           self%scans(i)%d(j)%baseline2 = base(k,j,2) 
-          self%mod_phase(i,j) = phase(k,j)
+          self%mod_phase(j,i)          = phase(k,j)
        end do
     end do
 
