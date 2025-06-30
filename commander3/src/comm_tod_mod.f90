@@ -1782,21 +1782,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -1976,7 +1976,7 @@ contains
     real(dp)     :: psi_, unwrap, x0, x1
 
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: my_spline
 
     subsamp = 5
     !subsamp = 1
@@ -1993,10 +1993,10 @@ contains
        x_sl(j) = k
     end do
 
-    call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+    call spline_simple(my_spline, x_sl, sub_sl, regular=.true.)
 
     do j = 1, size(sub_sl)*subsamp  
-      s_sl(j) = splint_simple(spline, real(j, dp))
+      s_sl(j) = splint_simple(my_spline, real(j, dp))
     end do
 
     !do last few samples
@@ -2007,7 +2007,7 @@ contains
     end do
 
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(my_spline)
 
   end subroutine construct_sl_template
 
@@ -3327,7 +3327,7 @@ contains
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
-              if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
+              if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) .eqv. .true.)
            end do
            
            ! Apply RMS selection criterium
