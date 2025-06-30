@@ -53,7 +53,6 @@ contains
 
     allocate(c)
     allocate(c%crosstalk_matrix(size(correlations(1,:)), size(correlations(:,1))))
-    c%crosstalk_matrix = 1.d0
 
   end function xtalk_constructor
  
@@ -81,7 +80,7 @@ contains
     xTy = 0.0
 
     do i=1, sd%ndet
-       
+
        ! collect x
        k=0
        do j=1, sd%ndet
@@ -146,5 +145,6 @@ contains
     deallocate(corr_tod)
 
   end subroutine remove_crosstalk_signal
+
 
 end module comm_tod_crosstalk_mod

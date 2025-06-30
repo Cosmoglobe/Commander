@@ -54,6 +54,8 @@ module comm_tod_hfi_mod
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
+     procedure, private     :: deconvolve_rolloff
+     procedure, private     :: fill_gaps
   end type comm_hfi_tod
 
   interface comm_hfi_tod
@@ -148,7 +150,8 @@ interface
   end subroutine process_hfi_tod
 
 
-  module subroutine sample_hfi_baselines(self, tod, scan, handle, chaindir, subtract_s_tot)
+  module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 
@@ -176,7 +179,6 @@ interface
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
     type(planck_rng),                     intent(inout) :: handle
-    character(len=*),                     intent(in)    :: chaindir
     logical(lgt),                         intent(in), optional :: subtract_s_tot
   end subroutine sample_hfi_baselines
 
@@ -353,7 +355,7 @@ interface
     real(sp),            dimension(:,:),   intent(out)   :: s
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd)
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin, handle)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -371,9 +373,11 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
+    class(comm_hfi_tod),                   intent(inout) :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in)    :: skip_nonlin
+    type(planck_rng),            optional, intent(inout) :: handle
   end subroutine apply_nonlin_corr_hfi
 
   module subroutine stitch_hfi_dc_level(self, scan, sd)
@@ -432,6 +436,31 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
 
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
+    implicit none
+    class(comm_hfi_tod),                       intent(inout) :: self
+    real(sp),                   dimension(1:), intent(inout) :: tod
+    integer(i4b),                              intent(in)    :: scan, i_det
+    real(sp),                   dimension(1:), intent(in)    :: s_sub
+    real(sp),         optional, dimension(1:), intent(in)    :: mask
+    logical(lgt),     optional,                intent(in)    :: nomono
+    character(len=*), optional,                intent(in)    :: ps_output
+  end subroutine deconvolve_rolloff
+
+  module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
+    implicit none
+    class(comm_hfi_tod),                     intent(in)    :: self
+    real(sp),              dimension(1:),    intent(inout) :: tod
+    type(planck_rng),                        intent(inout) :: handle
+    integer(i4b),                            intent(in)    :: scan, i_det
+    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
+    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
+    logical(lgt),                  optional, intent(in)    :: nomono
+    logical(lgt),                  optional, intent(in)    :: dospike
+    character(len=*),              optional, intent(in)    :: ps_output
+    character(len=*),              optional, intent(in)    :: filling
+  end subroutine fill_gaps
+  
 end interface
 
 end module comm_tod_hfi_mod

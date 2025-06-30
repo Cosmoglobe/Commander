@@ -28,7 +28,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, chaindir, freqmask, dospike, nomono)
+  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -67,27 +67,20 @@ contains
     integer(i4b),     dimension(1:,1:), intent(in)     :: pix
     real(sp),         dimension(1:,1:), intent(in)     :: mask, s_sub
     real(sp),         dimension(1:,1:), intent(out)    :: n_corr
-    character(len=*),                   intent(in)     :: chaindir
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
-    
-    character(len=6)  :: scantext
+
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
-    integer(i4b) :: ll, window, nbin, unbin_start
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
-    real(sp)     :: start_freq, end_freq
     real(dp)     :: power, fft_norm, var1, var2
-    real(dp)     :: l_ref, l_val, ratio_end, alpha_filter
     character(len=1024) :: filename
-    integer(i4b), dimension(1) :: bin_start, bin_end
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
-    real(sp),     allocatable, dimension(:) :: bin_l, bin_ps
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -169,81 +162,19 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       if (.true.) then
+       if (.false. .and. self%scanid(scan) == 5012) then
+          !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          open(58,file='noise_psd.dat', recl=1024)
           do l = 1, n-1
              ps(l) = abs(dv(l)) ** 2 / ntod
+             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
           end do
-
-          ! PRINT
-          if (.false. .and. self%scanid(scan) >= 5006 .and. self%scanid(scan) <=5015) then
-             call int2string(self%scanid(scan),scantext)
-             open(58,file=trim(chaindir) // '/pre_noise_psd' // scantext // '.dat', recl=1024)
-             do l = 1, n-1
-                write(58,*) l*(samprate/2)/(n-1), ps(l)
-             end do
-             close(58)
-          end if
+          close(58)
        end if
-
-       if (.true.) then
-        
-          ! Bin
-          window = 1000
-          nbin = (n-1)/window
-          allocate(bin_l(nbin),bin_ps(nbin))
-
-          k=1
-          do l = (n-1)-window*nbin + 1, n-1
-             j = l - (n-1)+window*nbin
-             if (j>k*window) then
-                k = k+1
-             end if
-             bin_l(k) = bin_l(k) + l*(samprate/2)/(n-1)/window
-             bin_ps(k) = bin_ps(k) + ps(l)/window
-          end do
-
-          ! Estimate steepness of decay in power in the range [84,89.5] Hz
-          start_freq = 84.0
-          end_freq = 89.5
-          bin_start = minloc(abs(bin_l-start_freq))
-          unbin_start = n/(samprate/2)*start_freq
-          l_ref = unbin_start*(samprate/2)/(n-1)
-          bin_end = minloc(abs(bin_l-end_freq))
-
-          ratio_end = bin_ps(bin_end(1))/bin_ps(bin_start(1))
-          alpha_filter = log(ratio_end)/log(bin_l(bin_end(1))/bin_l(bin_start(1)))
-
-          ! Deconvolving (f/f_ref)**alpha filter
-          do l = unbin_start, n-1
-             l_val = l*(samprate/2)/(n-1)
-             l_ref = unbin_start*(samprate/2)/(n-1)
-             dv(l) = dv(l) / sqrt((l_val/l_ref)**alpha_filter)
-          end do
-
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
-          dt          = dt / nfft
-          d_prime(:) = dt(1:ntod)
-
-          deallocate(bin_l, bin_ps)
-
-          ! PRINT
-          if (.false. .and. self%scanid(scan) >= 5006 .and. self%scanid(scan) <= 5015) then
-             do l = 1, n-1
-                ps(l) = abs(dv(l)) ** 2 / ntod
-             end do
-             call int2string(self%scanid(scan),scantext)
-             open(58,file=trim(chaindir) // '/post_noise_psd' // scantext // '.dat', recl=1024)
-             do l = 1, n-1
-                write(58,*) l*(samprate/2)/(n-1), ps(l)
-             end do
-             close(58)
-          end if
-
-       end if 
-
+       
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)

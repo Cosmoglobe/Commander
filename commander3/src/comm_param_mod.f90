@@ -282,6 +282,8 @@ module comm_param_mod
 
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
+     character(len=24)                       :: zs_phasefunc, zs_bandpass
+     real(dp)                                :: zs_nu_min_scatter, zs_nu_max_thermal
      integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
@@ -2996,6 +2998,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
 
      call get_parameter_hashtable(htbl, 'NUM_ZODI_COMPS', par_int=cpar%zs_ncomps)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
+     call get_parameter_from_hash(htbl, 'ZODI_PHASE_FUNCTION_TYPE', par_string=cpar%zs_phasefunc)
+     call get_parameter_from_hash(htbl, 'ZODI_BANDPASS_TYPE', par_string=cpar%zs_bandpass)
+     call get_parameter_from_hash(htbl, 'ZODI_NU_MIN_SCATTERING', par_dp=cpar%zs_nu_min_scatter)
+     call get_parameter_from_hash(htbl, 'ZODI_NU_MAX_THERMAL', par_dp=cpar%zs_nu_max_thermal)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_JOINT_MONOPOLE_SAMPLING', par_lgt=cpar%zs_joint_mono)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_TOD_RESIDUALS', par_lgt=cpar%zs_output_tod_res)

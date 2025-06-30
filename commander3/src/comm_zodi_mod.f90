@@ -19,14 +19,14 @@ module comm_zodi_mod
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
-      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
+      character(len=24) :: phasefunc_type, bandpass_type
+      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params, n_phase, numband
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
+      real(dp)     :: nu_min_scatter, nu_max_thermal
       real(dp)     :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
-      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+      real(dp), allocatable, dimension(:) :: par_phase
 
       integer(i4b) :: npar_tot
       integer(i4b), allocatable, dimension(:,:) :: theta_stat
@@ -39,7 +39,7 @@ module comm_zodi_mod
 !      real(dp), allocatable, dimension(:)   :: amp_static
 !      real(dp), allocatable, dimension(:,:) :: map_static
     contains
-      procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales
+      procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales, get_phase_function
    end type ZodiModel
 
    type(ZodiModel), target :: zodi_model
@@ -56,12 +56,17 @@ module comm_zodi_mod
    real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
    type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
    type(spline_type) :: earth_pos_spl_obj(3)
+
+   real(dp), dimension(10) :: C0_K98 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
+   real(dp), dimension(10) :: C1_K98 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
+   real(dp), dimension(10) :: C2_K98 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+
    
 contains
   subroutine initialize_zodi_mod(cpar)
     implicit none
     type(comm_params), intent(in) :: cpar
-    integer(i4b) :: i, j, k, ierr, ind, npar, ntok, gauss_degree
+    integer(i4b) :: i, j, k, ierr, ind, npar, ntok, gauss_degree, band
     real(dp) :: min_temp = 40.0, max_temp = 550.0
     integer(i4b) :: n_interp_points = 100
     character(len=256) :: file_path
@@ -71,22 +76,59 @@ contains
     
     
       ! Find number of bands and labels
-      numband         = count(cpar%ds_active)
-      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband),band_monopole(numband),band_update_monopole(numband,0:cpar%zs_num_samp_groups))
-      band_labels     = pack(cpar%ds_label, cpar%ds_active)
-      band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
-      band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
-      band_nu_c       = pack(cpar%ds_nu_c, cpar%ds_active)
-      zodi_refband    = cpar%zs_refband
+    numband         = count(cpar%ds_active)
+    zodi_model%numband = numband
+    allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband),band_monopole(numband),band_update_monopole(numband,0:cpar%zs_num_samp_groups))
+    band_labels     = pack(cpar%ds_label, cpar%ds_active)
+    band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
+    band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
+    band_nu_c       = pack(cpar%ds_nu_c, cpar%ds_active)
+    zodi_refband    = cpar%zs_refband
       
-      ! Set model and zodi_mod parameters from cpar
-      zodi_model%n_comps = cpar%zs_ncomps
-      allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
-      zodi_model%general_labels   = cpar%zodi_param_labels%general
-      zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
-      zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
-      zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
-      zodi_model%joint_mono       = cpar%zs_joint_mono
+    ! Set model and zodi_mod parameters from cpar
+    zodi_model%nu_min_scatter   = cpar%zs_nu_min_scatter * 1d9
+    zodi_model%nu_max_thermal   = cpar%zs_nu_max_thermal * 1d9
+    zodi_model%phasefunc_type   = cpar%zs_phasefunc
+    zodi_model%bandpass_type    = cpar%zs_bandpass
+    zodi_model%n_comps          = cpar%zs_ncomps
+    allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
+    zodi_model%general_labels   = cpar%zodi_param_labels%general
+    zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
+    zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
+    zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+    zodi_model%joint_mono       = cpar%zs_joint_mono
+    
+    if (trim(zodi_model%phasefunc_type) == 'K98') then
+       zodi_model%n_phase = 3*numband
+       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       do i  = 1, numband
+          read(band_instlabels(i),*) band
+          if (band >= 1 .and. band <= 10) then
+             zodi_model%par_phase(band+0*numband) = C0_K98(band)
+             zodi_model%par_phase(band+1*numband) = C1_K98(band)
+             zodi_model%par_phase(band+2*numband) = C2_K98(band)
+          else
+             write(*,*) 'Invalid band label for K98 phase function = ', band_instlabels(i)
+          end if
+       end do
+    else if (trim(zodi_model%phasefunc_type) == 'Wright') then
+       zodi_model%n_phase = 2
+       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       zodi_model%par_phase(1) = -0.3133d0 ! p20
+       zodi_model%par_phase(2) =  0.5749d0 ! p21
+    else if (trim(zodi_model%phasefunc_type) == 'Hong') then
+       zodi_model%n_phase = 6
+       allocate(zodi_model%par_phase(zodi_model%n_phase))
+       zodi_model%par_phase(1) =  0.700d0 ! g_1
+       zodi_model%par_phase(2) = -0.200d0 ! g_2       
+       zodi_model%par_phase(3) = -0.810d0 ! g_3
+       zodi_model%par_phase(4) =  0.665d0 ! w_1
+       zodi_model%par_phase(5) =  0.330d0 ! w_2
+       zodi_model%par_phase(6) =  0.005d0 ! w_3       
+    else
+       write(*,*) 'Unsupported zodi phase function type:', trim(zodi_model%phasefunc_type)
+       stop
+    end if
       
       comp_params = cpar%zs_comp_params(:, :, 1)
       do i = 1, zodi_model%n_comps
@@ -1218,7 +1260,7 @@ contains
 
 
 
-   subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering, use_lowres_pointing, comp)
+   subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, use_lowres_pointing, comp)
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       !
       ! Parameters
@@ -1237,8 +1279,6 @@ contains
       !     Contribution from thermal interplanetary dust emission.
       ! model : type(ZodiModel)
       !     The zodiacal emission model.
-      ! always_scattering : logical(lgt), optional
-      !     If present, this overrides the default behavior of only including scattering when the albedo is non-zero.
       ! use_lowres_pointing : logical(lgt), optional
       !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
       ! comp : integer(i4b), optional
@@ -1255,12 +1295,12 @@ contains
       integer(i4b), intent(in) :: pix(:), scan, det
       real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
       type(ZodiModel), intent(in) :: model
-      logical(lgt), intent(in), optional :: always_scattering, use_lowres_pointing
+      logical(lgt), intent(in), optional :: use_lowres_pointing
       integer(i4b), intent(in), optional :: comp
 
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
-      logical(lgt) :: scattering, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2, lat, lon
+      logical(lgt) :: scattering, thermal, use_lowres
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
@@ -1275,21 +1315,9 @@ contains
       obs_time = tod%scans(scan)%t0(1)
       earth_lon = atan(earth_pos(2), earth_pos(1))
 
-      C0 = zodi_model%C0(tod%zodiband)
-      C1 = zodi_model%C1(tod%zodiband)
-      C2 = zodi_model%C2(tod%zodiband)
-      phase_normalization = get_phase_normalization(C0, C1, C2)
-      if (present(always_scattering)) then
-         scattering = always_scattering
-      else
-         scattering = .false.
-         do i = 1, zodi_model%n_comps
-            if (zodi_model%comps(i)%c%albedo(tod%id) > EPS) then
-               scattering = .true.
-               exit
-            end if
-         end do
-      end if
+      scattering = tod%central_freq >= model%nu_min_scatter
+      thermal    = tod%central_freq <= model%nu_max_thermal
+
       ! select the correct cache
       if (present(use_lowres_pointing)) then
          if (tod%nside == zodi_nside) then
@@ -1305,7 +1333,6 @@ contains
       else
          use_lowres = .false.
       end if
-      !use_lowres = .false.
 
       cache_hits = 0
 !!$      open(58,file="zodi.dat",recl=1024)
@@ -1331,8 +1358,8 @@ contains
          if (use_lowres) then
             lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
             if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
-               s_zodi_therm(i, :) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i,:) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
+               if (thermal) s_zodi_therm(i,:) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
             end if
@@ -1342,8 +1369,8 @@ contains
             !write(*,*) 'q1', tod%scanid(scan), lookup_idx
             !write(*,*) 'q2', tod%scanid(scan), lookup_idx, pix(i), det, tod%zodi_therm_cache(lookup_idx, 1, det)
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
-               s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i,:)  = tod%zodi_scat_cache(lookup_idx, :, det)
+               if (thermal)    s_zodi_therm(i,:) = tod%zodi_therm_cache(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
             end if
@@ -1381,31 +1408,30 @@ contains
             if (scattering) then
                comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
-               call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
+               call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
             end if
 
-            call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
-!!$            write(*,*) tod%info%myid, k, size(comp_LOS(k)%T), size(tod%zodi_B_nu_spl_obj(det)%x), size(tod%zodi_B_nu_spl_obj(det)%y)
-!!$            write(*,*) tod%info%myid, k, comp_LOS(k)%T
-!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%x
-!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y
-!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y2
+            ! Get dust grain temperature, and compute splined blackbody emission
+            comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
+            ! Compute predicted signal; store computed signal in cache
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
             if (scattering) then
                s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
                if (use_lowres) then
                   tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
                else
-                  tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
+                  tod%zodi_scat_cache(lookup_idx, k, det)        = s_zodi_scat(i, k)
                end if
             end if
-            s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
-            if (use_lowres) then
-               tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
-            else
-               tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
+            if (thermal) then
+               s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+               if (use_lowres) then
+                  tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
+               else
+                  tod%zodi_therm_cache(lookup_idx, k, det)        = s_zodi_therm(i, k)
+               end if
             end if
          end do
 !!$         call vec2ang(unit_vector, lat, lon)
@@ -1426,105 +1452,120 @@ contains
 !!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
       end do
 
-!!$      close(58)
-!!$      call mpi_finalize(i)
-!!$      stop
-
     end subroutine get_zodi_emission
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
+    ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
    subroutine get_sphere_intersection(unit_vector, obs_pos, R_obs, R_cutoff, R_intersection)
-      ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
-
-      real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
-      real(dp), intent(in) :: R_obs, R_cutoff
-      real(dp), intent(out) :: R_intersection
-      real(dp) :: lon, lat, cos_lat, b, d, q
-
-      if (R_obs > R_cutoff) then
-         R_intersection = EPS
-         return
-      end if
-
-      lon = atan(unit_vector(2), unit_vector(1))
-      lat = asin(unit_vector(3))
-      cos_lat = cos(lat)
-      b = 2.*(obs_pos(1)*cos_lat*cos(lon) + obs_pos(2)*cos_lat*sin(lon))
-      d = R_obs**2 - R_cutoff**2
-      q = -0.5*b*(1.+sqrt(b**2 - (4.*d))/abs(b))
-      R_intersection = max(q, d/q)
+     implicit none
+     real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
+     real(dp), intent(in) :: R_obs, R_cutoff
+     real(dp), intent(out) :: R_intersection
+     
+     real(dp) :: lon, lat, cos_lat, b, d, q
+     
+     if (R_obs > R_cutoff) then
+        R_intersection = EPS
+        return
+     end if
+     
+     lon     = atan(unit_vector(2), unit_vector(1))
+     lat     = asin(unit_vector(3))
+     cos_lat = cos(lat)
+     b       = 2.d0*(obs_pos(1)*cos_lat*cos(lon) + obs_pos(2)*cos_lat*sin(lon))
+     d       = R_obs**2 - R_cutoff**2
+     q       = -0.5d0*b*(1.d0+sqrt(b**2 - (4.d0*d))/abs(b))
+     R_intersection = max(q, d/q)
    end subroutine get_sphere_intersection
 
-   subroutine get_dust_grain_temperature(R, T_out, T_0, delta)
-      real(dp), dimension(:), intent(in) :: R
-      real(dp), dimension(:), intent(out) :: T_out
-      real(dp), intent(in) :: T_0, delta
-      T_out = T_0*R**(-delta)
-   end subroutine get_dust_grain_temperature
-
    subroutine get_blackbody_emission(nus, T, b_nu)
-      real(dp), intent(in) :: nus(:), T
-      real(dp), dimension(:), intent(out) :: b_nu
-      integer(i4b) :: i
-      real(dp) :: x
-      do i = 1, size(nus)
-         x = h*nus(i)/(k_B*T)
-         if (x < 0.001d0) then
-            ! Use RJ approximation
-            b_nu(i) = 2.d0*nus(i)**2*k_B*T/c**2
-         else if (x > 50.d0) then
-            ! Use Wien approximation
-            b_nu(i) = 2.d0*h*nus(i)**3/c**2 * exp(-x)
-         else
-            ! Use exact expression
-            b_nu(i) = 2.d0*h*nus(i)**3/c**2 / (exp(x) - 1.d0)
-         end if
-      end do
-      !b_nu = b_nu * 1d20 ! Convert from W/(m^2*sr*Hz) to MJy/sr
+     implicit none
+     real(dp),               intent(in)  :: nus(:), T
+     real(dp), dimension(:), intent(out) :: b_nu
+     
+     integer(i4b) :: i
+     real(dp) :: x
+     do i = 1, size(nus)
+        x = h*nus(i)/(k_B*T)
+        if (x < 0.001d0) then
+           ! Use RJ approximation
+           b_nu(i) = 2.d0*nus(i)**2*k_B*T/c**2
+        else if (x > 50.d0) then
+           ! Use Wien approximation
+           b_nu(i) = 2.d0*h*nus(i)**3/c**2 * exp(-x)
+        else
+           ! Use exact expression
+           b_nu(i) = 2.d0*h*nus(i)**3/c**2 / (exp(x) - 1.d0)
+        end if
+     end do
+     !b_nu = b_nu * 1d20 ! Convert from W/(m^2*sr*Hz) to MJy/sr
    end subroutine get_blackbody_emission
 
    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
-      real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
-      real(dp), dimension(:), intent(out) :: scattering_angle
-      real(dp), allocatable, dimension(:) :: cos_theta, R_LOS
+     implicit none
+     real(dp),               intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
+     real(dp), dimension(:), intent(out) :: scattering_angle
+     
+     real(dp), allocatable, dimension(:) :: cos_theta, R_LOS
 
-      allocate(cos_theta(size(X_vec_LOS, dim=1)))
-      allocate(R_LOS(size(X_vec_LOS, dim=1)))
-
-      R_LOS = norm2(X_vec_LOS, dim=1)
-      if (any(abs(R_LOS*R_helio_LOS) < 1e-6)) then
-         write(*,*) 'Error in get_scattering_angle'
-         write(*,*) 'X_vec_LOS = ', X_vec_LOS
-         write(*,*) 'R_LOS = ', R_LOS
-         write(*,*) 'helio = ', R_helio_LOS
-      end if
-      cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
-      ! clip cos(theta) to [-1, 1]
-      where (cos_theta > 1)
-         cos_theta = 1
-      elsewhere(cos_theta < -1)
-         cos_theta = -1
-      end where
-      scattering_angle = acos(-cos_theta)
+     allocate(cos_theta(size(X_vec_LOS, dim=1)))
+     allocate(R_LOS(size(X_vec_LOS, dim=1)))
+     
+     R_LOS = norm2(X_vec_LOS, dim=1)
+     if (any(abs(R_LOS*R_helio_LOS) < 1e-6)) then
+        write(*,*) 'Error in get_scattering_angle'
+        write(*,*) 'X_vec_LOS = ', X_vec_LOS
+        write(*,*) 'R_LOS = ', R_LOS
+        write(*,*) 'helio = ', R_helio_LOS
+     end if
+     cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
+     ! clip cos(theta) to [-1, 1]
+     where (cos_theta > 1.d0)
+        scattering_angle = 0.d0
+     elsewhere(cos_theta < -1.d0)
+        scattering_angle = pi
+     elsewhere
+        scattering_angle = acos(-cos_theta)
+     end where
+     deallocate(cos_theta, R_LOS)
    end subroutine get_scattering_angle
 
-   subroutine get_phase_function(Theta, C0 , C1 , C2, N, phase_function)
-      real(dp), intent(in) :: Theta(:), C0, C1, C2, N
-      real(dp), intent(out) :: phase_function(:)
-      phase_function = N *  (C0 + (C1 * Theta) + exp(C2 * Theta))
-   end subroutine
+   subroutine get_phase_function(self, Theta, band, Phi)
+     implicit none
+     class(ZodiModel), intent(in)           :: self
+     real(dp),         intent(in)           :: Theta(:)
+     integer(i4b),     intent(in)           :: band
+     real(dp),         intent(out)          :: Phi(:)
 
-   function get_phase_normalization(C0, C1, C2) result(N)
-      real(dp), intent(in) :: C0, C1, C2
-      real(dp) :: term1, term2, term3, term4, N
+     real(dp) :: C0, C1, C2, p20, p21, g, w, norm
+     integer(i4b) :: n
+     
+     if (trim(self%phasefunc_type) == 'K98') then
+        n    = self%numband
+        C0   = self%par_phase(band+0*n)
+        C1   = self%par_phase(band+1*n)
+        C2   = self%par_phase(band+2*n)
+        norm =  1.d0 / (2.d0*pi * (2.d0*C0 + pi*C1 + (exp(C2 * pi) + 1.d0)/(C2**2 + 1.d0)))
+        Phi = norm * (C0 + (C1 * Theta) + exp(C2 * Theta))
+     else if (trim(self%phasefunc_type) == 'Wright') then
+        p20  = self%par_phase(1)
+        p21  = self%par_phase(2)
+        Phi = exp(-p20*cos(Theta) + p21*cos(Theta)**2)
+     else if (trim(self%phasefunc_type) == 'Hong') then
+        g   = self%par_phase(1); w = self%par_phase(4)
+        Phi =       w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0
+        g   = self%par_phase(1); w = self%par_phase(4)
+        Phi = Phi + w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0
+        g   = self%par_phase(1); w = self%par_phase(4)
+        Phi = Phi + w * (1d0-g**2)/(1.d0+g**2-2d0*g*cos(Theta))**1.5d0 
+        Phi = Phi / (4.d0*pi)
+     else
+        write(*,*) 'Unsupported zodi phase function type:', trim(self%phasefunc_type)
+        stop
+     end if
 
-      term1 = 2.*pi
-      term2 = 2.*C0
-      term3 = pi*C1
-      term4 = (exp(C2 * pi) + 1.)/(C2**2 + 1.)
-      N = 1. / (term1 * (term2 + term3 + term4))
-   end function
+   end subroutine get_phase_function
 
    subroutine initialize_earth_pos_spline(cpar)
       ! Returns the spline object which is used to evaluate the earth position
@@ -1550,31 +1591,31 @@ contains
    end subroutine initialize_earth_pos_spline
 
    subroutine update_zodi_splines(tod, bandpass, det, model)
-      ! Updates the spectral spline objects in the TOD object.
-      !
-      ! In the K98 model, several spectral parameters are tabulated at individual frequencies,
-      ! which we need to evaluate over the bandpass. In a future version, we may want to fit
-      ! a modified blackbody which would allow us to drop using some of these spline objects.
-      !
-      !  -----------------------------------------------------------------------------------------
-      ! | The difficulty with this functino is that it needs the access to the bandpass, so is is |
-      ! | very limited in where it can be excecuted in commander.                                 |
-      !  -----------------------------------------------------------------------------------------
-      !
-      ! Parameters
-      ! ----------
-      ! tod : class(comm_tod)
-      !     The TOD object holding the spline objects to update.
-      ! bandpass : class(comm_bp_ptr)
-      !   The bandpass object holding the bandpass frequencies, and the SED2F function
-      !   (bandpass integration).
-      ! det : integer(i4b)
-      !   The detector to update the spline objects for.
-
-      class(comm_tod), intent(inout) :: tod
-      class(comm_bp_ptr), intent(in) :: bandpass
-      integer(i4b), intent(in) :: det
-      type(ZodiModel), intent(inout) :: model
+     implicit none
+     ! Updates the spectral spline objects in the TOD object.
+     !
+     ! In the K98 model, several spectral parameters are tabulated at individual frequencies,
+     ! which we need to evaluate over the bandpass. In a future version, we may want to fit
+     ! a modified blackbody which would allow us to drop using some of these spline objects.
+     !
+     !  -----------------------------------------------------------------------------------------
+     ! | The difficulty with this functino is that it needs the access to the bandpass, so is is |
+     ! | very limited in where it can be excecuted in commander.                                 |
+     !  -----------------------------------------------------------------------------------------
+     !
+     ! Parameters
+     ! ----------
+     ! tod : class(comm_tod)
+     !     The TOD object holding the spline objects to update.
+     ! bandpass : class(comm_bp_ptr)
+     !   The bandpass object holding the bandpass frequencies, and the SED2F function
+     !   (bandpass integration).
+     ! det : integer(i4b)
+     !   The detector to update the spline objects for.
+      class(comm_tod),    intent(inout) :: tod
+      class(comm_bp_ptr), intent(in)    :: bandpass
+      integer(i4b),       intent(in)    :: det
+      type(ZodiModel),    intent(inout) :: model
 
       real(dp), allocatable :: b_nu(:)
       integer(i4b) :: i, j
@@ -1582,11 +1623,19 @@ contains
 
       allocate (b_nu(bandpass%p%n))
       do i = 1, size(B_nu_integrals)
-         call get_blackbody_emission( bandpass%p%nu,    T_grid(i), b_nu)
-         call get_blackbody_emission([bandpass%p%nu_c], T_grid(i), Inu0) ! Center frequency for color correction
-         K     = tsum(bandpass%p%nu, bandpass%p%tau * b_nu/Inu0(1)) / tsum(bandpass%p%nu, bandpass%p%tau * bandpass%p%nu_c/bandpass%p%nu) ! Color correction
-         B_nu_integrals(i) = K * Inu0(1)
-         !B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+         call get_blackbody_emission( bandpass%p%nu,    T_grid(i), b_nu) ! MJy/sr
+         if (trim(model%bandpass_type) == 'DIRBE') then
+            call get_blackbody_emission([bandpass%p%nu_c], T_grid(i), Inu0) ! Center frequency for color correction
+            K     = tsum(bandpass%p%nu, bandpass%p%tau * b_nu/Inu0(1)) / tsum(bandpass%p%nu, bandpass%p%tau * bandpass%p%nu_c/bandpass%p%nu) ! Color correction
+            B_nu_integrals(i) = K * Inu0(1)
+         else if (trim(model%bandpass_type) == 'Wright') then
+            B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+         else if (trim(model%bandpass_type) == 'default') then
+            b_nu = 1.d0/(2.d0*bandpass%p%nu**2*k_b/c**2 * 1d14) * b_nu ! uK_RJ
+            B_nu_integrals(i) = tod%bp(det)%p%SED2F(b_nu)              ! Converts to data units
+         else
+            write(*,*) 'Update_zodi_splines -- unknown bandpass type = ', trim(model%bandpass_type)
+         end if
       end do
       call spline_simple(tod%zodi_b_nu_spl_obj(det), T_grid, B_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines
