@@ -2579,6 +2579,7 @@ contains
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
     call h5tget_size_f(dtype, len, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
     allocate(val(numint))
     f_ptr = c_loc(val)

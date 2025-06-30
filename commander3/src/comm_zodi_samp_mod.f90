@@ -557,7 +557,7 @@ contains
          
       if (cpar%myid == cpar%root) then
          ! Perform search
-         call powell(theta, lnL_zodi, ierr, tolerance=1d-5)
+         call powell(theta, lnL_zodi, ierr, tolerance=1d-4)
          if (ierr /= 0) write(*,*) 'powell failed, ierr =', ierr
          chisq_new = lnL_zodi(theta)
          flag = 0

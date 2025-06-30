@@ -108,7 +108,6 @@ set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.6.2.tar.gz")
 # See https://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html for latest
 # versions
-
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------
