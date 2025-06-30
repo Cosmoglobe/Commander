@@ -465,7 +465,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false.)!, nplus2=.true.)
+    call binmap%init(self, .true., .false., nplus2=.true.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0

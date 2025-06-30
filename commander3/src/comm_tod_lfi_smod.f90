@@ -765,9 +765,9 @@ contains
 
 
     ! Sample 1Hz spikes
-!    if(trim(self%level) == 'L1') then
+    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
-!    end if
+    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
@@ -783,6 +783,7 @@ contains
     else if (self%map_type == 'binned') then 
       call binmap%init(self, .true., sample_rel_bandpass)
     end if
+
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        call timer%start(TOD_ALLOC, self%band)
        allocate(chisq_S(self%ndet,size(delta,3)))
@@ -820,6 +821,7 @@ contains
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
+
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)

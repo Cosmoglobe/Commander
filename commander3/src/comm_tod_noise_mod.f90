@@ -25,7 +25,6 @@ module comm_tod_noise_mod
   use comm_status_mod
   implicit none
 
-
 contains
 
   subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
@@ -526,6 +525,7 @@ contains
     threshold = 5.d0 ! Remove outliers
     outscan   = 482 !92
 
+
     ! Sample sigma_0 from pairwise differenced TOD
     ntod0 = ntod; if (present(dec_wn)) ntod0 = ntod/dec_wn-1
     allocate(res0(ntod0), mask0(ntod0))
@@ -552,7 +552,7 @@ contains
        ! Remove outliers
        s0 = 1d30
        do k = 1, 3
-          if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+          !if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
           s    = 0.d0
           nval = 0
           do j = 1, ntod0-1, 2
@@ -569,7 +569,7 @@ contains
           else
              exit
           end if
-          if (self%scanid(scan) == outscan) close(58)
+          !if (self%scanid(scan) == outscan) close(58)
        end do
     end do
     deallocate(res0, mask0)
@@ -628,6 +628,7 @@ contains
 
     call timer%stop(TOD_XI_N, self%band)
     
+
   contains
 
     function lnL_xi_n(x) 

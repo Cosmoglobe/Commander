@@ -186,7 +186,7 @@ subroutine tod2file_dp3(filename,d)
     do while (associated(p)) 
        if ((p%nside == nside) .and. (p%lmax == lmax) .and. &
             & (p%nmaps == nmaps) .and. (p%pol .eqv. pol) .and. (p%dist .eqv. distval)) then
-          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps
+          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps, allocated(p%pix)
           constructor_mapinfo => p
           return
        else
@@ -554,7 +554,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
             & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
-    deallocate(info)
+    !deallocate(info)
     call timer%stop(TOT_SHT)
 
   end subroutine exec_sharp_Y_EB
@@ -1168,9 +1168,11 @@ subroutine tod2file_dp3(filename,d)
     else !Something weird with a nonstandard number of maps, add dummy header
        call add_card(header)
        do i = 1, nmaps
-         write(headernum, *) i
+         ! Will crash for nmaps > 99
+         write(headernum, '(I2.2)') i
          call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype") 
          call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+         call add_card(header)
        end do
     end if
     call add_card(header,"COMMENT","-----------------------------------------------")

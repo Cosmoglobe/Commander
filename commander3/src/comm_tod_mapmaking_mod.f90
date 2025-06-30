@@ -48,7 +48,7 @@ contains
     logical(lgt), optional, intent(in)    :: nplus2
 
     integer(i4b) :: i, ierr
-    class(comm_mapinfo), allocatable :: mapinfo_nplus2
+    class(comm_mapinfo), pointer:: mapinfo_nplus2 => null()
 
     call timer%start(TOD_ALLOC, tod%band)
     self%nobs            = tod%nobs
@@ -78,7 +78,7 @@ contains
        self%n_A  = 3*tod%ndet + 3
        self%nout = tod%output_n_maps *tod%ndet
 
-       mapinfo_nplus2 = comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
+       mapinfo_nplus2 => comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
 
     else
        self%ncol = tod%nmaps
@@ -94,6 +94,7 @@ contains
          self%outmaps(i)%p => comm_map(tod%info)
        end if
     end do
+
     allocate(self%A_map(self%n_A,self%nobs), self%b_map(self%nout,self%ncol,self%nobs))
     self%A_map = 0.d0; self%b_map = 0.d0
     if (self%shared) then
@@ -213,6 +214,7 @@ contains
        off         = tod%output_n_maps + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
+       !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
@@ -237,7 +239,8 @@ contains
 
           do i = 1, nout
             if((.not. binmap%solve_nplus2) .or. det == 1) then
-               binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+                binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+
             else
                binmap%b_map(i,det+2,pix_) = binmap%b_map(i,det+2,pix_) + data(i,t,det)              * inv_sigmasq
             end if
@@ -760,30 +763,30 @@ end subroutine bin_differential_TOD
          A_inv(ndet+1,ndet+2) = A_tot(5, i)
          A_inv(ndet+2,ndet+1) = A_tot(5, i)
 
-         if(tod%myid == 0 .and. i==0) write(*,*) "A for pix=", i
-         do j=1, ndet+2
-            if(tod%myid == 0 .and. i==0) write(*,*) A_inv(:, j)
-         end do
+         !if(tod%myid == 0 .and. i==0) write(*,*) "A for pix=", i
+         !do j=1, ndet+2
+         !   if(tod%myid == 0 .and. i==0) write(*,*) A_inv(:, j)
+         !end do
 
          ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
-         if(tod%myid == 0 .and. i==0) write(*,*) "A^-1"
-         do j=1, ndet+2
-            if(tod%myid == 0 .and. i ==0) write(*,*) A_inv(:, j)
-         end do
+         !if(tod%myid == 0 .and. i==0) write(*,*) "A^-1"
+         !do j=1, ndet+2
+         !   if(tod%myid == 0 .and. i ==0) write(*,*) A_inv(:, j)
+         !end do
 
          do k = 1, tod%output_n_maps
             b_copy(1)      = b_tot(k, 1, i)
             b_copy(2:ndet) = b_tot(k, 4:ndet+2, i)
             b_copy(ndet+1) = b_tot(k, 2, i)
             b_copy(ndet+2) = b_tot(k, 3, i)
-            if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) "B"
-            if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) b_copy
+            !if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) "B"
+            !if(tod%myid == 0 .and. k == 1 .and. i == 0) write(*,*) b_copy
             b_tot(k, 1:ndet+2, i) = matmul(A_inv, b_copy)
          end do
 
-         if(tod%myid == 0 .and. i == 0) write(*,*) "A^-1 B"
-         if(tod%myid == 0 .and. i == 0) write(*,*) b_tot(1,:,i)
+         !if(tod%myid == 0 .and. i == 0) write(*,*) "A^-1 B"
+         !if(tod%myid == 0 .and. i == 0) write(*,*) b_tot(1,:,i)
 
          ! Store map in correct units
          do p = 1, tod%ndet
