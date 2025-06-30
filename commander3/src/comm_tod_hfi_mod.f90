@@ -58,6 +58,8 @@ module comm_tod_hfi_mod
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
+     procedure, private     :: deconvolve_rolloff
+     procedure, private     :: fill_gaps
      procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
   end type comm_hfi_tod
@@ -360,7 +362,7 @@ interface
     integer(i4b),                          intent(in), optional :: det
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd, det)
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin, handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -381,6 +383,8 @@ interface
     class(comm_hfi_tod),                   intent(in)    :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in)    :: skip_nonlin
+    type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                          intent(in), optional :: det
   end subroutine apply_nonlin_corr_hfi
 
@@ -454,6 +458,79 @@ interface
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
+
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
+    ! Deconvolves high frequency rolloff in noise spectrum
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      residual tod
+    ! scan: int
+    !       scan number
+    ! i_det: int
+    !        detector id
+    ! s_sub: real(sp) array
+    !        sky signal template
+    ! mask:  real(sp) array
+    !        mask
+    ! nomono: logical
+    !         option to remove monopole
+    ! ps_output: string
+    !            filename to output corrected power spectrum
+    implicit none
+    class(comm_hfi_tod),                       intent(inout) :: self
+    real(sp),                   dimension(1:), intent(inout) :: tod
+    integer(i4b),                              intent(in)    :: scan, i_det
+    real(sp),                   dimension(1:), intent(in)    :: s_sub
+    real(sp),         optional, dimension(1:), intent(in)    :: mask
+    logical(lgt),     optional,                intent(in)    :: nomono
+    character(len=*), optional,                intent(in)    :: ps_output
+  end subroutine deconvolve_rolloff
+
+  module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
+    ! Fill gaps in flagged samples
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      residual tod
+    ! handle: planck_rng
+    !         rng handle
+    ! scan: int
+    !       scan number
+    ! i_det: int
+    !        detector id
+    ! s_sub: real(sp) array
+    !        sky signal template
+    ! mask:  real(sp) array
+    !        mask
+    ! pix:   int array
+    !         
+    ! nomono: logical
+    !         option to remove monopole
+    ! dospike: logical
+    !          option to flag spikes
+    ! ps_output: string
+    !            filename to output corrected power spectrum
+    ! filling: string
+    !          filling mod (white noise, chunks, zero)
+    implicit none
+    class(comm_hfi_tod),                     intent(in)    :: self
+    real(sp),              dimension(1:),    intent(inout) :: tod
+    type(planck_rng),                        intent(inout) :: handle
+    integer(i4b),                            intent(in)    :: scan, i_det
+    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
+    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
+    logical(lgt),                  optional, intent(in)    :: nomono
+    logical(lgt),                  optional, intent(in)    :: dospike
+    character(len=*),              optional, intent(in)    :: ps_output
+    character(len=*),              optional, intent(in)    :: filling
+  end subroutine fill_gaps
 
   module subroutine compute_adu_range(self)
     ! 

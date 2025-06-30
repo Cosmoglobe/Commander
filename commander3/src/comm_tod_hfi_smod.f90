@@ -246,7 +246,7 @@ contains
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext
+    character(len=6)    :: samptext, scantext, itertext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
@@ -357,13 +357,13 @@ contains
     !------------------------------------
 
     ! estimate A/B detector crosstalk coeficients
-    call self%xtalk%estimate_crosstalk_matrix()
+    if (.false.) call self%xtalk%estimate_crosstalk_matrix()
 
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan
         ! Skip scan if no accepted data
         if (.not. any(self%scans(i)%d%accept)) cycle
-        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=.true., darkdata=.true.)
+        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0, darkdata=.true.)
 
 !!$        open(58,file='res.dat', recl=1024)
 !!$        do j = 1, sd%ntod
@@ -374,12 +374,27 @@ contains
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
-       call self%xtalk%remove_crosstalk_signal(sd, i)
+       if (.false.) call self%xtalk%remove_crosstalk_signal(sd, i)
 
        ! Estimate modulation baselines; and set modulation phase
        if (self%first_call .and. trim(self%init_from_HDF) /= 'none') then
           call sample_hfi_baselines(sd, self, i, handle, subtract_s_tot=.false.)
           call set_modulation_phase(sd, self, i)
+       else
+          call sample_hfi_baselines(sd, self, i, handle)
+       end if
+       call demodulate_tod(sd, self, i)
+
+       if (.not. self%first_call) then
+          call int2string(iter, itertext)
+          call int2string(self%scanid(i), scantext)
+          do j = 1, self%ndet
+             ! fill gaps and deconvolve rolloff
+             call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
+                            !& ps_output = 'init_' // itertext // '_' // scantext)
+             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), nomono=.true.)!,&
+                                     !& ps_output = itertext // '_' // scantext)
+          end do
        end if
 
        ! Fix dc level jumps 
@@ -453,7 +468,7 @@ contains
     ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
     do i = 1, self%nscan
        if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=.true., darkdata=.true.)
+       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0, darkdata=.true.)
        call sample_hfi_baselines(sd, self, i, handle)
        call dealloc_scan_data(sd)
     end do
@@ -485,11 +500,11 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true., handle_=handle)
        else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true., handle_=handle)
        else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., handle_=handle)
        end if
 
 !!$       if (self%myid == 0) then
@@ -519,11 +534,11 @@ contains
 
           ! Update scan data with new flagging
           if (sample_rel_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_bp_prop=.true., handle_=handle)
           else if (sample_abs_bandpass) then
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., init_s_sky_prop=.true., handle_=handle)
           else
-             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+             call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true., handle_=handle)
           end if
        end if
 
@@ -1168,7 +1183,7 @@ contains
 
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd, det)
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin,handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -1189,6 +1204,8 @@ contains
     class(comm_hfi_tod),                   intent(in)    :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in)    :: skip_nonlin
+    type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                          intent(in), optional :: det
 
     integer(i4b) :: i
@@ -1208,6 +1225,19 @@ contains
     ! Demodulate TOD
     call demodulate_tod(sd, self, scan)
     
+
+    ! Fill gaps and deconvolve high frequency rolloff
+    if (skip_nonlin > 2 .and. present(handle)) then
+       if (.not. self%first_call) then
+          do i = 1, self%ndet
+             if (.not. self%scans(scan)%d(i)%accept) cycle
+             call fill_gaps(self, sd%tod(:,i), handle, scan, i, sd%mask(:,i), sd%s_tot(:,i), sd%pix(:,:,1), nomono=.true.,filling='white')
+             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), nomono=.true.)
+          end do
+       end if
+    end if
+
+
   end subroutine apply_nonlin_corr_hfi
 
   module subroutine stitch_hfi_dc_level(self, scan, sd)
@@ -1276,6 +1306,415 @@ contains
 
   end subroutine estimate_hfi_4k_lines
 
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
+    implicit none
+    class(comm_hfi_tod),                       intent(inout) :: self
+    real(sp),                   dimension(1:), intent(inout) :: tod
+    integer(i4b),                              intent(in)    :: scan, i_det
+    real(sp),                   dimension(1:), intent(in)    :: s_sub
+    real(sp),         optional, dimension(1:), intent(in)    :: mask
+    logical(lgt),     optional,                intent(in)    :: nomono
+    character(len=*), optional,                intent(in)    :: ps_output
+
+    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err
+    integer*8    :: plan_fwd, plan_back
+    logical(lgt) :: nomono_
+    real(sp)     :: gain, N_wn, samprate, dnu, rolloff_scale, eval_spline
+    type(spline_type) :: rolloff_filter
+    integer(i4b), allocatable, dimension(:)   :: bin_count
+    real(sp),     allocatable, dimension(:)   :: d_prime, dt, bin_sum
+    complex(spc), allocatable, dimension(:)   :: dv
+    real(sp),     allocatable, dimension(:,:) :: ps
+    real(dp),     allocatable, dimension(:,:) :: bin_spec
+
+    nomono_ = .false.; if (present(nomono)) nomono_ = nomono
+
+    ntod = self%scans(scan)%ntod
+    allocate(d_prime(ntod))
+    gain     = self%scans(scan)%d(i_det)%gain  ! Gain in V / K
+
+    ! Prepare TOD residual
+    d_prime = tod - gain * s_sub
+
+    ! Remove monopole if requested by user
+    if (nomono_ .and. present(mask)) d_prime = d_prime -  sum(d_prime*mask)/sum(mask)
+
+    nomp     = 1 !omp_get_max_threads()
+    samprate = self%samprate
+    nfft     = 2 * ntod
+    n        = nfft / 2 + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+
+    ! FFT
+    dt(1:ntod)           = d_prime(:)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+    do l = 1, n-1
+       ps(l,1) = l*(samprate/2)/(n-1)
+       ps(l,2) = abs(dv(l)) ** 2 / ntod
+    end do
+
+    ! Binning
+    n = size(ps(:,1))
+    dnu = 1.d0 ! Hz
+    nbin = (ps(n,1) - ps(1,1))/dnu
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       j = (ps(i,1) - ps(1,1))/dnu + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i,2)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = ps(1,1) + (j-0.5d0)*dnu
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count)
+
+    ! Deconvolve high-frequency rolloff
+    rolloff_scale = 0.d0
+    k = 0
+    do j = 1, nbin
+       if (bin_spec(j,1) >= 61.d0 .and. bin_spec(j,1) <= 69.d0) then
+          k = k + 1
+          rolloff_scale = rolloff_scale + bin_spec(j,2)
+          !write(*,*) 'scan: ',self%scanid(scan),' ; rolloff_scale in loop = ',rolloff_scale
+       end if
+    end do
+    rolloff_scale = rolloff_scale / k
+    !write(*,*) 'scan: ',self%scanid(scan),' ; final rolloff_scale = ',rolloff_scale
+
+    call spline(rolloff_filter, bin_spec(:,1), bin_spec(:,2))
+    deallocate(bin_spec)
+
+    do l = 1, n
+       if (ps(l,1) > 75.d0) then
+          eval_spline = real(splint(rolloff_filter,dble(ps(l,1))),sp) / rolloff_scale
+          eval_spline = max(eval_spline,0.0001)
+          dv(l) = dv(l) / sqrt(eval_spline)
+          ps(l,2) = abs(dv(l)) ** 2 / ntod
+       end if
+    end do
+
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT)
+
+    if(present(ps_output)) then
+       open(58,file='deconv_ps_' // ps_output // '.dat', recl=1024)
+       do l = 1, n-1
+          write(58,*) ps(l,1), ps(l,2)
+       end do
+       close(58)
+    end if
+
+    dt          = dt / nfft
+    d_prime = dt(1:ntod)
+    tod = d_prime + gain * s_sub
+
+    !if(present(ps_output)) then
+    !   open(58,file='deconv_tod_' // ps_output // '.dat', recl=1024)
+    !   do l = 1, ntod
+    !      write(58,*) l/samprate, d_prime(l)
+    !   end do
+    !   close(58)
+    !end if
+
+
+    deallocate(dt, dv, d_prime)
+    call free_spline(rolloff_filter)
+    call dfftw_destroy_plan(plan_fwd)
+    call dfftw_destroy_plan(plan_back)
+
+    ! Set new wn level
+    N_wn = 1.d30
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       j = (ps(i,1) - ps(1,1))/dnu + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i,2)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = ps(1,1) + (j-0.5d0)*dnu
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count, ps)
+
+    do i = 1, nbin
+       if (bin_spec(i,2) < N_wn) N_wn = bin_spec(i,2)
+    end do
+
+    self%scans(scan)%d(i_det)%N_psd%sigma0 = sqrt(abs(N_wn))
+    deallocate(bin_spec)
+
+  end subroutine deconvolve_rolloff
+
+  module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
+    implicit none
+    class(comm_hfi_tod),                     intent(in)    :: self
+    real(sp),              dimension(1:),    intent(inout) :: tod
+    type(planck_rng),                        intent(inout) :: handle
+    integer(i4b),                            intent(in)    :: scan, i_det
+    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
+    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
+    logical(lgt),                  optional, intent(in)    :: nomono
+    logical(lgt),                  optional, intent(in)    :: dospike
+    character(len=*),              optional, intent(in)    :: ps_output
+    character(len=*),              optional, intent(in)    :: filling
+
+    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
+    integer(i4b) :: j_end, j_start
+    character(len=12) :: filling_
+    integer*8    :: plan_fwd, plan_back
+    logical(lgt) :: init_masked_region, end_masked_region, nomono_
+    real(sp)     :: sigma_0, gain, N_wn, samprate
+    real(sp),     allocatable, dimension(:)   :: d_prime, dt
+    complex(spc), allocatable, dimension(:)   :: dv
+    real(sp),     allocatable, dimension(:,:) :: ps
+
+    integer(i4b) :: n_good, n_bad, good_count, bad_count, chunk_size
+    integer(i4b) :: region_lgt ! logical
+    real(sp)     :: rand_id
+    integer(i4b), allocatable, dimension(:) :: good_id
+    integer(i4b), allocatable, dimension(:,:) :: good_info, bad_info  ! 3-d arrays: (j_start,j_end,size)
+
+    nomono_ = .false.; if (present(nomono)) nomono_ = nomono
+    filling_ = 'none'; if (present(filling)) filling_ = filling
+
+    ntod = self%scans(scan)%ntod
+    allocate(d_prime(ntod))
+    gain     = self%scans(scan)%d(i_det)%gain  ! Gain in V / K
+    sigma_0  = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)
+    N_wn     = sigma_0**2  ! white noise power spectrum
+
+    ! Prepare TOD residual
+    d_prime = tod - gain * s_sub
+
+    if (trim(filling_)=='white') then ! filling with white noise
+       init_masked_region = .true.
+       end_masked_region  = .false.
+       do j = 1, ntod
+          if (mask(j) == 1.) then
+             if (end_masked_region) then
+                j_end = j - 1
+                call fill_masked_region(d_prime, mask, j_start, j_end, ntod, self%scans(scan)%chunk_num)
+                ! Add noise to masked region
+                if (trim(self%operation) == "sample") then
+                   do k = j_start, j_end
+                      d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
+                   end do
+                end if
+                end_masked_region = .false.
+                init_masked_region = .true.
+             end if
+          else
+             if (init_masked_region) then
+                init_masked_region = .false.
+                end_masked_region = .true.
+                j_start = j
+             end if
+          end if
+       end do
+       ! if the data ends with a masked region
+       if (end_masked_region) then
+          j_end = ntod
+          call fill_masked_region(d_prime, mask, j_start, j_end, ntod, self%scans(scan)%chunk_num)
+          if (trim(self%operation) == "sample") then
+             do k = j_start, j_end
+                d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
+             end do
+          end if
+       end if
+    else if (trim(filling_)=='chunks') then ! filling with good chunks
+       ! Separate flagged and unflagged regions
+       n_good = 0; n_bad = 0
+       do i = 1, ntod
+          if (i==1) then
+             if (mask(i) == 0) then
+                n_bad = n_bad + 1
+             else
+                n_good = n_good + 1
+             end if
+             region_lgt = mask(i)
+          else
+             if (mask(i) /= region_lgt) then
+                if (mask(i) == 0) then
+                   n_bad = n_bad + 1
+                else
+                   n_good = n_good + 1
+                end if
+                region_lgt = mask(i)
+             end if
+          end if
+       end do
+
+       allocate(good_info(3,n_good), bad_info(3,n_bad))
+       good_count = 1; bad_count = 1
+       do i = 1, ntod
+          if (i==1) then
+             j_start = 1
+             region_lgt = mask(i)
+          else
+             if (mask(i) /= region_lgt) then
+                j_end = i - 1
+                n = j_end - j_start + 1
+                if (mask(i) == 0) then
+                   good_info(1,good_count) = j_start
+                   good_info(2,good_count) = j_end
+                   good_info(3,good_count) = n
+                   good_count = good_count + 1
+                else
+                   bad_info(1,bad_count) = j_start
+                   bad_info(2,bad_count) = j_end
+                   bad_info(3,bad_count) = n
+                   bad_count = bad_count + 1
+                end if
+                j_start = i
+                region_lgt = mask(i)
+             end if
+          end if
+       end do
+
+       j_end = ntod
+       n = j_end - j_start + 1
+       if (mask(ntod) == 0) then
+          bad_info(1,bad_count) = j_start
+          bad_info(2,bad_count) = j_end
+          bad_info(3,bad_count) = n
+       else
+          good_info(1,good_count) = j_start
+          good_info(2,good_count) = j_end
+          good_info(3,good_count) = n
+       end if
+
+
+       ! Fill bad data with random chunks from good data
+       do i = 1, n_bad
+          chunk_size = bad_info(3,i)
+          ! Find good regions longer than chunk size
+          k = 0
+          do j = 1, n_good
+             if (good_info(3,j) >= chunk_size) k = k + 1
+          end do
+
+          do while (k==0) ! Flagged region is too big
+             call random_number(rand_id)
+             j = rand_id*n_good + 1
+             d_prime(bad_info(1,i):bad_info(1,i)+good_info(3,j)-1) = d_prime(good_info(1,j):good_info(2,j))
+             bad_info(1,i) = bad_info(1,i) + good_info(3,j)
+             bad_info(2,i) = bad_info(2,i) + good_info(3,j)
+             bad_info(3,i) = bad_info(3,1) - good_info(3,j)
+             chunk_size = bad_info(3,i)
+             do j = 1, n_good
+                if (good_info(3,j) >= chunk_size) k = k + 1
+             end do
+          end do
+
+          allocate(good_id(k))
+          k = 0
+          do j = 1, n_good
+             if (good_info(3,j) >= chunk_size) then
+                k = k + 1
+                good_id(k) = j
+             end if
+          end do
+          ! Choose chunk from random good region
+          call random_number(rand_id)
+          k = rand_id*k + 1
+          j = good_id(k)
+          !write(*,*) 'CPU ',self%scanid(scan),': ', i, ntod, bad_info(1,i), bad_info(2,i), size(good_id), j, size(good_info)
+          deallocate(good_id)
+          call random_number(rand_id)
+          j_start = rand_id*(good_info(3,j) - chunk_size) + good_info(1,j)
+          d_prime(bad_info(1,i):bad_info(2,i)) = d_prime(j_start:j_start+chunk_size-1)
+       end do
+       deallocate(good_info, bad_info)
+    else if (trim(filling_)=='zero') then ! filling with 0
+       do i = 1, ntod
+          if (mask(i)==0) d_prime(i) = 0.d0
+       end do
+    end if
+
+    ! Identify spikes
+    if (self%first_call .and. .not. (present(dospike))) call find_d_prime_spikes(self, scan, i_det, d_prime, pix)
+
+    !alpha    = self%scans(scan)%d(i_det)%N_psd%alpha
+    !nu_knee  = self%scans(scan)%d(i_det)%N_psd%fknee
+
+    ! Remove monopole if requested by user
+    if (nomono_) d_prime = d_prime -  sum(d_prime*mask)/sum(mask)
+
+    ! Output power spectrum of the residuals
+    if (present(ps_output)) then
+!       open(58,file='d_prime_tod_' // ps_output // '.dat', recl=1024)
+!       do l = 1, ntod
+!          write(58,*) l, tod(l), s_sub(l), d_prime(l), gain, sigma_0
+!       end do
+!       close(58)
+       
+       nomp     = 1 !omp_get_max_threads()
+       samprate = self%samprate
+       nfft     = 2 * ntod
+       n        = nfft / 2 + 1
+
+       call sfftw_init_threads(err)
+       call sfftw_plan_with_nthreads(nomp)
+
+       allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+       call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+
+       ! FFT
+       dt(1:ntod)           = d_prime(:)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       call timer%start(TOT_FFT)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call timer%stop(TOT_FFT)
+       do l = 1, n-1
+          ps(l,1) = l*(samprate/2)/(n-1)
+          ps(l,2) = abs(dv(l)) ** 2 / ntod
+       end do
+
+       ! Output power spectrum of signal-subtracted gap-filled TOD to disk
+       open(58,file='d_prime_ps_' // ps_output // '.dat', recl=1024)
+       do l = 1, n-1
+          write(58,*) ps(l,1), ps(l,2)
+       end do
+       close(58)
+       
+
+       deallocate(dt, dv, ps)
+       call dfftw_destroy_plan(plan_fwd)
+       call dfftw_destroy_plan(plan_back)
+    end if
+
+    tod = d_prime + gain * s_sub
+    deallocate(d_prime)
+
+  end subroutine fill_gaps
+
 
   module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
     !  Sample ADC parameters
@@ -1320,7 +1759,7 @@ contains
           cycle
        end if
        call init_scan_data_singlehorn_singledet(sd, self, det, i, map_sky, &
-            & procmask, skip_nonlin=.true.)
+            & procmask, skip_nonlin=0)
 
       gain    = self%scans(i)%d(det)%gain
       phase   = self%mod_phase(det,i)
