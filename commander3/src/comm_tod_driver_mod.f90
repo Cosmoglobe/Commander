@@ -36,7 +36,7 @@ contains
   !  Scan data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_scan_data_singlehorn(sd, tod, scan, map_sky, map_gain, procmask, procmask2, procmask_zodi, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, skip_zodi,  darkdata)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, skip_nonlin, skip_zodi,  darkdata, handle_)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -49,12 +49,16 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-    logical(lgt),                              intent(in),   optional :: skip_nonlin
+    type(planck_rng),                          intent(inout),optional :: handle_
+    integer(i4b),                              intent(in),   optional :: skip_nonlin ! (0) = skip
+                                                                                     ! (1) = demodulate
+                                                                                     ! (2) = (1) + adc corrections
+                                                                                     ! (3) = (2) + fill gaps + rolloff deconvolution
     logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
-    integer(i4b) :: i, j, k, ndelta
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
+    integer(i4b) :: i, j, k, ndelta, skip_nonlin_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, darkdata_, skip_zodi_
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -67,7 +71,7 @@ contains
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
-    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_nonlin_ = 3; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
     skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
     darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
  
@@ -297,7 +301,13 @@ contains
     end do
 
     ! Apply non-linearity corrections
-    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd)
+    if (skip_nonlin_ > 0) then
+       if (present(handle_)) then
+          call tod%apply_nonlin_corr_inst(scan, sd, skip_nonlin_, handle_)
+       else
+          call tod%apply_nonlin_corr_inst(scan, sd, skip_nonlin_)
+       end if
+    end if
     
     !call update_status(status, "todinit_stot")
 
@@ -306,7 +316,7 @@ contains
 
   
   subroutine init_scan_data_singlehorn_singledet(sd, tod, det, scan, map_sky, procmask, &
-         & skip_nonlin, skip_zodi, darkdata)
+         & skip_nonlin, skip_zodi, darkdata, handle_)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -314,12 +324,17 @@ contains
     integer(i4b),                              intent(in)             :: scan
     real(sp),          dimension(1:,1:),       intent(in)             :: map_sky
     real(sp),          dimension(0:),          intent(in)             :: procmask
-    logical(lgt),                              intent(in),   optional :: skip_nonlin
+    type(planck_rng),                          intent(inout),optional :: handle_
+    integer(i4b),                              intent(in),   optional :: skip_nonlin ! (0) = skip
+                                                                                     ! (1) = demodulate
+                                                                                     ! (2) = (1) + adc corrections
+                                                                                     ! (3) = (2) + fill gaps +
+                                                                                     !           + rolloff deconvolution
     logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
-    integer(i4b) :: i, j, k, ndelta
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, skip_nonlin_, darkdata_, skip_zodi_
+    integer(i4b) :: i, j, k, ndelta, skip_nonlin_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, darkdata_, skip_zodi_
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -436,7 +451,13 @@ contains
     if (tod%apply_inst_corr) sd%s_tot(:,1) = sd%s_tot(:,1) + sd%s_inst(:,1)
 
     ! Apply non-linearity corrections
-    if (.not. skip_nonlin_) call tod%apply_nonlin_corr_inst(scan, sd, det)
+    if (skip_nonlin_ > 0) then
+       if (present(handle_)) then
+          call tod%apply_nonlin_corr_inst(scan, sd, skip_nonlin_, handle_)
+       else
+          call tod%apply_nonlin_corr_inst(scan, sd, skip_nonlin_)
+       end if
+    end if
     
     !call update_status(status, "todinit_stot")
 
