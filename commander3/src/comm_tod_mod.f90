@@ -2078,7 +2078,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
-  subroutine apply_nonlin_corr_inst(self, scan, sd, det)
+  subroutine apply_nonlin_corr_inst(self, scan, sd, skip_nonlin, handle, det)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2086,10 +2086,12 @@ contains
     !  self: comm_tod object
     !
     implicit none
-    class(comm_tod),                       intent(in)       :: self
+    class(comm_tod),                       intent(inout)    :: self
     integer(i4b),                          intent(in)       :: scan
     class(comm_scandata),                  intent(inout)    :: sd
-    integer(i4b),                          intent(in), optional :: det
+    integer(i4b),                          intent(in)       :: skip_nonlin
+    type(planck_rng),                      intent(inout), optional :: handle
+    integer(i4b),                          intent(in),    optional :: det
 
     return
 

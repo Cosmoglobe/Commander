@@ -380,12 +380,12 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
+    class(comm_hfi_tod),                   intent(inout) :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
     integer(i4b),                          intent(in)    :: skip_nonlin
     type(planck_rng),            optional, intent(inout) :: handle
-    integer(i4b),                          intent(in), optional :: det
+    integer(i4b),                optional, intent(in)    :: det
   end subroutine apply_nonlin_corr_hfi
 
   module subroutine stitch_hfi_dc_level(self, scan, sd)

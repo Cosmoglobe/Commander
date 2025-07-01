@@ -32,8 +32,7 @@ module comm_tod_noise_psd_mod
   implicit none
 
   private
-  public comm_noise_psd, comm_noise_psd_white, comm_noise_psd_oof, comm_noise_psd_2oof, comm_noise_psd_oof_gauss,
-comm_noise_psd_oof_quad, comm_noise_psd_spline
+  public comm_noise_psd, comm_noise_psd_white, comm_noise_psd_oof, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_quad, comm_noise_psd_spline
 
   integer(i4b), parameter :: SIGMA0 = 1
   integer(i4b), parameter :: FKNEE  = 2

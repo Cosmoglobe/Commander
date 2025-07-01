@@ -356,9 +356,6 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-    ! estimate A/B detector crosstalk coeficients
-    if (.false.) call self%xtalk%estimate_crosstalk_matrix()
-
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan
         ! Skip scan if no accepted data
@@ -374,7 +371,11 @@ contains
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
-       if (.false.) call self%xtalk%remove_crosstalk_signal(sd, i)
+       if (.false.) then
+          ! estimate A/B detector crosstalk coeficients
+          call self%xtalk%estimate_crosstalk_matrix(sd)
+          call self%xtalk%remove_crosstalk_signal(sd)
+       end if
 
        ! Estimate modulation baselines; and set modulation phase
        if (self%first_call .and. trim(self%init_from_HDF) /= 'none') then
@@ -1201,12 +1202,12 @@ contains
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
+    class(comm_hfi_tod),                   intent(inout)    :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
     integer(i4b),                          intent(in)    :: skip_nonlin
     type(planck_rng),            optional, intent(inout) :: handle
-    integer(i4b),                          intent(in), optional :: det
+    integer(i4b),                optional, intent(in)    :: det
 
     integer(i4b) :: i
     
