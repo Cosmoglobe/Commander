@@ -79,3 +79,5 @@ BAND_TOD_ZODI_MASK&&&          = mask_common_dx12_n2048_TQU.fits
 BAND_TOD_ZODI_EMISSIVITY&&&    = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
 BAND_TOD_ZODI_REFERENCE_BAND&&&= .false.
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned

@@ -39,7 +39,7 @@ BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v1.dat
 BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 3
 BAND_TOD_END_SCANID&&&         = 44072
-BAND_TOD_TOT_NUMSCAN&&&        = 44070
+BAND_TOD_TOT_NUMSCAN&&&        = 45860
 BAND_TOD_FLAG&&&               = 6111232
 BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = 27M,27S,28M,28S
@@ -71,3 +71,14 @@ BAND_TOD_RIMO&&&               = LFI_instrument_v4.h5
 BAND_TOD_FILELIST&&&           = filelist_30_v17.txt
 N_GIBBS_PER_TOD&&&             = 1
 
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&   = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&    = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&& = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
+BAND_TOD_MOON_CENTRIC_MASK&&&     = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&    = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none
