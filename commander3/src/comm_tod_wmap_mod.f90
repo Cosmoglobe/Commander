@@ -460,7 +460,11 @@ contains
       ! Distribute maps
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(map_full(nmaps, 0:npix-1))
+      if (self%comp_S) then
+         allocate(map_full(nmaps+1, 0:npix-1))
+      else
+         allocate(map_full(nmaps, 0:npix-1))
+      end if
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
@@ -484,11 +488,12 @@ contains
          slist   = ''
       end if
 
-      allocate (M_diag(0:npix-1, nmaps+1))
       if (self%comp_S) then
          allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
+         allocate (M_diag(0:npix-1, nmaps+2))
       else
          allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
+         allocate (M_diag(0:npix-1, nmaps+1))
       end if
       M_diag = 0d0
       b_map = 0d0
@@ -1013,6 +1018,7 @@ contains
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       type(hdf_file) :: precond_file
 
+      if (self%comp_S) return
 
 
       call update_status(status, "M_lowres")
@@ -1190,7 +1196,8 @@ contains
     !   m_lin - a linearized map, length nmaps * npix
 
     if (self%comp_S) then
-       map_out =  map/self%M_diag
+       map_out(:,1:3) =  map(:,1:3)/self%M_diag(:,1:3)
+       map_out(:,4) =  map(:,4)/self%M_diag(:,5)
     else
 
        map_out = 0d0
