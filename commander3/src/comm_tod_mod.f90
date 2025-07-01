@@ -157,6 +157,7 @@ module comm_tod_mod
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
+     real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
@@ -249,6 +250,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
      integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
      integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
+     real(sp),           allocatable, dimension(:,:) :: mod_phase  ! Modulation phase (ndet,nscan)
 
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
@@ -466,6 +468,7 @@ contains
     self%sol_elong_range = [0., 180.]
     self%sample_mono     = .false.
     self%nside_pixhist   = -1
+    self%sigma0_threshold = 1d30
  
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
@@ -1655,12 +1658,16 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
-          output(k,j,1)             = self%scans(i)%d(j)%gain
-          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)             = self%scans(i)%d(j)%chisq
-          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
-          if (self%baseline_order >= 0) then
-             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+          if (.not. self%scans(i)%d(j)%accept) then
+             output(k,j,:) = 0.d0
+          else
+             output(k,j,1)             = self%scans(i)%d(j)%gain
+             output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+             output(k,j,3)             = self%scans(i)%d(j)%chisq
+             output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+             if (self%baseline_order >= 0) then
+                output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+             end if
           end if
           if (j == 1) then
              mjds(k)                = self%scans(i)%t0(1)
@@ -2557,6 +2564,7 @@ contains
     integer(i4b) :: i, det
 
     do det = 1, self%ndet
+       if (self%partner(det) == -1) cycle
        do i = 1, size(flag,1)
           if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)
@@ -3249,7 +3257,7 @@ contains
 
      if (sum(mask) == 0) return 
 
-     output_scan = 849 !-1 !116 
+     output_scan = 751 !-1 !116 
      flag_dyn    = 2**30
      ntod        = size(res)
      ntot        = count(iand(flag,self%flag0) .eq. 0)

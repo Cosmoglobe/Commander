@@ -54,6 +54,7 @@ contains
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
+    character(len=6) :: pstring
 
     logical(lgt), dimension(:,:), allocatable :: correlations
 
@@ -72,10 +73,10 @@ contains
     c%xi_n_P_uni(2,:)  = [0.001d0, 5.0d0]  ! fknee
     c%xi_n_P_uni(3,:)  = [-2.5d0, -0.4d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [3.d0, 10.d0] 
-    c%xi_n_nu_fit(2,:) = [0.d0, 3d0]
-    c%xi_n_nu_fit(3,:) = [0.d0, 3d0]
-    c%xi_n_P_rms       = [-1.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-    
+    c%xi_n_nu_fit(2,:) = [0.001d0, 3d0]
+    c%xi_n_nu_fit(3,:) = [0.001d0, 3d0]
+    c%xi_n_P_rms       = [-1.d0, 0.1d0, -0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%f_spin           = 1./60.                 ! Planck spin frequency in Hz
     
 
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
@@ -94,12 +95,11 @@ contains
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
     c%orb_4pi_beam    = .false.
-    c%symm_flags      = .false.
+    c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
-    c%partner         = -1
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
 
@@ -110,7 +110,8 @@ contains
 
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
-       c%chisq_threshold  = 100.d9 
+       c%chisq_threshold  = 120.d0
+       c%sigma0_threshold = 100.d0
        c%accept_threshold = 0.5d0
        c%correct_sl       = .false.
     else
@@ -122,6 +123,26 @@ contains
     
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
+
+    ! Identify partners
+    c%partner = -1
+    do i = 1, c%ndet
+       if (len(trim(c%label(i))) == 5) cycle ! Spider web
+       ! Search for detector with a instead of b
+       pstring = trim(adjustl(c%label(i)))
+       if (pstring(6:6) == 'a') then
+          pstring(6:6) = 'b'
+       else
+          pstring(6:6) = 'a'
+       end if
+       do j = 1, c%ndet
+          if (pstring == trim(adjustl(c%label(j)))) then
+             c%partner(i) = j
+             !if (c%myid == 0) write(*,*) 'Partners = ', trim(adjustl(c%label(i))), '<->', trim(adjustl(c%label(c%partner(i))))
+             exit
+          end if
+       end do
+    end do
     
     ! Read the actual TOD
     call c%read_tod(c%label)
@@ -218,9 +239,9 @@ contains
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
+    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, dec_wn
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
-    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc
+    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
@@ -229,7 +250,7 @@ contains
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
+    real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0, freqmask
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -241,17 +262,36 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    sample_gain           = iter > 1 !.true.                 
-    sample_ncorr          = iter > 1 !.true.
-    sample_adc            = iter > 1 !.true.
+    if (.false.) then ! Debug
+       ! Do data selection, then start sampling
+       sample_gain           = iter  > 0 !.true.                 
+       make_dyn_mask         = iter == 1
+       sample_ncorr          = iter  > 0 !.true.
+       select_data           = iter == 1
+       sample_adc            = .false. !iter  > 1 !.true.
+    else if (trim(self%init_from_HDF) == 'none') then
+       ! Initialize slowly if not HDF init
+       sample_gain           = iter  > 0 !.true.                 
+       make_dyn_mask         = iter == 2
+       sample_ncorr          = iter  > 2 !.true.
+       select_data           = iter == 3 ! self%first_call  
+       sample_adc            = .false. !iter  > 6 ! 3 !.true.
+    else
+       ! Do data selection, then start sampling
+       sample_gain           = .false. !iter  > 1 !.true.                 
+       make_dyn_mask         = iter == 1
+       sample_ncorr          = iter  > 0 !.true.
+       select_data           = iter == 1 ! self%first_call  
+       sample_adc            = .false. !iter  > 1 !.true.
+    end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
-    select_data           = iter == 3 ! self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
+    dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
 
     !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
     if (self%freq(1:3) == "100") then
-       flag_threshold     = [  1.0,         -5.0, -5.0,         -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
+       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   -1.0,      -1.0,     -1.0]
     else
        flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
     end if
@@ -337,7 +377,7 @@ contains
        call self%xtalk%remove_crosstalk_signal(sd, i)
 
        ! Estimate modulation baselines; and set modulation phase
-       if (self%first_call) then
+       if (self%first_call .and. trim(self%init_from_HDF) /= 'none') then
           call sample_hfi_baselines(sd, self, i, handle, subtract_s_tot=.false.)
           call set_modulation_phase(sd, self, i)
        end if
@@ -395,12 +435,22 @@ contains
 
     ! Sample ADC and baseline parameters jointly
     if (sample_adc) then
+       ! Initialize ADC objects before first call
+       if (.not. associated(self%adc(1)%p)) then          
+          call self%compute_adu_range
+          do i = 1, self%ndet
+             self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
+                  & self%adu_range(i,1), self%adu_range(i,2), 40)
+          end do
+       end if
+
+       ! Sample ADC parameters
        do i = 1, self%ndet
           call self%sample_adc_and_baselines(handle, i, map_sky(:,:,i,1), procmask)
        end do
     end if
-       
-    ! Sample baselenes -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
+
+    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
     do i = 1, self%nscan
        if (.not. any(self%scans(i)%d%accept)) cycle
        call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=.true., darkdata=.true.)
@@ -441,12 +491,22 @@ contains
        else
           call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
        end if
-                     
+
+!!$       if (self%myid == 0) then
+!!$          open(58,file='tod_gain.dat', recl=1024)
+!!$          do j = 1, sd%ntod
+!!$             write(58,*) j, sd%s_tot(j,:), sd%tod(j,:)
+!!$          end do
+!!$          close(58)
+!!$       end if
+       
        ! Create dynamic mask
-       if (self%first_call) then
+       if (make_dyn_mask) then
           ! Estimate sigma0 for masking
-          sd%n_corr = 0.d0
-          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+          if (trim(self%init_from_HDF) == 'none') then
+             sd%n_corr = 0.d0
+             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true., dec_wn=dec_wn)
+          end if
 
           ! Create mask
           do j = 1, sd%ndet
@@ -465,23 +525,22 @@ contains
           else
              call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
           end if
-
-          ! Count number of unmasked samples outside the processing mask; for ADC sampling
-          do j = 1, sd%ndet
-             self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
-          end do
        end if
 
        ! Sample correlated noise
        if (sample_ncorr) then
           !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
-          !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+          if (.not. self%first_call) then
+             call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask)
+             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
+             deallocate(freqmask)
+          end if
        else
           sd%n_corr = 0.d0
-          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true., dec_wn=dec_wn)
        end if
-       
+
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -491,8 +550,14 @@ contains
        ! Select data
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
+
+          ! Count number of unmasked samples outside the processing mask; for ADC sampling
           do j = 1, sd%ndet
-             if (.not. self%scans(i)%d(j)%accept) self%scans(i)%d(j)%nsamp_unmasked = 0
+             if (self%scans(i)%d(j)%accept) then
+                self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
+             else
+                self%scans(i)%d(j)%nsamp_unmasked = 0
+             end if
           end do
        end if
 
@@ -531,17 +596,32 @@ contains
 
     end do
 
-        ! Initialize ADC objects
-    if (self%first_call) then
-       call self%compute_adu_range
-       do i = 1, self%ndet
-          self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
-               & self%adu_range(i,1), self%adu_range(i,2), 40)
+    if (select_data) then
+       ! Remove data based on a gliding RMS window cut for each of the listed
+       ! criteria
+       !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
+       call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
+       
+       if (self%symm_flags) then
+          ! Remove partners for rejected scans
+          do j = 1, self%ndet
+             if (self%partner(j) == -1) cycle
+             do i = 1, self%nscan
+                if (.not. self%scans(i)%d(j)%accept) &
+                     & self%scans(i)%d(self%partner(j))%accept = .false.
+             end do
+          end do
+       end if
+          
+       do i = 1, self%nscan
+          do j = 1, self%ndet
+             if (.not. self%scans(i)%d(j)%accept) self%scans(i)%d(j)%nsamp_unmasked = 0
+          end do
        end do
     end if
-
+    
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
-    if (self%first_call) then
+    if (make_dyn_mask) then
        call self%report_dynamic_mask_stats
     end if
     
@@ -647,7 +727,7 @@ contains
     ! sd = self --- self%s_tot - sky signal model
     ! self%s_tot(self%ntod, self%ndet) - how s_tot structured
     
-    if (tod%scanid(scan) == 500) open(58,file='baseline.dat', recl=1024)
+    !if (tod%scanid(scan) == 500) open(58,file='baseline.dat', recl=1024)
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        sgn = tod%mod_phase(i,scan)
@@ -659,7 +739,7 @@ contains
           A1 = A1 + 1.d0
           b1 = b1 + self%tod(j,i)
           if (sub_s) b1 = b1 - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
-          if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
+          !if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
        end do
        A1 = A1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b1 = b1 / tod%scans(scan)%d(i)%N_psd%sigma0**2
@@ -670,14 +750,14 @@ contains
        tod%scans(scan)%d(i)%baseline1  = b1/A1 + rand_gauss(handle)/sqrt(A1)
 
        ! Even samples
-       if (tod%scanid(scan) == 500) write(58,*)
+       !if (tod%scanid(scan) == 500) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A2 = A2 + 1.d0
           b2 = b2 + self%tod(j,i)
           if (sub_s) b2 = b2 + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
-          if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
+          !if (tod%scanid(scan) == 500) write(58,*) j, self%tod(j,i), self%tod(j,i) + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i)
        end do
        A2 = A2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
        b2 = b2 / tod%scans(scan)%d(i)%N_psd%sigma0**2
@@ -690,7 +770,7 @@ contains
        !write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
 
     end do
-    if (tod%scanid(scan) == 500) close(58)
+    !if (tod%scanid(scan) == 500) close(58)
 
   end subroutine sample_hfi_baselines
 
@@ -730,12 +810,9 @@ contains
        
        mu = 0.d0; n = 0.d0
        do j = 1, self%ntod, 2
+          if (iand(self%flag(j,i), tod%flag0) .ne. 0) cycle
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
-             if (mod(j,2) == 1) then
-                mu = mu + (self%tod(j,1)-tod%scans(scan)%d(i)%baseline1)
-             else
-                mu = mu - (self%tod(j,1)-tod%scans(scan)%d(i)%baseline2)
-             end if
+             mu = mu + (self%tod(j,i)-tod%scans(scan)%d(i)%baseline1)
              n  = n  + 1.d0
           end if
        end do
@@ -792,12 +869,15 @@ contains
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
-               self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
+              self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
+              !self%tod(j,i) =  (self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
            else
-               self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
+              self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
+              !self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
        end do
-
+       !if (sgn < 0.) self%tod(:,i) = -self%tod(:,i)
+       
     end do
 
 !!$    open(58,file='tod.dat')
@@ -865,6 +945,7 @@ contains
 !!$    stop
     
   end subroutine compute_adu_range
+
 
   
   module subroutine read_tod_inst_HFI(self, file)
@@ -937,16 +1018,63 @@ contains
     class(comm_HFI_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: base
+    real(sp), allocatable, dimension(:,:)   :: phase
+    real(sp), allocatable, dimension(:,:)   :: Q
+
+    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
+    if (self%myid == 0) then
+       call read_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
+       call read_hdf(chainfile, trim(adjustl(path))//'mod_phase',    phase)
+       call read_hdf(chainfile, trim(adjustl(path))//'adu_range', self%adu_range)
+
+       ! Read ADC tables
+       if (self%adu_range(1,1) > 0) then
+          allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+          call read_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+       end if
+    end if
+
+    call mpi_bcast(base,  size(base) , MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(phase, size(phase), MPI_REAL, 0, self%comm, ierr)
+    call mpi_bcast(self%adu_range, size(self%adu_range), MPI_INTEGER, 0, self%comm, ierr)
+
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%scans(i)%d(j)%baseline1 = base(k,j,1) 
+          self%scans(i)%d(j)%baseline2 = base(k,j,2) 
+          self%mod_phase(j,i)          = phase(k,j)
+       end do
+    end do
+
+!!$    if (self%adu_range(1,1) > 0) then
+!!$       if (self%myid /= 0) allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+!!$       call mpi_bcast(Q, size(Q), MPI_REAL, 0, self%comm, ierr)
+!!$       do j = 1, self%ndet
+!!$          self%adc(j)%p => comm_adc_binfit(self%comm, self%label(j), 16, &
+!!$                  & self%adu_range(j,1), self%adu_range(j,2), 40)
+!!$          !allocate(self%adc(j)%p%Q(self%adu_range(j,1):self%adu_range(j,2)))
+!!$          self%adc(j)%p%Q = Q(self%adu_range(j,1):self%adu_range(j,2),j)
+!!$       end do
+!!$       deallocate(Q)
+!!$    end if
+    
+    deallocate(base, phase)
+
   end subroutine initHDF_HFI
   
-  module subroutine dumpToHDF_HFI(self, chainfile, path)
+  module subroutine dumpToHDF_hfi(self, chainfile, path)
     ! 
-    ! Writes HFI-specific TOD parameters to existing chain file
+    ! Writes instrument-specific TOD parameters to existing chain file
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_HFI_tod)
-    !           HFI-specific TOD object
+    ! self:     derived class (comm_tod)
+    !           TOD object
     ! chainfile: derived type (hdf_file)
     !           Already open HDF file handle to existing chainfile
     ! path:   string
@@ -957,10 +1085,56 @@ contains
     ! None
     !
     implicit none
-    class(comm_HFI_tod),                 intent(in)     :: self
+    class(comm_hfi_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine dumpToHDF_HFI
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: base
+    real(sp), allocatable, dimension(:,:)   :: phase
+    real(sp), allocatable, dimension(:,:)   :: Q
+
+    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
+    base  = 0.d0
+    phase = 0.0
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          base(k,j,1) = self%scans(i)%d(j)%baseline1
+          base(k,j,2) = self%scans(i)%d(j)%baseline2
+          phase(k,j)  = self%mod_phase(j,i)
+       end do
+    end do
+    if (self%myid == 0) then
+       call mpi_reduce(mpi_in_place, base, size(base), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call write_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
+       call mpi_reduce(mpi_in_place, phase, size(phase), &
+            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
+       call write_hdf(chainfile, trim(adjustl(path))//'mod_phase', phase)
+       call write_hdf(chainfile, trim(adjustl(path))//'adu_range', self%adu_range)
+
+       ! Pad ADC tables
+       if (associated(self%adc(1)%p)) then
+          allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+          Q = 1.
+          do j = 1, self%ndet
+             Q(self%adu_range(j,1):self%adu_range(j,2),j) = self%adc(j)%p%Q
+          end do
+          call write_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+          deallocate(Q)
+       end if
+    else
+       call mpi_reduce(base,         base, size(base), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(phase,        phase, size(phase), &
+            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
+    end if
+    deallocate(base, phase)
+
+  end subroutine dumpToHDF_hfi
+
 
   module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
     !  Construct an HFI instrument-specific correction template; for now contains 1Hz template only
@@ -1023,6 +1197,8 @@ contains
     if (associated(self%adc(1)%p)) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
+          call self%adc(i)%p%Q2As(92.)
+          call self%adc(i)%p%As2F
           call self%adc(i)%p%adc_correct(self%scanid(scan), i, sd%tod(:,i), &
                & self%scans(scan)%d(i)%N_psd%sigma0, &
                & mask=iand(sd%flag(:,i), self%flag0) .eq.0)
@@ -1117,61 +1293,85 @@ contains
 
     integer(i4b)        :: i, j, k, flag, ierr, ntod, decimation, offset, ind
     integer(i8b)        :: ntot
+    real(sp)            :: gain, phase, base1, base2
     real(dp)            :: chisq
     type(comm_scandata) :: sd
+    character(len=4)    :: id
     integer(i8b), allocatable, dimension(:)   :: numsamp
-    real(sp),     allocatable, dimension(:)   :: tod, s_tot, phase, tod_corr
-    real(sp),     allocatable, dimension(:)   :: sigma0, gain
+    real(sp),     allocatable, dimension(:)   :: s_volt, tod, tod_corr
+    real(sp),     allocatable, dimension(:)   :: sigma0
 
-    decimation = 11 ! Downsampling rate; MUST BE ODD, to explore both parities
+    decimation = 45 ! Downsampling rate; MUST BE ODD, to explore both parities
     
     ! Count number of unmasked and decimated samples
-    allocate(numsamp(self%nscan), sigma0(self%nscan), gain(self%nscan))
+    allocate(numsamp(self%nscan), sigma0(self%nscan))
     do i = 1, self%nscan
        numsamp(i) = self%scans(i)%d(det)%nsamp_unmasked / decimation
        sigma0(i)  = self%scans(i)%d(det)%N_psd%sigma0
-       gain(i)    = self%scans(i)%d(det)%gain
-    end do
+     end do
     ntot = sum(numsamp)
 
     ! Prepare reduced dataset
-    allocate(tod(ntot), s_tot(ntot), phase(ntot), tod_corr(maxval(numsamp)))
+    allocate(s_volt(ntot), tod(ntot), tod_corr(maxval(numsamp)))
     ind = 1
     do i = 1, self%nscan
-       if (.not. self%scans(i)%d(det)%accept) cycle
+       if (.not. self%scans(i)%d(det)%accept) then
+          numsamp(i) = ind-1
+          cycle
+       end if
        call init_scan_data_singlehorn_singledet(sd, self, det, i, map_sky, &
             & procmask, skip_nonlin=.true.)
-       !call init_scan_data_singlehorn(sd, self, det, i, map_sky, &
-       !     & procmask, skip_nonlin=.true.)
-       !call init_scan_data_singlehorn(sd, self, i, m_sky, m_sky, procmask, procmask, skip_nonlin=.true.)
-       
+
+      gain    = self%scans(i)%d(det)%gain
+      phase   = self%mod_phase(det,i)
+      base1   = self%scans(i)%d(det)%baseline1
+      base2   = self%scans(i)%d(det)%baseline2
+      
        ! Decimate data
        j = 0; k = decimation*j+1
-       do while (k <= sd%ntod)
+       do while (k <= sd%ntod .and. j < numsamp(i))
           if (sd%mask(k,1) == 1.) then
              tod(ind)   = sd%tod(k,1)
-             s_tot(ind) = gain(i) * sd%s_tot(k,1)
              if (mod(k,2) == 1) then
-                phase(ind) =  self%mod_phase(det,i)
+                s_volt(ind) =  phase*gain * sd%s_tot(k,1) + base1
              else
-!                if (.not. allocated(self%mod_phase)) then
-!                   write(*,*) 'q4', self%myid, k, ind, allocated(self%mod_phase)
-!                end if
-                phase(ind) = -self%mod_phase(det,i)
+                s_volt(ind) = -phase*gain * sd%s_tot(k,1) + base2
              end if
-             !if (self%myid == 0) write(*,*) 'tod = ', ind, numsamp(i), tod(ind), s_tot(ind), phase(ind)
              ind = ind+1
           end if
           j = j+1; k = decimation*j+1
        end do
 
+       ! Store total number of accepted samples until now
+       numsamp(i) = ind-1
+
        ! Clean up
        call dealloc_scan_data(sd)
     end do
 
+    ! Compute number of accepted samples for each scan
+    do i = self%nscan, 2, -1
+       numsamp(i) = numsamp(i)-numsamp(i-1)
+    end do
+    ntot = sum(numsamp)
+
+!!$    call int2string(self%myid, id)
+!!$    open(58,file='adc_data_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
+!!$    do i = 1, ntot
+!!$       write(58,*) i, tod(i), s_volt(i), tod(i)-s_volt(i)
+!!$    end do
+!!$    close(58)
+    
+    
+    !write(*,*) self%myid, self%nscan, numsamp, ntot
+    
     !  Perform sampling
     if (self%myid == 0) then
-       call self%adc(det)%p%mcmc_sample_adc(handle, chisq_adc_hfi)
+       if (.true.) then
+          call self%adc(det)%p%powell_adc(powell_chisq_adc_hfi)
+       else
+          call self%adc(det)%p%mcmc_sample_adc(handle, chisq_adc_hfi)
+       end if
        ! Release workers
        flag = 0
        call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
@@ -1193,9 +1393,19 @@ contains
     call self%adc(det)%p%param2Q
 
     ! Clean up
-    deallocate(tod, s_tot, phase, sigma0, gain, tod_corr)
+    deallocate(s_volt, tod, sigma0, tod_corr)
     
   contains
+
+    function powell_chisq_adc_hfi(x)
+      implicit none
+      real(dp), dimension(:), intent(in),  optional :: x
+      real(dp)                                      :: powell_chisq_adc_hfi
+
+      powell_chisq_adc_hfi = chisq_adc_hfi(real(x,sp))
+
+    end function powell_chisq_adc_hfi
+
 
     function chisq_adc_hfi(x, ndof) result (chisq)
       implicit none
@@ -1219,9 +1429,23 @@ contains
       call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
       output_ndof = (flag == 2)
 
-      ! Update ADC parameters
+      ! Check priors
+      if (any(p < 0.0)) then
+         chisq = 1.d30
+         deallocate(p)
+         return
+      end if
+      
+      ! Update ADC parameters; assume constant sigma0 fir niw
       call self%adc(det)%p%param2Q(p)
+      call self%adc(det)%p%Q2As(92.)
+      call self%adc(det)%p%As2F
 
+!!$      if (self%myid == 0 .and. det==1) then
+!!$         call int2string(self%myid, id)
+!!$         open(58,file='adc_reddata_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
+!!$      end if
+      
       ! Evaluate chisq
       chisq_sub = 0.d0
       k2 = 0 
@@ -1230,53 +1454,36 @@ contains
          if (.not. self%scans(i)%d(det)%accept) cycle
          n = numsamp(i); k1 = k2+1; k2 = k2+n
          
-         ! Apply ADC correction
-         tod_corr(1:n) = tod(k1:k2)
-         !write(*,*) self%myid, i, n, k1, k2, shape(tod_corr), shape(tod), minval(tod_corr(1:n)), maxval(tod_corr(1:n))
-         call self%adc(det)%p%adc_correct(self%scanid(i), det, &
-              & tod_corr(1:n), sigma0(i))          
-
-         ! Sample baseline for and demodulate positive parity samples
-         A = 0.d0; b = 0.d0
+         ! Apply ADC to voltages
          do j = 1, n
-            if (phase(k1+j-1) == -1.) cycle
-            A = A + 1.d0
-            b = b + tod_corr(j) - s_tot(k1+j-1)
+            !tod_corr(j) = splint(self%adc(det)%p%F, real(s_volt(k1+j-1),dp))
+            tod_corr(j) = self%adc(det)%p%invF(nint(tod(k1+j-1)))
          end do
-         baseline = b/A + sigma0(i)*rand_gauss(handle)/sqrt(A)
-         do j = 1, n
-            if (phase(k1+j-1) == -1.) cycle
-            tod_corr(j) = tod_corr(j) - baseline
-         end do
-
-         ! Sample baseline for and demodulate negative parity samples
-         A = 0.d0; b = 0.d0
-         do j = 1, n
-            if (phase(k1+j-1) == 1.) cycle
-            A = A + 1.d0
-            b = b + tod_corr(j) + s_tot(k1+j-1)
-         end do
-         baseline = b/A + sigma0(i)*rand_gauss(handle)/sqrt(A)
-         do j = 1, n
-            if (phase(k1+j-1) == 1.) cycle
-            tod_corr(j) = -tod_corr(j) + baseline
-         end do
-
+         
+!!$         if (self%myid == 0 .and. det==1) then
+!!$            do j = 1, n
+!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), tod(k1+j-1)-tod_corr(j), (tod(k1+j-1)-tod_corr(j))/sigma0(i), sigma0(i)
+!!$            end do
+!!$         end if
+         
          ! Compute chisq
          do j = 1, n
-            !write(*,*) i, j, tod_corr(j), s_tot(k1+j-1), sigma0(i)
-            chisq_sub = chisq_sub + (tod_corr(j)-s_tot(k1+j-1))**2/sigma0(i)**2
+            chisq_sub = chisq_sub + (tod_corr(j)-s_volt(k1+j-1))**2/sigma0(i)**2
          end do
       end do
 
+!!$      if (self%myid == 0 .and. det==1) close(58)
+      
       call mpi_reduce(chisq_sub, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
       if (output_ndof) then
          call mpi_reduce(ntot, ndof_tot, 1, MPI_INTEGER8, MPI_SUM, 0, self%comm, ierr)
          if (self%myid == 0) ndof = ndof_tot
       end if
 
+      if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
+
     end function chisq_adc_hfi
-    
+
   end subroutine sample_adc_and_baselines
   
 

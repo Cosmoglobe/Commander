@@ -70,12 +70,13 @@ contains
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
 
-    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
-    real(dp)     :: power, fft_norm, var1, var2
+    real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
+    character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -161,16 +162,32 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       if (.false. .and. self%scanid(scan) == 5012) then
+       if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
+       !if (self%scanid(scan) == 482 .and. i == 1) then
           !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          open(58,file='noise_psd.dat', recl=1024)
-          do l = 1, n-1
-             ps(l) = abs(dv(l)) ** 2 / ntod
-             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+          call int2string(self%scanid(scan), stext)
+          open(58,file='noise_psd'//stext//'.dat', recl=1024)
+          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
+          logbin = 1.05
+          j1     = 1
+          j2     = 2
+          do while (j2 < n-1)
+             ps_d = 0.d0; ps_s = 0.d0
+             do l = j1, j2
+                ps_d = ps_d + abs(dv(l))**2 / ntod
+                ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+             end do
+             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
+             j1 = j2+1
+             j2 = j1*logbin + 1             
           end do
+!!$          do l = 1, n-1
+!!$             ps(l) = abs(dv(l)) ** 2 / ntod
+!!$             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+!!$          end do
           close(58)
        end if
        
@@ -233,14 +250,14 @@ contains
           !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
        end if
 
-       !if (.true. .and. mod(self%scanid(scan),1000) == 1) then
+       if (.true. .and. mod(self%scanid(scan),1000) == 1) then
        !if (.true. .and. self%scanid(scan) == 5013) then
-       if (.false.) then
-          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
+       !if (.false.) then
+          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
           open(65,file=trim(filename),status='REPLACE',recl=1024)
           do j = 1, ntod
              !write(65, '(i8,6(E15.6E3))') j, n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), ncorr2(j)
-             write(65, '(i8,7(E15.6E3))') j, d_prime(j), n_corr(j,i), ncorr2(j), sigma_0, ((d_prime(j)-n_corr(j,i))/sigma_0)**2, ((d_prime(j)-ncorr2(j))/sigma_0)**2, mask(j,i)
+             write(65, '(i8,7(E15.6E3))') j, d_prime(j), n_corr(j,i), (d_prime(j)-n_corr(j,i))/sigma_0, mask(j,i)
           end do
           close(65)
           !stop
@@ -280,7 +297,7 @@ contains
     real(dp),     allocatable, dimension(:) :: invNcorr, invM
     integer(i4b), allocatable, dimension(:) :: u
 
-    n_iter    = 15
+    n_iter    = 30
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
@@ -355,7 +372,7 @@ contains
        xp    = xp + alp*p
        rp    = rp - alp * Ad(u)
        r2new = sum(rp**2)
-       !write(*,*) 'CG ncorr -- ', k, r2new, sigma_bp
+       !if (scan == 12114) write(*,*) 'CG ncorr -- ', scan, det, k, r2new, sigma_bp
        if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           exit
@@ -473,24 +490,25 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0)
+  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0, dec_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
     type(planck_rng),                   intent(inout)  :: handle
     integer(i4b),                       intent(in)     :: scan
-    real(sp),         dimension(:,:),   intent(in)     :: mask, s_tot, n_corr
+    real(sp),         dimension(1:,1:), intent(in)     :: mask, s_tot, n_corr
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
+    integer(i4b),                       intent(in), optional :: dec_wn
 
     integer*8    :: plan_fwd
-    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
+    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2
     integer(i4b) :: ndet, outscan
     real(sp)     :: f
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=1024) :: filename
-    real(sp),     allocatable, dimension(:) :: dt, ps
+    real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
 
@@ -505,38 +523,56 @@ contains
     samprate = self%samprate
     n_gibbs  = 1
     threshold = 5.d0 ! Remove outliers
-    outscan   = 5013 !-1 !92
+    outscan   = 482 !92
 
 
     ! Sample sigma_0 from pairwise differenced TOD
+    ntod0 = ntod; if (present(dec_wn)) ntod0 = ntod/dec_wn-1
+    allocate(res0(ntod0), mask0(ntod0))
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
 
+       if (present(dec_wn)) then
+          do j = 1, ntod0
+             j1 = (j-1)*dec_wn+1
+             j2 =  j   *dec_wn
+             if (any(mask(j1:j2,i) < 0.5)) then
+                mask0(j) = 0.
+                res0(j)  = 1e30
+             else
+                mask0(j) = 1.
+                res0(j)  = sum(tod(j1:j2,i) - self%scans(scan)%d(i)%gain*s_tot(j1:j2,i) - n_corr(j1:j2,i)) / (j2-j1+1)
+             end if
+          end do
+       else
+          res0  = tod(:,i) - self%scans(scan)%d(i)%gain*s_tot(:,i) - n_corr(:,i)
+          mask0 = mask(:,i)
+       end if
+       
        ! Remove outliers
        s0 = 1d30
        do k = 1, 3
           !if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
           s    = 0.d0
           nval = 0
-
-          do j = 1, self%scans(scan)%ntod-1
-             if (any(mask(j:j+1,i) < 0.5)) cycle
-             res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
-                  & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
+          do j = 1, ntod0-1, 2
+             if (mask0(j) < 0.5 .or. mask0(j+1) < 0.5) cycle
+             res = (res0(j)-res0(j+1))/sqrt(2.)
              if (abs(res) > s0) cycle
-             !if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
+             if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
              s    = s    + res**2
              nval = nval + 1
           end do
           if (nval > 100) then
-             self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
-             s0 = threshold * sqrt(s/(nval-1))
+             self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+             s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
           else
              exit
           end if
           !if (self%scanid(scan) == outscan) close(58)
        end do
     end do
+    deallocate(res0, mask0)
 
     ! Exit if user only wants to estimate sigma0
     if (present(only_sigma0)) then
@@ -750,5 +786,27 @@ contains
 
   end subroutine multiply_inv_N
 
+
+  subroutine create_spin_freqmask(ntod, f_samp, f_spin, delta_f, f_max, freqmask)
+    implicit none
+    integer(i4b),                            intent(in)  :: ntod
+    real(sp),                                intent(in)  :: f_samp, f_spin, delta_f, f_max
+    real(sp),     allocatable, dimension(:), intent(out) :: freqmask
+
+    integer(i4b) :: i, j, n
+    real(dp)     :: f, df
+
+    n = ntod/2 + 1
+    allocate(freqmask(0:n-1))
+    freqmask = 1.
+    do i = 0, n-1
+       f = i*(f_samp/2)/(n-1)
+       if (f > f_max) return
+       f = modulo(f,f_samp)
+       if (f < delta_f .or. f > f_samp-delta_f) freqmask(i) = 0.
+    end do
+    
+  end subroutine create_spin_freqmask
+  
 
 end module comm_tod_noise_mod
