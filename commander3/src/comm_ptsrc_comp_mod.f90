@@ -284,7 +284,6 @@ contains
           if (c%F_null(i)) cycle
           ia = c%b2a(i)
           call get_dust_attenuation_pos(c%src(j)%vec, data(i)%bp(0)%p%nu_c, c%src(j)%T(ia)%A_ext)
-          if(cpar%myid == 0) write(*,*) j, i, c%src(j)%T(ia)%A_ext
        end do
     end do
     
@@ -2935,9 +2934,6 @@ n_gibbs=1
 
     if(self%precomputed_amps) return
 
-    nmaps = data(band)%info%nmaps
-    if(nmaps > 3) nmaps = 3
-
     if (present(band)) then
        nmaps = data(band)%info%nmaps
        if(nmaps > 3) nmaps = 3
@@ -2952,7 +2948,7 @@ n_gibbs=1
        do k = 1, numband
           if (self%F_null(k)) cycle
           ka = self%b2a(k)
-          nmaps = data(band)%info%nmaps
+          nmaps = data(k)%info%nmaps
           if(nmaps > 3) nmaps = 3
           do i = 1, nmaps
              do j = 0, data(k)%ndet

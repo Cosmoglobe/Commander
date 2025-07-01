@@ -305,7 +305,7 @@ contains
 
 
   subroutine init_scan_data_differential(sd, tod, scan, map_sky, map_gain, procmask, procmask2, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang_)
     implicit none
     class(comm_scandata),                      intent(inout)          :: sd    
     class(comm_tod),                           intent(inout)          :: tod
@@ -317,16 +317,23 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-    real(dp),                                  intent(in),   optional :: polang
+    real(dp),                                  intent(in),   optional :: polang_
 
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
+    real(dp) :: polang
     !
     ! Note that procmask should be larger, cover the residuals in the galactic
     ! plane, so that it is not used for calibration and correlated noise. 
     ! procmask2 should be smaller and be used only for mapmaking.
     !
+
+    if (present(polang_)) then
+      polang = polang_
+    else
+      polang = 0d0
+    endif
 
     call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 2) then
@@ -366,6 +373,7 @@ contains
     allocate(sd%pix(sd%ntod, 1, sd%nhorn))
     allocate(sd%psi(sd%ntod, 1, sd%nhorn))
     allocate(sd%flag(sd%ntod, 1))
+    allocate(sd%s_inst(sd%ntod, sd%ndet))
     if (init_s_sky_prop_)   allocate(sd%s_sky_prop(sd%ntod, sd%ndet, 2:sd%ndelta))
     if (init_s_bp_prop_)    allocate(sd%s_bp_prop(sd%ntod, sd%ndet, 2:sd%ndelta))
     if (init_s_sky_prop_)   allocate(sd%mask2(sd%ntod, sd%ndet))
@@ -482,10 +490,8 @@ contains
     if (tod%correct_sl) then
        do j = 1, sd%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !call tod%construct_sl_template(tod%slconv(1)%p, sd%pix(:,1,1), sd%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, sd%pix(:,1,2), sd%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(1)%p, sd%pix(:,1,1), sd%psi(:,1,1), s_bufA(:,j),  polang)
-          call tod%construct_sl_template(tod%slconv(3)%p, sd%pix(:,1,2), sd%psi(:,1,2), s_bufB(:,j), -polang)
+          call tod%construct_sl_template(tod%slconvA(1)%p, sd%pix(:,1,1), sd%psi(:,1,1), s_bufA(:,j),  polang)
+          call tod%construct_sl_template(tod%slconvB(3)%p, sd%pix(:,1,2), sd%psi(:,1,2), s_bufB(:,j), -polang)
           sd%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           sd%s_tot(:,j) = sd%s_tot(:,j) + sd%s_sl(:,j)
           sd%s_totA(:,j) = sd%s_totA(:,j) + s_bufA(:,j)
@@ -713,7 +719,7 @@ contains
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) then
-          write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
+          ! write(*,*) '  No accepted samples in scan = ', tod%scanid(i)
           cycle
        end if
        call wall_time(t1)
@@ -723,7 +729,11 @@ contains
        if (tod%nhorn == 1) then
           call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        else
-          call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
+         if (present(polang)) then
+          call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang_=polang)
+        else
+          call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2)
+        end if
        end if
        
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
@@ -999,6 +1009,7 @@ contains
    !  write(*, *) "s_bp:", sd%s_sky(:,1)
     call timer%start(TOD_MAPBIN, tod%band)
     nout = size(d_calib,1)
+    d_calib = 0d0
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain

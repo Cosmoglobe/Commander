@@ -1343,7 +1343,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -2567,14 +2567,21 @@ contains
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j, k
+    if (present(psi)) then
+       psi = 0
+    end if
     do i=1, self%nhorn
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
        end if
        if (present(psi)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i))
-          if (minval(psi) < 1) then
-            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+          if (minval(psi) .eq. 0) then
+            !write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            psi(:,i) = psi(:, i) + 1
+          end if
+          if (minval(psi) < 0) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', something is wrong'
             stop
           end if
           if (maxval(psi) > self%npsi) then
