@@ -162,8 +162,8 @@ contains
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
        ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
-       !if (self%scanid(scan) == 482 .and. i == 1) then
+       !if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
+       if (self%scanid(scan) == 482 .and. i == 1) then
           !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)

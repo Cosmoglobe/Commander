@@ -278,11 +278,11 @@ contains
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = .false. !iter  > 1 !.true.                 
+       sample_gain           = iter  > 1 !.true.                 
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter  > 0 !.true.
        select_data           = iter == 1 ! self%first_call  
-       sample_adc            = .false. !iter  > 1 !.true.
+       sample_adc            = iter  > 1 !.true.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -445,9 +445,9 @@ contains
        end if
 
        ! Sample ADC parameters
-       do i = 1, self%ndet
-          call self%sample_adc_and_baselines(handle, i, map_sky(:,:,i,1), procmask)
-       end do
+!!$       do i = 1, self%ndet
+!!$          call self%sample_adc_and_baselines(handle, i, map_sky(:,:,i,1), procmask)
+!!$       end do
     end if
 
     ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
@@ -465,7 +465,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false., nplus2=.true.)
+    call binmap%init(self, .true., .false., nplus2=.false.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
