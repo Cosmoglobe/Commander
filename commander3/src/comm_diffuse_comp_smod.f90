@@ -1339,7 +1339,8 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr(samp_group)%invM_diff)) return
+    !if (allocated(P_cr(samp_group)%invM_diff)) return
+    !RS commented out to allow the preconditioner to be recalculated after MCMC sampling
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1360,7 +1361,9 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    if (.not. allocated(P_cr(samp_group)%invM_diff)) then
+      allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    end if
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1392,7 +1395,9 @@ contains
           end do
 
           n = 0
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%comp2ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          end if
           P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
@@ -1402,8 +1407,12 @@ contains
              end if
           end do
           P_cr(samp_group)%invM_diff(i1,j)%n = n
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          end if
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%M0)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          end if 
           P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
           P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
@@ -1465,11 +1474,16 @@ contains
     logical(lgt), intent(in) :: force_update
 
     if (npre == 0) return
-    
     select case (trim(precond_type))
     case ("diagonal")
+       if (force_update) then
+         call initDiffPrecond_diagonal(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
+       if (force_update) then
+         call initDiffPrecond_pseudoinv(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
@@ -1493,6 +1507,10 @@ contains
     if (npre == 0) return
     if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
+   !  if (force_update) then
+
+   !  end if 
+
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
