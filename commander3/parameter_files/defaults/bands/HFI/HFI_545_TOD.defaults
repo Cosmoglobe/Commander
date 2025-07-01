@@ -71,3 +71,5 @@ N_GIBBS_PER_TOD&&&             = 1
 BAND_TOD_RIMO&&&               = HFI_instrument_v2.h5
 BAND_TOD_FILELIST&&&           = filelist_545_Artem_full_pointing_DPC.txt #filelist_545_Artem_full.txt
 
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned

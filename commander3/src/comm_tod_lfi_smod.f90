@@ -819,8 +819,8 @@ contains
        else
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-       sd%n_corr = 0.
-       sd%s_bp   = 0.
+       !sd%n_corr = 0.
+       !sd%s_bp   = 0.
 
 
        ! Compute noise spectrum parameters
