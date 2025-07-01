@@ -284,7 +284,6 @@ contains
           if (c%F_null(i)) cycle
           ia = c%b2a(i)
           call get_dust_attenuation_pos(c%src(j)%vec, data(i)%bp(0)%p%nu_c, c%src(j)%T(ia)%A_ext)
-          if(cpar%myid == 0) write(*,*) j, i, c%src(j)%T(ia)%A_ext
        end do
     end do
     
@@ -922,7 +921,7 @@ contains
             & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
           ! Read from precomputed file
           !if (self%myid == 0) write(*,*) 'a1'
-          call self%read_febecop_beam(cpar, tempfile, data(i)%instlabel, i)
+          call self%read_febecop_beam(cpar, tempfile, data(i)%label, i)
        else if (filename(n-2:n) == '.h5') then
           ! Read precomputed Febecop beam from HDF file
           !if (self%myid == 0) write(*,*) 'a2'
@@ -932,7 +931,7 @@ contains
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
              if (mod(j,10000) == 0 .and. self%myid == 0) &
-                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc
+                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc, 'for band', i
              self%src(j)%T(ia)%nside   = data(i)%info%nside
              self%src(j)%T(ia)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
              allocate(self%src(j)%T(ia)%F(self%src(j)%T(ia)%nmaps,0:data(i)%ndet))
@@ -940,6 +939,8 @@ contains
     
              if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
                 ! Build template internally from b_l
+                !write(*,*) "building template for source", j, "for band", i, self%src(j)%glon, self%src(j)%glat
+                
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(ia), bl=data(i)%B(0)%p%b_l)
              else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
@@ -1005,7 +1006,7 @@ contains
         if (.not. self%F_null(i)) then !band is included in ptsrcs
           found = .false.
           do j=1, size(band_list)
-            if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
+            if(trim(data(i)%label) == trim(band_list(j))) then ! band is in catalog
               star_catalog(self%b2a(i),:) = catalog(j,:)/ catalog(1,:)
               found = .true.
               !write(*,*) "Found band ", trim(data(i)%label), " at position ", j
@@ -1153,7 +1154,7 @@ contains
 
           ! Find number of pixels in beam
           write(itext,*) pix
-          if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
+          if (trim(label) /= 'none') itext = '/'//trim(label)//'/'//trim(adjustl(itext))
           call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
           m = ext(1)
           
@@ -1308,11 +1309,11 @@ contains
           if (self%F_null(i)) cycle
           ia = self%b2a(i)
           if (myid_pre == 0 .and. k == 1) &
-               & call create_hdf_group(file, trim(adjustl(data(i)%instlabel)))
+               & call create_hdf_group(file, trim(adjustl(data(i)%label)))
           nmaps = self%src(k)%T(ia)%nmaps
           call ang2pix_ring(data(i)%info%nside, 0.5d0*pi-self%src(k)%glat, self%src(k)%glon, p)
           write(itext,*) p
-          itext = trim(adjustl(data(i)%instlabel))//'/'//trim(adjustl(itext))
+          itext = trim(adjustl(data(i)%label))//'/'//trim(adjustl(itext))
           if (myid_pre == 0) then
              call h5eset_auto_f(0, hdferr)
              call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)

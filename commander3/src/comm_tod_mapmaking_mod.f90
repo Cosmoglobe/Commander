@@ -794,8 +794,8 @@ end subroutine bin_differential_TOD
                 ! T component
                 binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 1) = b_tot(k, p, i)*scale
                 ! Joint Q/U component copied into each map
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = b_tot(k, tod%ndet+1, i)
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = b_tot(k, tod%ndet+2, i)
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = b_tot(k, tod%ndet+1, i)*scale
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = b_tot(k, tod%ndet+2, i)*scale
               
             end do
          end do

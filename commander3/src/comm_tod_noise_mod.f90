@@ -564,8 +564,13 @@ contains
              nval = nval + 1
           end do
           if (nval > 100) then
+            if( present(dec_wn) )then
              self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
              s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+            else
+             self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+             s0 = threshold * sqrt(s/(nval-1))
+            end if
           else
              exit
           end if
