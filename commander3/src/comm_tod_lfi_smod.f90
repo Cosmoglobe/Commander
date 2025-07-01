@@ -672,13 +672,13 @@ contains
     call timer%start(TOD_ALLOC, self%band)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .false. !.not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0) .and. self%map_type /= 'nplus2'    ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   =      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
     
-    sample_rel_bandpass   = .false. !sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations .and. self%map_type /= 'nplus2'
     sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
