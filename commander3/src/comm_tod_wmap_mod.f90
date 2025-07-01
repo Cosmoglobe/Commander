@@ -125,7 +125,7 @@ contains
 
       constructor%n_xi            = 5
       constructor%noise_psd_model = 'oof_quad'
-      constructor%comp_S          = .false.
+      constructor%comp_S          = .true.
 
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))

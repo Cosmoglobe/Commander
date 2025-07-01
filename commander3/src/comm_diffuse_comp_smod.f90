@@ -247,10 +247,11 @@ contains
 
     ! Set up monopole prior
     self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
+
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
-       if(temp2(1:1) /= '/') then
+       if(temp_filename(1:1) /= '/') then
           if(trim(self%mono_prior_type) /= 'bandmono') then
             temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
           end if
