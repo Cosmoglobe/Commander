@@ -255,12 +255,14 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis ) then
+       if (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0) then
         ! First iteration should just be component separation, in case sky model
         ! is off
         call timer%start(TOT_TODPROC)
         call process_TOD(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
+      end if
      end if
 
      if (cpar%enable_tod_simulations) then
