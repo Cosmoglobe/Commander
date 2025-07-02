@@ -80,7 +80,7 @@ set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 # FFTW
 #------------------------------------------------------------------------------
 #set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
-set(fftw_url "http://fftw.org/fftw-3.3.9.tar.gz")
+set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
 #set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
 #------------------------------------------------------------------------------

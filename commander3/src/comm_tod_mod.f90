@@ -470,10 +470,13 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
-   end if
-   self%use_solar_point = self%subtract_zodi
-   self%use_moon_point  = .false.
-   self%use_earth_elon  = .false.
+    else
+      self%subtract_zodi = .false.
+      self%sample_zodi = .false.
+    end if
+    self%use_solar_point = self%subtract_zodi
+    self%use_moon_point  = .false.
+    self%use_earth_elon  = .false.
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -808,7 +811,8 @@ contains
    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
    character(len=100000)                         :: det_buf
    character(len=128), dimension(:), allocatable :: dets
-   
+
+  
     ! Read common fields
     allocate(self%polang(self%ndet))
     allocate(self%mbang(self%ndet))
@@ -1171,21 +1175,23 @@ contains
        end if
        deallocate(xi_n)
 
+
+
        ! Read Huffman coded data arrays
        if (nhorn == 2 .and. i == 1) then
-         ! For a single DA, this is redundant, so we are loading 4 times the
-         ! necessary pointing (and flags) information. Strictly speaking, this
-         ! would involve needing to have a self%pixA and self%pixB attribute for
-         ! WMAP only and not allocate self%d(i)%pix(j)
-         do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
-         end do
+           ! For a single DA, this is redundant, so we are loading 4 times the
+           ! necessary pointing (and flags) information. Strictly speaking, this
+           ! would involve needing to have a self%pixA and self%pixB attribute for
+           ! WMAP only and not allocate self%d(i)%pix(j)
+           do j = 1, nhorn 
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+           end do
        else if (nhorn .ne. 2) then
-         do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-         end do
+           do j = 1, nhorn
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+           end do
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
@@ -1782,21 +1788,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -1976,7 +1982,7 @@ contains
     real(dp)     :: psi_, unwrap, x0, x1
 
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: my_spline
 
     subsamp = 5
     !subsamp = 1
@@ -1993,10 +1999,10 @@ contains
        x_sl(j) = k
     end do
 
-    call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+    call spline_simple(my_spline, x_sl, sub_sl, regular=.true.)
 
     do j = 1, size(sub_sl)*subsamp  
-      s_sl(j) = splint_simple(spline, real(j, dp))
+      s_sl(j) = splint_simple(my_spline, real(j, dp))
     end do
 
     !do last few samples
@@ -2007,7 +2013,7 @@ contains
     end do
 
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(my_spline)
 
   end subroutine construct_sl_template
 
@@ -3327,7 +3333,7 @@ contains
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
-              if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
+              if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), count(cut(i:i) .eqv. .true.)
            end do
            
            ! Apply RMS selection criterium

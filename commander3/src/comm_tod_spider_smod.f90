@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_spider_mod) comm_tod_SPIDER_mod
+submodule (comm_tod_spider_mod) comm_tod_SPIDER_smod
 contains
  
    !**************************************************
@@ -840,5 +840,4 @@ contains
       close(unit)
     end subroutine write2file
  
- end submodule comm_tod_SPIDER_mod
- 
+ end submodule comm_tod_SPIDER_smod
