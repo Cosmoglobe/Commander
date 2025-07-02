@@ -70,12 +70,17 @@ contains
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-    c%xi_n_P_uni(2,:)  = [0.001d0, 5.0d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.4d0]   ! alpha
-    c%xi_n_nu_fit(1,:) = [3.d0, 10.d0] 
-    c%xi_n_nu_fit(2,:) = [0.001d0, 3d0]
-    c%xi_n_nu_fit(3,:) = [0.001d0, 3d0]
-    c%xi_n_P_rms       = [-1.d0, 0.1d0, -0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! fknee
+    c%xi_n_P_uni(2,:)  = [0.001d0, 4d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
+    !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
+    !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
+    c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
+    c%xi_n_nu_fit(2,:) = [0.001d0, 80d0]
+    c%xi_n_nu_fit(3,:) = [0.001d0, 80d0]
+    !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
+    !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
+    c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
     c%f_spin           = 1./60.                 ! Planck spin frequency in Hz
     
 
@@ -112,7 +117,7 @@ contains
     if (c%freq(1:3) == "100") then
        c%chisq_threshold  = 120.d0
        c%sigma0_threshold = 100.d0
-       c%accept_threshold = 0.5d0
+       c%accept_threshold = 0.8d0
        c%correct_sl       = .false.
     else
        c%chisq_threshold  = 100.d0 
@@ -273,7 +278,7 @@ contains
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
-       sample_ncorr          = iter  > 2 !.true.
+       sample_ncorr          = iter  > 12 !.true.
        select_data           = iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
@@ -390,6 +395,7 @@ contains
           call int2string(iter, itertext)
           call int2string(self%scanid(i), scantext)
           do j = 1, self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
              ! fill gaps and deconvolve rolloff
              call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
                             !& ps_output = 'init_' // itertext // '_' // scantext)

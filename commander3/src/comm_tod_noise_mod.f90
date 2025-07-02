@@ -161,35 +161,31 @@ contains
        ! Remove monopole if requested by user
        if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
 
-       ! Output power spectrum of signal-subtracted gap-filled TOD to disk
-       !if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
-       if (self%scanid(scan) == 482 .and. i == 1) then
-          !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
-          dt(1:ntod)           = d_prime(:)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          call int2string(self%scanid(scan), stext)
-          open(58,file='noise_psd'//stext//'.dat', recl=1024)
-          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
-          logbin = 1.05
-          j1     = 1
-          j2     = 2
-          do while (j2 < n-1)
-             ps_d = 0.d0; ps_s = 0.d0
-             do l = j1, j2
-                ps_d = ps_d + abs(dv(l))**2 / ntod
-                ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
-             end do
-             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
-             j1 = j2+1
-             j2 = j1*logbin + 1             
-          end do
-!!$          do l = 1, n-1
-!!$             ps(l) = abs(dv(l)) ** 2 / ntod
-!!$             write(58,*) l*(samprate/2)/(n-1), ps(l), self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+!!$       ! Output power spectrum of signal-subtracted gap-filled TOD to disk
+!!$       !if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
+!!$       if (self%scanid(scan) == 482 .and. i == 1) then
+!!$          !dt     = (tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i))*mask(:,i)
+!!$          dt(1:ntod)           = d_prime(:)
+!!$          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!!$          call int2string(self%scanid(scan), stext)
+!!$          open(58,file='noise_psd'//stext//'.dat', recl=1024)
+!!$          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
+!!$          logbin = 1.05
+!!$          j1     = 1
+!!$          j2     = 2
+!!$          do while (j2 < n-1)
+!!$             ps_d = 0.d0; ps_s = 0.d0
+!!$             do l = j1, j2
+!!$                ps_d = ps_d + abs(dv(l))**2 / ntod
+!!$                ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+!!$             end do
+!!$             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
+!!$             j1 = j2+1
+!!$             j2 = j1*logbin + 1             
 !!$          end do
-          close(58)
-       end if
+!!$          close(58)
+!!$       end if
        
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
@@ -504,9 +500,11 @@ contains
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2
     integer(i4b) :: ndet, outscan
-    real(sp)     :: f
-    real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
+    logical(lgt) :: only_sigma0_
+    real(sp)     :: f, logbin
+    real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
+    character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
@@ -521,11 +519,13 @@ contains
     nomp     = 1 !omp_get_max_threads()
     n        = ntod/2 + 1
     samprate = self%samprate
-    n_gibbs  = 1
+    n_gibbs  = 20
     threshold = 5.d0 ! Remove outliers
     outscan   = 482 !92
+    only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
 
+    if (only_sigma0_) then
     ! Sample sigma_0 from pairwise differenced TOD
     ntod0 = ntod; if (present(dec_wn)) ntod0 = ntod/dec_wn-1
     allocate(res0(ntod0), mask0(ntod0))
@@ -559,7 +559,7 @@ contains
              if (mask0(j) < 0.5 .or. mask0(j+1) < 0.5) cycle
              res = (res0(j)-res0(j+1))/sqrt(2.)
              if (abs(res) > s0) cycle
-             if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
+             !if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
              s    = s    + res**2
              nval = nval + 1
           end do
@@ -583,6 +583,7 @@ contains
     if (present(only_sigma0)) then
        if (only_sigma0) return
     end if
+    end if
     
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
@@ -597,21 +598,22 @@ contains
        if (.not. self%scans(scan)%d(i)%accept .or. ntod == 0) cycle
        currdet = i
 
-       ! Commpute power spectrum
+       ! Compute power spectrum
+       !dt     = n_corr(:,i)
+       dt     = tod(:,i) - self%scans(scan)%d(i)%gain * s_tot(:,i)
+       
+       call timer%start(TOT_FFT)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call timer%stop(TOT_FFT)
+       do l = 0, n-1
+          ps(l) = abs(dv(l)) ** 2 / ntod
+       end do
 
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
-          do j = 2, self%scans(scan)%d(i)%N_psd%npar
+          do j = 1, self%scans(scan)%d(i)%N_psd%npar
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
-             dt     = n_corr(:,i)
-
-             call timer%start(TOT_FFT)
-             call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-             call timer%stop(TOT_FFT)
-             do l = n_low, n_high
-                ps(l) = abs(dv(l)) ** 2 / ntod
-             end do
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
@@ -624,8 +626,30 @@ contains
              xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
+             !if (self%scanid(scan) == 482 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
           end do
        end do
+
+       if (self%scanid(scan) == 482 .and. i == 1) then
+          call int2string(self%scanid(scan), stext)
+          open(58,file='noise_psd'//stext//'.dat', recl=1024)
+          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
+          logbin = 1.05
+          j1     = 1
+          j2     = 2
+          do while (j2 < n-1)
+             ps_d = 0.d0; ps_s = 0.d0
+             do l = j1, j2
+                ps_d = ps_d + abs(dv(l))**2 / ntod
+                ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
+             end do
+             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
+             j1 = j2+1
+             j2 = j1*logbin + 1             
+          end do
+          close(58)
+       end if
+
     end do
     deallocate(dt, dv)
     deallocate(ps)
@@ -661,8 +685,8 @@ contains
             if (freqmask(l) == 0.) cycle
          end if
          f         = l*(samprate/2)/(n-1)
-         N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
-         !N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_full(f)
+         !N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
+         N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_full(f)
          if (N_corr .le. 0) then
            write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
          else
@@ -673,13 +697,13 @@ contains
       ! Add prior
       mu    = self%scans(scan)%d(currdet)%N_psd%P_active(currpar,1)
       sigma = self%scans(scan)%d(currdet)%N_psd%P_active(currpar,2)
-      if (self%scans(scan)%d(currdet)%N_psd%P_lognorm(currpar)) then 
-         ! Log-normal prior
-         lnL_xi_n = lnL_xi_n - 0.5d0 * (log(x) - log(mu))**2 / (sigma * log(10.d0))**2 - log(x)
-      else
-         ! Gaussian prior
-         lnL_xi_n = lnL_xi_n - 0.5d0 * (x - mu)**2 / sigma**2
-      end if
+!!$      if (self%scans(scan)%d(currdet)%N_psd%P_lognorm(currpar)) then 
+!!$         ! Log-normal prior
+!!$         lnL_xi_n = lnL_xi_n - 0.5d0 * (log(x) - log(mu))**2 / (sigma * log(10.d0))**2 - log(x)
+!!$      else
+!!$         ! Gaussian prior
+!!$         lnL_xi_n = lnL_xi_n - 0.5d0 * (x - mu)**2 / sigma**2
+!!$      end if
 
       ! Revert xi_n with old value
       self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
