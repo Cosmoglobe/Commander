@@ -1151,7 +1151,9 @@ contains
        else if (trim(tod%noise_psd_model) == 'oof') then
          self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          xi_n(2) =  0.2  ! fknee2 (Hz); arbitrary value
+          xi_n(3) = -2.000 ! alpha2; arbitrary value
+          xi_n(4) =  1.  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
@@ -1347,7 +1349,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -2078,7 +2080,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
-  subroutine apply_nonlin_corr_inst(self, scan, sd, det)
+  subroutine apply_nonlin_corr_inst(self, scan, sd, skip_nonlin, handle, det)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2086,10 +2088,12 @@ contains
     !  self: comm_tod object
     !
     implicit none
-    class(comm_tod),                       intent(in)       :: self
+    class(comm_tod),                       intent(inout)    :: self
     integer(i4b),                          intent(in)       :: scan
     class(comm_scandata),                  intent(inout)    :: sd
-    integer(i4b),                          intent(in), optional :: det
+    integer(i4b),                          intent(in)       :: skip_nonlin
+    type(planck_rng),                      intent(inout), optional :: handle
+    integer(i4b),                          intent(in),    optional :: det
 
     return
 
