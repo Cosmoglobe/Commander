@@ -294,26 +294,29 @@ contains
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
       !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      if (trim(self%freq(1:2)) == '10') then
+      if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
-         sample_ncorr = .false.
+         !sample_ncorr = .false.
       else
          sample_ncorr = .false.
       end if
 
+      if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06') then
+         sample_gain        =  iter > 1
+      else
+         sample_gain = .false.
+      end if
+      
       if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
         & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
         & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-         sample_gain        =  iter > 1
          !                     Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
          flag_threshold     = [1.0,    -20., -5.0,       -3.0, -2.0, -1.5,     1.0,      -0.30,     1.0]
       else
-         sample_gain        =  iter > 1
          !                     Pixhist    Extreme            RMS ranges     Single     Ranges   Pointing
          flag_threshold     = [1.0,    -50., -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
          !flag_threshold     = [-1.0, -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
       end if
-      sample_gain = .false.
 
       ! Initialize local variables
       ndelta          = size(delta,3)
