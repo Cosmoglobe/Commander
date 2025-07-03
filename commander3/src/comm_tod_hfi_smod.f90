@@ -70,9 +70,9 @@ contains
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! fknee
-    c%xi_n_P_uni(2,:)  = [0.001d0, 4d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Signa0
+    c%xi_n_P_uni(2,:)  = [0.001d0, 6d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.3d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
@@ -417,7 +417,7 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
     end do
-    
+
     ! Fit global timestream contaminants 
 
     ! Subtract cosmic ray contribution
@@ -475,10 +475,11 @@ contains
     ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
     do i = 1, self%nscan
        if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0, darkdata=.true.)
+       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0)
        call sample_hfi_baselines(sd, self, i, handle)
        call dealloc_scan_data(sd)
     end do
+
     
     ! Create pixel histograms
     if (self%first_call) then
@@ -521,7 +522,7 @@ contains
 !!$          end do
 !!$          close(58)
 !!$       end if
-       
+
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
@@ -618,6 +619,7 @@ contains
 
     end do
 
+    
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
@@ -641,6 +643,7 @@ contains
           end do
        end do
     end if
+
     
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
     if (make_dyn_mask) then
@@ -706,6 +709,7 @@ contains
 
     call update_status(status, "tod_end"//ctext)
 
+    
   end subroutine process_HFI_tod
 
 
