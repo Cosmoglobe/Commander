@@ -354,7 +354,6 @@ contains
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
       integer(i4b) :: ierr, ndelta, t_mid=53765
-      real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
@@ -632,6 +631,14 @@ contains
               & init_s_bp=.true.)
          end if
 
+         ! Make simulations or Sample correlated noise
+         if (self%enable_tod_simulations) then
+            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+         else
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+         end if
+
+
 
          ! Compute noise spectrum parameters
          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -740,7 +747,7 @@ contains
          ! Clean up
          call dealloc_scan_data(sd)
          call timer%start(TOD_ALLOC, self%band)
-         deallocate(s_buf, d_calib)
+         deallocate(d_calib)
          call timer%stop(TOD_ALLOC, self%band)
 
       end do
