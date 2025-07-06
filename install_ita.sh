@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" #"gnu"
+toolchain="gnu" #"oneapi" #"gnu"
 buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -244,7 +244,7 @@ then
 	  -DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	  -DUSE_SYSTEM_HDF5:BOOL=OFF \
 	  -DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	  -DUSE_SYSTEM_BLAS:BOOL=ON \
+	  -DUSE_SYSTEM_BLAS:BOOL=OFF \
 	  -S $comm3_root_dir -B $abs_path_to_build
   fi
 	#------------------------------------------------------------------------------
