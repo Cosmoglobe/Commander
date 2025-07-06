@@ -255,7 +255,7 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis ) then
+     if (cpar%enable_TOD_analysis ) then
        if (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0) then
         ! First iteration should just be component separation, in case sky model
         ! is off
