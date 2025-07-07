@@ -4104,11 +4104,16 @@ end subroutine read_zodi_params_hash
     character(len=2048), dimension(2) :: toks
 
 
-    call get_tokens(string, ":", toks, num)    
-    chainfile = toks(1)
-    read(toks(2),*, iostat=e) initsamp
-    if (e .ne. 0) then
-      write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+    call get_tokens(string, ":", toks, num)
+    if(num <= 1) then !no sample number appended to end, default to first sample
+      chainfile = string
+      initsamp = 1
+    else
+      chainfile = toks(1)
+      read(toks(2),*, iostat=e) initsamp    
+      if (e .ne. 0) then
+        write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+      end if
     end if
 
     if (index(chainfile, '.h5') == 0) then

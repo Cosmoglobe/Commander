@@ -377,7 +377,8 @@ program commander
             end if
         end do
      end if
-
+     ! Do CG group sampling
+     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk

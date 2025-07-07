@@ -162,6 +162,8 @@ contains
            write(*,*) '| MH step accepted'
            write(*,*) '| '
          end if
+         recompute_diffuse_precond = .true.
+        !  force_update = .true.
        end if
 
   end do
@@ -327,6 +329,8 @@ contains
            write(*,*) '| MH step accepted'
            write(*,*) '| '
          end if
+         recompute_diffuse_precond = .true.
+        !  force_update = .true.
        end if
 
 
@@ -717,6 +721,8 @@ contains
            write(*,*) '| MH step accepted'
            write(*,*) '| '
          end if
+         recompute_diffuse_precond = .true.
+        !  force_update = .true.
        end if
 
 

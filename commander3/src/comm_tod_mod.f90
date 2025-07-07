@@ -1151,7 +1151,9 @@ contains
        else if (trim(tod%noise_psd_model) == 'oof') then
          self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          xi_n(2) =  0.2  ! fknee2 (Hz); arbitrary value
+          xi_n(3) = -2.000 ! alpha2; arbitrary value
+          xi_n(4) =  1.  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
@@ -2583,14 +2585,21 @@ contains
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j, k
+    if (present(psi)) then
+       psi = 0
+    end if
     do i=1, self%nhorn
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
        end if
        if (present(psi)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i))
-          if (minval(psi) < 1) then
-            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+          if (minval(psi) .eq. 0) then
+            !write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            psi(:,i) = psi(:, i) + 1
+          end if
+          if (minval(psi) < 0) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', something is wrong'
             stop
           end if
           if (maxval(psi) > self%npsi) then

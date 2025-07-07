@@ -162,14 +162,15 @@ contains
       real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
 
 
+      s_skyA = 0.
+      s_skyB = 0.
+      tmask  = 0.
+      if (present(s_bpA) .and. present(s_bpB)) then
+         s_bpA = 0.
+         s_bpB = 0.
+      end if
+
       if (any(.not. tod%scans(scan_id)%d(:)%accept)) then
-         s_skyA = 0.
-         s_skyB = 0.
-         tmask  = 0.
-         if (present(s_bpA) .and. present(s_bpB)) then
-            s_bpA = 0.
-            s_bpB = 0.
-         end if
          return
       end if
 
