@@ -81,6 +81,11 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
+    
+    ! Splined PSD params
+    integer(i4b) :: nbin ! ADDED
+    real(sp)     :: dnu, threshold  ! ADDED
+    real(sp), allocatable, dimension(:,:) :: psd, binned_psd ! ADDED
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -190,7 +195,48 @@ contains
 !!$          end do
           close(58)
        end if
-       
+      
+
+       ! ADDED ============================
+       ! Splined PSD evaluation
+       if (self%noise_psd_model == 'spline') then
+          dt(1:ntod)           = d_prime(:)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
+          allocate(psd(n-1,2))
+          do l = 1, n-1
+             psd(l,1) = real(l*(samprate/2)/(n-1))
+             psd(l,2) = abs(dv(l)) ** 2 / ntod
+          end do
+
+          threshold = 5.d0 ! Hz
+          nbin = 10; dnu = 5.d0
+          binned_psd = bin_spec_loglin(psd(:,1),psd(:,2),nbin,dnu,threshold)
+
+          deallocate(psd)
+          call dfftw_destroy_plan(plan_fwd)
+          call dfftw_destroy_plan(plan_back)
+
+          select type(N_psd => self%scans(scan)%d(i)%N_psd)
+             type is (comm_noise_psd_spline)
+                call N_psd%update_spline(binned_psd(:,2),binned_psd(:,1))
+          end select
+  
+          if (self%scanid(scan) == 5000) then
+             open(58,file='splined_noise_psd.dat', recl=1024)
+             write(58,*) self%scans(scan)%d(i)%N_psd%sigma0
+             do l = 2, self%scans(scan)%d(i)%N_psd%npar
+                nu = self%scans(scan)%d(i)%N_psd%xi_n(l)
+                write(58,*) nu, self%scans(scan)%d(i)%N_psd%eval_full(nu)
+             end do
+             close(58)
+          end if
+       end if
+       ! ==================================
+
+ 
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)

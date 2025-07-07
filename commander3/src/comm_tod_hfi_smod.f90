@@ -387,14 +387,14 @@ contains
        call demodulate_tod(sd, self, i)
 
        if (.not. self%first_call) then
-          call int2string(iter, itertext)
-          call int2string(self%scanid(i), scantext)
           do j = 1, self%ndet
              ! fill gaps and deconvolve rolloff
              call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
                             !& ps_output = 'init_' // itertext // '_' // scantext)
-             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), nomono=.true.)!,&
-                                     !& ps_output = itertext // '_' // scantext)
+             call int2string(iter, itertext)
+             call int2string(self%scanid(i), scantext)
+             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), nomono=.true.,&
+                                     & ps_output = itertext // '_' // scantext)
           end do
        end if
 
@@ -481,7 +481,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false., nplus2=.true.)
+    call binmap%init(self, .true., .false.)!, nplus2=.true.) ! MODIFIED
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
