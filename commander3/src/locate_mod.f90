@@ -42,6 +42,10 @@ contains
     logical(lgt) :: ascnd
 
     n     = size(xx)
+    if (n == 0) then
+      locate_int = 0
+      return
+    end if
     ascnd = (xx(n) >= xx(1))
     jl    = 0
     ju    = n+1
