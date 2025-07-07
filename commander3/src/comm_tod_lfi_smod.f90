@@ -85,7 +85,7 @@ contains
        allocate(res%xi_n_P_uni(res%n_xi,2))
        allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
-       res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
+       res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d0, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
        do k = 1, res%n_xi
          res%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        end do
