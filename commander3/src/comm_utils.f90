@@ -610,7 +610,6 @@ contains
     integer(i4b) :: ierr
     real(dp)     :: prod
 
-    !write(*,*) sum(abs(x)), sum(abs(y))
     prod = dot_product(x,y)
     call mpi_allreduce(prod, mpi_dot_product, 1, MPI_DOUBLE_PRECISION, &
          & MPI_SUM, comm, ierr)

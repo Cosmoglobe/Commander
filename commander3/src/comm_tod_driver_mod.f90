@@ -1016,7 +1016,6 @@ contains
     integer(i4b)       :: mpi_err, errorcode !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
     integer(i4b)       :: omp_err !< OpenMP error status
-    integer(i4b) :: omp_get_max_threads
     integer(i4b) :: n, nfft
     integer*8    :: plan_back
     real(sp) :: nu
