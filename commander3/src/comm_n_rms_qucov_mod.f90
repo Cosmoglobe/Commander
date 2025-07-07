@@ -180,6 +180,9 @@ contains
        call report_error( "Regularization noise not yet supported for rms_QUcov")
     end if
 
+
+
+
     ! Initialize N
     if (present(noisefile)) then
        self%N_map     => comm_map(info, noisefile)
@@ -194,6 +197,7 @@ contains
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')
     end if
+
 
 
 
@@ -223,15 +227,6 @@ contains
     end if
 
 
-    ! Add white noise corresponding to the user-specified regularization noise map
-!!$    if (associated(self%rms_reg) .and. present(regnoise)) then
-!!$       write(*,*) 'Warning -- QUcov not accounted for in regnoise'
-!!$       do j = 1, size(regnoise,2)
-!!$          do i = 0, self%rms_reg%info%np-1
-!!$             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
-!!$          end do
-!!$       end do
-!!$    end if
     regnoise = 0d0
 
     ! Boost noise rms by 20 in processing mask; only for T
@@ -480,7 +475,7 @@ contains
     real(dp) :: A(2,2)
     logical(lgt)        :: pol
 
-    if (size(N%map, dim=2) .eq. 3) then
+    if (size(N%map, dim=2) .eq. 4) then
       pol = .true.
     else
       pol = .false.
@@ -514,8 +509,9 @@ contains
              siN(3,i) = A(2,2)    ! UU
              siN(4,i) = A(1,2)    ! QU = UQ
           else
-             iN(2:4,i)  = 0.d0
-             siN(2:4,i) = 0.d0
+             iN(2:4,i)  = NaN
+             siN(2:4,i) = NaN
+             write(*,*) "Warning: invalid QU covariance at pixel ", i
           end if
        end if
     end do
