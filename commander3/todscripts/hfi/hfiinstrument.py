@@ -46,7 +46,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 3
+    version = 4
 
     rimo = fits.open(args.rimo)
     
@@ -98,6 +98,8 @@ def main():
 
             #central frequency
             inst_file.add_field(prefix + '/centFreq', data=[hfi.cent_freqs[str(freq) + '-' + det]])
+
+            inst_file.add_field(prefix + '/polEff', data=[hfi.pol_effs[str(freq) + '-' + det]])
 
             print(prefix)
 

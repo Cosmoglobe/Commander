@@ -600,7 +600,7 @@ contains
 !!$       end if
 
        ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap, pol_eff=self%pol_eff)
 
        ! Update scan list
        call wall_time(t2)
@@ -707,6 +707,30 @@ contains
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_HFI_tod
+
+  module subroutine load_instrument_hfi(self, instfile, band)
+    !
+    ! Reads the HFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_HFI_tod
+    !    the HFI tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+
+    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
+
+  end subroutine load_instrument_hfi
 
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
