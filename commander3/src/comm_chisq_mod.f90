@@ -525,8 +525,9 @@ contains
              alm     = c%getBand(band, alm_out=.true., det=det, amp_in=cmbmap_band%alm)
           else
              alm     = c%getBand(band, alm_out=.true., det=det)
-          end if
+          end if          
           map_diff%alm = map_diff%alm + alm(:,1:nmaps)
+          
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then

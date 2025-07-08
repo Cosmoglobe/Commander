@@ -182,7 +182,6 @@ program commander
   call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
-  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
@@ -565,8 +564,11 @@ contains
 
        end do
 
-              !call s_sky(1,1)%p%writeFITS('sky.fits')
-
+!!$!       call compList%x%writeFITS("sig.fits")
+!!$       call s_sky(1,1)%p%writeFITS('sky.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
+       
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 

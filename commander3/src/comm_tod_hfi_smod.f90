@@ -119,6 +119,11 @@ contains
        c%sigma0_threshold = 100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .false.
+    else if (c%freq(1:3) == "353") then
+       c%chisq_threshold  = 1000.d0
+       c%sigma0_threshold = 1000.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .false.
     else
        c%chisq_threshold  = 100.d0 
        c%accept_threshold = 0.5d0
@@ -278,7 +283,7 @@ contains
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
-       sample_ncorr          = iter  > 12 !.true.
+       sample_ncorr          = .false. !iter  > 4 !.true.
        select_data           = iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
@@ -297,6 +302,8 @@ contains
     !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
     if (self%freq(1:3) == "100") then
        flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   -1.0,      -1.0,     -1.0]
+    else if (self%freq(1:3) == "353") then
+       flag_threshold     = [  1.0,       -200.0, -50.0,    -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
     else
        flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
     end if
@@ -337,6 +344,7 @@ contains
     deallocate(m_buf)
 
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+    !call map_in(2,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(2))//".fits")
     !call self%procmask%writeFITS("mask.fits")
     
     ! Precompute far sidelobe Conviqt structures
@@ -383,7 +391,7 @@ contains
        end if
 
        ! Estimate modulation baselines; and set modulation phase
-       if (self%first_call .and. trim(self%init_from_HDF) /= 'none') then
+       if (self%first_call .and. trim(self%init_from_HDF) == 'none') then
           call sample_hfi_baselines(sd, self, i, handle, subtract_s_tot=.false.)
           call set_modulation_phase(sd, self, i)
        else
@@ -391,6 +399,14 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
+       if (self%scanid(i) == 54) then
+          open(58,file="tod.dat")
+          do j = 1, sd%ntod
+             write(58,*) j, sd%tod(j,1)
+          end do
+          close(58)
+       end if
+       
        if (.not. self%first_call) then
           call int2string(iter, itertext)
           call int2string(self%scanid(i), scantext)
@@ -555,7 +571,10 @@ contains
           !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
           if (.not. self%first_call) then
-             call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask)
+             allocate(freqmask(0:sd%ntod/2))
+             freqmask = 1.
+             call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+             call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
              deallocate(freqmask)
           end if
@@ -828,18 +847,20 @@ contains
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
     
-    real(dp) :: mu, n
+    real(dp) :: mu1, mu2, n
     integer(i4b) :: i, j
     
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle       
        
-       mu = 0.d0; n = 0.d0
-       do j = 1, self%ntod, 2
-          if (iand(self%flag(j,i), tod%flag0) .ne. 0) cycle
+       mu1 = 0.d0; n = 0.d0
+       do j = 1, self%ntod-1, 2
+          if (iand(self%flag(j,  i), tod%flag0) .ne. 0) cycle
+          if (iand(self%flag(j+1,i), tod%flag0) .ne. 0) cycle
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
-             mu = mu + (self%tod(j,i)-tod%scans(scan)%d(i)%baseline1)
-             n  = n  + 1.d0
+             mu1 = mu1 + (self%tod(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
+                       & (self%tod(j+1,i)-tod%scans(scan)%d(i)%baseline2)
+             n   = n  + 1.d0
           end if
        end do
 
@@ -847,12 +868,12 @@ contains
           write(*,*) "set_modulation_phase: no samples crossing the galactic plane. Scan disabled = ", tod%scanid(scan)
           tod%scans(scan)%d(i)%accept = .false.
        else
-          mu = mu/n
-
-          ! saving the phase to the tod object
-          if (mu < 0.d0) then
-             tod%mod_phase(i,scan) = -1
-          end if
+          mu1 = mu1/n
+       end if
+       
+       ! saving the phase to the tod object
+       if (mu1 < 0.) then
+          tod%mod_phase(i,scan) = -1
        end if
     end do
 
@@ -1238,15 +1259,15 @@ contains
     
 
     ! Fill gaps and deconvolve high frequency rolloff
-    if (skip_nonlin > 2 .and. present(handle)) then
-       if (.not. self%first_call) then
-          do i = 1, self%ndet
-             if (.not. self%scans(scan)%d(i)%accept) cycle
-             call fill_gaps(self, sd%tod(:,i), handle, scan, i, sd%mask(:,i), sd%s_tot(:,i), sd%pix(:,:,1), nomono=.true.,filling='white')
-             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), nomono=.true.)
-          end do
-       end if
-    end if
+!!$    if (skip_nonlin > 2 .and. present(handle)) then
+!!$       if (.not. self%first_call) then
+!!$          do i = 1, self%ndet
+!!$             if (.not. self%scans(scan)%d(i)%accept) cycle
+!!$             call fill_gaps(self, sd%tod(:,i), handle, scan, i, sd%mask(:,i), sd%s_tot(:,i), sd%pix(:,:,1), nomono=.true.,filling='white')
+!!$             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), nomono=.true.)
+!!$          end do
+!!$       end if
+!!$    end if
 
 
   end subroutine apply_nonlin_corr_hfi

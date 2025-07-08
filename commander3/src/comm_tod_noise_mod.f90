@@ -819,18 +819,15 @@ contains
   end subroutine multiply_inv_N
 
 
-  subroutine create_spin_freqmask(ntod, f_samp, f_spin, delta_f, f_max, freqmask)
+  subroutine create_spin_freqmask(f_samp, f_spin, delta_f, f_max, freqmask)
     implicit none
-    integer(i4b),                            intent(in)  :: ntod
-    real(sp),                                intent(in)  :: f_samp, f_spin, delta_f, f_max
-    real(sp),     allocatable, dimension(:), intent(out) :: freqmask
+    real(sp),                    intent(in)    :: f_samp, f_spin, delta_f, f_max
+    real(sp),     dimension(0:), intent(inout) :: freqmask
 
     integer(i4b) :: i, j, n
     real(dp)     :: f, df
 
-    n = ntod/2 + 1
-    allocate(freqmask(0:n-1))
-    freqmask = 1.
+    n = size(freqmask)
     do i = 0, n-1
        f = i*(f_samp/2)/(n-1)
        if (f > f_max) return

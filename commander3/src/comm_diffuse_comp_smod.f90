@@ -123,7 +123,7 @@ contains
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
        call self%x%YtW
-
+       
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
@@ -139,7 +139,7 @@ contains
     if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
-          where (self%B_out%b_l(l,:) > 1d-6) 
+          where (self%B_out%b_l(l,:) > 1d-6)
              self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
           elsewhere
              self%x%alm(i,:) = 0.d0
@@ -2119,6 +2119,9 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
 
+    call m%Y()
+    call m%writeFITS("test1.fits")
+    
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
@@ -2131,9 +2134,13 @@ contains
           call m%YtW()
        end if
     end if
+    call m%Y()
+    call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
+    call m%Y()
+    call m%writeFITS("test3.fits")
        
     ! Return correct data product
     if (alm_out_) then
