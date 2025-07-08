@@ -359,11 +359,11 @@ contains
 
              ! Need to use unit_scale to make the relative contribution 
              ! of bands with different units comparable
-             uscale =  data(i)%bp(0)%p%unit_scale
+             ! uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                N => data(i)%N
+                ! N => data(i)%N
                 ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
                 ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))

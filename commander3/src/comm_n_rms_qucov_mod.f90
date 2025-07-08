@@ -130,9 +130,9 @@ contains
           constructor%N_low => comm_map(info_lowres)
           call constructor%N_map%udgrade(constructor%N_low)
           constructor%N_low%map = constructor%N_low%map / (constructor%nside/constructor%nside_chisq_lowres)**2
-          allocate(constructor%iN(4,0:info_smooth%np-1))
-          allocate(constructor%iN_low(4,0:info_smooth%np-1))
-          allocate(constructor%siN(4,0:info_smooth%np-1))
+          allocate(constructor%iN(0:info_smooth%np-1,4))
+          allocate(constructor%iN_low(0:info_smooth%np-1,4))
+          allocate(constructor%siN(0:info_smooth%np-1,4))
           call initialize_iN_siN(constructor%N_map, constructor%N_low, constructor%iN, constructor%siN, constructor%iN_low)
        end if
     end if
@@ -186,6 +186,8 @@ contains
     ! Initialize N
     if (present(noisefile)) then
        self%N_map     => comm_map(info, noisefile)
+       ! This tests whether the rms_qucov case agrees with the rms case.
+       !self%N_map%map(:,4) = 0d0
     else if (present(map)) then
        self%N_map => comm_map(info)
        if (map%info%nmaps == 3) then
@@ -247,9 +249,9 @@ contains
     self%N_low%map = self%N_low%map / (self%nside/self%nside_chisq_lowres)**2
 
     ! Compute invN and sqrt(invN); both are symmetric 
-    if (.not. allocated(self%iN))  allocate(self%iN(4,0:info%np-1))
-    if (.not. allocated(self%siN)) allocate(self%siN(4,0:info%np-1))
-    if (.not. allocated(self%iN_low)) allocate(self%iN_low(4,0:info%np-1))
+    if (.not. allocated(self%iN))  allocate(self%iN(0:info%np-1,4))
+    if (.not. allocated(self%siN)) allocate(self%siN(0:info%np-1,4))
+    if (.not. allocated(self%iN_low)) allocate(self%iN_low(0:info%np-1,4))
     call initialize_iN_siN(self%N_map, self%N_low, self%iN, self%siN, self%iN_low)
 
     ! Initialize preconditioner noise
@@ -260,7 +262,7 @@ contains
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info_pre)
        do i = 1, info_pre%nmaps
-          self%invN_diag%map(:,i) = self%iN(i,:)
+          self%invN_diag%map(:,i) = self%iN(:,i)
        end do
        call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
@@ -268,7 +270,7 @@ contains
        if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
        invW_tau     => comm_map(info_pre)
        do i = 1, info_pre%nmaps
-          invW_tau%map(:,i) = self%iN(i,:)
+          invW_tau%map(:,i) = self%iN(:,i)
        end do
        call invW_tau%Yt()
        call invW_tau%Y()
@@ -313,12 +315,12 @@ contains
        do i = 0, self%info%np-1
           buff_Q = map%map(i,2)
           buff_U = map%map(i,3)       
-          map%map(i,1) = self%iN(1,i) * map%map(i,1)
-          map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
-          map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
+          map%map(i,1) = self%iN(i,1) * map%map(i,1)
+          map%map(i,2) = self%iN(i,2) * buff_Q + self%iN(i,4) * buff_U
+          map%map(i,3) = self%iN(i,4) * buff_Q + self%iN(i,3) * buff_U
        end do
     else
-       map%map(:,1) = map%map(:,1) * self%iN(1,:)
+       map%map(:,1) = map%map(:,1) * self%iN(:,1)
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -338,12 +340,12 @@ contains
        do i = 0, self%N_low%info%np-1
           buff_Q = map%map(i,2)
           buff_U = map%map(i,3)       
-          map%map(i,1) = self%iN_low(1,i) * map%map(i,1)
-          map%map(i,2) = self%iN_low(2,i) * buff_Q + self%iN_low(4,i) * buff_U
-          map%map(i,3) = self%iN_low(4,i) * buff_Q + self%iN_low(3,i) * buff_U
+          map%map(i,1) = self%iN_low(i,1) * map%map(i,1)
+          map%map(i,2) = self%iN_low(i,2) * buff_Q + self%iN_low(i,4) * buff_U
+          map%map(i,3) = self%iN_low(i,4) * buff_Q + self%iN_low(i,3) * buff_U
        end do
    else
-       map%map(:,1) = self%iN_low(1,:)
+       map%map(:,1) = self%iN_low(:,1)
    end if
 !!$    if (present(samp_group)) then
 !!$       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -387,11 +389,11 @@ contains
     nmaps_band = size(self%siN, dim=2)
     nmaps_inp  = size(map%map, dim=2)
     nmaps      = min(nmaps_inp,nmaps_band)
-    map%map(:,1) = self%siN(1,:) * map%map(:,1)
     if (self%pol) then
        do i = 0, self%info%np-1
           buff_Q = map%map(i,2)
           buff_U = map%map(i,3)       
+          map%map(i,1) = self%siN(i,1) * map%map(i,1)
           map%map(i,2) = self%siN(i,2) * buff_Q + self%siN(i,4) * buff_U
           map%map(i,3) = self%siN(i,4) * buff_Q + self%siN(i,3) * buff_U
        end do
@@ -406,7 +408,7 @@ contains
 
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
-          map%map(:,1) = map%map(:,1) * self%samp_group_mask(samp_group)%p%map(:,1)
+          map%map(:,:nmaps) = map%map(:,:nmaps) * self%samp_group_mask(samp_group)%p%map(:,:nmaps)
           map%map(:,nmaps+1:nmaps_inp) = 0.d0
        end if
     end if
@@ -479,9 +481,9 @@ contains
     implicit none
     class(comm_map),                   intent(in)    :: N
     class(comm_map),                   intent(in)    :: N_low
-    real(dp),        dimension(1:,0:), intent(inout) :: iN
-    real(dp),        dimension(1:,0:), intent(inout) :: siN
-    real(dp),        dimension(1:,0:), intent(inout) :: iN_low
+    real(dp),        dimension(0:,1:), intent(inout) :: iN
+    real(dp),        dimension(0:,1:), intent(inout) :: siN
+    real(dp),        dimension(0:,1:), intent(inout) :: iN_low
 
     integer(i4b) :: i
     real(dp) :: A(2,2)
@@ -496,8 +498,8 @@ contains
     do i = 0, N%info%np-1
        ! T component
        if (N%map(i,1) > 0.) then
-          iN(1,i)  = 1.d0 / N%map(i,1)
-          siN(1,i) = sqrt(iN(1,i))
+          iN(i,1)  = 1.d0 / N%map(i,1)
+          siN(i,1) = sqrt(iN(i,1))
        else
           iN(1,i)  = 0.d0
           siN(1,i) = 0.d0
@@ -512,17 +514,17 @@ contains
              A(2,2)  = N%map(i,3) ! UU
 
              call compute_hermitian_root(A, -1.d0)
-             iN(2,i)  = A(1,1)    ! QQ
-             iN(3,i)  = A(2,2)    ! UU
-             iN(4,i)  = A(1,2)    ! QU = UQ
+             iN(i,2)  = A(1,1)    ! QQ
+             iN(i,3)  = A(2,2)    ! UU
+             iN(i,4)  = A(1,2)    ! QU = UQ
 
              call compute_hermitian_root(A, 0.5d0)
-             siN(2,i) = A(1,1)    ! QQ
-             siN(3,i) = A(2,2)    ! UU
-             siN(4,i) = A(1,2)    ! QU = UQ
+             siN(i,2) = A(1,1)    ! QQ
+             siN(i,3) = A(2,2)    ! UU
+             siN(i,4) = A(1,2)    ! QU = UQ
           else
-             iN(2:4,i)  = NaN
-             siN(2:4,i) = NaN
+             iN(i,2:4)  = NaN
+             siN(i,2:4) = NaN
              write(*,*) "Warning: invalid QU covariance at pixel ", i
           end if
        end if
@@ -531,9 +533,9 @@ contains
     do i = 0, N_low%info%np-1
        ! T component
        if (N_low%map(i,1) > 0.) then
-          iN_low(1,i)  = 1.d0 / N_low%map(i,1)
+          iN_low(i,1)  = 1.d0 / N_low%map(i,1)
        else
-          iN_low(1,i)  = 0.d0
+          iN_low(i,1)  = 0.d0
        end if
 
        if (pol) then
@@ -545,11 +547,11 @@ contains
              A(2,2)  = N_low%map(i,3) ! UU
 
              call compute_hermitian_root(A, -1.d0)
-             iN_low(2,i)  = A(1,1)    ! QQ
-             iN_low(3,i)  = A(2,2)    ! UU
-             iN_low(4,i)  = A(1,2)    ! QU = UQ
+             iN_low(i,2)  = A(1,1)    ! QQ
+             iN_low(i,3)  = A(2,2)    ! UU
+             iN_low(i,4)  = A(1,2)    ! QU = UQ
           else
-             iN_low(2:4,i)  = 0.d0
+             iN_low(i,2:4)  = 0.d0
           end if
        end if
     end do

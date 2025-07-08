@@ -572,11 +572,11 @@ contains
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN'
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN', i
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN'
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN', i
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN2'
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN2', i
 !!$       call map%dealloc()
 !!$
 !!$       map => compute_residual(i, cg_samp_group=samp_group) 
