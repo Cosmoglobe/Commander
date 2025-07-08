@@ -432,12 +432,12 @@ contains
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
-!       if (out .and. dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
-!         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-!       else if (dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
-!       end if
+       !if (out .and. dA > 0.d0) then
+       !   write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
+       !  !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+       !else if (dA > 0.d0) then
+       !   write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
+       !end if
     end do
 
     deallocate(residual, r_fill)

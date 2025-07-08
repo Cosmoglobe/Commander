@@ -167,6 +167,7 @@ then
 		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
     #module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+    #module load intel/oneapi compiler/2025.2.0 mpi/2021.16  mkl/2025.2
     module load intel/oneapi compiler/latest mpi/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
@@ -244,7 +245,7 @@ then
 	  -DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	  -DUSE_SYSTEM_HDF5:BOOL=OFF \
 	  -DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	  -DUSE_SYSTEM_BLAS:BOOL=OFF \
+	  -DUSE_SYSTEM_BLAS:BOOL=ON \
 	  -S $comm3_root_dir -B $abs_path_to_build
   fi
 	#------------------------------------------------------------------------------

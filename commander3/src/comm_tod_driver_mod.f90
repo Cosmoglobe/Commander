@@ -644,10 +644,11 @@ contains
 
 
     do i = 1, tod%nscan
+       if (tod%myid == 0) write(*,*) ' On scan ', i, ' out of ', tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
-       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
+       ! if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
        if (tod%nhorn == 1) then
           call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
@@ -655,7 +656,7 @@ contains
           call sd%init_differential(tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
 
-       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
+       ! if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
        call tod%downsample_tod(sd%s_orb(:,1), ext)
@@ -691,12 +692,14 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
-       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampel tod'!(mode)
+       ! if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampel tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
+          !if (tod%myid == 0) write(*,*) '|    -->  Inside this loop'
           do j = 1, tod%ndet
+             !if (tod%myid == 0) write(*,*) '|    -->  Inside this loop on det ', j
              if (.not. tod%scans(i)%d(j)%accept) cycle
              if (trim(mode) == 'abscal') then
                 if (trim(tod%abscal_comps) == 'orbital') then
@@ -714,6 +717,7 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
+          ! if (tod%myid == 0) write(*,*) '|    -->About to accumu'
           call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
        else
@@ -727,7 +731,7 @@ contains
        end if
        call timer%stop(timer_id, tod%band)
 
-       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Passed another loop'!(mode)
+       ! if (tod%myid == 0) write(*,*) '|    --> Passed another loop'!(mode)
        ! Clean up
        call wall_time(t2)
        tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1

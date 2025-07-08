@@ -73,9 +73,11 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
 #set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
+#set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
+set(blas_url "https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.26/OpenBLAS-0.3.26.tar.gz")
 #set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
-set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
+#set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
+set(blas_md5 "bd496a1c81769ed19a161c1f8f904ccd")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
