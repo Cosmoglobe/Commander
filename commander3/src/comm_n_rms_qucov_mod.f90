@@ -383,11 +383,23 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
-    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps, i
     nmaps_band = size(self%siN, dim=2)
     nmaps_inp  = size(map%map, dim=2)
     nmaps      = min(nmaps_inp,nmaps_band)
     map%map(:,1) = self%siN(1,:) * map%map(:,1)
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,2) = self%siN(i,2) * buff_Q + self%siN(i,4) * buff_U
+          map%map(i,3) = self%siN(i,4) * buff_Q + self%siN(i,3) * buff_U
+       end do
+    else
+       do i = 0, self%info%np-1
+          map%map(i,1) = self%siN(i,1) * map%map(i,1)
+       end do
+    end if
     if (nmaps_inp > nmaps_band) then
       map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
