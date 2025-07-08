@@ -774,6 +774,8 @@ contains
          self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
          call self%mbeam(i)%p%Y()
        end if
+
+       call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)

@@ -220,7 +220,7 @@ contains
 
        ! polarization efficiency
        eff = 1.d0
-       if(present(pol_eff)) eff = pol_eff(det)
+       if(present(pol_eff)) eff = pol_eff(det)/100.d0
 
        do t = 1, size(pix,1)
           

@@ -158,6 +158,8 @@ contains
     ! Construct lookup tables
     call c%precompute_lookups()
 
+    allocate(c%pol_eff(c%ndet))
+
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
