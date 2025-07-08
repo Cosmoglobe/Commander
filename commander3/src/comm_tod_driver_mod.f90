@@ -644,7 +644,6 @@ contains
 
 
     do i = 1, tod%nscan
-       if (tod%myid == 0) write(*,*) ' On scan ', i, ' out of ', tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
