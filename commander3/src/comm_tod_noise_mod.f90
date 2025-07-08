@@ -246,7 +246,7 @@ contains
           !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
        end if
 
-       if (.true. .and. mod(self%scanid(scan),1000) == 1) then
+       if (.false. .and. mod(self%scanid(scan),1000) == 1) then
        !if (.true. .and. self%scanid(scan) == 5013) then
        !if (.false.) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
@@ -505,6 +505,7 @@ contains
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=6) :: stext
+    character(len=2) :: dtext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
@@ -519,7 +520,7 @@ contains
     nomp     = 1 !omp_get_max_threads()
     n        = ntod/2 + 1
     samprate = self%samprate
-    n_gibbs  = 20
+    n_gibbs  = 3
     threshold = 5.d0 ! Remove outliers
     outscan   = 482 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
@@ -612,6 +613,7 @@ contains
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
+             !write(*,*) "psd", k, j
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
@@ -630,9 +632,10 @@ contains
           end do
        end do
 
-       if (self%scanid(scan) == 482 .and. i == 1) then
+       if (mod(self%scanid(scan),1000) == 0) then
           call int2string(self%scanid(scan), stext)
-          open(58,file='noise_psd'//stext//'.dat', recl=1024)
+          call int2string(i, dtext)
+          open(58,file='noise_psd_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
           j1     = 1
@@ -816,18 +819,15 @@ contains
   end subroutine multiply_inv_N
 
 
-  subroutine create_spin_freqmask(ntod, f_samp, f_spin, delta_f, f_max, freqmask)
+  subroutine create_spin_freqmask(f_samp, f_spin, delta_f, f_max, freqmask)
     implicit none
-    integer(i4b),                            intent(in)  :: ntod
-    real(sp),                                intent(in)  :: f_samp, f_spin, delta_f, f_max
-    real(sp),     allocatable, dimension(:), intent(out) :: freqmask
+    real(sp),                    intent(in)    :: f_samp, f_spin, delta_f, f_max
+    real(sp),     dimension(0:), intent(inout) :: freqmask
 
     integer(i4b) :: i, j, n
     real(dp)     :: f, df
 
-    n = ntod/2 + 1
-    allocate(freqmask(0:n-1))
-    freqmask = 1.
+    n = size(freqmask)
     do i = 0, n-1
        f = i*(f_samp/2)/(n-1)
        if (f > f_max) return
