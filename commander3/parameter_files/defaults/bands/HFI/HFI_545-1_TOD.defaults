@@ -19,7 +19,7 @@ BAND_BANDPASS_TYPE&&&          = HFI_cmb
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
 BAND_NOMINAL_FREQ&&&           = 545
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = HFI_instrument_v2.h5
+BAND_BANDPASSFILE&&&           = HFI_instrument_v4.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0.1
@@ -66,12 +66,12 @@ BAND_REG_NOISEFILE&&&          = npipe6v20_545_wcov.fits
 BAND_NOISE_RMS&&&_SMOOTH01     = npipe6v20_545_wcov.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = npipe6v20_545_wcov.fits
 BAND_NOISE_RMS&&&_SMOOTH03     = npipe6v20_545_wcov.fits
-BAND_BANDPASSFILE&&&           = HFI_instrument_v2.h5
+BAND_BANDPASSFILE&&&           = HFI_instrument_v4.h5
 
 BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_545-1_n2048_mask.fits
 BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_545-1_n2048_mask.fits
 N_GIBBS_PER_TOD&&&             = 1
-BAND_TOD_RIMO&&&               = HFI_instrument_v2.h5
+BAND_TOD_RIMO&&&               = HFI_instrument_v4.h5
 BAND_TOD_FILELIST&&&           = filelist_545_Artem_full_pointing_DPC.txt #filelist_545_Artem_full.txt
 
 BAND_TOD_ZODI_SUBTRACTION&&&   = .true. 
