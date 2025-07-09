@@ -145,7 +145,6 @@ contains
 
     integer(i4b) :: solver, error, phase, msglvl
 
-#ifdef USE_INTEL
     ! Initialize PARDISO solver
     solver     =  10  ! use sparse direct method
     call pardisoinit(self%pt, self%mtype, self%iparm)
@@ -175,7 +174,6 @@ contains
        write(*,*) 'pardiso factorization error: ', error
        stop
     end if
-#endif
     
   end subroutine sparse_system_decomp
   
@@ -190,7 +188,6 @@ contains
     ! Solve system
     self%iparm(8)  = 1   ! direct solution
     phase       = 33  ! only solve
-#ifdef USE_INTEL
     CALL pardiso (self%pt, self%maxfct, self%mnum, self%mtype, phase, self%n, self%a(1:self%nj), self%ia(1:self%ni+1), self%ja(1:self%nj), &
          & self%idum, self%nrhs, self%iparm, 0, self%b, self%x, error) 
     if (error /= 0) THEN
@@ -199,7 +196,6 @@ contains
     else
        x = self%x
     end if
-#endif
 
   end subroutine sparse_system_solve
 
@@ -209,7 +205,6 @@ contains
 
     integer(i4b) :: phase, error
 
-#ifdef USE_INTEL
     
     ! Clean up pardiso
     phase     = -1   ! deallocate pardiso memory
@@ -223,7 +218,6 @@ contains
     self%n  = 0
     self%ni = 0
     self%nj = 0
-#endif
     
   end subroutine sparse_system_dealloc
 
