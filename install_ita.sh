@@ -21,7 +21,7 @@ owl2930="$prefix+(29|30)+$suffix"
 owl3135="$prefix+(3[1-5])+$suffix"
 owl3637="$prefix+(3[6-7])+$suffix"
 owl38="$prefix+(38)+$suffix"
-owl4246="$prefix+(4[2-6])+$suffix"
+owl4046="$prefix+(4[0-6])+$suffix"
 # Using regex to figure out which beehive I am on.
 prefix="beehive"
 bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
@@ -97,7 +97,7 @@ then
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
-    build_dir="build_owl4246_${toolchain}_${buildtype}"
+    build_dir="build_owl4046_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
     build_dir="build_owl38_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
