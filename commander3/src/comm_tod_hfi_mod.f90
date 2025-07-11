@@ -46,10 +46,12 @@ module comm_tod_hfi_mod
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
+     real(sp), allocatable, dimension(:) :: pol_eff ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
      procedure     :: read_scan_inst          => read_scan_inst_hfi
+     procedure     :: load_instrument_inst    => load_instrument_hfi
      procedure     :: initHDF_inst            => initHDF_hfi
      procedure     :: dumpToHDF_inst          => dumpToHDF_hfi
      procedure     :: construct_corrtemp_inst => construct_corrtemp_hfi
@@ -154,6 +156,27 @@ interface
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
   end subroutine process_hfi_tod
+
+  module subroutine load_instrument_hfi(self, instfile, band)
+    !
+    ! Reads the HFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_HFI_tod
+    !    the HFI tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_hfi
 
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)

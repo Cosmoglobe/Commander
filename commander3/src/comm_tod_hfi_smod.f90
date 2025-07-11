@@ -70,9 +70,9 @@ contains
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! fknee
-    c%xi_n_P_uni(2,:)  = [0.001d0, 4d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Signa0
+    c%xi_n_P_uni(2,:)  = [0.001d0, 6d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.3d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
@@ -124,6 +124,11 @@ contains
        c%sigma0_threshold = 100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .false.
+    else if (c%freq(1:3) == "353") then
+       c%chisq_threshold  = 1000.d0
+       c%sigma0_threshold = 1000.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .false.
     else
        c%chisq_threshold  = 100.d0 
        c%accept_threshold = 0.5d0
@@ -162,6 +167,8 @@ contains
 
     ! Construct lookup tables
     call c%precompute_lookups()
+
+    allocate(c%pol_eff(c%ndet))
 
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -283,7 +290,7 @@ contains
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
-       sample_ncorr          = iter  > 0! MODIFIED 12 !.true.
+       sample_ncorr          = .false. !iter  > 4 !.true.
        select_data           = iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
@@ -302,6 +309,8 @@ contains
     !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
     if (self%freq(1:3) == "100") then
        flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   -1.0,      -1.0,     -1.0]
+    else if (self%freq(1:3) == "353") then
+       flag_threshold     = [  1.0,       -200.0, -50.0,    -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
     else
        flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
     end if
@@ -342,6 +351,7 @@ contains
     deallocate(m_buf)
 
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+    !call map_in(2,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(2))//".fits")
     !call self%procmask%writeFITS("mask.fits")
     
     ! Precompute far sidelobe Conviqt structures
@@ -388,14 +398,14 @@ contains
        end if
 
        ! Estimate modulation baselines; and set modulation phase
-       if (self%first_call .and. trim(self%init_from_HDF) /= 'none') then
+       if (self%first_call .and. trim(self%init_from_HDF) == 'none') then
           call sample_hfi_baselines(sd, self, i, handle, subtract_s_tot=.false.)
           call set_modulation_phase(sd, self, i)
        else
           call sample_hfi_baselines(sd, self, i, handle)
        end if
-!       call demodulate_tod(sd, self, i)
-!
+       call demodulate_tod(sd, self, i)
+
 !       if (.not. self%first_call) then
 !          do j = 1, self%ndet
 !             if (.not. self%scans(i)%d(j)%accept) cycle
@@ -426,7 +436,7 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
     end do
-    
+
     ! Fit global timestream contaminants 
 
     ! Subtract cosmic ray contribution
@@ -484,10 +494,11 @@ contains
     ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
     do i = 1, self%nscan
        if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0, darkdata=.true.)
+       call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0)
        call sample_hfi_baselines(sd, self, i, handle)
        call dealloc_scan_data(sd)
     end do
+
     
     ! Create pixel histograms
     if (self%first_call) then
@@ -530,7 +541,7 @@ contains
 !!$          end do
 !!$          close(58)
 !!$       end if
-       
+
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
@@ -563,7 +574,10 @@ contains
           !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
           if (.not. self%first_call) then
-             call create_spin_freqmask(sd%ntod, real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask)
+             allocate(freqmask(0:sd%ntod/2))
+             freqmask = 1.
+             call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+             call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
              deallocate(freqmask)
           end if
@@ -609,7 +623,7 @@ contains
 !!$       end if
 
        ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap, pol_eff=self%pol_eff)
 
        ! Update scan list
        call wall_time(t2)
@@ -627,6 +641,7 @@ contains
 
     end do
 
+    
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
@@ -650,6 +665,7 @@ contains
           end do
        end do
     end if
+
     
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
     if (make_dyn_mask) then
@@ -715,7 +731,32 @@ contains
 
     call update_status(status, "tod_end"//ctext)
 
+    
   end subroutine process_HFI_tod
+
+  module subroutine load_instrument_hfi(self, instfile, band)
+    !
+    ! Reads the HFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_HFI_tod
+    !    the HFI tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+
+    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
+
+  end subroutine load_instrument_hfi
 
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
@@ -833,18 +874,20 @@ contains
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
     
-    real(dp) :: mu, n
+    real(dp) :: mu1, mu2, n
     integer(i4b) :: i, j
     
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle       
        
-       mu = 0.d0; n = 0.d0
-       do j = 1, self%ntod, 2
-          if (iand(self%flag(j,i), tod%flag0) .ne. 0) cycle
+       mu1 = 0.d0; n = 0.d0
+       do j = 1, self%ntod-1, 2
+          if (iand(self%flag(j,  i), tod%flag0) .ne. 0) cycle
+          if (iand(self%flag(j+1,i), tod%flag0) .ne. 0) cycle
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
-             mu = mu + (self%tod(j,i)-tod%scans(scan)%d(i)%baseline1)
-             n  = n  + 1.d0
+             mu1 = mu1 + (self%tod(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
+                       & (self%tod(j+1,i)-tod%scans(scan)%d(i)%baseline2)
+             n   = n  + 1.d0
           end if
        end do
 
@@ -852,12 +895,12 @@ contains
           write(*,*) "set_modulation_phase: no samples crossing the galactic plane. Scan disabled = ", tod%scanid(scan)
           tod%scans(scan)%d(i)%accept = .false.
        else
-          mu = mu/n
-
-          ! saving the phase to the tod object
-          if (mu < 0.d0) then
-             tod%mod_phase(i,scan) = -1
-          end if
+          mu1 = mu1/n
+       end if
+       
+       ! saving the phase to the tod object
+       if (mu1 < 0.) then
+          tod%mod_phase(i,scan) = -1
        end if
     end do
 
@@ -1252,7 +1295,7 @@ contains
 !          end do
 !       end if
 !    end if
-
+    
 
   end subroutine apply_nonlin_corr_hfi
 

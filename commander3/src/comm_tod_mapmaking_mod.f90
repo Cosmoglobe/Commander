@@ -173,7 +173,7 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine bin_TOD(tod, scan, pix, psi, flag, data, binmap)
+  subroutine bin_TOD(tod, scan, pix, psi, flag, data, binmap, pol_eff)
     !        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
     ! Routine to bin time ordered data
     ! Assumes white noise after correctiom from correlated noise and calibrated data
@@ -205,16 +205,23 @@ contains
     integer(i4b),        dimension(1:,1:),       intent(in)    :: pix, psi, flag
     real(sp),            dimension(1:,1:,1:),    intent(in)    :: data
     type(comm_binmap),                           intent(inout) :: binmap
+    real(sp),            dimension(:),           intent(in), optional :: pol_eff
 
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
-    real(dp)     :: inv_sigmasq
-    nout = size(data,1) 
+    real(dp)     :: inv_sigmasq, eff
+    nout = size(data,1)
+ 
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = tod%output_n_maps + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
+
+       ! polarization efficiency
+       eff = 1.d0
+       if(present(pol_eff)) eff = pol_eff(det)/100.d0
+
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
@@ -227,13 +234,13 @@ contains
           end if
           if(tod%nmaps > 1) then
             if((.not. binmap%solve_nplus2) .or. det == 1) then
-              binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq
-              binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
+              binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq * eff
+              binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq * eff
             end if
   
-            binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq
-            binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
-            binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
+            binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq * eff**2
+            binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq * eff**2
+            binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq * eff**2
             !binmap%A_map(1,pix_) = binmap%A_map(8,pix_) + 1.d0
           end if 
 
@@ -245,16 +252,16 @@ contains
                binmap%b_map(i,det+2,pix_) = binmap%b_map(i,det+2,pix_) + data(i,t,det)              * inv_sigmasq
             end if
              if(tod%nmaps > 1) then
-               binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq
-               binmap%b_map(i,3,pix_) = binmap%b_map(i,3,pix_) + data(i,t,det) * tod%sin2psi(psi_) * inv_sigmasq
+               binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq * eff
+               binmap%b_map(i,3,pix_) = binmap%b_map(i,3,pix_) + data(i,t,det) * tod%sin2psi(psi_) * inv_sigmasq * eff
              end if
           end do
           
           if (binmap%solve_S .and. det < tod%ndet) then
              binmap%A_map(off+1,pix_) = binmap%A_map(off+1,pix_) + 1.d0               * inv_sigmasq 
              if(tod%nmaps > 1) then
-               binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
-               binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
+               binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq * eff
+               binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq * eff
                binmap%A_map(off+4,pix_) = binmap%A_map(off+4,pix_) + 1.d0               * inv_sigmasq
              end if 
             do i = 1, nout
@@ -262,8 +269,8 @@ contains
              end do
           else if(binmap%solve_nplus2 .and. det > 1) then
             binmap%A_map(off+1,pix_) = binmap%A_map(off+1,pix_) + 1.d0 *inv_sigmasq
-            binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
-            binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
+            binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq * eff
+            binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq * eff
          end if
 
 !        if(pix_ == 1 .and. det==2) then
