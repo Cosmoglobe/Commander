@@ -58,7 +58,7 @@ contains
     logical(lgt),                              intent(in),   optional :: darkdata
 
     integer(i4b) :: i, j, k, ndelta, skip_nonlin_
-    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, darkdata_, skip_zodi_
+    logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_, darkdata_, skip_zodi_, duplicate
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -218,12 +218,12 @@ contains
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
-       if (skip_zodi_) then
-          sd%s_zodi = 0.
-       else
+       sd%s_zodi = 0.
+       if (.not. skip_zodi_) then
           call timer%start(TOD_ZODI, tod%band)
-          if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Computing zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
+          !if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Computing zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
           do j = 1, sd%ndet
+             if (.not. tod%scans(scan)%d(j)%accept) cycle
              call get_s_tot_zodi(zodi_model, tod, j, scan, sd%s_zodi(:, j), pix_dynamic=sd%pix(:,j,:))
 !!$          if (tod%myid == 0) then
 !!$             open(58,file='zodi.dat')
@@ -1168,7 +1168,7 @@ contains
                 if (threshold(l) <= 0.) cycle
                 do i = 1, tod%nscan_tot
                    if (stat(i,j,0) <= 0. .or. .not. accept(i,j)) cycle
-                   mu = 0.0; n = 0
+                   mu = 0.0; sigma = 0.0; n = 0
                    do k = max(i-iter*window,1), max(i-(iter-1)*window-1,1)
                       if (stat(k,j,0) == 0.) cycle
                       mu    = mu    + stat(k,j,l)
@@ -1321,20 +1321,20 @@ contains
        !if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
-       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)          
-       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
-       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
+       if (tod%output_n_maps > 5 .and. allocated(sd%s_sl))   d_calib(6,:,j) = sd%s_sl(:,j)          
+       if (tod%output_n_maps > 6 .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
+       if (tod%output_n_maps > 7 .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        if (tod%output_n_maps > 8) then
           do i = 1, zodi_model%n_comps
              call get_s_tot_zodi(zodi_model, tod, j, scan, d_calib(8+i,:,j), pix_dynamic=sd%pix(:,j,:), exclude_static='all', comp=i)
          end do
        end if
       !  Bandpass proposals
-      if(tod%n_bp_prop > 1) then
+       !if(tod%n_bp_prop > 1) then
        do i = 1, nout-tod%output_n_maps
           d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
        end do
-      end if
+      !end if
 
     end do
 

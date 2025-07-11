@@ -448,7 +448,11 @@ contains
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
 
-    ndelta      = cpar%num_bp_prop + 1
+    if (iter > 1) then
+       ndelta      = cpar%num_bp_prop + 1
+    else
+       ndelta = 1
+    end if
 
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
@@ -500,12 +504,13 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                     !  write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
+                      !write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
                       do j = 1, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
                       end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
+                      !write(*,*) "delta", l, k, delta(0:ndet,l,k)
                    else
                       !write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant

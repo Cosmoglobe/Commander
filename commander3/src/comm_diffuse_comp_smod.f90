@@ -54,7 +54,7 @@ contains
     character(len=512), dimension(1000) :: tokens
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
-    logical(lgt) :: exist
+    logical(lgt) :: exist, match
     type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud, info_tempfit
     class(comm_map), pointer :: indmask, mask_ud
     
@@ -226,31 +226,43 @@ contains
     self%ndet = maxval(data%ndet)
     allocate(self%F(numband,0:self%ndet), self%F_mean(numband,0:self%ndet,self%nmaps), self%F_null(numband,0:self%ndet))
     self%F_mean = 0.d0
+    self%F_null = .false.
+
+    ! Check if component is broadband. If not, only include
     do i = 1, numband
-       info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
-            & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-       do j = 0, data(i)%ndet
-          if (j<=1) then
-            self%F(i,j)%p    => comm_map(info)
-            self%F_null(i,j) =  .false.
-          else
-            do k=1, j-1
-             if(size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0)) then
-              if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
-                  self%F(i,j)%p => self%F(i,k)%p
-                  self%F_null(i,j) =  .false.
-                  exit
-              end if
-             end if
-             if (k==j-1) then !if we got through the whole loop above
-               self%F(i,j)%p    => comm_map(info)
-               self%F_null(i,j) =  .false.
-             end if
-            end do
-          end if
-          if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
-       end do
+       if (data(i)%comp_sens /= "broadband") then
+          self%F_null(i,:) = (trim(adjustl(data(i)%comp_sens)) /= trim(adjustl(self%label)))
+       end if
     end do
+
+    ! Allocate mixing matrix for components with non-zero lmax_ind_mix
+    if (any(self%lmax_ind_mix(1:self%nmaps,:) /= 0)) then
+       do i = 1, numband
+          if (all(self%F_null(i,:))) cycle
+          info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
+               & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
+          do j = 0, data(i)%ndet
+             if (j<=1) then
+                self%F(i,j)%p    => comm_map(info)
+                self%F_null(i,j) =  .false.
+             else
+                do k=1, j
+                   match = (size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0))
+                   if (match) match = all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)
+                   if (match) then
+                      self%F(i,j)%p => self%F(i,k)%p
+                      self%F_null(i,j) =  .false.
+                      exit
+                   else if (k==j-1) then
+                      self%F(i,j)%p    => comm_map(info)
+                      self%F_null(i,j) =  .false.
+                   end if
+                end do
+             end if
+          end do
+       end do       
+    end if
+    
     call update_status(status, "init_postmix")
 
 
@@ -1802,7 +1814,7 @@ contains
 
     integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2, A_ext
-    logical(lgt) :: precomp, mixmatnull, bad ! NEW
+    logical(lgt) :: precomp, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer, buff2
@@ -1935,9 +1947,45 @@ contains
 
        do l = 0, data(i)%ndet
           
-          ! Don't update null mixing matrices
           if (self%F_null(i,l)) then
+             ! Don't update null mixing matrices
              if (present(df)) df(i)%p%map = 0.d0
+             cycle
+          else if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps),:) == 0)) then
+             ! Update only F_mean if lmax_ind_mix = 0
+
+             ! Temperature
+             if (self%npar > 0) then
+                self%F_mean(i,l,1) = self%F_int(1,i,l)%p%eval(theta_p(0,1,:)) * data(i)%gain * self%cg_scale(1)
+             else
+                self%F_mean(i,l,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+             end if
+             
+             ! Polarization
+             if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
+                ! Stokes Q
+                if (self%npar == 0 .or. all(self%poltype < 2)) then
+                   self%F_mean(i,l,2) = self%F_mean(i,l,1)
+                else
+                   if (self%npar > 0) then
+                      self%F_mean(i,l,2) = self%F_int(2,i,l)%p%eval(theta_p(0,2,:)) * data(i)%gain * self%cg_scale(2)
+                   else
+                      self%F_mean(i,l,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
+                   end if
+                end if
+                
+                ! Stokes U
+                if (self%npar == 0 .or. all(self%poltype < 3)) then
+                   self%F_mean(i,l,3) = self%F_mean(i,l,2) 
+                else
+                   if (self%npar > 0) then
+                      self%F_mean(i,l,3) = self%F_int(3,i,l)%p%eval(theta_p(0,3,:)) * data(i)%gain * self%cg_scale(3)
+                   else
+                      self%F_mean(i,l,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
+                   end if
+                end if
+             end if
+             
              cycle
           end if
           
@@ -1961,58 +2009,21 @@ contains
                 A_ext = 1.d0
              end if
 
-             
-!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
-!             cycle
-!          end if
-
-             ! NEW ! Check band sensitivity before mixing matrix update
-             ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
-             if (data(i)%comp_sens == "broadband") then
-               ! If broadband, calculate mixing matrix
-                mixmatnull = .false.
-             else
-                ! If component sensitivity, only calculate mixmat on that component.
-                mixmatnull = .true.
-                If (data(i)%comp_sens == self%label) then
-                   mixmatnull = .false.
-                end if
-             end if
-             
              ! Temperature
-             if (.not. only_pol) then
-                if (self%npar > 0) then
-                   if (mixmatnull) then
-                      self%F(i,l)%p%map(j,1) = 0.0
-                   else
-                      if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
-                         write(*,*) 'dust beta and T can not be null, crashing'
-                         write(*,*) i, l, j, real(theta_p(j,1,:),sp)
-                         stop !debug, replace by proper stop and error message
-                      end if
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
-                      !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
-                   end if
-                else
-                   if (mixmatnull) then 
-                      self%F(i,l)%p%map(j,1) = 0.0
-                   else
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
-                   end if
-                end if
+             if (self%npar > 0) then
+                self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
+             else
+                self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
              end if
              
              ! Polarization
              if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
                 ! Stokes Q
                 if (self%npar == 0) then
-                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
+                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) * A_ext
                 else if (all(self%poltype < 2)) then
-                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
+                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) * A_ext
                 else
-                   if (trim(self%label) == 'dust' .and. any(theta_p(j,2,:)==0.d0)) then
-                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
-                   end if
                    if (self%npar > 0) then
                       self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
                    else
@@ -2022,13 +2033,10 @@ contains
                 
                 ! Stokes U
                 if (self%npar == 0) then
-                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) * A_ext
                 else if (all(self%poltype < 3)) then
-                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2)  * A_ext
                 else
-                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
-                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
-                   end if
                    if (self%npar > 0) then
                       self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
                    else
@@ -2119,8 +2127,8 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
 
-    call m%Y()
-    call m%writeFITS("test1.fits")
+!!$    call m%Y()
+!!$    call m%writeFITS("test1.fits")
     
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -2134,13 +2142,13 @@ contains
           call m%YtW()
        end if
     end if
-    call m%Y()
-    call m%writeFITS("test2.fits")
+!!$    call m%Y()
+!!$    call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-    call m%Y()
-    call m%writeFITS("test3.fits")
+!!$    call m%Y()
+!!$    call m%writeFITS("test3.fits")
        
     ! Return correct data product
     if (alm_out_) then

@@ -112,7 +112,8 @@ contains
     pol_beam          = .true.
     c%nside_beam      = 512
     c%nside_pixhist   = 64
-
+    c%sol_elong_range = cpar%zs_sol_elong
+    
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
        c%chisq_threshold  = 120.d0
@@ -158,12 +159,10 @@ contains
     call c%read_tod(c%label)
     
     ! Initialize bandpass mean and proposal matrix
-    !call c%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call c%precompute_lookups()
-
-    allocate(c%pol_eff(c%ndet))
 
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -253,13 +252,13 @@ contains
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, dec_wn
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
-    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask
+    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext, itertext
-    character(len=512)  :: prefix, postfix, prefix4D, filename
+    character(len=512)  :: prefix, postfix, prefix4D, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0, freqmask
@@ -279,6 +278,7 @@ contains
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter  > 0 !.true.
+       sample_xi_n      = .false.
        select_data           = iter == 1
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
@@ -286,15 +286,17 @@ contains
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
        sample_ncorr          = .false. !iter  > 4 !.true.
+       sample_xi_n           = .false.
        select_data           = iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
        sample_gain           = iter  > 1 !.true.                 
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
+       sample_ncorr          = .false. ! iter  > 0 !.true.
+       sample_xi_n           = .false.
        select_data           = iter == 1 ! self%first_call  
-       sample_adc            = iter  > 1 !.true.
+       sample_adc            = .false. !iter  > 1 !.true.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -313,7 +315,7 @@ contains
     
     ! Initialize local variables
     ndelta          = size(delta,3)
-    self%n_bp_prop  = ndelta
+    self%n_bp_prop  = ndelta-1
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
@@ -401,14 +403,6 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
-       if (self%scanid(i) == 54) then
-          open(58,file="tod.dat")
-          do j = 1, sd%ntod
-             write(58,*) j, sd%tod(j,1)
-          end do
-          close(58)
-       end if
-       
        if (.not. self%first_call) then
           call int2string(iter, itertext)
           call int2string(self%scanid(i), scantext)
@@ -506,7 +500,8 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false., nplus2=.false.)
+    !call binmap%init(self, .true., .false., nplus2=.false.)
+    call binmap%init(self, .true., sample_rel_bandpass, nplus2=.false.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -572,13 +567,15 @@ contains
        if (sample_ncorr) then
           !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
-          if (.not. self%first_call) then
+          if (sample_xi_n) then
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, freqmask=freqmask, dec_wn=dec_wn)
              deallocate(freqmask)
+          else
+             call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true., dec_wn=dec_wn)
           end if
        else
           sd%n_corr = 0.d0
@@ -606,10 +603,10 @@ contains
        end if
 
        ! Compute chisquare for bandpass fit
-       !if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
+       if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
        ! Compute calibrated TOD for mapmaking
-       allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
+       allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
@@ -622,8 +619,8 @@ contains
 !!$       end if
 
        ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap, pol_eff=self%pol_eff)
-
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       
        ! Update scan list
        call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -640,7 +637,6 @@ contains
 
     end do
 
-    
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
@@ -680,8 +676,9 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         !call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
-         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+          !call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
+          Sfilename = trim(prefix) // 'Smap'// trim(postfix)
+          call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, Sfilename=Sfilename, mask=procmask2)
        else
          call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2, correct_transfer=.true.)
        end if
@@ -707,13 +704,13 @@ contains
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
     if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-!!$    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-!!$    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-!!$    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
-!!$       do i = 1, zodi_model%n_comps
-!!$          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
-!!$       end do
-!!$    endif
+    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+       do i = 1, zodi_model%n_comps
+          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+       end do
+    endif
 
     ! Clean up
     call binmap%dealloc()
@@ -754,6 +751,7 @@ contains
     integer(i4b),                        intent(in)    :: band
 
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
+    self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
 
   end subroutine load_instrument_hfi
 
@@ -1106,7 +1104,8 @@ contains
        ! Read ADC tables
        if (self%adu_range(1,1) > 0) then
           allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
-          call read_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+          ! HKE -- commenting out for now
+          !call read_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
        end if
     end if
 

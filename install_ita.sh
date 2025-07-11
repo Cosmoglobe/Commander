@@ -96,7 +96,7 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
-  elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl4046 ]]; then
     build_dir="build_owl4046_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
     build_dir="build_owl38_${toolchain}_${buildtype}"

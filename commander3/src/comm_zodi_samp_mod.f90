@@ -108,9 +108,11 @@ contains
     end function get_chisq_priors
 
     ! Downsamples pointing, tod and caches the zodi mask (sky mask + flags)
-    subroutine downsamp_invariant_structs(cpar)
+    subroutine downsamp_invariant_structs(cpar)!, map_sky, procmask)
       implicit none
       type(comm_params), intent(in) :: cpar
+      !real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+      !real(sp),            dimension(0:),           intent(in)    :: procmask
 
       integer(i4b) :: i, j, k, kp, l, g, scan, nside, npix, nmaps, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth, thin, ntod_lowres
       real(dp) :: dt_tod, theta, phi, vec0(3), vec1(3), M_ecl2gal(3,3), day, lambda_solar, lat, lon
@@ -121,10 +123,11 @@ contains
       logical(lgt), allocatable, dimension(:) :: downsamp_mask_idx
       real(sp), allocatable, dimension(:) :: downsamp_mask, downsamp_tod, downsamp_obs_time, obs_time
       real(sp), allocatable, dimension(:) :: procmask_zodi
-      logical(sp), allocatable, dimension(:) :: mask
+      logical(lgt), allocatable, dimension(:) :: mask
       type(hdf_file) :: tod_file
       character(len=4) :: scan_str
       type(comm_detscan), pointer :: d
+      class(comm_scandata), pointer :: sd
 
       if (cpar%myid == cpar%root) print *, "downsampling tod and pointing"
       ! For each zodi band, create downsampled residual time stream
@@ -160,9 +163,18 @@ contains
                allocate(d%downsamp_pix_full(ntod_lowres))
                allocate(d%downsamp_tod_full(ntod_lowres))
                allocate(d%downsamp_obs_time_full(ntod_lowres))
+               allocate(mask(ntod_lowres))
+
+!!$               ! Get decompressed data
+!!$               if (data(i)%tod%nhorn == 1) then
+!!$                  call init_scan_data_singlehorn_singledet(sd, data(i)%tod, j, scan, map_sky(:,:,j,1), procmask, skip_zodi=.true.)
+!!$               else
+!!$                  write(*,*) 'Multihorn TODs not yet supported in zodi_samp_mod'
+!!$                  stop
+!!$               end if
                
                ! Get downsampled pixel, mask and obstime
-               allocate(pix(ntod,nhorn), psi(ntod,nhorn), flag(ntod), mask(ntod))
+               allocate(pix(ntod,nhorn), psi(ntod,nhorn), flag(ntod))
                call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
                do k = 1, ntod_lowres
                   kp                          = (k-1)*thin + 1
@@ -185,12 +197,30 @@ contains
                   d%downsamp_tod_full(k) = tod(kp) - data(i)%tod%scans(scan)%d(j)%gain * s_static(kp)
                end do
                deallocate(tod, s_static)
+               !call dealloc_scan_data(sd)
 
+!!$               open(58,file="debug1.txt")
+!!$               do k = 1, ntod_lowres
+!!$                  kp = (k-1)*thin + 1
+!!$                  write(58,*) k, kp, d%downsamp_pix_full(k), d%downsamp_obs_time_full(k), d%downsamp_tod_full(k), mask(k)
+!!$               end do
+!!$               close(58)
+
+               
                ! Remove masked samples
                ntod_lowres = count(mask)
                d%downsamp_pix_full      = pack(d%downsamp_pix_full, mask)
                d%downsamp_tod_full      = pack(d%downsamp_tod_full, mask)
                d%downsamp_obs_time_full = pack(d%downsamp_obs_time_full, mask)
+
+
+!!$               open(58,file="debug2.txt")
+!!$               do k = 1, ntod_lowres
+!!$                  kp = (k-1)*thin + 1
+!!$                  write(58,*) k, kp, d%downsamp_pix_full(k), d%downsamp_obs_time_full(k), d%downsamp_tod_full(k)
+!!$               end do
+!!$               close(58)
+
                deallocate(mask)
 
                ! write timestreams to files
@@ -206,7 +236,11 @@ contains
                ! Allocate other downsampled quantities with same shape
                allocate(d%downsamp_point_full(ntod_lowres,5))
                do k = 1, ntod_lowres
+                  if (d%downsamp_pix_full(k)<0 .or. d%downsamp_pix_full(k)> 12*nside**2-1) then
+                     write(*,*) 'a', data(i)%tod%scanid(scan), j, nside, k, ntod_lowres, d%downsamp_pix_full(k), d%downsamp_tod_full(k), d%downsamp_obs_time_full(k)
+                  end if
                   call pix2ang_ring(nside, d%downsamp_pix_full(k), lat, lon)
+                  !write(*,*) 'b'
                   lon = lon * 180.d0/pi
                   if (lon > 180.d0) lon = lon - 360.d0
                   lat = 90.d0 - lat * 180.d0/pi
@@ -229,6 +263,8 @@ contains
 
          deallocate (m_buf, procmask_zodi)
       end do
+
+write(*,*) 'done downsamp'
     end subroutine downsamp_invariant_structs
    
 
@@ -243,7 +279,8 @@ contains
       real(dp) :: rotation_matrix(3, 3)
 
       call ecl_to_gal_rot_mat(rotation_matrix)
-
+write(*,*) 'pre1'
+      
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
@@ -284,6 +321,7 @@ contains
             pix_low = data(i)%tod%udgrade_pix_zodi(pix_high)
             if (data(i)%tod%pix2ind_lowres(pix_low) == 0) then
                data(i)%tod%pix2ind_lowres(pix_low) = j
+               write(*,*) zodi_nside, pix_low
                call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
             end if
             j =  j + 1
@@ -298,7 +336,9 @@ contains
          end do   
          deallocate(ind2vec_zodi_temp, pix2ind_highres, ind2pix_highres)
       end do
-   end subroutine
+
+write(*,*) 'pre2'
+    end subroutine precompute_lowres_zodi_lookups
 
    subroutine project_and_downsamp_sky(cpar)
      implicit none

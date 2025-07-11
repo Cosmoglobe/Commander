@@ -169,6 +169,8 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:,:)   :: polang_prior
         ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
+     real(sp), allocatable, dimension(:)     :: pol_eff                                     ! Polarization efficiency (ndet)
+
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
@@ -746,7 +748,9 @@ contains
     allocate(self%elip(self%ndet))
     allocate(self%psi_ell(self%ndet))
     allocate(self%nu_c(self%ndet))
-
+    allocate(self%pol_eff(self%ndet))
+    self%pol_eff = 1.0 ! Default to 1
+    
     allocate(self%slbeam(self%ndet))
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
@@ -1079,7 +1083,8 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
-   
+
+    ! HKE: This code needs to be fixed. time_end is not optional, and time should be a 3-element array with MJD in the first position
     call get_size_hdf(file, slabel // "/common/time", setsize)
 
     if(setsize(1) == 3) then
@@ -1099,7 +1104,7 @@ contains
        end if
      else
        self%t1 = 0
-     end if
+    end if
 
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
@@ -1109,6 +1114,14 @@ contains
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
+    ! HKE: Hack to make HFI zodi run. Must be removed after HFI files are fixed:
+    self%t0(1) = scan/24.
+    self%t1(1) = (scan+0.99999)/24.
+    self%x1_obs = self%x0_obs
+    self%x1_earth = self%x0_earth
+    !write(*,*) "scan", scan, self%t0(1), self%t1(1)
+
+    
     if (hdf_group_exists(file, slabel // "/common/time_len")) then
         ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
         ! Can be generalized, but for now assumes that each location has the same time array.
@@ -1739,6 +1752,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'MJD',    mjds)
        if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       call write_hdf(chainfile, trim(adjustl(path))//'polEff', self%pol_eff)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
@@ -3166,6 +3180,15 @@ contains
       call mpi_allreduce(MPI_IN_PLACE, x0_earth, size(x0_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
       call mpi_allreduce(MPI_IN_PLACE, x1_earth, size(x1_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
+!!$      if (self%myid == 0) then
+!!$         do i = 1, self%nscan_tot
+!!$            write(*,*) i, t0(i), t1(i)
+!!$         end do
+!!$      end if
+!!$
+!!$      call mpi_finalize(ierr)
+!!$      stop
+      
       ! filter out non zero values
       t0_packed = pack(t0, t0 /= 0.)
       t1_packed = pack(t1, t1 /= 0.)

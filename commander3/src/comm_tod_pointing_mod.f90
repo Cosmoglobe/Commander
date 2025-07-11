@@ -42,7 +42,7 @@ contains
       real(sp),     dimension(:),        intent(out)            :: s_sky, tmask
 
       integer(i4b)                                      :: i, j, k, p, nmap
-      real(sp)                                          :: s
+      real(sp)                                          :: s, eff
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
@@ -55,6 +55,7 @@ contains
          return
       end if
 
+      eff = tod%pol_eff(det)
       do i = 1, tod%scans(scan_id)%ntod
          p = tod%pix2ind(pix(i))
          if (nmap == 3) then
@@ -62,7 +63,7 @@ contains
                write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i)
                cycle
             end if
-            s_sky(i) = map(1,p) + map(2,p) * tod%cos2psi(psi(i)) + map(3,p) * tod%sin2psi(psi(i))
+            s_sky(i) = map(1,p) + eff*(map(2,p) * tod%cos2psi(psi(i)) + map(3,p) * tod%sin2psi(psi(i)))
          else if (nmap == 1) then
             s_sky(i) = map(1,p)  ! Unpolarized channel
          end if
@@ -85,7 +86,7 @@ contains
       real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
 
       integer(i4b)                                      :: i, j, k, p, det, nmap
-      real(sp)                                          :: s
+      real(sp)                                          :: s, eff
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
@@ -98,6 +99,8 @@ contains
             tmask(:, det) = 0.
             cycle
          end if
+         
+         eff = tod%pol_eff(det)
          do i = 1, tod%scans(scan_id)%ntod
             p = tod%pix2ind(pix(i,det))
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
@@ -107,9 +110,9 @@ contains
                   write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i, det)
                   cycle
                 end if
-                s_sky(i,det) = map(1,p,det) + &
-                         & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
-                         & map(3,p,det) * tod%sin2psi(psi(i,det))
+                s_sky(i,det) = map(1,p,det) + eff * &
+                         & (map(2,p,det) * tod%cos2psi(psi(i,det)) + &
+                         &  map(3,p,det) * tod%sin2psi(psi(i,det)))
             else if (nmap == 1) then
                 s_sky(i,det) = map(1,p,det)  ! Unpolarized channel
             end if 
@@ -126,12 +129,14 @@ contains
                s_bp(:,det) = 0.
                cycle
             end if
+
+            eff = tod%pol_eff(det)
             do i = 1, tod%scans(scan_id)%ntod
                p = tod%pix2ind(pix(i,det))
                if (nmap == 3) then
-                   s = map(1,p,0) + &
-                      & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
-                      & map(3,p,0) * tod%sin2psi(psi(i,det))
+                   s = map(1,p,0) + eff * &
+                      & (map(2,p,0) * tod%cos2psi(psi(i,det)) + &
+                      &  map(3,p,0) * tod%sin2psi(psi(i,det)))
                else if (nmap == 1) then
                    s = map(1,p,0)
                end if

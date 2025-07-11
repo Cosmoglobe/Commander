@@ -46,7 +46,6 @@ module comm_tod_hfi_mod
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
-     real(sp), allocatable, dimension(:) :: pol_eff ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
