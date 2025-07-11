@@ -459,7 +459,7 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle, ps_output)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -474,10 +474,12 @@ interface
     !        detector id
     ! s_sub: real(sp) array
     !        sky signal template
-    ! mask:  real(sp) array
-    !        mask
-    ! nomono: logical
-    !         option to remove monopole
+    ! mask: real(sp) array
+    !       mask array
+    ! flag:  integer array
+    !        quality flags
+    ! handle: planck_rng
+    !         rng handle
     ! ps_output: string
     !            filename to output corrected power spectrum
     implicit none
@@ -485,8 +487,9 @@ interface
     real(sp),                   dimension(1:), intent(inout) :: tod
     integer(i4b),                              intent(in)    :: scan, i_det
     real(sp),                   dimension(1:), intent(in)    :: s_sub
-    real(sp),         optional, dimension(1:), intent(in)    :: mask
-    logical(lgt),     optional,                intent(in)    :: nomono
+    real(sp),                   dimension(1:), intent(in)    :: mask
+    integer(i4b),               dimension(1:), intent(inout) :: flag
+    type(planck_rng),                          intent(inout) :: handle
     character(len=*), optional,                intent(in)    :: ps_output
   end subroutine deconvolve_rolloff
 
@@ -520,16 +523,16 @@ interface
     ! filling: string
     !          filling mod (white noise, chunks, zero)
     implicit none
-    class(comm_hfi_tod),                     intent(in)    :: self
-    real(sp),              dimension(1:),    intent(inout) :: tod
-    type(planck_rng),                        intent(inout) :: handle
-    integer(i4b),                            intent(in)    :: scan, i_det
-    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
-    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
-    logical(lgt),                  optional, intent(in)    :: nomono
-    logical(lgt),                  optional, intent(in)    :: dospike
-    character(len=*),              optional, intent(in)    :: ps_output
-    character(len=*),              optional, intent(in)    :: filling
+    class(comm_hfi_tod),                      intent(in)    :: self
+    real(sp),               dimension(1:),    intent(inout) :: tod
+    type(planck_rng),                         intent(inout) :: handle
+    integer(i4b),                             intent(in)    :: scan, i_det
+    real(sp),               dimension(1:),    intent(in)    :: mask, s_sub
+    integer(i4b), optional, dimension(1:,1:), intent(in)    :: pix
+    logical(lgt),                   optional, intent(in)    :: nomono
+    logical(lgt),                   optional, intent(in)    :: dospike
+    character(len=*),               optional, intent(in)    :: ps_output
+    character(len=*),               optional, intent(in)    :: filling
   end subroutine fill_gaps
 
   module subroutine compute_adu_range(self)
