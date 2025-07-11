@@ -525,7 +525,7 @@ contains
           else
              iN(i,2:4)  = NaN
              siN(i,2:4) = NaN
-             write(*,*) "Warning: invalid QU covariance at pixel ", i
+             write(*,*) "Warning: invalid QU covariance at pixel ", N%info%pix(i)
           end if
        end if
     end do

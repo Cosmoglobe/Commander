@@ -462,7 +462,11 @@ contains
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     integer(i4b) :: i, j, k, l, np_vec, ierr
-    integer(i4b), allocatable, dimension(:) :: pix
+    integer(i4b), allocatable, dimension(:) :: pix, missing_pixels
+
+    missing_pixels = (/  3124715, 3125123, 3125527, 3145699, 3145700, 3145701, 3145702, 3145704, 3145705, 3145706, 3145707, 3145708, 3145709, 3145710, 3145711, 3145712, 3145713, 3145714, 3145716, 3145717, 3145718, 3145719, 3145720, 3145721, 3145722, 3145724, 3145725, 3145726/)
+
+
 
     ! Construct observed pixel array
     allocate(self%pix2ind(0:12*self%nside**2-1))
@@ -495,6 +499,7 @@ contains
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
+    write(*,*) self%nobs, self%myid
     allocate(self%ind2pix(self%nobs))
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
@@ -511,6 +516,11 @@ contains
           j = j+1
        end if
     end do
+    !do i = 1, size(missing_pixels)
+    !        if (any(self%ind2pix == missing_pixels(i))) then
+    !          write(*,*) 'What is wrong with ', missing_pixels(i),  self%myid
+    !        end if
+    !end do
     f_fill = self%nobs/(12.*self%nside**2)
     call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)

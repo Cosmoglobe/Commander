@@ -117,6 +117,9 @@ contains
     class(comm_tod),     intent(in)    :: tod
 
     integer(i4b) :: i, j, start_chunk, end_chunk, ierr
+    integer(i4b), allocatable, dimension(:) :: pix, missing_pixels
+
+    missing_pixels = (/  3124715, 3125123, 3125527, 3145699, 3145700, 3145701, 3145702, 3145704, 3145705, 3145706, 3145707, 3145708, 3145709, 3145710, 3145711, 3145712, 3145713, 3145714, 3145716, 3145717, 3145718, 3145719, 3145720, 3145721, 3145722, 3145724, 3145725, 3145726/)
 
     if (.not. self%shared) return
 
@@ -137,6 +140,9 @@ contains
        call mpi_win_fence(0, self%sA_map%win, ierr)
        call mpi_win_fence(0, self%sb_map%win, ierr)
        do j = start_chunk, end_chunk
+          if (any(tod%ind2pix(j) == missing_pixels)) then
+            write(*,*) 'numproc shared is weird', i, tod%myid, ' chunk ', j
+          end if
           self%sA_map%a(:,tod%ind2pix(j)+1) = self%sA_map%a(:,tod%ind2pix(j)+1) + &
                   & self%A_map(:,j)
           self%sb_map%a(:,:,tod%ind2pix(j)+1) = self%sb_map%a(:,:,tod%ind2pix(j)+1) + &
