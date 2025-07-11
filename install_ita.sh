@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" #"oneapi" #"gnu"
+toolchain="oneapi" #"gnu"
 buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -21,7 +21,7 @@ owl2930="$prefix+(29|30)+$suffix"
 owl3135="$prefix+(3[1-5])+$suffix"
 owl3637="$prefix+(3[6-7])+$suffix"
 owl38="$prefix+(38)+$suffix"
-owl4246="$prefix+(4[2-6])+$suffix"
+owl4046="$prefix+(4[0-6])+$suffix"
 # Using regex to figure out which beehive I am on.
 prefix="beehive"
 bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
@@ -96,8 +96,8 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
-  elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
-    build_dir="build_owl4246_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl4046 ]]; then
+    build_dir="build_owl4046_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
     build_dir="build_owl38_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
@@ -167,7 +167,6 @@ then
 		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
     #module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
-    #module load intel/oneapi compiler/2025.2.0 mpi/2021.16  mkl/2025.2
     module load intel/oneapi compiler/latest mpi/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
