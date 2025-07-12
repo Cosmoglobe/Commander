@@ -554,6 +554,8 @@ INCLUDE_COMP11                = .false.  # HCN
 INCLUDE_COMP12                = .false.  # SZ
 INCLUDE_COMP13                = .true.  # Monopole
 
+EXTINCTION_E(B-V)_MAP = none
+
 # CMB
 @START 01
 @DEFAULT components/cmb/cmb_planck2015_1deg.defaults
