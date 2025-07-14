@@ -140,9 +140,6 @@ contains
        call mpi_win_fence(0, self%sA_map%win, ierr)
        call mpi_win_fence(0, self%sb_map%win, ierr)
        do j = start_chunk, end_chunk
-          if (any(tod%ind2pix(j) == missing_pixels)) then
-            write(*,*) 'numproc shared is weird', i, tod%myid, ' chunk ', j
-          end if
           self%sA_map%a(:,tod%ind2pix(j)+1) = self%sA_map%a(:,tod%ind2pix(j)+1) + &
                   & self%A_map(:,j)
           self%sb_map%a(:,:,tod%ind2pix(j)+1) = self%sb_map%a(:,:,tod%ind2pix(j)+1) + &

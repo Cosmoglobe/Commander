@@ -499,7 +499,6 @@ contains
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
-    write(*,*) self%nobs, self%myid
     allocate(self%ind2pix(self%nobs))
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
