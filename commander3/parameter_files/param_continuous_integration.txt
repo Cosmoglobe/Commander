@@ -795,6 +795,11 @@ ZODI_USE_SOLAR_CENTRIC_COMP      = .true.
 ZODI_STATIC_COMP_NSIDE           = 512
 ZODI_STATIC_COMP_INITMAP         = init_zodi_static_v18.fits
 ZODI_STATIC_MAP_BANDS            = 05a,05b
+ZODI_PHASE_FUNCTION_TYPE         = Hong  # K98 Wright
+ZODI_BANDPASS_TYPE               = DIRBE # Wright
+ZODI_NU_MIN_SCATTERING           = 80000. # Enable scattering <= 3.5 um
+ZODI_NU_MAX_THERMAL              = 90000. # Enable thermal    >= 3.5 um
+
 
 # Only emissivity wires support right now
 #ZODI_PARAMETER_WIRING            = band1:em@03a>cloud:em@03a,band1:em@03b>cloud:em@03b,band2:em>band1:em,band3:em>band1:em,ring:em@03a>cloud:em@03a,ring:em@03b>cloud:em@03b,feature:em>ring:em
