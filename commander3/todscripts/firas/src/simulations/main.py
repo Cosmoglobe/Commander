@@ -15,10 +15,10 @@ import globals as g
 import my_utils as mu
 from utils.config import gen_nyquistl
 
-# modes = {"ss": 0, "lf": 3}
-modes = {"ss": 0}   
-# channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
-channels = {"ll": 3}
+modes = {"ss": 0, "lf": 3}
+# modes = {"ss": 0}   
+channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+# channels = {"ll": 3}
 
 temps = {
     "xcal": np.array([2.70413828]),

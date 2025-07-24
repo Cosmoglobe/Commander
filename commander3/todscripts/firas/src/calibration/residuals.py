@@ -19,10 +19,20 @@ data = np.load(g.PROCESSED_DATA_PATH_CAL)
 
 print("Loading calibration data...")
 
-# channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
-channels = {"ll":3}
-# modes = {"ss": 0, "lf": 3} 
-modes = {"ss":0}
+channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+# channels = {"ll":3}
+# channels = {"rh":0}
+modes = {"ss": 0, "lf": 3} 
+# modes = {"ss":0}
+
+peak_positions = {
+    "lh_ss": 357,
+    "rh_ss": 357,
+    "ll_ss": 360,
+    "rl_ss": 360,
+    "ll_lf": 90,
+    "rl_lf": 90
+}
 
 for mode in modes:
     xcal = data[f"xcal_{mode}"][:]
@@ -80,6 +90,10 @@ for mode in modes:
                 bol_volt=bol_volt,
                 gain=gain
             )
+
+            if channel[0] == "r":
+                simulated_ifgs = - simulated_ifgs
+            # simulated_ifgs = simulated_ifgs/3
 
             n = np.random.randint(0, simulated_spectra.shape[0])
             # n = 2091
@@ -157,6 +171,13 @@ for mode in modes:
 
             # for ifg in range(simulated_ifgs.shape[0]):
             for ifg in range(n, n+1, 1):
+                # scale simulated ifg by the value at peak position
+                # simulated_ifgs[ifg, :] = simulated_ifgs[ifg, :] * (
+                #     (original_ifgs[ifg, peak_positions[f"{channel}_{mode}"]] - np.median(original_ifgs[ifg, :]))
+                #     / simulated_ifgs[ifg, peak_positions[f"{channel}_{mode}"]]
+                # )
+
+
                 print(f"Plotting IFG {ifg+1} for {channel.upper()} {mode.upper()}...")
                 # print temperatures
                 print(f"XCAL: {xcal[ifg]}")
@@ -176,17 +197,18 @@ for mode in modes:
 
                 plt.subplot(3, 1, 1)
                 plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]))
-                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
+                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Original IFG")
             
                 plt.subplot(3, 1, 2)
                 plt.plot(simulated_ifgs[ifg, :])
-                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
+                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Simulated IFG")
 
                 plt.subplot(3, 1, 3)
                 plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]) - simulated_ifgs[ifg, :])
-                plt.axvline(x=359, color="red", linestyle="--", label="Peak")
+                plt.plot([np.median(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]) - simulated_ifgs[ifg, :])] * 512)
+                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Residuals (original - simulated)")
 
                 plt.show()

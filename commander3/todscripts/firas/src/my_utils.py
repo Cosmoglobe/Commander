@@ -204,6 +204,12 @@ def unclean_ifg(
     ifg = ifg * gain * sweeps
 
     peak_pos = peak_positions[f"{channel}_{mode}"]
+
+    # leaving this here for now because 
+    if mode == "ss" and channel[1] == "l":
+        peak_pos = peak_pos + 1
+    elif mode == "lf":
+        peak_pos = peak_pos - 1
     ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod

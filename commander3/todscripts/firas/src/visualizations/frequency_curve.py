@@ -100,7 +100,7 @@ for channel in channels.keys():
                 plt.axes(ax2)
                 hp.mollview(
                     high_lat_map[:, freqi],
-                    title=f"High Latitude {channel} {mode} Data",
+                    title=f"High Latitude {channel} {mode} Data @ {int(f_ghz[freqi]):04d} GHz",
                     unit="Intensity (MJy/sr)",
                     cmap="jet",
                     hold=True,
@@ -135,7 +135,7 @@ for channel in channels.keys():
                 plt.axes(ax2)
                 hp.mollview(
                     low_lat_map[:, freqi],
-                    title=f"Low Latitude {channel.upper()}{mode.upper()} Data",
+                    title=f"Low Latitude {channel.upper()}{mode.upper()} Data @ {int(f_ghz[freqi]):04d} GHz",
                     unit="Intensity (MJy/sr)",
                     min=np.nanmin(low_lat_amp),
                     max=np.nanmax(low_lat_amp),

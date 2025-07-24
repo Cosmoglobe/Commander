@@ -247,9 +247,9 @@ for channel in channels.keys():
             otf[f"{channel}_{mode}"] = otf[f"{channel}_{mode}"][
                 np.abs(otf[f"{channel}_{mode}"]) > 0
             ]
-            print(
-                f"otf[{channel}_{mode}]: {otf[f'{channel}_{mode}'].shape}"
-            )
+            # print(
+            #     f"otf[{channel}_{mode}]: {otf[f'{channel}_{mode}'].shape}"
+            # )
 
 apod = {}
 etf = {}
@@ -398,8 +398,9 @@ for channel, channel_value in channels.items():
                 apod=apod[f"{channel}_{mode}"],
                 otf=otf257[f"{channel}_{mode}"],
             )
-            print(f"bla shape: {bla.shape}")
-            print(f"bla: {bla[n]}")
+            # print(f"bla shape: {bla.shape}")
+            # print(f"bla: {bla[n]}")
+            print(f"{channel}{mode}")
             axes[1].plot(bla[n])
             axes[1].set_xlabel("Distance")
             axes[0].set_ylabel("Input IFG")
