@@ -387,7 +387,7 @@ contains
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then
-             write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
+             write(*,fmt='(a,i2,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
                & data(i)%tod_freq, ' Gibbs samples'
            end if
            cycle
@@ -426,14 +426,12 @@ contains
                 do l = 1, npar
                    if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
                    !if (.true. .or. mod(iter,2) == 0) then
-                      !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                     !  write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
                       do j = 1, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
                       end do
@@ -461,7 +459,6 @@ contains
 
           do j = 0, ndet
              data(i)%bp(j)%p%delta = delta(j,:,k)
-             !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
              call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
           end do
           call update_mixing_matrices(i, update_F_int=.true.)       
