@@ -42,3 +42,4 @@ COMP_BURN_IN_ON_FIRST_SAMPLE&& = .false.
 COMP_INIT_FROM_HDF&&           = default
 
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

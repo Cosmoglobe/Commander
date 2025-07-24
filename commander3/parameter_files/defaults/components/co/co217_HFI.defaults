@@ -37,3 +37,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
 COMP_AMP_INPUT_MAP&&          = COM_CompMap_CO21-commander_2048_R2.00.fits
 COMP_AMP_PRIOR_MAP&&          = none
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
