@@ -36,57 +36,113 @@ from tqdm import tqdm
 The gain model as described by the explanatory supplement requires the total
 radiometer bias power, T_FPA, and T_RXB as inputs.
 
-These quantities are indexed by mnemonics, enumerated in table C.2.2, C.2.4, and
-C.2.5, respectively. I have listed them in the files t_rxb_mnem.txt,
-t_fpa_mnem.txt, and rfbias.txt
 
-AIHK_mnemonic.pro lists the conversion between mnemonic, and the location in the
-fits table ("index" and "arr").
+WMAP telemetry files can be used to get teh physical values instead of using the
+mnemonics.
 
+data[59] has PDU housekeeping
+data[60] has AEU1 housekeeping
+data[61] has AEU2 housekeeping
 
-AIHK_Arch2Mnemonic.pro returns the physical value associated with an analog
-    instrument housekeeping mnemonic, extracting the data from an AEU sweep.
-AIHK_GetMnemonic.pro returns the physical value associated with a mnemonic,
-    extracting the data out of a sweep of analog instrument housekeeping
-    telemetry data.
-AIHK_Pckt2Mnemonic.pro returns the physical value associated with an analog
-    housekeeping mnemonic, extracting the data from a DEU telemetry sweep.
+We need:
+\bar V, the RF bias for each detector;
+T_RXB, RXB temperature of the thermistor closest to the detector
+T_FPA, FPA temperature of the thermistor closest to the detector
+\Delta t, mission time in days since day 222 of 2001, 00:00 UT
 
 
-I think AIHK_Arch2Mnemonic is the thing closest to what I want, since I want to
-read in a TOD and just have that data available to me.
+For the bias voltages:
+
+In data[60]:
+COMMENT DRK113RFBI0 = RXB K113 RF Bias 0 - (IHK1_DC_32)                         
+COMMENT DRK114RFBI1 = RXB K114 RF Bias 1 - (IHK1_DC_33)                         
+COMMENT DRK123RFBI2 = RXB K123 RF Bias 2 - (IHK1_DC_34)                         
+COMMENT DRK124RFBI3 = RXB K124 RF Bias 3 - (IHK1_DC_35)                         
+COMMENT DRW413RFBI8 = RXB W413 RF Bias 8 - (IHK1_DC_36)                         
+COMMENT DRW414RFBI9 = RXB W414 RF Bias 9 - (IHK1_DC_37)                         
+COMMENT DRW423RFBI10 = RXB W423 RF Bias 10 - (IHK1_DC_38)                       
+COMMENT DRW424RFBI11 = RXB W424 RF Bias 11 - (IHK1_DC_39)                       
+COMMENT DRW313RFBI16 = RXB W313 RF Bias 16 - (IHK1_DC_40)                       
+COMMENT DRW314RFBI17 = RXB W314 RF Bias 17 - (IHK1_DC_41)                       
+COMMENT DRW323RFBI18 = RXB W323 RF Bias 18 - (IHK1_DC_42)                       
+COMMENT DRW324RFBI19 = RXB W324 RF Bias 19 - (IHK1_DC_43)                       
+COMMENT DRW213RFBI24 = RXB W213 RF Bias 24 - (IHK1_DC_44)                       
+COMMENT DRW214RFBI25 = RXB W214 RF Bias 25 - (IHK1_DC_45)                       
+COMMENT DRW223RFBI26 = RXB W223 RF Bias 26 - (IHK1_DC_46)                       
+COMMENT DRW224RFBI27 = RXB W224 RF Bias 27 - (IHK1_DC_47)                       
+COMMENT DRV113RFBI32 = RXB V113 RF Bias 32 - (IHK1_DC_48)                       
+COMMENT DRV114RFBI33 = RXB V114 RF Bias 33 - (IHK1_DC_49)                       
+COMMENT DRV123RFBI34 = RXB V123 RF Bias 34 - (IHK1_DC_50)                       
+COMMENT DRV124RFBI35 = RXB V124 RF Bias 35 - (IHK1_DC_51)                       
+
+In data[61]:
+COMMENT DRW113RFBI4 = RXB W113 RF Bias 4 - (IHK2_DC_32)
+COMMENT DRW114RFBI5 = RXB W114 RF Bias 5 - (IHK2_DC_33)
+COMMENT DRW123RFBI2 = RXB W123 RF Bias 6 - (IHK2_DC_34)
+COMMENT DRW124RFBI3 = RXB W124 RF Bias 7 - (IHK2_DC_35)
+COMMENT DRV213RFBI12 = RXB V213 RF Bias 12 - (IHK2_DC_36)
+COMMENT DRV214RFBI13 = RXB V214 RF Bias 13 - (IHK2_DC_37)
+COMMENT DRV223RFBI14 = RXB V223 RF Bias 14 - (IHK2_DC_38)
+COMMENT DRV224RFBI15 = RXB V224 RF Bias 15 - (IHK2_DC_39)
+COMMENT DRQ113RFBI20 = RXB Q113 RF Bias 20 - (IHK2_DC_40)
+COMMENT DRQ114RFBI21 = RXB Q114 RF Bias 21 - (IHK2_DC_41)
+COMMENT DRQ123RFBI22 = RXB Q123 RF Bias 22 - (IHK2_DC_42)
+COMMENT DRQ124RFBI23 = RXB Q124 RF Bias 23 - (IHK2_DC_43)
+COMMENT DRQ213RFBI28 = RXB Q213 RF Bias 28 - (IHK2_DC_44)
+COMMENT DRQ214RFBI29 = RXB Q214 RF Bias 29 - (IHK2_DC_45)
+COMMENT DRQ223RFBI30 = RXB Q223 RF Bias 30 - (IHK2_DC_46)
+COMMENT DRQ224RFBI31 = RXB Q224 RF Bias 31 - (IHK2_DC_47)
+COMMENT DRKA113RFBI36 = RXB Ka113 RF Bias 36 - (IHK2_DC_48)
+COMMENT DRKA114RFBI37 = RXB Ka114 RF Bias 37 - (IHK2_DC_49)
+COMMENT DRKA123RFBI38 = RXB Ka123 RF Bias 38 - (IHK2_DC_50)
+COMMENT DRKA124RFBI39 = RXB Ka124 RF Bias 39 - (IHK2_DC_51)
 
 
-in the wmap pro file, execute
-file = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20052022356_20052032356_uncalibrated_v5.fits'
-fits_read_tod, file, arch
-.r aihk_arch2mnemonic
-rf_bias = AIHK_Arch2Mnemonic(arch, 'DRV113RFBI32', 0)
-T_RXB = AIHK_Arch2Mnemonic(arch, 'DRV111RXBAMPT', 0)
-T_FPA = AIHK_Arch2Mnemonic(arch, 'DFV11FPATEET', 0)
+
+For the RXB:
+data[60]
+COMMENT DRV222RXBAMPT = RXB V222 RXB AMP Temperature (PRT#110)(IHK1_AC_10)
+COMMENT DRW111RXBAMPT = RXB W111 RXB AMP Temperature (PRT#111)(IHK1_AC_11)
+COMMENT DRW221RXBAMPT = RXB W221 RXB AMP Temperature (PRT#112)(IHK1_AC_12)
+COMMENT DRKA12RXBRIBT = RXB Ka12 RXB RIB Temperature (PRT#113)(IHK1_AC_13)
+COMMENT DRQ2RXBRIBT = RXB Q2 RXB RIB Temperature  (PRT#114)(IHK1_AC_14)         
+COMMENT DRPYPSHPRTKT = RXB +Y Phase Switch Driver Bds Heat Sink Temperature (PRT
+
+
+data[61]
+COMMENT DRV111RXBAMPT = RXB V111 RXB AMP Temperature (PRT#210)(IHK2_AC_10)      
+COMMENT DRW321RXBAMPT = RXB W321 RXB AMP Temperature (PRT#211)(IHK2_AC_11)      
+COMMENT DRK12RXBRIBT = RXB K12 RXB RIB Temperature (PRT#212)(IHK2_AC_12)        
+COMMENT DRQ1RXBRIBT = RXB Q1 RXB RIB Temperature (PRT#213)(IHK2_AC_13)          
+COMMENT DRW3RXBRIBT = RXB W3 RXB RIB Temperature (PRT#214)(IHK2_AC_14)          
+COMMENT DRMYPSHPRTKT = RXB -Y Phase Switch Driver Bds Heat Sink Temperature (PRT
+
+
+For the FPA:
+data[60]
+COMMENT DFK1AFEEDT = FPA K1 A Feed Temperature (PRT#117)(IHK1_AC_17)            
+COMMENT DFQ1AFEEDT = FPA Q1 A Feed Temperature (PRT#118)(IHK1_AC_18)            
+COMMENT DFW3BFEEDT = FPA W3 B Feed Temperature (PRT#119)(IHK1_AC_19)            
+COMMENT DFK1BOMTT = FPA K1 B OMT Temperature (PRT#120)(IHK1_AC_20)              
+COMMENT DFQ1BOMTT = FPA Q1 B OMT Temperature (PRT#121)(IHK1_AC_21)              
+COMMENT DFW3AOMTT = FPA W3 A OMT Temperature (PRT#122)(IHK1_AC_22)              
+COMMENT DFV22FPATEET = FPA V22 FPA Magic Tee Temperature (PRT#123)(IHK1_AC_23)  
+COMMENT DFW32FPATEET = FPA W32 FPA Magic Tee Temperature (PRT#124)(IHK1_AC_24)  
 
 
 
-Check
-aihk_mnem2serial
-get_prt_temp
+data[61]
+COMMENT DFKA1BFEEDT = FPA Ka1-B Feed Temperature (PRT#217)(IHK2_AC_17)
+COMMENT DFQ2BFEEDT = FPA Q2 B Feed Temperature (PRT#218)(IHK2_AC_18)
+COMMENT DFW3AFEEDT = FPA W3 A Feed Temperature (PRT#219)(IHK2_AC_19)
+COMMENT DFKA1AOMTT = FPA Ka1 A OMT Temperature (PRT#220)(IHK2_AC_20)
+COMMENT DFQ2AOMTT = FPA Q2 A OMT Temperature (PRT#221)(IHK2_AC_21)
+COMMENT DFW3BOMTT = FPA W3 B OMT Temperature (PRT#222)(IHK2_AC_22)
+COMMENT DFV11FPATEET = FPA V11 FPA Magic Tee Temperature (PRT#223)(IHK2_AC_23)
+COMMENT DFW11FPATEET = FPA W11 FPA Magic Tee Temperature (PRT#224)(IHK2_AC_24)
+COMMENT DFW22FPATEET = FPA W22 FPA Magic Tee Temperature (PRT#225)(IHK2_AC_25)
 
 
-Comparing against the ExSupp values, it seems like decent approximations to the
-reported temperature FPA are
-DFQ1AFEEDT
-DFW3BFEEDT
-DFV22FPATEET
-DFW3AOMTT
-(although they are all scattering around the full range...)
-
-while the RXB good approximations are...
-DRW221RXBAMPT
-DRQ2RXBRIBT
-
-
-I suspect that I have some residual issues here, since when I run the IDL
-scripts, all of the values are within roughly 1 degree of each other.
 """
 
 
