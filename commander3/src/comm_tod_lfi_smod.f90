@@ -684,7 +684,7 @@ contains
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
-    self%output_n_maps = 3
+    self%output_n_maps = 1
     !   if (self%output_aux_maps > 0) then
     !     ! 8 maps includes zodi and instrument correction
     !      if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
