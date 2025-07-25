@@ -311,9 +311,9 @@ contains
          ! 'abscal': the global constant gain factor
          call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+          call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
 
       ! Prepare intermediate data structures
@@ -337,7 +337,7 @@ contains
          call wall_time(t1)
          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
-         ! if (self%myid == 0 .and. i == 1) then
+          !if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
          !    write(*,*)  "debug", shape(sd%tod), "debug"
          !    do j = 1, sd%ntod
@@ -389,15 +389,18 @@ contains
          !write(*,*) 'a', self%scanid(i), any(sd%s_zodi_scat/=sd%s_zodi_scat), any(sd%s_zodi_therm/=sd%s_zodi_therm)
          call compute_calibrated_data(self, i, sd, d_calib)    
 
+         !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
+         
          ! For debugging: write TOD to hdf
          if (.false.) then
             ! scan id appears to be the worst chi2
-            if (self%scanid(i) < 10000) then 
+            if (self%scanid(i) < 500) then 
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+               call write_hdf(tod_file, '/flag', sd%flag)
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
                call write_hdf(tod_file, '/n_corr', sd%n_corr)

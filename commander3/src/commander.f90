@@ -361,7 +361,7 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (iter > 1) then
+     if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then

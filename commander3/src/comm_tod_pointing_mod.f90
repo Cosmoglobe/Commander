@@ -117,6 +117,8 @@ contains
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             tmask(i,det) = pmask(pix(i,det))
             if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
+            !tmask(i,det) = 1
+            !if (iand(flag(i,det), 2) .ne. 2) tmask(i,det) = 0.
          end do
       end do
 
