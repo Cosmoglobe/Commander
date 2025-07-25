@@ -97,6 +97,7 @@ F90SOURCES=hashtbl.f90 \
 	   comm_tod_pixhist_mod.f90 \
            comm_tod_noise_psd_mod.f90 \
            comm_tod_mod.f90 \
+             comm_tod_pixcache_smod.f90 \
            comm_tod_mapmaking_mod.f90 \
            comm_tod_bandpass_mod.f90 \
 	   comm_tod_crosstalk_mod.f90 \
@@ -263,6 +264,7 @@ comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_map_mod.o
 comm_tod_pixhist_mod.o      : comm_tod_mod.o comm_tod_driver_mod.o
 comm_tod_mod.o              : comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o
+comm_tod_pixcache_smod.o    : comm_tod_mod.o
 comm_tod_pointing_mod.o     : comm_tod_mod.o 
 comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o 

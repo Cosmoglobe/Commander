@@ -34,6 +34,28 @@ module comm_tod_mod
   private
   public comm_tod, comm_scan, comm_detscan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
+  ! bit 0 = good pixel, bit 1 = bad pixel
+  integer(i4b), parameter, public :: TODMASK_MAP      = 1 ! Defines map footprint
+  integer(i4b), parameter, public :: TODMASK_NCORR    = 2 
+  integer(i4b), parameter, public :: TODMASK_GAIN     = 3
+  integer(i4b), parameter, public :: TODMASK_BANDPASS = 4
+  integer(i4b), parameter, public :: TODMASK_ADC      = 5
+  integer(i4b), parameter, public :: TODMASK_ZODI     = 6  
+
+  type :: comm_tod_pixcache
+     integer(i4b) :: nside, nside_lowres,nobs, nobs_lowres
+     logical(lgt) :: fullsky
+     integer(i4b), allocatable, dimension(:) :: pix       ! List of observed pixels
+     integer(i4b), allocatable, dimension(:) :: pix_lowres ! List of observed pixels
+   contains
+     procedure :: pix2ind
+  end type comm_tod_pixcache
+
+  interface comm_tod_pixcache
+     procedure constructor_tod_pixcache
+  end interface comm_tod_pixcache
+
+  
   ! Structure for individual detectors
   type :: comm_detscan
      character(len=30) :: label                             ! Detector label
@@ -163,7 +185,8 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
-     class(comm_orbdipole), pointer :: orb_dp
+     class(comm_orbdipole),    pointer :: orb_dp
+     class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:,:)   :: polang_prior
@@ -219,6 +242,7 @@ module comm_tod_mod
      real(dp),           dimension(4)                  :: x_im    ! feedhorn imbalance parameters, with duplicates
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
+     class(comm_map), pointer                          :: bitmask => null()
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
@@ -244,7 +268,7 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind ! Array mapping all npix pixels to the uniquely observed pixels in the tod object for saving memory
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind
      integer(i4b),       allocatable, dimension(:)     :: ind2pix, ind2sl ! Lookup tables used with pix2ind 
      real(sp),           allocatable, dimension(:,:)   :: ind2ang ! Lookup tables used with pix2ind for pixel angles
      real(dp),           allocatable, dimension(:,:)   :: ind2vec ! Lookup tables used with pix2ind for pixel unit vectors
@@ -379,6 +403,25 @@ module comm_tod_mod
      integer(i4b) :: band                                           ! Band ID
   end type comm_scandata
 
+interface
+  module function constructor_tod_pixcache(bitmask, nside_lowres, fullsky) result(c)
+    implicit none
+    class(comm_map),          intent(in) :: bitmask
+    integer(i4b),             intent(in) :: nside_lowres
+    logical(lgt),             intent(in) :: fullsky
+    class(comm_tod_pixcache), pointer    :: c
+  end function constructor_tod_pixcache
+
+  module function pix2ind(self, pix) result(ind)
+    import comm_tod_pixcache, i4b
+    implicit none
+    class(comm_tod_pixcache), intent(in) :: self
+    integer(i4b),             intent(in) :: pix
+    integer(i4b)                         :: ind
+  end function pix2ind
+end interface
+
+  
   
 contains
 
@@ -626,6 +669,7 @@ contains
 
   end subroutine tod_constructor
 
+  
   subroutine precompute_lookups(self)
     ! 
     ! Routine that precomputes static look-up tables in a given TOD object (pix2ind, ind2pix, ind2sl, ind2ang). 
