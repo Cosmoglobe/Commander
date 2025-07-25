@@ -34,18 +34,24 @@ module comm_tod_hfi_mod
   use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
+  use comm_tod_pixhist_mod
+  use comm_tod_adc_binfit_mod
   implicit none
 
   private
   public comm_hfi_tod
 
   type, extends(comm_tod) :: comm_hfi_tod
-     real(sp), allocatable, dimension(:,:)   :: mod_phase
-     class(comm_crosstalk), pointer :: xtalk
+     real(sp) :: f_spin
+     integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
+     class(comm_crosstalk),    pointer :: xtalk
+     type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
+     real(sp), allocatable, dimension(:) :: pol_eff ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
      procedure     :: read_scan_inst          => read_scan_inst_hfi
+     procedure     :: load_instrument_inst    => load_instrument_hfi
      procedure     :: initHDF_inst            => initHDF_hfi
      procedure     :: dumpToHDF_inst          => dumpToHDF_hfi
      procedure     :: construct_corrtemp_inst => construct_corrtemp_hfi
@@ -54,6 +60,10 @@ module comm_tod_hfi_mod
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
+     procedure, private     :: deconvolve_rolloff
+     procedure, private     :: fill_gaps
+     procedure, private     :: sample_adc_and_baselines
+     procedure, private     :: compute_adu_range
   end type comm_hfi_tod
 
   interface comm_hfi_tod
@@ -147,8 +157,30 @@ interface
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
   end subroutine process_hfi_tod
 
+  module subroutine load_instrument_hfi(self, instfile, band)
+    !
+    ! Reads the HFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_HFI_tod
+    !    the HFI tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_hfi
+
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
+
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 
@@ -322,12 +354,12 @@ interface
     ! None
     !
     implicit none
-    class(comm_HFI_tod),                 intent(in)     :: self
+    class(comm_hfi_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_hfi
 
-  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -350,9 +382,10 @@ interface
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd)
+  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin, handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -370,9 +403,12 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
+    class(comm_hfi_tod),                   intent(inout) :: self
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in)    :: skip_nonlin
+    type(planck_rng),            optional, intent(inout) :: handle
+    integer(i4b),                optional, intent(in)    :: det
   end subroutine apply_nonlin_corr_hfi
 
   module subroutine stitch_hfi_dc_level(self, scan, sd)
@@ -412,6 +448,21 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine hfi_dark_correction
 
+  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
+    !  Sample ADC parameters
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_hfi_tod),                 intent(inout) :: self
+    type(planck_rng),                    intent(inout) :: handle
+    integer(i4b),                        intent(in)    :: det
+    real(sp),          dimension(1:,1:), intent(in)    :: map_sky
+    real(sp),          dimension(0:),    intent(in)    :: procmask
+  end subroutine sample_adc_and_baselines
+
   module subroutine estimate_hfi_4k_lines(self, scan, sd)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4k lines
@@ -431,6 +482,97 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
 
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
+    ! Deconvolves high frequency rolloff in noise spectrum
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      residual tod
+    ! scan: int
+    !       scan number
+    ! i_det: int
+    !        detector id
+    ! s_sub: real(sp) array
+    !        sky signal template
+    ! mask:  real(sp) array
+    !        mask
+    ! nomono: logical
+    !         option to remove monopole
+    ! ps_output: string
+    !            filename to output corrected power spectrum
+    implicit none
+    class(comm_hfi_tod),                       intent(inout) :: self
+    real(sp),                   dimension(1:), intent(inout) :: tod
+    integer(i4b),                              intent(in)    :: scan, i_det
+    real(sp),                   dimension(1:), intent(in)    :: s_sub
+    real(sp),         optional, dimension(1:), intent(in)    :: mask
+    logical(lgt),     optional,                intent(in)    :: nomono
+    character(len=*), optional,                intent(in)    :: ps_output
+  end subroutine deconvolve_rolloff
+
+  module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
+    ! Fill gaps in flagged samples
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      residual tod
+    ! handle: planck_rng
+    !         rng handle
+    ! scan: int
+    !       scan number
+    ! i_det: int
+    !        detector id
+    ! s_sub: real(sp) array
+    !        sky signal template
+    ! mask:  real(sp) array
+    !        mask
+    ! pix:   int array
+    !         
+    ! nomono: logical
+    !         option to remove monopole
+    ! dospike: logical
+    !          option to flag spikes
+    ! ps_output: string
+    !            filename to output corrected power spectrum
+    ! filling: string
+    !          filling mod (white noise, chunks, zero)
+    implicit none
+    class(comm_hfi_tod),                     intent(in)    :: self
+    real(sp),              dimension(1:),    intent(inout) :: tod
+    type(planck_rng),                        intent(inout) :: handle
+    integer(i4b),                            intent(in)    :: scan, i_det
+    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
+    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
+    logical(lgt),                  optional, intent(in)    :: nomono
+    logical(lgt),                  optional, intent(in)    :: dospike
+    character(len=*),              optional, intent(in)    :: ps_output
+    character(len=*),              optional, intent(in)    :: filling
+  end subroutine fill_gaps
+
+  module subroutine compute_adu_range(self)
+    ! 
+    ! Computes ADU range over all scans and unmasked samples; for ADC correction
+    ! Must be called after dynamic mask definition
+    !
+    ! Arguments:
+    ! ----------
+    ! self:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! Returns
+    ! ----------
+    !   None, but updates tod%adu_range
+    !
+    implicit none
+    class(comm_hfi_tod),                  intent(inout) :: self
+  end subroutine compute_adu_range
+
+  
 end interface
 
 end module comm_tod_hfi_mod

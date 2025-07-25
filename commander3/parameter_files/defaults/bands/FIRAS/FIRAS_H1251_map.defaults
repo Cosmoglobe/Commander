@@ -43,3 +43,5 @@ BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned

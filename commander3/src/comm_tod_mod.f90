@@ -43,6 +43,7 @@ module comm_tod_mod
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      real(dp)          :: baseline1, baseline2
+     integer(i4b)      :: nsamp_unmasked                    ! Number of unmasked samples
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -156,6 +157,7 @@ module comm_tod_mod
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
+     real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
@@ -182,6 +184,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      character(len=512) :: datadir
+     character(len=512) :: map_type                               ! type of mapmaker to use, {nplus2, binned, differential}
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
@@ -227,8 +230,8 @@ module comm_tod_mod
      real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
      real(dp),           pointer,     dimension(:,:)   :: map_moon            ! Full-sky Moon centric/sidelobe model
      real(dp),           pointer,     dimension(:)     :: map_earth           ! Earth elongation centric/sidelobe model
-     integer(i4b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
-     real(sp),           allocatable, dimension(:,:)   :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
+     integer(i8b),                    dimension(-1:9)  :: mask_dyn_stats = 0  ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
+     real(sp),           allocatable, dimension(:,:,:) :: pixhist             ! TOD summary from histograms; {mean, rms, nhit, min, max}, NESTED ordering
 !     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
@@ -247,6 +250,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
      integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
      integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
+     real(sp),           allocatable, dimension(:,:) :: mod_phase  ! Modulation phase (ndet,nscan)
 
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
@@ -446,6 +450,7 @@ contains
     self%flag0         = cpar%ds_tod_flag(id_abs)
     self%abscal_comps  = cpar%ds_tod_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
+    self%map_type      = cpar%ds_tod_map_type(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
     self%output_zodi_comps = cpar%zs_output_comps
@@ -463,7 +468,8 @@ contains
     self%sol_elong_range = [0., 180.]
     self%sample_mono     = .false.
     self%nside_pixhist   = -1
-    
+    self%sigma0_threshold = 1d30
+ 
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
@@ -768,6 +774,8 @@ contains
          self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
          call self%mbeam(i)%p%Y()
        end if
+
+       call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)
@@ -956,7 +964,9 @@ contains
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    
     self%gain0(0) = sum(self%gain0)/sum(ns)
+
     where (ns > 0)
        self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
@@ -1143,7 +1153,9 @@ contains
        else if (trim(tod%noise_psd_model) == 'oof') then
          self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          xi_n(2) =  0.2  ! fknee2 (Hz); arbitrary value
+          xi_n(3) = -2.000 ! alpha2; arbitrary value
+          xi_n(4) =  1.  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
@@ -1625,7 +1637,6 @@ contains
 
   end subroutine get_scan_ids
 
-
   subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
     class(comm_tod),                   intent(inout) :: self
@@ -1651,12 +1662,16 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
-          output(k,j,1)             = self%scans(i)%d(j)%gain
-          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)             = self%scans(i)%d(j)%chisq
-          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
-          if (self%baseline_order >= 0) then
-             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+          if (.not. self%scans(i)%d(j)%accept) then
+             output(k,j,:) = 0.d0
+          else
+             output(k,j,1)             = self%scans(i)%d(j)%gain
+             output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+             output(k,j,3)             = self%scans(i)%d(j)%chisq
+             output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+             if (self%baseline_order >= 0) then
+                output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+             end if
           end if
           if (j == 1) then
              mjds(k)                = self%scans(i)%t0(1)
@@ -1681,7 +1696,7 @@ contains
        do j = 1, self%ndet
           do i = 1, npar
              if (i >= 2 .and. i <= 4) cycle
-             do k = 1, self%nscan_tot
+             do k = 1, self%last_scan
                 if (output(k,j,i) == 0.d0) then
                    l = k
                    if (k == 1) then
@@ -1743,6 +1758,8 @@ contains
     deallocate(output, mjds)
 
   end subroutine dumpToHDF
+
+  
 
   subroutine initHDF(self, chainfile, iter, map, rms)
     implicit none
@@ -2034,7 +2051,7 @@ contains
 !!$  end subroutine construct_sl_template2
 
 
-  subroutine construct_corrtemp_inst(self, scan, pix, psi, s)
+  subroutine construct_corrtemp_inst(self, scan, pix, psi, s, det)
     !  Construct an instrument-specific correction template
     !
     !  Arguments:
@@ -2047,6 +2064,8 @@ contains
     !       index for pixel
     !  psi: int
     !       integer label for polarization angle
+    !  det: int
+    !       Optional detector index; if present, only evaluate for given detector
     !
     !  Returns:
     !  --------
@@ -2057,12 +2076,13 @@ contains
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
 
     s = 0.d0
 
   end subroutine construct_corrtemp_inst
 
-  subroutine apply_nonlin_corr_inst(self, scan, sd)
+  subroutine apply_nonlin_corr_inst(self, scan, sd, skip_nonlin, handle, det)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2070,16 +2090,19 @@ contains
     !  self: comm_tod object
     !
     implicit none
-    class(comm_tod),                       intent(in)       :: self
+    class(comm_tod),                       intent(inout)    :: self
     integer(i4b),                          intent(in)       :: scan
     class(comm_scandata),                  intent(inout)    :: sd
+    integer(i4b),                          intent(in)       :: skip_nonlin
+    type(planck_rng),                      intent(inout), optional :: handle
+    integer(i4b),                          intent(in),    optional :: det
 
     return
 
   end subroutine apply_nonlin_corr_inst
   
   
-  subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
+  subroutine construct_dipole_template(self, scan, pix, psi, s_dip, det)
     !  construct a CMB dipole template in the time domain
     !
     !  Arguments:
@@ -2102,40 +2125,41 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
+    integer(i4b),                      intent(in), optional :: det
 
-    integer(i4b) :: i, j, ntod
+    integer(i4b) :: i, j, k, ntod, ndet
     real(dp)     :: v_ref(3)
     real(dp), allocatable, dimension(:,:) :: P
     logical(lgt)  :: relativistic
 
     relativistic = .true.
-
-    ntod = self%scans(scan)%ntod
+    ntod         = self%scans(scan)%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
 
     allocate(P(3,ntod))
-    do j = 1, self%ndet
+    do k = 1, ndet
+       j = k; if (present(det)) j = det
        if (.not. self%scans(scan)%d(j)%accept) cycle
-       if (self%orbital) then
 
+       if (self%orbital) then
          if (self%orb_4pi_beam) then
            v_ref = self%scans(scan)%v_sun
            do i = 1, ntod
-               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
-                       & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                       & self%psi(psi(i,j))] ! [phi, theta, psi]
+               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,k))), &
+                       & self%ind2ang(1,self%pix2ind(pix(i,k))), &
+                       & self%psi(psi(i,k))] ! [phi, theta, psi]
            end do
          else
             v_ref = self%scans(scan)%v_sun 
             do i = 1, ntod
-             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
+               P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,k))) ! [v_x, v_y, v_z]
             end do
          end if
-
        else
           v_ref = v_solar
        end if
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
+            & self%orbital, self%orb_4pi_beam, P, s_dip(:,k))
     end do
     deallocate(P)
 
@@ -2546,6 +2570,7 @@ contains
     integer(i4b) :: i, det
 
     do det = 1, self%ndet
+       if (self%partner(det) == -1) cycle
        do i = 1, size(flag,1)
           if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)
@@ -2562,14 +2587,21 @@ contains
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j, k
+    if (present(psi)) then
+       psi = 0
+    end if
     do i=1, self%nhorn
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
        end if
        if (present(psi)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i))
-          if (minval(psi) < 1) then
-            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+          if (minval(psi) .eq. 0) then
+            !write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            psi(:,i) = psi(:, i) + 1
+          end if
+          if (minval(psi) < 0) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', something is wrong'
             stop
           end if
           if (maxval(psi) > self%npsi) then
@@ -3228,7 +3260,8 @@ contains
      real(sp),            dimension(:), intent(in), optional :: s_tot
 
      
-     integer(i4b) :: i, j, k, n, pix_nest, ntod, nmax, window, ntot, iter, ncut, b_elon, output_scan, flag_dyn, q
+     integer(i4b) :: i, j, k, n, pix_nest, ntod, nmax, window, ntot, iter, b_elon, output_scan, flag_dyn, q
+     integer(i8b) :: ncut
      real(dp) :: rms0
      real(sp) :: var0, gain
      logical(lgt), allocatable, dimension(:)   :: cut
@@ -3237,7 +3270,7 @@ contains
 
      if (sum(mask) == 0) return 
 
-     output_scan = -1 !116 
+     output_scan = 751 !-1 !116 
      flag_dyn    = 2**30
      ntod        = size(res)
      ntot        = count(iand(flag,self%flag0) .eq. 0)
@@ -3268,7 +3301,7 @@ contains
            if (iand(flag(i),self%flag0) .eq. 0) then
               call ring2nest(self%nside, pix(i), pix_nest)
               pix_nest = pix_nest / q
-              if (tod(i) < self%pixhist(4,pix_nest) .or. tod(i) > self%pixhist(5,pix_nest)) then
+              if (tod(i) < self%pixhist(4,pix_nest,det) .or. tod(i) > self%pixhist(5,pix_nest,det)) then
                  mask_dyn(i) = 0.
                  mask(i)     = 0.
                  flag(i)     = flag(i) + flag_dyn
@@ -3301,17 +3334,17 @@ contains
         ncut = 0
         if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
         do iter = 1, 1
-           ! Compute full-scan, masked rms0
-           rms0 = 0.d0
-           n   = 0
-           do i = 1, ntod
-              if (mask(i) == 1.) then
-                 rms0 = rms0 + res(i)**2
-                 n   = n   + 1
-              end if
-           end do
-           rms0 = sqrt(rms0/(n-1))
-           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
+!!$           ! Compute full-scan, masked rms0
+!!$           rms0 = 0.d0
+!!$           n   = 0
+!!$           do i = 1, ntod
+!!$              if (mask(i) == 1.) then
+!!$                 rms0 = rms0 + res(i)**2
+!!$                 n   = n   + 1
+!!$              end if
+!!$           end do
+!!$           rms0 = 0.; if (n > 1) rms0 = sqrt(rms0/(n-1))
+!!$           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
@@ -3343,7 +3376,7 @@ contains
         if (output_scan == self%scanid(scan)) close(58)
         deallocate(cut)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, single spikes-- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
-        self%mask_dyn_stats(3) = self%mask_dyn_stats(3) + ncut
+        self%mask_dyn_stats(3) = self%mask_dyn_stats(3)
      end if
      
      if (threshold(4) > 0.) then
@@ -3608,26 +3641,27 @@ contains
      implicit none
      class(comm_tod), intent(in) :: self
 
-     integer(i4b) :: ierr, ntod
+     integer(i4b) :: ierr
+     integer(i8b) :: ntod
 
      ! Synchronize stats across cores
-     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER, MPI_SUM, self%comm, ierr)
+     call mpi_allreduce(MPI_IN_PLACE, self%mask_dyn_stats, size(self%mask_dyn_stats), MPI_INTEGER8, MPI_SUM, self%comm, ierr)
 
      if (self%myid == 0) then
         ntod = self%mask_dyn_stats(-1)
         write(*,fmt='(a,a,a)')      'TOD flagging stats for ', trim(self%freq), ' (      frac,          ntot     )'
-        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),sp)/ntod, ntod
-        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),sp)/ntod, self%mask_dyn_stats( 0)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),sp)/ntod, self%mask_dyn_stats( 1)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),sp)/ntod, self%mask_dyn_stats( 2)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),sp)/ntod, self%mask_dyn_stats( 3)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),sp)/ntod, self%mask_dyn_stats( 4)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),sp)/ntod, self%mask_dyn_stats( 5)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),sp)/ntod, self%mask_dyn_stats( 6)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),sp)/ntod, self%mask_dyn_stats( 7)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),sp)/ntod, self%mask_dyn_stats( 8)
-        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),sp)/ntod, self%mask_dyn_stats( 9)
-        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),sp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
+        write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%mask_dyn_stats(-1),dp)/ntod, ntod
+        write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%mask_dyn_stats( 0),dp)/ntod, self%mask_dyn_stats( 0)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%mask_dyn_stats( 1),dp)/ntod, self%mask_dyn_stats( 1)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%mask_dyn_stats( 2),dp)/ntod, self%mask_dyn_stats( 2)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%mask_dyn_stats( 3),dp)/ntod, self%mask_dyn_stats( 3)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%mask_dyn_stats( 4),dp)/ntod, self%mask_dyn_stats( 4)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%mask_dyn_stats( 5),dp)/ntod, self%mask_dyn_stats( 5)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%mask_dyn_stats( 6),dp)/ntod, self%mask_dyn_stats( 6)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%mask_dyn_stats( 7),dp)/ntod, self%mask_dyn_stats( 7)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%mask_dyn_stats( 8),dp)/ntod, self%mask_dyn_stats( 8)
+        write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%mask_dyn_stats( 9),dp)/ntod, self%mask_dyn_stats( 9)
+        write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%mask_dyn_stats(0:9)),dp)/ntod, ntod-sum(self%mask_dyn_stats(0:9))
      end if
         
    end subroutine report_dynamic_mask_stats
@@ -3663,7 +3697,7 @@ contains
           end if
        end do
        do k = 1, tod%nobs
-          do l = 1, tod%nmaps
+          do l = 1, nmaps
              map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
           end do
        end do

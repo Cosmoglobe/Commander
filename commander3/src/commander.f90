@@ -45,13 +45,13 @@ program commander
 
   real(dp), allocatable :: param_test(:)
   real(dp) :: time_step, lambda, A_ext(1)
-  integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
+  !integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
   integer(i4b) :: ntot, npar
   
-  bands_to_sample = (/1,2/)
-  bands_to_calibrate_against= (/1,2/)
+  !bands_to_sample = (/1,2/)
+  !bands_to_calibrate_against= (/1,2/)
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -182,7 +182,6 @@ program commander
   call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
-  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
@@ -377,7 +376,8 @@ program commander
             end if
         end do
      end if
-
+     ! Do CG group sampling
+     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk
@@ -564,8 +564,11 @@ contains
 
        end do
 
-              !call s_sky(1,1)%p%writeFITS('sky.fits')
-
+!!$!       call compList%x%writeFITS("sig.fits")
+!!$       call s_sky(1,1)%p%writeFITS('sky.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
+       
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 

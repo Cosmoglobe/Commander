@@ -45,6 +45,7 @@ module comm_data_mod
      integer(i4b)                        :: tod_freq
      logical(lgt)                        :: pol_only, subtract_zodi
      logical(lgt)                        :: cr_active
+     character(len=128)                  :: distribute_type
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()
@@ -84,7 +85,7 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
+    integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr, ndets
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
     class(comm_map), pointer  :: smoothed_rms => null()
@@ -121,6 +122,7 @@ contains
        data(n)%tod_type       = cpar%ds_tod_type(i)
        data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)
        data(n)%noise_format   = cpar%ds_noise_format(i)
+       data(n)%distribute_type = ''
 
        allocate(data(n)%gain_stat(cpar%mcmc_num_user_samp_groups))
 
@@ -131,15 +133,28 @@ contains
        call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures
-       nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
+       nmaps = 1
+       if (cpar%ds_polarization(i)) then 
+         nmaps = 3
+       end if
+       if (data(n)%tod_type /= 'none') then
+         if (cpar%ds_tod_map_type(i) == 'nplus2') then
+           data(n)%distribute_type = 'nplus2'
+           ndets = num_tokens(trim(cpar%ds_tod_dets(i)), ",")
+           nmaps = ndets + 3
+         end if
+       end if
+
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
-            & nmaps, cpar%ds_polarization(i))
+            & nmaps, cpar%ds_polarization(i), distribute_type=data(n)%distribute_type)
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (trim(data(n)%noise_format) == 'rms_qucov' .and. cpar%ds_polarization(i)) then 
           data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
-                   & nmaps+1, cpar%ds_polarization(i))
-       else
+                   & nmaps+1, cpar%ds_polarization(i), distribute_type=data(n)%distribute_type)
+       end if
+
+      if(.not. associated(data(n)%rmsinfo)) then
           data(n)%rmsinfo => data(n)%info
        end if
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
@@ -312,13 +327,14 @@ contains
           end if
        end do
        call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
        ! Set up bp pointers in the TOD object
-       if (cpar%enable_TOD_analysis) then
+       if (cpar%enable_TOD_analysis .and. data(n)%tod_type /= 'none') then
           allocate(data(n)%tod%bp(0:data(n)%ndet))
           do j = 0, data(n)%ndet
              data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
@@ -371,9 +387,9 @@ contains
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
-             if (cpar%myid == 0 .and. j == 1) then
-               write(*,*) '|    Warning: smoothed rms map not being loaded'
-             end if
+!!$             if (cpar%myid == 0 .and. j == 1) then
+!!$               write(*,*) '|    Warning: smoothed rms map not being loaded'
+!!$             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do

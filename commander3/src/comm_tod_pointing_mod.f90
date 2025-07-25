@@ -23,10 +23,56 @@ module comm_tod_pointing_mod
    use comm_utils
    implicit none
 
+   interface project_sky
+      procedure project_sky_single, project_sky_multi, project_sky_differential_multi
+   end interface project_sky
+   
 contains
 
-   ! Sky signal template
-   subroutine project_sky(tod, map, pix, psi, flag, pmask, scan_id, &
+   ! Sky signal template for single detector
+   subroutine project_sky_single(tod, det, map, pix, psi, flag, pmask, scan_id, s_sky, tmask)
+      implicit none
+      class(comm_tod),                   intent(in)             :: tod
+      integer(i4b),                      intent(in)             :: det
+      real(sp),     dimension(0:),       intent(in)             :: pmask
+      real(sp),     dimension(1:,1:),    intent(in)             :: map
+      integer(i4b), dimension(:),        intent(in)             :: pix, psi
+      integer(i4b), dimension(:),        intent(in)             :: flag
+      integer(i4b),                      intent(in)             :: scan_id
+      real(sp),     dimension(:),        intent(out)            :: s_sky, tmask
+
+      integer(i4b)                                      :: i, j, k, p, nmap
+      real(sp)                                          :: s
+
+      ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
+      ! T - temperature; Q, U - Stoke's parameters
+!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+      nmap = SIZE(map, 1)
+      if (.not. tod%scans(scan_id)%d(det)%accept) then
+         s_sky = 0.
+         tmask = 0.
+         return
+      end if
+
+      do i = 1, tod%scans(scan_id)%ntod
+         p = tod%pix2ind(pix(i))
+         if (nmap == 3) then
+            if ((psi(i) > 4096)) then
+               write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i)
+               cycle
+            end if
+            s_sky(i) = map(1,p) + map(2,p) * tod%cos2psi(psi(i)) + map(3,p) * tod%sin2psi(psi(i))
+         else if (nmap == 1) then
+            s_sky(i) = map(1,p)  ! Unpolarized channel
+         end if
+         tmask(i) = pmask(pix(i))
+         if (iand(flag(i), tod%flag0) .ne. 0) tmask(i) = 0.
+      end do
+    end subroutine project_sky_single
+
+   ! Sky signal template for detector set
+   subroutine project_sky_multi(tod, map, pix, psi, flag, pmask, scan_id, &
         & s_sky, tmask, s_bp)
       implicit none
       class(comm_tod),                   intent(in)             :: tod
@@ -44,8 +90,6 @@ contains
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
 !      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
-
-
 
       nmap = SIZE(map, 1)
       do det = 1, tod%ndet
@@ -95,10 +139,11 @@ contains
             end do
          end do
       end if
-   end subroutine project_sky
+    end subroutine project_sky_multi
 
-   ! Sky signal template
-   subroutine project_sky_differential(tod, map, pix, psi, flag, pmask, scan_id,&
+   
+   ! Sky signal template for full differential detector set
+   subroutine project_sky_differential_multi(tod, map, pix, psi, flag, pmask, scan_id,&
         & s_skyA, s_skyB, tmask, s_bpA, s_bpB)
       implicit none
       !class(comm_tod), intent(in)  :: tod
@@ -117,14 +162,15 @@ contains
       real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
 
 
+      s_skyA = 0.
+      s_skyB = 0.
+      tmask  = 0.
+      if (present(s_bpA) .and. present(s_bpB)) then
+         s_bpA = 0.
+         s_bpB = 0.
+      end if
+
       if (any(.not. tod%scans(scan_id)%d(:)%accept)) then
-         s_skyA = 0.
-         s_skyB = 0.
-         tmask  = 0.
-         if (present(s_bpA) .and. present(s_bpB)) then
-            s_bpA = 0.
-            s_bpB = 0.
-         end if
          return
       end if
 
@@ -179,6 +225,6 @@ contains
          end do
       end if
 
-   end subroutine project_sky_differential
+    end subroutine project_sky_differential_multi
 
 end module comm_tod_pointing_mod

@@ -220,7 +220,7 @@ contains
     else
        ntrans = nmaps / 2
     end if
-    if (ntrans/=1) print *, "ERROR: ntrans /= 1"
+    !if (ntrans/=1) print *, "ERROR: ntrans /= 1"
 
     ! Set up pointer table to access maps
     alm_ptr(:) = c_null_ptr

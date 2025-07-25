@@ -123,7 +123,7 @@ contains
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
        call self%x%YtW
-
+       
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
@@ -139,7 +139,7 @@ contains
     if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
-          where (self%B_out%b_l(l,:) > 1d-6) 
+          where (self%B_out%b_l(l,:) > 1d-6)
              self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
           elsewhere
              self%x%alm(i,:) = 0.d0
@@ -270,7 +270,8 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
-       if(temp2(1:1) /= '/') then
+       !!raelyn changed temp2 (never initialized) to temp_filename, needed to add the data directroy to the file names
+       if(temp_filename(1:1) /= '/') then
           if(trim(self%mono_prior_type) /= 'bandmono') then
             temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
           end if
@@ -354,8 +355,8 @@ contains
 
     if (self%npar==0) then
        allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind     = cpar%cs_lmax_ind_pol(p,i,id_abs)
-       self%lmax_ind_mix = cpar%cs_lmax_ind_pol(p,i,id_abs)
+       self%lmax_ind     = 0
+       self%lmax_ind_mix = 0
        return !do not go further, lmax_ind is set in initDiffuse
     end if
 
@@ -1338,7 +1339,8 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr(samp_group)%invM_diff)) return
+    !if (allocated(P_cr(samp_group)%invM_diff)) return
+    !RS commented out to allow the preconditioner to be recalculated after MCMC sampling
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1359,7 +1361,9 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    if (.not. allocated(P_cr(samp_group)%invM_diff)) then
+      allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    end if
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1391,7 +1395,9 @@ contains
           end do
 
           n = 0
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%comp2ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          end if
           P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
@@ -1401,8 +1407,12 @@ contains
              end if
           end do
           P_cr(samp_group)%invM_diff(i1,j)%n = n
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          end if
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%M0)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          end if 
           P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
           P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
@@ -1464,11 +1474,16 @@ contains
     logical(lgt), intent(in) :: force_update
 
     if (npre == 0) return
-    
     select case (trim(precond_type))
     case ("diagonal")
+       if (force_update) then
+         call initDiffPrecond_diagonal(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
+       if (force_update) then
+         call initDiffPrecond_pseudoinv(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
@@ -1492,6 +1507,10 @@ contains
     if (npre == 0) return
     if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
+   !  if (force_update) then
+
+   !  end if 
+
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
@@ -1820,8 +1839,8 @@ contains
           do j = 1,self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-             td => comm_map(info)
-             
+             td => comm_map(info) !empty array, commander type map
+             ! if self%theta(j)%p%info%lmax=0 constant on the sky
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
              if (any(self%lmax_ind_pol(1:self%poltype(j),j) >= 0)) then
                 t => comm_map(info)
@@ -1922,7 +1941,6 @@ contains
              cycle
           end if
           
-          
           ! Loop over all pixels, computing mixing matrix for each
           !allocate(theta_p(self%npar,self%nmaps))
           call wall_time(t1)
@@ -1951,7 +1969,7 @@ contains
              ! NEW ! Check band sensitivity before mixing matrix update
              ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
              if (data(i)%comp_sens == "broadband") then
-                ! If broadband, calculate mixing matrix
+               ! If broadband, calculate mixing matrix
                 mixmatnull = .false.
              else
                 ! If component sensitivity, only calculate mixmat on that component.
@@ -2033,8 +2051,6 @@ contains
              end if
 
           end do
-
-          call wall_time(t2)
           !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
                 
           ! Compute mixing matrix average; for preconditioning only
@@ -2103,9 +2119,11 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
 
+    call m%Y()
+    call m%writeFITS("test1.fits")
+    
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
@@ -2116,9 +2134,13 @@ contains
           call m%YtW()
        end if
     end if
+    call m%Y()
+    call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
+    call m%Y()
+    call m%writeFITS("test3.fits")
        
     ! Return correct data product
     if (alm_out_) then
@@ -2986,17 +3008,27 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
     integer(i4b),             intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k
+    integer(i4b) :: i, j, k, nmaps
+
+    ! only do the computation for the I,Q,U maps, not for the individual det maps
+    ! that info is instead stored in the j index in this structure
 
     if (present(band)) then
-       do i = 1, data(band)%info%nmaps
+       ! only do the computation for the I,Q,U maps, not for the individual det maps
+       ! that info is instead stored in the j index in this structure
+       nmaps = data(band)%info%nmaps
+       if (nmaps > 3) nmaps = 3
+
+       do i = 1, nmaps
           do j = 0, data(band)%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
     else
        do k = 1, numband
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(k)%info%nmaps
+          if (nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
