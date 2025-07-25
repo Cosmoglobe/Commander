@@ -2119,8 +2119,8 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
 
-    call m%Y()
-    call m%writeFITS("test1.fits")
+    !call m%Y()
+    !call m%writeFITS("test1.fits")
     
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -2134,13 +2134,13 @@ contains
           call m%YtW()
        end if
     end if
-    call m%Y()
-    call m%writeFITS("test2.fits")
+    !call m%Y()
+    !call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-    call m%Y()
-    call m%writeFITS("test3.fits")
+    !call m%Y()
+    !call m%writeFITS("test3.fits")
        
     ! Return correct data product
     if (alm_out_) then
