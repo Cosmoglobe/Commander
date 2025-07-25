@@ -38,6 +38,25 @@ contains
     npix_hist = 12*tod%nside_pixhist**2
     q         = (tod%nside / tod%nside_pixhist)**2
 
+!!$    if (tod%myid == 0) then
+!!$       open(58,file='tod.dat')
+!!$       do i = 1, tod%nscan
+!!$          if (.not. any(tod%scans(i)%d%accept)) cycle
+!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+!!$          do j = 1, tod%ndet
+!!$             if (.not. tod%scans(i)%d(j)%accept) cycle
+!!$             do k = 1, sd%ntod
+!!$                if (iand(sd%flag(k,j), tod%flag0) .ne. 0) cycle
+!!$                write(58,*) i, j, k, sd%tod(k,j)
+!!$             end do
+!!$          end do
+!!$          call dealloc_scan_data(sd)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$    call mpi_finalize(ierr)
+!!$    stop
+    
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1,ndet))  ! (mu, rms, nhit, min, max)
     allocate(delta(0:npix_hist-1,ndet))  ! (mu, rms, nhit, min, max)
@@ -72,6 +91,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
+
     refine = .true.
     iter   = 0
     do while (refine)
@@ -98,6 +118,7 @@ contains
 !!$                end if
 
                 bin = int((sd%tod(k,j)-tod%pixhist(4,pix,j))/delta(pix,j))+1
+
                 if (bin(1) < 1 .or. bin(1) > NBIN_HIST) bin(1) = 0 ! Sample out of range; discarded
                 hist(bin(1),pix,j) = hist(bin(1),pix,j) + 1
              end do

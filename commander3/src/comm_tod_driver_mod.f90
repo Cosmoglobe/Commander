@@ -67,7 +67,6 @@ contains
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
     end if
-        !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
@@ -80,7 +79,6 @@ contains
        init_s_bp_prop_  = init_s_bp_prop
        init_s_sky_prop_ = init_s_bp_prop
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c1', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     sd%ntod   = tod%scans(scan)%ntod
     sd%ndet   = tod%ndet
@@ -116,8 +114,6 @@ contains
     end if
     !call update_status(status, "todinit_alloc")
     call timer%stop(TOD_ALLOC, tod%band)
-
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
@@ -162,8 +158,6 @@ contains
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, sd%tod)
     end if
-    !call update_status(status, "todinit_tod")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
@@ -178,8 +172,6 @@ contains
        call project_sky(tod, map_gain(:,:,:,1), sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, &
             & procmask, scan, sd%s_gain, sd%mask)
     end if
-    !call update_status(status, "todinit_sky")
-    !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
@@ -203,8 +195,6 @@ contains
        if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
-    !call update_status(status, "todinit_sanity")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     if (tod%correct_orb) then
@@ -214,7 +204,6 @@ contains
     else
        sd%s_orb = 0.
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
@@ -240,12 +229,10 @@ contains
     end if
 
     ! Construct sidelobe template
-    !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
        call timer%start(TOD_SL_INT, tod%band)
        do j = 1, sd%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
                & sd%pix(:,j,1), sd%psi(:,j,1), sd%s_sl(:,j), tod%mbang(j))
           sd%s_sl(:,j) = 2.d0 * sd%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
@@ -257,16 +244,7 @@ contains
           sd%s_sl(:,j) = 0.
        end do
     end if
-!!$    if (tod%scanid(scan) == 3) then
-!!$       open(58,file='sidelobe_BP10.dat')
-!!$       do k = 1, size(sd%s_sl,1)
-!!$          write(58,*) k, sd%s_sl(k,1)
-!!$       end do
-!!$       close(58)
-!!$    end if
 
-
-    !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
     if (tod%sample_mono) then
@@ -276,6 +254,8 @@ contains
           sd%s_mono(:,j) = 0.d0 ! Disabled for now
        end do
     end if
+
+    sd%n_corr = 0d0
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
@@ -675,6 +655,8 @@ contains
     else
        sd%s_mono = 0.d0 
     end if
+
+    sd%n_corr = 0d0
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then

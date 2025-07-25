@@ -26,6 +26,7 @@ module comm_tod_inst_mod
   use comm_tod_hfi_mod
   use comm_tod_spider_mod
   use comm_tod_dirbe_mod
+  use comm_tod_akari_mod
   use comm_tod_lb_mod
   !use comm_tod_quiet_mod  
   implicit none

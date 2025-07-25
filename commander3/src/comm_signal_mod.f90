@@ -743,6 +743,7 @@ contains
 
     do i = 1, numband
        if (trim(data(i)%tod_type) == 'none') cycle
+       if (.not. allocated(data(i)%tod%bp_delta)) cycle
        ndet = data(i)%ndet
        do j = 1, ndet
           data(i)%bp(j)%p%delta = data(i)%tod%bp_delta(j,:)

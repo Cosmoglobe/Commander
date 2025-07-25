@@ -144,7 +144,7 @@ module comm_tod_mod
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
      integer(i4b) :: ndiode                                      ! Number of diodes that makeup each detector
-     character(len=10), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
+     character(len=24), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
      integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
@@ -568,7 +568,7 @@ contains
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs))
+      self%ndet = count_detectors(trim(cpar%ds_tod_dets(id_abs)))
     else
       self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
