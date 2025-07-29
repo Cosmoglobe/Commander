@@ -262,7 +262,6 @@ contains
       pol_beam                    = .true.
       constructor%nside_beam      = nside_beam
 
-
       ! Get detector labels
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
 
@@ -300,6 +299,12 @@ contains
       constructor%split = (/52131,52496,52861,53227,53592,&
                           & 53957,54322,54688,55053,55418/)
 
+      ! Choose absolute bandpass sampling
+      if (trim(constructor%freq) == '030-WMAP_Ka') then
+         constructor%sample_abs_bp   = .true.
+      else
+         constructor%sample_abs_bp   = .false.
+      end if
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -355,6 +360,14 @@ contains
       !          Final output map after TOD processing combined for all detectors
       ! rms_out: comm_map class
       !          Final output rms map after TOD processing combined for all detectors
+
+
+
+      ! For implementing the bandpass proposals;
+      !   We need to have ndelta separate mapmaking routines, that will 
+      !   output two spurious maps.
+      !   We can do this by extending the dimensions of b_map and M_diag, and then
+      !   obtaining the S_map and consequently the chisq_S from there.
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
       character(len=*),                    intent(in) :: chaindir
@@ -418,8 +431,8 @@ contains
       call timer%start(TOD_ALLOC, self%band)
 
       ! Toggle optional operations
-      sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
-      sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
+      sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+      sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
       select_data           = .false.         ! no data selection
@@ -429,6 +442,12 @@ contains
 
       sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
       sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+
+
+      !if (self%freq(1:8) == '090-WMAP') then
+      !  sample_rel_bandpass = .false.
+      !  sample_abs_bandpass = .false.
+      !end if
 
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -440,16 +459,22 @@ contains
       split = .false.
       if (self%output_aux_maps > 0) then
          if (self%first_call) then
-           self%output_n_maps = 3
+           self%output_n_maps = 2
            split = .false.
          else
-           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+           if (mod(iter-1,10) == 0)  self%output_n_maps = 2
            !if (mod(iter-1,20) == 0)  self%output_n_maps = 8
-           if (mod(iter-1,100) == 0) split = .true.
+           !if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
 
+      self%output_n_maps = 1
 
+      if (sample_rel_bandpass) then
+        self%nout = self%output_n_maps + self%n_bp_prop
+      else
+        self%nout = self%output_n_maps
+      end if
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -479,8 +504,11 @@ contains
       deallocate(m_buf)
 
       ! Prepare intermediate data structures
-      if (sample_abs_bandpass .or. sample_rel_bandpass) then
+      if (sample_abs_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
+         chisq_S = 0.d0
+      else if (sample_rel_bandpass) then
+         allocate(chisq_S(1,size(delta,3)))
          chisq_S = 0.d0
       end if
       if (output_scanlist) then
@@ -489,10 +517,10 @@ contains
       end if
 
       if (self%comp_S) then
-         allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
+         allocate ( b_map(0:npix-1, nmaps+1, self%nout))
          allocate (M_diag(0:npix-1, nmaps+2))
       else
-         allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
+         allocate ( b_map(0:npix-1, nmaps,   self%nout))
          allocate (M_diag(0:npix-1, nmaps+1))
       end if
       M_diag = 0d0
@@ -653,10 +681,6 @@ contains
               & init_s_bp=bp_corr)
          end if
 
-         call timer%start(TOD_ALLOC, self%band)
-         allocate(s_buf(sd%ntod,sd%ndet))
-         call timer%stop(TOD_ALLOC, self%band)
-
          ! Make simulations or Sample correlated noise
          if (self%enable_tod_simulations) then
             call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
@@ -707,10 +731,11 @@ contains
 
          ! Compute binned map
          call timer%start(TOD_ALLOC, self%band)
-         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
+         allocate(d_calib(self%nout,sd%ntod, sd%ndet))
          call timer%stop(TOD_ALLOC, self%band)
 
          call compute_calibrated_data(self, i, sd, d_calib)
+
 
 
          if (.false.) then
@@ -773,7 +798,7 @@ contains
          ! Clean up
          call sd%dealloc
          call timer%start(TOD_ALLOC, self%band)
-         deallocate(s_buf, d_calib)
+         deallocate(d_calib)
          call timer%stop(TOD_ALLOC, self%band)
 
       end do
@@ -943,10 +968,27 @@ contains
 
 
         ! Sample bandpass parameters
-        !if (sample_rel_bandpass .or. sample_abs_bandpass) then
-        !   call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
-        !   self%bp_delta = delta(:,:,1)
-        !end if
+        if (sample_rel_bandpass .or. sample_abs_bandpass) then
+          if (sample_rel_bandpass) then
+             ! Testing
+             ! M_diag is the inverse of the variance
+             chisq_S(1,1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+
+             bicg_sol = transpose(map_full)
+             do l = self%output_n_maps+1, self%nout
+                if (self%verbosity > 0 .and. self%myid == 0) then
+                  write(*,*) '|      Solving for bandpass shift maps'
+                end if
+                call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                               & epsil, procmask2, map_full, M_diag, b_map, l, &
+                               & prefix, postfix, self%comp_S, 0)
+                chisq_S(1,l-self%output_n_maps+1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+             end do
+             call mpi_barrier(self%comm, ierr)
+          end if
+          call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+          self%bp_delta = delta(:,:,1)
+        end if
       end if
 
       if (self%myid == 0  .and. select_data) then

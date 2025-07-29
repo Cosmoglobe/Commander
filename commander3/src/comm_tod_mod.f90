@@ -136,6 +136,7 @@ module comm_tod_mod
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
+     integer(i4b) :: nout                                         ! N out, used for bp samp
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      character(len=512) :: datadir
      integer(i4b) :: output_4D_map                                ! Output 4D maps
@@ -1682,17 +1683,15 @@ contains
     end do
 34  close(unit)
 
-    if (maxval(abs(self%prop_bp)) == 0) then
-        write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
-        stop
+    if (maxval(abs(self%prop_bp)) .ne. 0) then
+       ! Compute square root; mean will be projected out after proposal generation
+       do par = 1, npar
+         call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
+       end do
     end if
 
 
 
-    ! Compute square root; mean will be projected out after proposal generation
-    do par = 1, npar
-      call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
-    end do
 
   end subroutine initialize_bp_covar
 

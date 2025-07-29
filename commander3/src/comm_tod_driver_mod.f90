@@ -174,7 +174,6 @@ contains
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do j = 2, self%ndelta
-          !if (.true. .or. tod%myid == 78) write(*,*) 'c61', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, size(map_sky,4)
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2, s_bp=self%s_bp_prop(:,:,j))
        end do
@@ -425,9 +424,7 @@ contains
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-             if (init_s_bp_) then
-               self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
-             end if
+             self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
           end do
        end do
     else if (init_s_sky_prop_) then

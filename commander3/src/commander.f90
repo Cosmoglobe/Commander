@@ -387,7 +387,7 @@ contains
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then
-             write(*,fmt='(a,i2,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
+             write(*,fmt='(a,i2,a)') ' |  Only processing '//trim(data(i)%label)//' every ',& 
                & data(i)%tod_freq, ' Gibbs samples'
            end if
            cycle
@@ -421,7 +421,14 @@ contains
        allocate(eta(ndet))
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
-          if (k > 1) then
+          if (k .eq. 1) then
+             do j = 0, ndet
+                delta(j,:,k) = data(i)%bp(j)%p%delta
+             end do
+             do l = 1, npar
+                delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
+             end do
+          else
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
@@ -448,13 +455,6 @@ contains
                 end do
              end if
              call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
-          else
-             do j = 0, ndet
-                delta(j,:,k) = data(i)%bp(j)%p%delta
-             end do
-             do l = 1, npar
-                delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
-             end do
           end if
 
           do j = 0, ndet
