@@ -408,7 +408,7 @@ contains
       integer(i4b) :: num_cg_iters
       real(dp) ::  epsil
       real(dp) ::  nullval
-      real(dp), allocatable, dimension(:, :)    :: bicg_sol, bicg_sol_1, bicg_sol_2
+      real(dp), allocatable, dimension(:, :)    :: bicg_sol, bicg_sol_1
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
 
@@ -974,7 +974,8 @@ contains
              ! M_diag is the inverse of the variance
              chisq_S(1,1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
 
-             bicg_sol = transpose(map_full)
+             ! Good for debugging, but loses potential speedup.
+             ! bicg_sol = transpose(map_full)
              do l = self%output_n_maps+1, self%nout
                 if (self%verbosity > 0 .and. self%myid == 0) then
                   write(*,*) '|      Solving for bandpass shift maps'
@@ -1016,7 +1017,7 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate(map_sky)
+      deallocate(map_sky, m_gain)
 
       if (self%correct_sl) then
          do i = 1, self%ndet
