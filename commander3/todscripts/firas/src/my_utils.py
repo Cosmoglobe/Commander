@@ -4,6 +4,7 @@ import numpy as np
 from scipy import interpolate
 
 import constants
+import globals as g
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
@@ -299,9 +300,7 @@ def ifg_to_spec(
     erecno = get_recnum(mtm_speed, channels[channel], adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
-    fac_etendu = 1.5  # nathan's pipeline
-    fac_adc_scale = 204.75  # nathan's pipeline
-    spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
+    spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
 
     spec = spec / etf
     spec = spec / spec_norm
@@ -347,10 +346,7 @@ def ifg_to_spec(
     spec[:, :cutoff] = 0
     spec[:, (len(otf) + cutoff) :] = 0
 
-    fac_icm_ghz = 29.9792458
-    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
-
-    spec = spec * fac_erg_to_mjy
+    spec = spec * g.FAC_ERG_TO_MJY
 
     return afreq, spec
 
@@ -435,13 +431,7 @@ def spec_to_ifg(
     else:
         spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
 
-    # Defining constants, getting data model
-    fac_icm_ghz = 29.9792458
-    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
-
-    fac_etendu = 1.5  # nathan's pipeline
-    fac_adc_scale = 204.75  # nathan's pipeline
-    spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
+    spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
 
     S0 = calculate_dc_response(
         bol_cmd_bias=bol_cmd_bias,

@@ -23,6 +23,12 @@ PUB_MODEL = "/mn/stornext/d16/cmbco/ola/firas/pub_calibration_model/"
 # constants
 T_CMB = 2.72548  # Fixsen 2009
 
+FAC_ICM_GHZ = 29.9792458
+FAC_ERG_TO_MJY = 1.0e8 / FAC_ICM_GHZ
+
+FAC_ETENDU = 1.5  # nathan's pipeline
+FAC_ADC_SCALE = 204.75  # nathan's pipeline
+
 # map parameters
 COORDINATES = "G"
 NSIDE = 32
