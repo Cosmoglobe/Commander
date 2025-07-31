@@ -161,6 +161,8 @@ variables["bolometer_ll"] = (
     variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
 ) / 2
 
+del variables["a_ical"], variables["b_ical"], variables["a_dihedral"], variables["b_dihedral"], variables["a_refhorn"], variables["b_refhorn"], variables["a_skyhorn"], variables["b_skyhorn"], variables["a_collimator"], variables["b_collimator"], variables["a_bol_assem_rh"], variables["b_bol_assem_rh"], variables["a_bol_assem_rl"], variables["b_bol_assem_rl"], variables["a_bol_assem_lh"], variables["b_bol_assem_lh"], variables["a_bol_assem_ll"], variables["b_bol_assem_ll"]
+
 # filtering the data based on the mode used
 short_filter = variables["mtm_length"] == 0
 long_filter = variables["mtm_length"] == 1

@@ -2,9 +2,10 @@
 Script to do some experiments on how to use the DFT matrix.
 """
 
-import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
+
+import globals as g
 
 W = np.zeros((g.IFG_SIZE, g.IFG_SIZE), dtype=complex)
 W[0, :] = 1
