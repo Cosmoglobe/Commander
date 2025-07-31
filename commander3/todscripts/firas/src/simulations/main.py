@@ -103,16 +103,8 @@ def generate_ifg(channel, mode, temps, adds_per_group=np.array([3]), sweeps=np.a
 
     # apod = fits_data[1].data["APODIZAT"][0]
     apod = np.ones(512, dtype=np.float64)  # No apodization for now
-    R0 = fits_data[1].data["BOLPARM_"][0]
-    T0 = fits_data[1].data["BOLPARM2"][0]
-    G1 = fits_data[1].data["BOLPARM3"][0]
-    beta = fits_data[1].data["BOLPARM4"][0]
-    rho = fits_data[1].data["BOLPARM5"][0]
-    C1 = fits_data[1].data["BOLPARM6"][0]
-    C3 = fits_data[1].data["BOLPARM7"][0]
-    Jo = fits_data[1].data["BOLPARM8"][0]
-    Jg = fits_data[1].data["BOLPARM9"][0]
-
+    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
+    
     ifg = mu.spec_to_ifg(spec=total_spectra, channel=channel, mode=mode,adds_per_group=adds_per_group, bol_cmd_bias=bol_cmd_bias/25.5, # convert to volts
                          bol_volt=bol_volt, Tbol=temps[f"bolometer_{channel}"], gain=gain, sweeps=sweeps, apod=apod,otf=emiss_xcal,fnyq_icm=fnyq["icm"][frec], R0=R0, T0=T0, G1=G1, beta=beta, rho=rho, C1=C1, C3=C3, Jo=Jo, Jg=Jg)
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")

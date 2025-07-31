@@ -13,6 +13,8 @@ import globals as g
 import my_utils as mu
 
 # TODO: generalise for all channels and modes
+channel = "ll"
+mode = "ss"
 
 data = np.load(g.PROCESSED_DATA_PATH_CAL)
 
@@ -65,3 +67,28 @@ plt.xlabel("Frequency (GHz)")
 plt.ylabel("Intensity (MJy/sr)")
 # plt.show()
 
+frec = 4 * 3 + 0 # LLSS
+fnyq_icm = mu.gen_nyquistl(
+    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+)["hz"][frec]
+
+spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
+
+bol_cmd_bias = data["bol_cmd_bias_ll_ss"]
+bol_volt = data["bol_volt_ll_ss"]
+
+R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
+
+
+S0 = mu.calculate_dc_response(
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        Tbol=temp_bolometer_ll,
+        R0=R0,
+        T0=T0,
+        G1=G1,
+        beta=beta,
+        rho=rho,
+        Jo=Jo,
+        Jg=Jg,
+    )

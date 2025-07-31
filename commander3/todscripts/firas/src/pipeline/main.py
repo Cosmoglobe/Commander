@@ -206,33 +206,7 @@ for channel, channel_value in channels.items():
             ][0]
 
             # bolometer parameters
-            R0 = fits_data[1].data[
-                "BOLPARM_"
-            ][0]
-            T0 = fits_data[1].data[
-                "BOLPARM2"
-            ][0]
-            G1 = fits_data[1].data[
-                "BOLPARM3"
-            ][0]
-            beta = fits_data[1].data[
-                "BOLPARM4"
-            ][0]
-            rho = fits_data[1].data[
-                "BOLPARM5"
-            ][0]
-            C1 = fits_data[1].data[
-                "BOLPARM6"
-            ][0]
-            C3 = fits_data[1].data[
-                "BOLPARM7"
-            ][0]
-            Jo = fits_data[1].data[
-                "BOLPARM8"
-            ][0]
-            Jg = fits_data[1].data[
-                "BOLPARM9"
-            ][0]
+            R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
 
             print(f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}")
 

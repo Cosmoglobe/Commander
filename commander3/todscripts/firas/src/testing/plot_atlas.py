@@ -148,19 +148,8 @@ for param in change_parameters:
 
     otf *= emissivity_factors
 
+    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(ch, SM)
 
-    S0 = pub_model[1].data["DC_RESPO"][0]
-    tau = pub_model[1].data["TIME_CON"][0]
-    Jo = pub_model[1].data["BOLPARM8"][0]*detector_factors['Jo']
-    Jg = pub_model[1].data["BOLPARM9"][0]*detector_factors['Jg']
-    T0 = pub_model[1].data["BOLPARM2"][0]*detector_factors['T0']
-    R0 = pub_model[1].data["BOLPARM_"][0]*detector_factors['R0']
-    rho = pub_model[1].data["BOLPARM5"][0]*detector_factors['rho']
-    G1 = pub_model[1].data["BOLPARM3"][0]*detector_factors['G1']
-    beta = pub_model[1].data["BOLPARM4"][0]*detector_factors['beta']
-    C3 = pub_model[1].data["BOLPARM7"][0]*detector_factors['C3']
-    C1 = pub_model[1].data["BOLPARM6"][0]*detector_factors['C1']
-    
     ical_emiss = pub_model[1].data['RICAL'][0] + 1j*pub_model[1].data['IICAL'][0]
     
     

@@ -1,6 +1,7 @@
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
 from scipy import interpolate
 
 import constants
@@ -350,6 +351,23 @@ def ifg_to_spec(
 
     return afreq, spec
 
+def get_bolometer_parameters(channel, mode):
+    """
+    Returns the bolometer parameters for the given channel and mode.
+    """
+    fits_data = fits.open(f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS")
+    
+    R0 = fits_data[1].data["BOLPARM_"][0]
+    T0 = fits_data[1].data["BOLPARM2"][0]
+    G1 = fits_data[1].data["BOLPARM3"][0]
+    beta = fits_data[1].data["BOLPARM4"][0]
+    rho = fits_data[1].data["BOLPARM5"][0]
+    C1 = fits_data[1].data["BOLPARM6"][0]
+    C3 = fits_data[1].data["BOLPARM7"][0]
+    Jo = fits_data[1].data["BOLPARM8"][0]
+    Jg = fits_data[1].data["BOLPARM9"][0]
+
+    return R0, T0, G1, beta, rho, C1, C3, Jo, Jg
 
 def spec_to_ifg(
     spec,
@@ -466,7 +484,7 @@ def spec_to_ifg(
     afreq = get_afreq(mtm_speed, channels[channel], 257)
     B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
 
-    spec_r = spec_r / fac_erg_to_mjy
+    spec_r = spec_r / g.FAC_ERG_TO_MJY
     spec_r = spec_r * otf
     spec_r = S0[:, np.newaxis] * spec_r / B
     spec_r = spec_r * spec_norm

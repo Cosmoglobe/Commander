@@ -181,39 +181,7 @@ for mode, mode_value in modes.items():
             ]
 
              # bolometer parameters
-            S0 = fits_data[1].data[
-                "DC_RESPO"
-            ][0]
-            tau = fits_data[1].data[
-                "TIME_CON"
-            ][0]
-            Jo = fits_data[1].data[
-                "BOLPARM8"
-            ][0]
-            Jg = fits_data[1].data[
-                "BOLPARM9"
-            ][0]
-            T0 = fits_data[1].data[
-                "BOLPARM2"
-            ][0]
-            R0 = fits_data[1].data[
-                "BOLPARM_"
-            ][0]
-            rho = fits_data[1].data[
-                "BOLPARM5"
-            ][0]
-            G1 = fits_data[1].data[
-                "BOLPARM3"
-            ][0]
-            beta = fits_data[1].data[
-                "BOLPARM4"
-            ][0]
-            C3 = fits_data[1].data[
-                "BOLPARM7"
-            ][0]
-            C1 = fits_data[1].data[
-                "BOLPARM6"
-            ][0]
+            R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
 
             print(f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}")
             _, spec[f"spec_{channel}_{mode}"] = mu.ifg_to_spec(

@@ -114,34 +114,9 @@ for mode in modes:
                 + 1j * fits_data[1].data["ITRANSFE"][0]
             )
             otf = otf[np.abs(otf) > 0]
+            
             # bolometer parameters
-            R0 = fits_data[1].data[
-                "BOLPARM_"
-            ][0]
-            T0 = fits_data[1].data[
-                "BOLPARM2"
-            ][0]
-            G1 = fits_data[1].data[
-                "BOLPARM3"
-            ][0]
-            beta = fits_data[1].data[
-                "BOLPARM4"
-            ][0]
-            rho = fits_data[1].data[
-                "BOLPARM5"
-            ][0]
-            C1 = fits_data[1].data[
-                "BOLPARM6"
-            ][0]
-            C3 = fits_data[1].data[
-                "BOLPARM7"
-            ][0]
-            Jo = fits_data[1].data[
-                "BOLPARM8"
-            ][0]
-            Jg = fits_data[1].data[
-                "BOLPARM9"
-            ][0]
+            R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
 
             _, processed_spectra = mu.ifg_to_spec(original_ifgs, channel=channel, mode = mode, adds_per_group=adds_per_group, sweeps=sweeps, bol_cmd_bias=bol_cmd_bias/25.5, bol_volt=bol_volt, gain=gain, fnyq_icm=fnyq["icm"][frec], otf=otf, Jo=Jo, Jg=Jg, T0=T0, R0=R0, G1=G1, C1=C1, C3=C3, beta=beta, rho=rho, Tbol=temps[f"bolometer_{channel}"], apod=apod)
             # processed_spectra = data[f"spec_{channel}_{mode}"][:]
