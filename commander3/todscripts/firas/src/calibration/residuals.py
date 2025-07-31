@@ -25,15 +25,6 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3} 
 # modes = {"ss":0}
 
-peak_positions = {
-    "lh_ss": 357,
-    "rh_ss": 357,
-    "ll_ss": 360,
-    "rl_ss": 360,
-    "ll_lf": 90,
-    "rl_lf": 90
-}
-
 for mode in modes:
     xcal = data[f"xcal_{mode}"][:]
     ical = data[f"ical_{mode}"][:]
@@ -114,7 +105,7 @@ for mode in modes:
                 + 1j * fits_data[1].data["ITRANSFE"][0]
             )
             otf = otf[np.abs(otf) > 0]
-            
+
             # bolometer parameters
             R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
 
@@ -172,18 +163,18 @@ for mode in modes:
 
                 plt.subplot(3, 1, 1)
                 plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]))
-                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
+                plt.axvline(x=g.PEAK_POSITIONS[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Original IFG")
             
                 plt.subplot(3, 1, 2)
                 plt.plot(simulated_ifgs[ifg, :])
-                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
+                plt.axvline(x=g.PEAK_POSITIONS[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Simulated IFG")
 
                 plt.subplot(3, 1, 3)
                 plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]) - simulated_ifgs[ifg, :])
                 plt.plot([np.median(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]) - simulated_ifgs[ifg, :])] * 512)
-                plt.axvline(x=peak_positions[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
+                plt.axvline(x=g.PEAK_POSITIONS[f"{channel}_{mode}"], color="red", linestyle="--", label="Peak")
                 plt.title("Residuals (original - simulated)")
 
                 plt.show()

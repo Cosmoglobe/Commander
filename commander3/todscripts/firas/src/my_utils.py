@@ -9,17 +9,7 @@ import globals as g
 from utils.frd import elex_transfcnl
 from utils.fut import get_recnum
 
-peak_positions = {
-    "lh_ss": 357,
-    "rh_ss": 357,
-    "ll_ss": 360,
-    "rl_ss": 360,
-    "ll_lf": 90,
-    "rl_lf": 90
-}
-
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
-
 
 def ghz_to_icm(ghz):
     """
@@ -186,7 +176,7 @@ def clean_ifg(
     ifg = ifg * apod
 
     # roll
-    peak_pos = peak_positions[f"{channel}_{mode}"]
+    peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
     ifg = np.roll(ifg, -peak_pos, axis=1)
 
     return ifg
@@ -205,7 +195,7 @@ def unclean_ifg(
 
     ifg = ifg * gain * sweeps
 
-    peak_pos = peak_positions[f"{channel}_{mode}"]
+    peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
 
     # leaving this here for now because 
     if mode == "ss" and channel[1] == "l":

@@ -19,22 +19,35 @@ sky_data = h5py.File(
 
 print(sky_data["df_data/ifg_ll"].shape)
 
-ifgs = sky_data["df_data/ifg_ll"]
+ifgs_ll = sky_data["df_data/ifg_ll"]
+ifgs_rl = sky_data["df_data/ifg_rl"]
 
-ifgs_sub = ifgs[:-1] - ifgs[1:]
+ifgs_ll = ifgs_ll - np.median(ifgs_ll, axis=1, keepdims=True)
+ifgs_rl = ifgs_rl - np.median(ifgs_rl, axis=1, keepdims=True)
+
+# plt.plot(ifgs_ll[0])
+# plt.plot(ifgs_rl[0])
+# plt.title("IFGs LL and RL")
+# plt.xlabel("Sample Index")
+# plt.ylabel("Amplitude")
+# plt.legend(["LL", "RL"])
+# plt.show()
+
+ifgs_sub = ifgs_ll[:-1] - ifgs_ll[1:]
+# ifgs_sub = ifgs_ll + ifgs_rl
 # TODO: subtract the whole model
 
-cov = np.corrcoef(ifgs, rowvar=False)
+cov = np.corrcoef(ifgs_sub, rowvar=False)
 print(cov.shape)
 
 print(cov)
 
-# plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-# plt.colorbar()
-# plt.title("Correlation Coefficient Matrix of IFGs")
-# plt.xlabel("IFG Index")
-# plt.ylabel("IFG Index")
-# plt.show()
+plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
+plt.colorbar()
+plt.title("Correlation Coefficient Matrix of IFGs")
+plt.xlabel("IFG Index")
+plt.ylabel("IFG Index")
+plt.show()
 
 channel_value = 3
 mode_value = 0

@@ -43,3 +43,12 @@ CHANNELS = ["rh"]
 MODES = ["ss"]
 JOINT = False
 SCANUPDOWN = False
+
+PEAK_POSITIONS = {
+    "lh_ss": 357,
+    "rh_ss": 357,
+    "ll_ss": 360,
+    "rl_ss": 360,
+    "ll_lf": 90,
+    "rl_lf": 90
+}
