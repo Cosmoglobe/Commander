@@ -7,7 +7,8 @@ import numpy as np
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
-sys.path.append(parent)
+grandparent = os.path.dirname(parent)
+sys.path.append(grandparent)
 
 import globals as g
 from utils.config import gen_nyquistl
@@ -40,26 +41,27 @@ ifgs_add = ifgs_ll + ifgs_rl
 cov = np.corrcoef(ifgs_sub, rowvar=False)
 cov_add = np.corrcoef(ifgs_add, rowvar=False)
 
-fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-ax[0].imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-ax[0].set_title("Correlation Coefficient Matrix of Subtracted IFGs")
-ax[0].set_xlabel("IFG Index")
-ax[0].set_ylabel("IFG Index")
-ax[1].imshow(cov_add, cmap="RdBu_r", vmax=1, vmin=-1)
-ax[1].set_title("Correlation Coefficient Matrix of Added IFGs")
-ax[1].set_xlabel("IFG Index")
-ax[1].set_ylabel("IFG Index")
-plt.colorbar(ax[0].images[0], ax=ax[0])
-plt.colorbar(ax[1].images[0], ax=ax[1])
-plt.tight_layout()
-plt.show()
-
-# plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-# plt.colorbar()
-# plt.title("Correlation Coefficient Matrix of IFGs")
-# plt.xlabel("IFG Index")
-# plt.ylabel("IFG Index")
+# fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+# ax[0].imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
+# ax[0].set_title("Correlation Coefficient Matrix of Subtracted IFGs")
+# ax[0].set_xlabel("IFG Index")
+# ax[0].set_ylabel("IFG Index")
+# ax[1].imshow(cov_add, cmap="RdBu_r", vmax=1, vmin=-1)
+# ax[1].set_title("Correlation Coefficient Matrix of Added IFGs")
+# ax[1].set_xlabel("IFG Index")
+# ax[1].set_ylabel("IFG Index")
+# plt.colorbar(ax[0].images[0], ax=ax[0])
+# plt.colorbar(ax[1].images[0], ax=ax[1])
+# plt.tight_layout()
 # plt.show()
+
+plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
+plt.colorbar()
+plt.title("Correlation Coefficient Matrix of IFGs")
+plt.xlabel("IFG Index")
+plt.ylabel("IFG Index")
+plt.savefig("./../test_output/cov.png")
+plt.clf()
 
 channel_value = 3
 mode_value = 0
@@ -67,7 +69,7 @@ mode_value = 0
 frec = 4 * (channel_value % 2) + mode_value
 
 fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+    "../../../reference/fex_samprate.txt", "../../../reference/fex_nyquist.txt", "int"
 )["hz"][frec]
 
 psd = np.abs(np.fft.rfft(ifgs_sub, axis=0))**2
@@ -81,4 +83,4 @@ plt.yscale("log")
 plt.title("Power Spectral Density of IFGs")
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Power Spectral Density")
-plt.savefig("./tests/psd.png")
+plt.savefig("./../test_output/psd.png")

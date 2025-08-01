@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from funcs import dust
-from globals import IFG_SIZE, SPEC_SIZE
+from globals_mapmaker import IFG_SIZE, SPEC_SIZE
 
 
 def sim_dust():
 
-    dust_map_downgraded_mjy = fits.open("tests/dust_map_downgraded.fits")
+    dust_map_downgraded_mjy = fits.open("test_output/dust_map_downgraded.fits")
     # get map data from the fits file
     dust_map_downgraded_mjy = dust_map_downgraded_mjy[0].data
 
@@ -29,19 +29,21 @@ def sim_dust():
     
     plt.plot(frequencies, signal)
     # plt.show()
+    plt.savefig("test_output/signal.png")
+    plt.clf()
 
     return dust_map_downgraded_mjy, frequencies, signal
 
-def white_noise(ntod):
-    noise = np.random.normal(0, 0.01, (ntod, IFG_SIZE))
+def white_noise(ntod, sigma_min=0.001, sigma_max=0.1):
+    sigmarand = np.random.uniform(sigma_min, sigma_max, ntod)
+    noise = np.random.normal(0, sigmarand[:, np.newaxis], (ntod, IFG_SIZE))
 
     # save noise in a npz file
-    np.savez("tests/white_noise.npz", noise=noise)
-    print(f"Noise: {noise}")
+    np.savez("test_output/white_noise.npz", noise=sigmarand)
 
     return noise
 
-def scanning_strategy():
+# def scanning_strategy():
 
 
 
@@ -64,20 +66,26 @@ if __name__ == "__main__":
     # visualise spec_complex
     plt.imshow(np.abs(spec512), aspect="auto")
     plt.colorbar()
-    plt.show()
+    # plt.show()
+    plt.savefig("test_output/spec512.png")
+    plt.clf()
 
     # plot some spec_complex
     for i in range(0, len(spec), 100):  
         plt.plot(np.abs(spec512[i]), color="black", alpha=0.5)
         plt.plot(spec512[i], color="red", alpha=0.5)
-    plt.show()
+    # plt.show()
+    plt.savefig("test_output/spec512_plot.png")
+    plt.clf()
 
     # plot real and imag parts of spec_complex
     fig, ax = plt.subplots(2, 1)
     for i in range(0, len(spec), 100):
         ax[0].plot(np.real(spec512[i]), color="black", alpha=0.5)
         ax[1].plot(np.imag(spec512[i]), color="red", alpha=0.5)
-    plt.show()
+    # plt.show()
+    plt.savefig("test_output/spec512_real_imag_plot.png")
+    plt.clf()
 
     # check ifg for nans
     x_cm = np.linspace(
@@ -119,7 +127,7 @@ if __name__ == "__main__":
     print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")
 
     # save ifg products in a npz file
-    np.savez("tests/ifgs.npz", ifg=ifg)
+    np.savez("test_output/ifgs.npz", ifg=ifg)
 
     time_end = time.time()
     print(f"Time elapsed for IFGs: {(time_end - time_start)/60} minutes")

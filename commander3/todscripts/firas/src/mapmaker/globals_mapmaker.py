@@ -1,7 +1,7 @@
 IFG_SIZE = 512
 SPEC_SIZE = 257
 
-PNG = False
-FITS = True
+PNG = True
+FITS = False
 
 NSIDE = 32

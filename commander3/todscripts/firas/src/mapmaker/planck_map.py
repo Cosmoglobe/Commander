@@ -2,8 +2,8 @@
 Downgrades the Planck map to a lower resolution.
 """
 
-import astropy.constants as const
 import astropy.units as u
+import globals_mapmaker as g
 import healpy as hp
 import numpy as np
 from astropy.io import fits
@@ -28,7 +28,7 @@ hp.mollview(
 
 # downgrade to nside = 32
 dust_map_downgraded = hp.ud_grade(
-    dust_map_smoothed, nside_out=16, order_in="NESTED", order_out="RING"
+    dust_map_smoothed, nside_out=g.NSIDE, order_in="NESTED", order_out="RING"
 )
 # hp.mollview(dust_map_downgraded, title="Downgraded dust map", unit="$\\mu K_{RJ}$")
 # plt.savefig("tests/dust_map_downgraded.png")
@@ -46,5 +46,5 @@ dust_map_downgraded_mjy = (dust_map_downgraded * u.uK).to(
 
 # save downgraded map in mjy/sr in order to be able to open it again in python
 fits.writeto(
-    "tests/dust_map_downgraded.fits", dust_map_downgraded_mjy.value, overwrite=True
+    "test_output/dust_map_downgraded.fits", dust_map_downgraded_mjy.value, overwrite=True
 )
