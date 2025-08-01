@@ -133,3 +133,26 @@ gain = data["gain_ll_ss"]
 ifg = ifg * gain * sweeps
 
 peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
+ifg = np.roll(ifg, -peak_pos)
+
+fig, ax = plt.subplots(3, 1, figsize=(10, 8))
+ax[0].plot(ifg[n])
+ax[0].set_title(f"Simulated IFG for {channel.upper()}{mode.upper()}")
+ax[0].set_xlabel("Sample Index")
+ax[0].set_ylabel("Amplitude")
+ax[0].axvline(x=peak_pos, color="red", linestyle="--", label="Peak Position")
+ax[0].legend()
+ax[1].plot(ifgs_ll[n] - np.median(ifgs_ll[n]))
+ax[1].set_title(f"Original IFG for {channel.upper()}{mode.upper()}")
+ax[1].set_xlabel("Sample Index")
+ax[1].set_ylabel("Amplitude")
+ax[1].axvline(x=peak_pos, color="red", linestyle="--", label="Peak Position")
+ax[1].legend()
+ax[2].plot(ifg[n] - (ifgs_ll[n] - np.median(ifgs_ll[n])))
+ax[2].set_title(f"Residual IFG for {channel.upper()}{mode.upper()}")
+ax[2].set_xlabel("Sample Index")
+ax[2].set_ylabel("Amplitude")
+ax[2].axvline(x=peak_pos, color="red", linestyle="--", label="Peak Position")
+ax[2].legend()
+plt.tight_layout()
+plt.show()

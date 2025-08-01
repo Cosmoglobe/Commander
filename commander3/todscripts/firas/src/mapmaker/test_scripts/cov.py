@@ -34,20 +34,32 @@ ifgs_rl = ifgs_rl - np.median(ifgs_rl, axis=1, keepdims=True)
 # plt.show()
 
 ifgs_sub = ifgs_ll[:-1] - ifgs_ll[1:]
-# ifgs_sub = ifgs_ll + ifgs_rl
+ifgs_add = ifgs_ll + ifgs_rl
 # TODO: subtract the whole model
 
 cov = np.corrcoef(ifgs_sub, rowvar=False)
-print(cov.shape)
+cov_add = np.corrcoef(ifgs_add, rowvar=False)
 
-print(cov)
-
-plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-plt.colorbar()
-plt.title("Correlation Coefficient Matrix of IFGs")
-plt.xlabel("IFG Index")
-plt.ylabel("IFG Index")
+fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+ax[0].imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
+ax[0].set_title("Correlation Coefficient Matrix of Subtracted IFGs")
+ax[0].set_xlabel("IFG Index")
+ax[0].set_ylabel("IFG Index")
+ax[1].imshow(cov_add, cmap="RdBu_r", vmax=1, vmin=-1)
+ax[1].set_title("Correlation Coefficient Matrix of Added IFGs")
+ax[1].set_xlabel("IFG Index")
+ax[1].set_ylabel("IFG Index")
+plt.colorbar(ax[0].images[0], ax=ax[0])
+plt.colorbar(ax[1].images[0], ax=ax[1])
+plt.tight_layout()
 plt.show()
+
+# plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
+# plt.colorbar()
+# plt.title("Correlation Coefficient Matrix of IFGs")
+# plt.xlabel("IFG Index")
+# plt.ylabel("IFG Index")
+# plt.show()
 
 channel_value = 3
 mode_value = 0
