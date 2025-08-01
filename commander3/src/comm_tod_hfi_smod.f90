@@ -162,8 +162,24 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, zodi_nside, .false.)
     call c%precompute_lookups()
-
+    if (c%pixcache%nobs > 0) then
+       write(*,*) 'pixcache', c%pixcache%ind2pix(1:5)
+       write(*,*) 'pixcache', size(c%pixcache%ind2pix), size(c%ind2pix)
+!!$       open(58,file="pixcache.dat")
+!!$       do i = 1, min(size(c%pixcache%ind2pix), size(c%ind2pix))
+!!$          write(58,*) i, c%pixcache%ind2pix(i), c%ind2pix(i)
+!!$       end do
+!!$       do i = min(size(c%pixcache%ind2pix), size(c%ind2pix))+1, size(c%pixcache%ind2pix)
+!!$          write(58,*) i, c%pixcache%ind2pix(i)
+!!$       end do
+!!$       close(58)
+       write(*,*) 'pixcache', all(c%pixcache%ind2pix == c%ind2pix)
+       write(*,*) 'sin2psi ', all(c%pixcache%sin2psi == c%sin2psi)
+       write(*,*) 'sin2psi ', all(c%pixcache%ind2sl  == c%ind2sl)
+    end if
+    
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 

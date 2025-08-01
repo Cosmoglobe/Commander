@@ -32,7 +32,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_detscan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache
 
   ! bit 0 = good pixel, bit 1 = bad pixel
   integer(i4b), parameter, public :: TODMASK_MAP      = 1 ! Defines map footprint
@@ -43,12 +43,24 @@ module comm_tod_mod
   integer(i4b), parameter, public :: TODMASK_ZODI     = 6  
 
   type :: comm_tod_pixcache
-     integer(i4b) :: nside, nside_lowres,nobs, nobs_lowres
+     integer(i4b) :: nside, nside_lowres, nobs, nside_sl, nside_zodi, nmax, npsi
      logical(lgt) :: fullsky
-     integer(i4b), allocatable, dimension(:) :: pix       ! List of observed pixels
-     integer(i4b), allocatable, dimension(:) :: pix_lowres ! List of observed pixels
+     integer(i4b), allocatable, dimension(:)   :: ind2pix ! List of observed pixels
+     integer(i4b), allocatable, dimension(:)   :: ind2sl  ! Sidelobe Nside 
+     real(sp),     allocatable, dimension(:,:) :: ind2ang ! Pixel angles
+     real(dp),     allocatable, dimension(:,:) :: ind2vec ! Pixel unit vectors
+     real(dp),     allocatable, dimension(:,:) :: ind2vec_ecl ! Ecliptic unit vector
+     real(dp),     allocatable, dimension(:,:) :: ind2vec_ecl_lowres ! Lowres ecliptic
+     integer(i4b), allocatable, dimension(:)   :: udgrade_pix_zodi ! Highres to lowres
+     integer(i4b), allocatable, dimension(:)   :: pix2ind_lowres ! lowres zodi pixels
+     real(sp),     allocatable, dimension(:)   :: sin2psi  ! Lookup table of sin(2psi)
+     real(sp),     allocatable, dimension(:)   :: cos2psi  ! Lookup table of cos(2psi)
+     real(sp),     allocatable, dimension(:)   :: psi      ! Lookup table of psi
    contains
+     procedure :: expand_storage
+     procedure :: add_pixels
      procedure :: pix2ind
+     procedure :: precomp_aux
   end type comm_tod_pixcache
 
   interface comm_tod_pixcache
@@ -404,21 +416,39 @@ module comm_tod_mod
   end type comm_scandata
 
 interface
-  module function constructor_tod_pixcache(bitmask, nside_lowres, fullsky) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nside_zodi, fullsky) result(c)
     implicit none
-    class(comm_map),          intent(in) :: bitmask
-    integer(i4b),             intent(in) :: nside_lowres
+    integer(i4b),             intent(in) :: nside, nside_sl, nside_zodi
     logical(lgt),             intent(in) :: fullsky
     class(comm_tod_pixcache), pointer    :: c
   end function constructor_tod_pixcache
 
-  module function pix2ind(self, pix) result(ind)
-    import comm_tod_pixcache, i4b
+  module function pix2ind(self, pix, flag_missing) result(ind)
     implicit none
-    class(comm_tod_pixcache), intent(in) :: self
-    integer(i4b),             intent(in) :: pix
-    integer(i4b)                         :: ind
+    class(comm_tod_pixcache), intent(in)           :: self
+    integer(i4b),             intent(in)           :: pix
+    logical(lgt),             intent(in), optional :: flag_missing
+    integer(i4b)                                   :: ind
   end function pix2ind
+
+  module subroutine add_pixels(self, pix)
+    implicit none
+    class(comm_tod_pixcache),               intent(inout) :: self
+    integer(i4b),             dimension(:), intent(in)    :: pix
+  end subroutine add_pixels
+
+  module subroutine expand_storage(self, n, trim_unused)
+    implicit none
+    class(comm_tod_pixcache), intent(inout)          :: self
+    integer(i4b),             intent(in),   optional :: n
+    logical(lgt),             intent(in),   optional :: trim_unused
+  end subroutine expand_storage
+
+  module subroutine precomp_aux(self, npsi)
+    implicit none
+    class(comm_tod_pixcache), intent(inout) :: self
+    integer(i4b),             intent(in)    :: npsi
+  end subroutine precomp_aux
 end interface
 
   
@@ -704,6 +734,7 @@ contains
              do k = 2, self%scans(i)%ntod
                 self%pix2ind(pix(k)) = -1
              end do
+             if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
@@ -727,6 +758,7 @@ contains
                    end if
                    self%pix2ind(pix(k)) = -1
                 end do
+                if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
                 if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
                 if (self%use_moon_point)  then
                    call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%psi(l)%p, psi)
@@ -766,6 +798,11 @@ contains
        write(*,*) '|'
     end if
 
+    if (associated(self%pixcache)) then
+       call self%pixcache%expand_storage(trim_unused=.true.)
+       call self%pixcache%precomp_aux(self%npsi)
+    end if
+    
   end subroutine precompute_lookups
 
   !**************************************************
@@ -1036,7 +1073,7 @@ contains
        self%sin2psi(i) = sin(2.0*psi)
        self%cos2psi(i) = cos(2.0*psi)
     end do
-
+    
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
