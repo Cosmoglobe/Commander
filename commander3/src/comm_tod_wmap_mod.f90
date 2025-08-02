@@ -300,10 +300,13 @@ contains
                           & 53957,54322,54688,55053,55418/)
 
       ! Choose absolute bandpass sampling
-      if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%sample_abs_bp   = .true.
-      else
+      !if (trim(constructor%freq) == '030-WMAP_Ka') then
+      if (constructor%freq(1:10) == '090-WMAP_W') then
          constructor%sample_abs_bp   = .false.
+         if (constructor%myid == 0) write(*,*) 'no ab_bp ', trim(constructor%freq)
+      else
+         constructor%sample_abs_bp   = .true.
+         if (constructor%myid == 0) write(*,*) 'ab_bp ', trim(constructor%freq)
       end if
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -388,7 +391,7 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
       real(dp), allocatable, dimension(:, :, :)       :: M_diag_1
-      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv, det
+      real(dp), allocatable, dimension(:)             :: det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
       real(dp), allocatable, dimension(:,:,:,:)       :: b_map_1, b_map_2
       character(len=512) :: prefix, postfix
@@ -400,7 +403,7 @@ contains
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
-      real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
+      real(sp),       allocatable, dimension(:)     :: procmask, procmask2
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky, m_gain
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
@@ -974,8 +977,9 @@ contains
              ! M_diag is the inverse of the variance
              chisq_S(1,1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
 
-             ! Good for debugging, but loses potential speedup.
-             ! bicg_sol = transpose(map_full)
+             ! Starting at previous solution seems like a good idea, 
+             ! but convergence tends to be longer.
+             bicg_sol = transpose(map_full)
              do l = self%output_n_maps+1, self%nout
                 if (self%verbosity > 0 .and. self%myid == 0) then
                   write(*,*) '|      Solving for bandpass shift maps'

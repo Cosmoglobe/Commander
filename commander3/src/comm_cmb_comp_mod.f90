@@ -62,6 +62,7 @@ contains
     ! General parameters
     allocate(constructor)
     constructor%npar         = 0
+    allocate(constructor%poltype(constructor%npar))
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Precompute mixmat integrator for each band

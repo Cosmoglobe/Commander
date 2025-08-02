@@ -937,9 +937,7 @@ end subroutine bin_differential_TOD
 
            call tod%apply_map_precond(p, phat)
            
-           call update_status(status, 'v=A phat')
            call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, split, x_temp, y_temp, phat, v)
-           call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
            alpha         = rho_new/sum(r0*v)
@@ -970,9 +968,7 @@ end subroutine bin_differential_TOD
               exit bicg
            end if
 
-           call update_status(status, 'q=A shat')
            call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, split, x_temp, y_temp, shat, q)
-           call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
            bicg_sol = bicg_sol + omega*shat
@@ -986,9 +982,7 @@ end subroutine bin_differential_TOD
            end if
 
            if (mod(i, recomp_freq) == 1 .or. beta > 1.d8) then
-              call update_status(status, 'A xhat')
               call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, split, x_temp, y_temp, bicg_sol, r)
-              call update_status(status, 'done')
               r(:,1) = b_map(:,1,l)  - r(:,1) - monopole
               r(:,2) = b_map(:,2,l)  - r(:,2)
               r(:,3) = b_map(:,3,l)  - r(:,3)

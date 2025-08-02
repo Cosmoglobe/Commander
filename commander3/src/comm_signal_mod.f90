@@ -250,7 +250,7 @@ contains
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
     call cr_x2amp(samp_group, x)
     call update_status(status, "cr_end")
-    deallocate(rhs,x)
+    deallocate(rhs,x,mask)
 
     ! Apply monopole priors for active diffuse components
     c => compList
