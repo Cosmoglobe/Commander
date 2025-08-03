@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
+buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -96,7 +96,7 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
-  elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl4046 ]]; then
     build_dir="build_owl4046_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
     build_dir="build_owl38_${toolchain}_${buildtype}"
@@ -128,6 +128,12 @@ then
     build_dir="build_hya79_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
     build_dir="build_hya1016_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
+	build_dir="build_hya1719_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
+	build_dir="build_hya20_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
+	build_dir="build_hya21_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
     build_dir="build_hya1719_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya20 ]]; then

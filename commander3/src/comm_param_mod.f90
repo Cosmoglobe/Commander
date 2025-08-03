@@ -699,6 +699,10 @@ contains
        if (trim(cpar%ds_tod_type(i)) /= 'none') then
           call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
                & par_string=cpar%ds_tod_dets(i), path=.false.)
+          if (index(cpar%ds_tod_dets(i), '.txt') /= 0) then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
+               & par_string=cpar%ds_tod_dets(i), path=.true.)
+          end if
        end if
 
        if (cpar%enable_TOD_analysis) then
@@ -3029,10 +3033,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_PARAMETER_WIRING', par_string=cpar%zs_wiring)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
-     call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_THRESHOLD', par_dp=cpar%zs_tod_thin_threshold)
-     call get_parameter_from_hash(htbl, 'ZODI_MIN_SOLAR_ELONGATION', par_dp=cpar%zs_sol_elong(1))
-     call get_parameter_from_hash(htbl, 'ZODI_MAX_SOLAR_ELONGATION', par_dp=cpar%zs_sol_elong(2))
-     
+
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
      cpar%zs_general_params(:, 2) = DEFAULT_PRIOR_LOWER_LIMIT
@@ -3364,7 +3365,7 @@ end subroutine read_zodi_params_hash
     if (io_error == 0) then
        ! Do nothing
     else
-       write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+       write(*,*) 'Could not open file in get_detectors: ', trim(adjustl(detector_list_file))
        stop
     end if
 
@@ -3438,10 +3439,9 @@ end subroutine read_zodi_params_hash
     unit = 20
     detector_list_file = trim(adjustl(filename))
 
-    open(unit,file=detector_list_file, status='old', action='read', iostat=io_error)
-    if (io_error == 0) then
-       ! Do nothing
-    else
+    open(unit,file=trim(detector_list_file), status='old', action='read', iostat=io_error)
+    if (io_error .ne. 0) then
+       write(*,*) io_error
        write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
        stop
     end if

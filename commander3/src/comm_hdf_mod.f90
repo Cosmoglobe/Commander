@@ -1880,7 +1880,7 @@ contains
     integer(size_t) :: datasize
     TYPE(C_PTR), DIMENSION(:), ALLOCATABLE, TARGET :: rdata ! Read buffer
 
-    character(len=8, kind=c_char), pointer :: readable_data
+    character(len=24, kind=c_char), pointer :: readable_data
 
     if(allocated(val)) deallocate(val)
     
