@@ -92,6 +92,8 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-fp-stack-check"
     "-fstack-protector-all"
 		"-traceback" 
+    #"-fsanitize=address"
+    #"-fno-omit-frame-pointer"
 		#"-parallel" 
     #"-qopenmp"
 		#"-C" 
@@ -148,7 +150,9 @@ if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+  #set(LSAN_FLAGS "-fsanitize=address")
+  #list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG ${LSAN_FLAGS})
+  list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
