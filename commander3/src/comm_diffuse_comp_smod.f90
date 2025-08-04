@@ -1295,10 +1295,8 @@ contains
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
     allocate(P_cr%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
-    !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
-       !!$OMP DO SCHEDULE(guided)
        do i1 = 0, info_pre%nalm-1
           call info_pre%i2lm(i1, l, m)
           mat = 0.d0
@@ -1338,10 +1336,8 @@ contains
           P_cr%invM_diff(i1,j)%ind = ind(1:n)
           P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
-       !!$OMP END DO
     end do
     deallocate(ind, mat)
-    !!$OMP END PARALLEL
     call wall_time(t2)
     call update_status(status, "init_diffpre3")
 
@@ -1434,9 +1430,7 @@ contains
     call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
-       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
@@ -1464,17 +1458,13 @@ contains
              end do
           end do
        end do
-       !$OMP END DO
        deallocate(alm)
-       !$OMP END PARALLEL
     end do
 
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
-       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
@@ -1500,9 +1490,7 @@ contains
              end do
           end do
        end do
-       !$OMP END DO
        deallocate(alm)
-       !$OMP END PARALLEL
     end do
     !call wall_time(t2)
     !write(*,*) 'sqrtS = ', t2-t1
@@ -1519,8 +1507,6 @@ contains
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
-       !!$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1
           call info_pre%i2lm(i, l, m)
           !if (info_pre%myid == 1) then
@@ -1534,8 +1520,6 @@ contains
              end do
           end if
        end do
-       !!$OMP END DO
-       !!$OMP END PARALLEL
     end do
 
 
@@ -2220,8 +2204,6 @@ contains
        nmaps  =  data(k)%info%nmaps
        
        ! Sum over (U^plus)^t
-       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
-       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
@@ -2233,8 +2215,6 @@ contains
              end do
           end do
        end do
-       !!$OMP END DO
-       !!$OMP END PARALLEL
 !       call update_status(status, "pseudo3")
 
        ! Multiply by T
@@ -2249,8 +2229,6 @@ contains
        end do
 
        ! Sum over U^plus
-       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
-       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
@@ -2262,8 +2240,6 @@ contains
              end do
           end do
        end do
-       !!$OMP END DO
-       !!$OMP END PARALLEL
 !       call update_status(status, "pseudo7")
 
        call invN_x%dealloc(); deallocate(invN_x)
@@ -2272,9 +2248,7 @@ contains
     ! Prior terms
 !    call update_status(status, "pseudo7.1")
     call wall_time(t1)
-    !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,k,j,m,w,w2,p)
     allocate(w(npre_int), w2(npre_int))
-    !!$OMP DO SCHEDULE(guided)
     do i = 0, info_pre%nalm-1
        do p = 1, info_pre%nmaps
           !call info_pre%i2lm(i, l, m)
@@ -2297,8 +2271,6 @@ contains
        end do
     end do
     deallocate(w, w2)
-    !!$OMP END DO
-    !!$OMP END PARALLEL
     call wall_time(t2)
     !if (info_pre%myid == 0 .or. info_pre%myid == 25) write(*,*) info_pre%myid, ', nalm = ', info_pre%nalm, real(t2-t1,sp)
 !    call update_status(status, "pseudo8")
@@ -3212,6 +3184,8 @@ contains
     end do
 
     call mpi_reduce(invM, buffer, size(invM), MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
+    call mpi_barrier(info%comm, ierr)
+
 
     if (self%myid == 0) then
        self%invM_def = buffer
@@ -3267,6 +3241,7 @@ contains
     end if
     call mpi_reduce(y, ytot, ndef, MPI_DOUBLE_PRECISION, MPI_SUM, 0, &
          & self%x%info%comm, ierr)
+    call mpi_barrier(self%x%info%comm, ierr)
 
     ! Multiply with invE
     if (self%myid == 0) then
