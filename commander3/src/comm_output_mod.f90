@@ -58,6 +58,11 @@ contains
 
           call close_hdf_file(file)
           iter = -1
+
+          !delete fg_ind_mean_cXXXX.dat if it exists and you are not appending
+          fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
+          inquire(file=fg_file, exist=exist)
+          if (exist) call rm(trim(fg_file))
        else if (trim(cpar%chain_status) == 'append') then
           call open_hdf_file(chainfile, file, 'r')
           exist = .true.
@@ -76,12 +81,6 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
-
-       !delete fg_ind_mean_cXXXX.dat if it exists
-       fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
-       inquire(file=fg_file, exist=exist)
-       if (exist) call rm(trim(fg_file))
-
 
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
