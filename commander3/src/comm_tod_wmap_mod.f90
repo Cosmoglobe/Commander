@@ -303,10 +303,8 @@ contains
       !if (trim(constructor%freq) == '030-WMAP_Ka') then
       if (constructor%freq(1:10) == '090-WMAP_W') then
          constructor%sample_abs_bp   = .false.
-         if (constructor%myid == 0) write(*,*) 'no ab_bp ', trim(constructor%freq)
       else
          constructor%sample_abs_bp   = .true.
-         if (constructor%myid == 0) write(*,*) 'ab_bp ', trim(constructor%freq)
       end if
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -975,7 +973,7 @@ contains
           if (sample_rel_bandpass) then
              ! Testing
              ! M_diag is the inverse of the variance
-             chisq_S(1,1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+             chisq_S(1,1) = sum(procmask2 * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
 
              ! Starting at previous solution seems like a good idea, 
              ! but convergence tends to be longer.
@@ -987,7 +985,7 @@ contains
                 call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                                & epsil, procmask2, map_full, M_diag, b_map, l, &
                                & prefix, postfix, self%comp_S, 0)
-                chisq_S(1,l-self%output_n_maps+1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+                chisq_S(1,l-self%output_n_maps+1) = sum(procmask2 * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
              end do
              call mpi_barrier(self%comm, ierr)
           end if
