@@ -167,7 +167,7 @@ contains
                       end if
                       if (trim(c%pol_lnLtype(p,j)) == 'prior') then
                          if (c%theta_prior(2,p,j) == 0.d0) cycle
-                         if (c%spec_mono_combined(p)) then
+                         if (c%spec_mono_combined(1)) then
                             samp_cg = .true.
                             !the case of frozen pixel regions is covered above
                          end if
