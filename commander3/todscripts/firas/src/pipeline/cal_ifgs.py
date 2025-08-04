@@ -9,7 +9,6 @@ from datetime import datetime
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from astropy.io import fits
 
 current = os.path.dirname(os.path.realpath(__file__))
@@ -25,7 +24,7 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 cal_data = h5py.File(
-    "../../data/cal_v4.3.h5",
+    "../../data/cal_v4.4.h5",
     "r",
 )
 
@@ -74,7 +73,6 @@ variable_names = [
     "lvdt_stat_a",
     "lvdt_stat_b",
     "adds_per_group",
-    "gain",
     "sweeps",
     "a_xcal",
     "b_xcal",
@@ -83,6 +81,7 @@ channel_dependent = [
     "ifg",
     "bol_cmd_bias",
     "bol_volt",
+    "gain",
 ]
 
 for channel in channels:
@@ -173,19 +172,19 @@ ical_temps = [
     [2.758, 2.771],
 ]
 
-missions_periods_dt = [
-    datetime.strptime(period, "%y-%j-%H%M") for period in mission_periods
-]
+# missions_periods_dt = [
+#     datetime.strptime(period, "%y-%j-%H%M") for period in mission_periods
+# ]
 
-period_filter = np.empty((len(mission_periods), len(variables["gmt"])), dtype=bool)
-period_filter[0] = (variables["gmt"] < missions_periods_dt[0]) & (
-    variables["gmt"] > start_dt
-)
+# period_filter = np.empty((len(mission_periods), len(variables["gmt"])), dtype=bool)
+# period_filter[0] = (variables["gmt"] < missions_periods_dt[0]) & (
+#     variables["gmt"] > start_dt
+# )
 
-for i in range(len(missions_periods_dt) - 1):
-    period_filter[i + 1] = (variables["gmt"] < missions_periods_dt[i + 1]) & (
-        variables["gmt"] > missions_periods_dt[i]
-    )
+# for i in range(len(missions_periods_dt) - 1):
+#     period_filter[i + 1] = (variables["gmt"] < missions_periods_dt[i + 1]) & (
+#         variables["gmt"] > missions_periods_dt[i]
+#     )
 
 
 # filtering the data based on the mode used
@@ -197,6 +196,9 @@ fast_filter = variables["mtm_speed"] == 1
 filters = {}
 filters["ss"] = short_filter & slow_filter
 filters["lf"] = long_filter & fast_filter
+
+# print sizes
+print(f"size of filters: {(filters['ss']).shape}, {(filters['lf']).shape}")
 
 variablesm = {}
 for variable in variables.keys():
@@ -332,12 +334,12 @@ for channel, channel_value in channels.items():
             t_xcal = variablesm[f"xcal_{mode}"]
             diff = t_xcal - t_ical
             inds = np.where(abs(diff) > 0.5)
-            while True:
-                n = np.random.choice(inds[0])
-                ifg = variablesm[f"ifg_{channel}_{mode}"][n]
-                if np.all(np.isfinite(ifg)) & (np.any(ifg != ifg[0])):
-                    print(n)
-                    break
+            # while True:
+            #     n = np.random.choice(inds[0])
+            #     ifg = variablesm[f"ifg_{channel}_{mode}"][n]
+            #     if np.all(np.isfinite(ifg)) & (np.any(ifg != ifg[0])):
+            #         print(n)
+            #         break
             # n = 38144
             # n = 37338
             n = 4757
@@ -365,7 +367,7 @@ for channel, channel_value in channels.items():
                 G1=G1[f"{channel}_{mode}"],
                 C3=C3[f"{channel}_{mode}"],
                 C1=C1[f"{channel}_{mode}"],
-                gain=variablesm[f"gain_{mode}"],
+                gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
             )
@@ -393,7 +395,7 @@ for channel, channel_value in channels.items():
                 G1=G1[f"{channel}_{mode}"],
                 C3=C3[f"{channel}_{mode}"],
                 C1=C1[f"{channel}_{mode}"],
-                gain=variablesm[f"gain_{mode}"],
+                gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],
                 otf=otf257[f"{channel}_{mode}"],

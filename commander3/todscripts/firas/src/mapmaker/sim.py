@@ -1,11 +1,19 @@
+import os
+import sys
 import time
 
 import astropy.units as u
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from funcs import dust
 from globals_mapmaker import IFG_SIZE, SPEC_SIZE
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import globals as g
 
 
 def sim_dust():
@@ -43,12 +51,18 @@ def white_noise(ntod, sigma_min=0.001, sigma_max=0.1):
 
     return noise
 
-# def scanning_strategy():
-
-
+def scanning_strategy():
+    """
+    Get the pixels for each of the data points in the original sky data in order to generate a realistic scanning strategy.
+    """
+    sky_data = h5py.File(
+        g.PREPROCESSED_DATA_PATH_SKY,
+        "r",
+    )["df_data"]
+    
+    return np.array(sky_data["pix_gal"][:], dtype=int)
 
 if __name__ == "__main__":
-
     dust_map_downgraded_mjy, frequencies, signal = sim_dust()
     # check signal for nans
     print(f"Number of nans in signal: {np.isnan(signal).sum()}")
@@ -120,14 +134,20 @@ if __name__ == "__main__":
     # turn ifg into real signal
     ifg = ifg.real
 
+    # introduce scanning strategy
+    pix_gal = scanning_strategy()
+    ifg_scanning = np.zeros((len(pix_gal), IFG_SIZE))
+    for i, pix in enumerate(pix_gal):
+        ifg_scanning[i] = ifg[pix]
+
     # add noise to ifg
-    ifg = ifg + white_noise(ifg.shape[0])
+    ifg_scanning = ifg_scanning + white_noise(ifg_scanning.shape[0])
 
     # check for nans
-    print(f"Number of nans in IFGs: {np.isnan(ifg).sum()}")
+    print(f"Number of nans in IFGs: {np.isnan(ifg_scanning).sum()}")
 
     # save ifg products in a npz file
-    np.savez("test_output/ifgs.npz", ifg=ifg)
+    np.savez("test_output/ifgs.npz", ifg=ifg_scanning, pix=pix_gal)
 
     time_end = time.time()
     print(f"Time elapsed for IFGs: {(time_end - time_start)/60} minutes")

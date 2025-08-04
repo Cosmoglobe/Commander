@@ -25,35 +25,24 @@ if __name__ == "__main__":
     ntod = d.shape[0]
 
     # d = np.reshape(d, (ntod * g.IFG_SIZE))
-    print(f"d shape: {d.shape}")
 
     # noise_sigma = 0.01
     sigma = np.load("test_output/white_noise.npz")["noise"]
-    print(f"sigma shape: {sigma.shape}")
     # N_inv = np.identity(g.IFG_SIZE * ntod) / noise_scale**2 # is this correct?
     # N_inv = scipy.sparse.diags(
     #     np.ones(g.IFG_SIZE * ntod) / noise_scale**2, format="csr"
     # )  # sparse matrix
-    
-    # P = np.zeros((g.SPEC_SIZE, g.SPEC_SIZE*g.NPIX))
-
-    # m = np.zeros(g.SPEC_SIZE * ntod, dtype=complex)
-
-    # m = conjugate_gradient(N_inv, b)
 
     npix = hp.nside2npix(g.NSIDE)
-    P = np.linspace(0, npix, npix, endpoint=False, dtype=int)
+    # P = np.linspace(0, npix, npix, endpoint=False, dtype=int)
+    P = np.load("test_output/ifgs.npz")["pix"]
 
-    print(f"P shape: {P.shape}")
-
-    numerator = np.zeros_like(d, dtype=float)
+    numerator = np.zeros((npix, d.shape[1]), dtype=float)
     for xi in range(d.shape[1]):
         numerator[:, xi] = np.bincount(P, weights=d[:, xi]/sigma**2, minlength=npix)
     denominator = np.bincount(P, weights=1/sigma**2, minlength=npix)
     m = numerator / denominator[:, np.newaxis]
-    print(f"m shape: {m.shape}")
     m = np.fft.rfft(m, axis=1)
-    print(f"m shape: {m.shape}")
 
     frequencies = mu.generate_frequencies("ll", "ss", 257)
     # save m as maps
@@ -65,7 +54,10 @@ if __name__ == "__main__":
                 np.abs(m[:, nui]),
                 title=f"{int(frequencies[nui]):04d} GHz",
                 unit="MJy/sr",
+                min=0,
+                max=200,
                 xsize=2000,
+                norm='hist',
             )
             plt.savefig(f"./test_output/mapmaker_white_noise/{int(frequencies[nui]):04d}.png")
             plt.close()

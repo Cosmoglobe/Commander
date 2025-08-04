@@ -1,10 +1,16 @@
 import os
+import sys
 
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from globals_mapmaker import FITS, PNG
 from sim import sim_dust
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import globals as g
 
 
 def plot_ifgs(ifg):
@@ -83,13 +89,22 @@ def plot_m_cg_per_tod(frequencies):
             plt.close()
             plt.clf()
 
+def plot_simulated_hit_map():
+    pix = np.load("test_output/ifgs.npz")["pix"]
+    hit_map = np.bincount(pix, minlength=hp.nside2npix(g.NSIDE))
+    hp.mollview(hit_map, title="Hit map", unit="Hits", min=0, max=1000)
+    hp.graticule()
+    plt.savefig("test_output/hit_map.png")
+
 if __name__ == "__main__":
     # open ifgs
-    ifg = np.load("test_output/ifgs.npz")['ifg']
-    plot_ifgs(ifg)
+    # ifg = np.load("test_output/ifgs.npz")['ifg']
+    # plot_ifgs(ifg)
 
-    dust_map_downgraded_mjy, frequencies, signal = sim_dust()
+    # dust_map_downgraded_mjy, frequencies, signal = sim_dust()
 
-    # # # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
-    # plot_m_invert(frequencies)
+    # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
+    # # plot_m_invert(frequencies)
     # plot_m_cg_per_tod(frequencies)
+
+    plot_simulated_hit_map()
