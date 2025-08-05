@@ -1046,9 +1046,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
     allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
-    !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
       if (.not. self%scans(scan_id)%d(j)%accept) cycle
@@ -1075,9 +1073,7 @@ contains
       n_corr(:,j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
-    !$OMP END DO
     deallocate(dt, dv)
-    !$OMP END PARALLEL
 
     call sfftw_destroy_plan(plan_back)
 

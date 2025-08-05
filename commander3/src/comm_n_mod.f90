@@ -152,10 +152,8 @@ contains
     call update_status(status, "compute_invN_lm 3j")
 
     !call wall_time(t1)
-    !!$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
     allocate(threej_symbols(twolmaxp2))
     allocate(threej_symbols_m0(twolmaxp2))
-    !!$OMP DO SCHEDULE(guided)
     do j = 1, invN_diag%info%nm
        m = invN_diag%info%ms(j)
        do l = m, lmax
@@ -185,9 +183,7 @@ contains
           end if
        end do
     end do
-    !!$OMP END DO
     deallocate(threej_symbols, threej_symbols_m0)
-    !!$OMP END PARALLEL
     call wall_time(t2)
 
     call update_status(status, "compute_invN_lm done")
