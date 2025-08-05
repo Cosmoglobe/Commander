@@ -6,7 +6,7 @@ module comm_zodi_samp_mod
 
    private
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky
-   public minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_sampgroup_mask
+   public minimize_zodi_with_powell, get_chisq_priors, create_zodi_sampgroup_mask
    public apply_zodi_sampgroup_mask, sample_static_zodi_map!, sample_static_zodi_amps
    
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
@@ -268,77 +268,77 @@ write(*,*) 'done downsamp'
     end subroutine downsamp_invariant_structs
    
 
-    ! Loop over each band with zodi and precompute lookup tables for lowres zodi caching
-    subroutine precompute_lowres_zodi_lookups(cpar)
-      implicit none 
-      type(comm_params), intent(in) :: cpar
-      
-      integer(i4b) :: i, j, k, l, scan, n_lowres_obs, nobs_downsamp, nobs_lowres, pix_high, pix_low, ierr
-      integer(i4b), allocatable :: pix2ind_highres(:), ind2pix_highres(:)
-      real(dp), allocatable :: ind2vec_zodi_temp(:, :)
-      real(dp) :: rotation_matrix(3, 3)
-
-      call ecl_to_gal_rot_mat(rotation_matrix)
-write(*,*) 'pre1'
-      
-      do i = 1, numband
-         if (trim(data(i)%tod_type) == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-
-         allocate(pix2ind_highres(0:12*data(i)%tod%nside**2-1))         
-         pix2ind_highres = 0
-         
-         do scan = 1, data(i)%tod%nscan
-            if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-            do j = 1, data(i)%tod%ndet
-               do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full)
-                  pix2ind_highres(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(k)) = 1
-               end do
-            end do
-         end do
-         
-         nobs_downsamp = count(pix2ind_highres == 1)
-         data(i)%tod%zodi_cache_nobs_lowres = nobs_downsamp
-         
-         allocate(ind2vec_zodi_temp(3, nobs_downsamp))
-         allocate(ind2pix_highres(nobs_downsamp))
-
-         j = 1
-         do k = 0, 12*data(i)%tod%nside**2-1
-            if (pix2ind_highres(k) == 1) then
-               ind2pix_highres(j) = k
-               j = j+1
-            end if
-         end do
-
-         allocate(data(i)%tod%pix2ind_lowres(0:12*zodi_nside**2-1))
-         data(i)%tod%pix2ind_lowres = 0
-         ind2vec_zodi_temp = 0.
-
-         j = 1
-         do k = 1, nobs_downsamp
-            pix_high = ind2pix_highres(k)
-            pix_low = data(i)%tod%udgrade_pix_zodi(pix_high)
-            if (data(i)%tod%pix2ind_lowres(pix_low) == 0) then
-               data(i)%tod%pix2ind_lowres(pix_low) = j
-               write(*,*) zodi_nside, pix_low
-               call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
-            end if
-            j =  j + 1
-         end do
-
-         nobs_lowres = j-1
-         allocate(data(i)%tod%ind2vec_ecl_lowres(3, nobs_lowres))
-         data(i)%tod%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
-         
-         do k = 1, nobs_lowres
-            data(i)%tod%ind2vec_ecl_lowres(:, k) = matmul(data(i)%tod%ind2vec_ecl_lowres(:, k), rotation_matrix)
-         end do   
-         deallocate(ind2vec_zodi_temp, pix2ind_highres, ind2pix_highres)
-      end do
-
-write(*,*) 'pre2'
-    end subroutine precompute_lowres_zodi_lookups
+!!$    ! Loop over each band with zodi and precompute lookup tables for lowres zodi caching
+!!$    subroutine precompute_lowres_zodi_lookups(cpar)
+!!$      implicit none 
+!!$      type(comm_params), intent(in) :: cpar
+!!$      
+!!$      integer(i4b) :: i, j, k, l, scan, n_lowres_obs, nobs_downsamp, nobs_lowres, pix_high, pix_low, ierr
+!!$      integer(i4b), allocatable :: pix2ind_highres(:), ind2pix_highres(:)
+!!$      real(dp), allocatable :: ind2vec_zodi_temp(:, :)
+!!$      real(dp) :: rotation_matrix(3, 3)
+!!$
+!!$      call ecl_to_gal_rot_mat(rotation_matrix)
+!!$write(*,*) 'pre1'
+!!$      
+!!$      do i = 1, numband
+!!$         if (trim(data(i)%tod_type) == 'none') cycle
+!!$         if (.not. data(i)%tod%subtract_zodi) cycle
+!!$
+!!$         allocate(pix2ind_highres(0:12*data(i)%tod%nside**2-1))         
+!!$         pix2ind_highres = 0
+!!$         
+!!$         do scan = 1, data(i)%tod%nscan
+!!$            if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
+!!$            do j = 1, data(i)%tod%ndet
+!!$               do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full)
+!!$                  pix2ind_highres(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(k)) = 1
+!!$               end do
+!!$            end do
+!!$         end do
+!!$         
+!!$         nobs_downsamp = count(pix2ind_highres == 1)
+!!$         data(i)%tod%zodi_cache_nobs_lowres = nobs_downsamp
+!!$         
+!!$         allocate(ind2vec_zodi_temp(3, nobs_downsamp))
+!!$         allocate(ind2pix_highres(nobs_downsamp))
+!!$
+!!$         j = 1
+!!$         do k = 0, 12*data(i)%tod%nside**2-1
+!!$            if (pix2ind_highres(k) == 1) then
+!!$               ind2pix_highres(j) = k
+!!$               j = j+1
+!!$            end if
+!!$         end do
+!!$
+!!$         allocate(data(i)%tod%pix2ind_lowres(0:12*zodi_nside**2-1))
+!!$         data(i)%tod%pix2ind_lowres = 0
+!!$         ind2vec_zodi_temp = 0.
+!!$
+!!$         j = 1
+!!$         do k = 1, nobs_downsamp
+!!$            pix_high = ind2pix_highres(k)
+!!$            pix_low = data(i)%tod%udgrade_pix_zodi(pix_high)
+!!$            if (data(i)%tod%pix2ind_lowres(pix_low) == 0) then
+!!$               data(i)%tod%pix2ind_lowres(pix_low) = j
+!!$               write(*,*) zodi_nside, pix_low
+!!$               call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
+!!$            end if
+!!$            j =  j + 1
+!!$         end do
+!!$
+!!$         nobs_lowres = j-1
+!!$         allocate(data(i)%tod%ind2vec_ecl_lowres(3, nobs_lowres))
+!!$         data(i)%tod%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
+!!$         
+!!$         do k = 1, nobs_lowres
+!!$            data(i)%tod%ind2vec_ecl_lowres(:, k) = matmul(data(i)%tod%ind2vec_ecl_lowres(:, k), rotation_matrix)
+!!$         end do   
+!!$         deallocate(ind2vec_zodi_temp, pix2ind_highres, ind2pix_highres)
+!!$      end do
+!!$
+!!$write(*,*) 'pre2'
+!!$    end subroutine precompute_lowres_zodi_lookups
 
    subroutine project_and_downsamp_sky(cpar)
      implicit none
@@ -370,7 +370,7 @@ write(*,*) 'pre2'
          do j = 1, data(i)%tod%ndet
             call get_sky_signal(i, j, sky_signal(j,1)%p, mono=.false.)
          end do
-         allocate (map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
+         allocate (map_sky(nmaps, data(i)%tod%pixcache%nobs, 0:data(i)%tod%ndet, 1))
          call distribute_sky_maps(data(i)%tod, sky_signal, 1.e0, map_sky)
 
          ! Project sky signal into already downsampled data structures
@@ -383,7 +383,7 @@ write(*,*) 'pre2'
                end if
                do k = 1, ntod_lowres
                   pix = data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(k)
-                  data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(k) = map_sky(1, data(i)%tod%pix2ind(pix), j, 1)  !zodi is only temperature (for now)
+                  data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(k) = map_sky(1, data(i)%tod%pixcache%pix2ind(pix), j, 1)  !zodi is only temperature (for now)
                end do
             end do
          end do
@@ -967,7 +967,7 @@ write(*,*) 'pre2'
             do j = 1, data(i)%tod%ndet
                call get_sky_signal(i, j, sky_signal(j,1)%p, mono=.true.)
             end do
-            allocate (map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
+            allocate (map_sky(nmaps, data(i)%tod%pixcache%nobs, 0:data(i)%tod%ndet, 1))
             call distribute_sky_maps(data(i)%tod, sky_signal, 1.e0, map_sky)
             
             ! Initialize frequency-specific mask
@@ -1022,7 +1022,7 @@ write(*,*) 'pre2'
                      !call pix2vec_ring(data(i)%tod%nside, p, vec)
                      !elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
                      
-                     s_sky(k) = map_sky(1, data(i)%tod%pix2ind(pix(k, 1)), j, 1)  ! zodi is only temperature (for now)
+                     s_sky(k) = map_sky(1, data(i)%tod%pixcache%pix2ind(pix(k, 1)), j, 1)  ! zodi is only temperature (for now)
                      res      = tod(k) / data(i)%tod%scans(scan)%d(j)%gain - (s_zodi(k)+s_sky(k))
                      A(p)     = A(p) + w * amp * amp
                      b(p)     = b(p) + w * amp * res

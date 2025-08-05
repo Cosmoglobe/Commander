@@ -262,8 +262,8 @@ contains
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Distribute maps
-    allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+    allocate(map_sky(nmaps,self%pixcache%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%pixcache%nobs,0:self%ndet,1))
     call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
     call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 

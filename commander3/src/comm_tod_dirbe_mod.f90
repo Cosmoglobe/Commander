@@ -333,9 +333,9 @@ contains
       postfix_atlas = '.fits'
 
       ! Distribute maps
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+      allocate(map_sky(nmaps,self%pixcache%nobs,0:self%ndet,ndelta))
       call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+      allocate(m_gain(nmaps,self%pixcache%nobs,0:self%ndet,1))
       call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)

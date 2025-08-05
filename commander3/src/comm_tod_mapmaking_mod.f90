@@ -51,7 +51,7 @@ contains
     class(comm_mapinfo), pointer:: mapinfo_nplus2 => null()
 
     call timer%start(TOD_ALLOC, tod%band)
-    self%nobs            = tod%nobs
+    self%nobs            = tod%pixcache%nobs
     self%shared          = shared
     self%solve_S         = solve_S
     self%npix            = tod%info%npix
@@ -139,32 +139,25 @@ contains
     class(comm_binmap),  intent(inout) :: self
     class(comm_tod),     intent(in)    :: tod
 
-    integer(i4b) :: i, j, start_chunk, end_chunk, ierr
+    integer(i4b) :: i, j, start_chunk, end_chunk, ind1, ind2, ierr
 
     if (.not. self%shared) return
 
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
-       do while (start_chunk < self%npix)
-          if (tod%pix2ind(start_chunk) /= -2) exit
-          start_chunk = start_chunk+1
-       end do
-       do while (end_chunk >= start_chunk)
-          if (tod%pix2ind(end_chunk) /= -2) exit
-          end_chunk = end_chunk-1
-       end do
-       if (start_chunk < self%npix)  start_chunk = tod%pix2ind(start_chunk)
-       if (end_chunk >= start_chunk) end_chunk   = tod%pix2ind(end_chunk)
+       call tod%pixcache%get_ind_range(start_chunk, end_chunk, ind1, ind2)
 
        call mpi_win_fence(0, self%sA_map%win, ierr)
        call mpi_win_fence(0, self%sb_map%win, ierr)
-       do j = start_chunk, end_chunk
-          self%sA_map%a(:,tod%ind2pix(j)+1) = self%sA_map%a(:,tod%ind2pix(j)+1) + &
+       if (ind1 > 0 .and. ind2 > 0) then
+          do j = ind1, ind2
+             self%sA_map%a(:,tod%pixcache%ind2pix(j)+1) = self%sA_map%a(:,tod%pixcache%ind2pix(j)+1) + &
                   & self%A_map(:,j)
-          self%sb_map%a(:,:,tod%ind2pix(j)+1) = self%sb_map%a(:,:,tod%ind2pix(j)+1) + &
+             self%sb_map%a(:,:,tod%pixcache%ind2pix(j)+1) = self%sb_map%a(:,:,tod%pixcache%ind2pix(j)+1) + &
                   & self%b_map(:,:,j)
-       end do
+          end do
+       end if
     end do
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
@@ -223,7 +216,7 @@ contains
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
           
-          pix_    = tod%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
+          pix_    = tod%pixcache%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
           psi_    = psi(t,det)
           
           if((.not. binmap%solve_nplus2) .or. det == 1) then
@@ -231,13 +224,13 @@ contains
           end if
           if(tod%nmaps > 1) then
             if((.not. binmap%solve_nplus2) .or. det == 1) then
-              binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq * eff
-              binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq * eff
+              binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%pixcache%cos2psi(psi_)                    * inv_sigmasq * eff
+              binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%pixcache%sin2psi(psi_)                    * inv_sigmasq * eff
             end if
   
-            binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq * eff**2
-            binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq * eff**2
-            binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq * eff**2
+            binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%pixcache%cos2psi(psi_)**2                 * inv_sigmasq * eff**2
+            binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%pixcache%cos2psi(psi_)*tod%pixcache%sin2psi(psi_) * inv_sigmasq * eff**2
+            binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%pixcache%sin2psi(psi_)**2                 * inv_sigmasq * eff**2
             !binmap%A_map(1,pix_) = binmap%A_map(8,pix_) + 1.d0
           end if 
 
@@ -248,16 +241,16 @@ contains
                binmap%b_map(i,det+2,pix_) = binmap%b_map(i,det+2,pix_) + data(i,t,det)              * inv_sigmasq
             end if
              if(tod%nmaps > 1) then
-               binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq * eff
-               binmap%b_map(i,3,pix_) = binmap%b_map(i,3,pix_) + data(i,t,det) * tod%sin2psi(psi_) * inv_sigmasq * eff
+               binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%pixcache%cos2psi(psi_) * inv_sigmasq * eff
+               binmap%b_map(i,3,pix_) = binmap%b_map(i,3,pix_) + data(i,t,det) * tod%pixcache%sin2psi(psi_) * inv_sigmasq * eff
              end if
           end do
           
           if (binmap%solve_S .and. det < tod%ndet) then
              binmap%A_map(off+1,pix_) = binmap%A_map(off+1,pix_) + 1.d0               * inv_sigmasq 
              if(tod%nmaps > 1) then
-               binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq * eff
-               binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq * eff
+               binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%pixcache%cos2psi(psi_) * inv_sigmasq * eff
+               binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%pixcache%sin2psi(psi_) * inv_sigmasq * eff
                binmap%A_map(off+4,pix_) = binmap%A_map(off+4,pix_) + 1.d0               * inv_sigmasq
              end if 
             do i = 1, nout
@@ -265,8 +258,8 @@ contains
              end do
           else if(binmap%solve_nplus2 .and. det > 1) then
             binmap%A_map(off+1,pix_) = binmap%A_map(off+1,pix_) + 1.d0 *inv_sigmasq
-            binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq * eff
-            binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq * eff
+            binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%pixcache%cos2psi(psi_) * inv_sigmasq * eff
+            binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%pixcache%sin2psi(psi_) * inv_sigmasq * eff
          end if
 
 !        if(pix_ == 1 .and. det==2) then
@@ -378,11 +371,11 @@ contains
                b(lpix, 1, i) = b(lpix, 1, i) + f_A*((1.d0+x_im)*d + dx_im*p)*inv_sigmasq
                b(rpix, 1, i) = b(rpix, 1, i) - f_B*((1.d0-x_im)*d - dx_im*p)*inv_sigmasq
                ! Q
-               b(lpix, 2, i) = b(lpix, 2, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%cos2psi(lpsi)*inv_sigmasq
-               b(rpix, 2, i) = b(rpix, 2, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%cos2psi(rpsi)*inv_sigmasq
+               b(lpix, 2, i) = b(lpix, 2, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%pixcache%cos2psi(lpsi)*inv_sigmasq
+               b(rpix, 2, i) = b(rpix, 2, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%pixcache%cos2psi(rpsi)*inv_sigmasq
                ! U
-               b(lpix, 3, i) = b(lpix, 3, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%sin2psi(lpsi)*inv_sigmasq
-               b(rpix, 3, i) = b(rpix, 3, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%sin2psi(rpsi)*inv_sigmasq
+               b(lpix, 3, i) = b(lpix, 3, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%pixcache%sin2psi(lpsi)*inv_sigmasq
+               b(rpix, 3, i) = b(rpix, 3, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%pixcache%sin2psi(rpsi)*inv_sigmasq
                ! S
                if (comp_S) then
                  b(lpix, 4, i) = b(lpix, 4, i) + f_A*((1.d0+x_im)*p + dx_im*d)*inv_sigmasq
@@ -392,18 +385,18 @@ contains
 
             M_diag(lpix, 1) = M_diag(lpix, 1) + f_A*inv_sigmasq
             M_diag(rpix, 1) = M_diag(rpix, 1) + f_B*inv_sigmasq
-            M_diag(lpix, 2) = M_diag(lpix, 2) + f_A*inv_sigmasq*tod%cos2psi(lpsi)**2
-            M_diag(rpix, 2) = M_diag(rpix, 2) + f_B*inv_sigmasq*tod%cos2psi(rpsi)**2
-            M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
-            M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
+            M_diag(lpix, 2) = M_diag(lpix, 2) + f_A*inv_sigmasq*tod%pixcache%cos2psi(lpsi)**2
+            M_diag(rpix, 2) = M_diag(rpix, 2) + f_B*inv_sigmasq*tod%pixcache%cos2psi(rpsi)**2
+            M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%pixcache%sin2psi(lpsi)**2
+            M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%pixcache%sin2psi(rpsi)**2
             if (comp_S) then
               M_diag(lpix, 4) = M_diag(lpix, 4) + f_A*inv_sigmasq
               M_diag(rpix, 4) = M_diag(rpix, 4) + f_B*inv_sigmasq
             else
               ! Not a true diagonal term, just the off-diagonal estimate of the
               ! covariance for each pixel.
-              M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
-              M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
+              M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%pixcache%sin2psi(lpsi)*tod%pixcache%cos2psi(lpsi)
+              M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%pixcache%sin2psi(rpsi)*tod%pixcache%cos2psi(rpsi)
             end if
 
          end do
@@ -482,10 +475,10 @@ end subroutine bin_differential_TOD
             if (iand(flag(t),tod%flag0) .ne. 0) cycle
             lpix = pix(t, 1)
             rpix = pix(t, 2)
-            lcos2psi = tod%cos2psi(psi(t,1))
-            lsin2psi = tod%sin2psi(psi(t,1))
-            rcos2psi = tod%cos2psi(psi(t,2))
-            rsin2psi = tod%sin2psi(psi(t,2))
+            lcos2psi = tod%pixcache%cos2psi(psi(t,1))
+            lsin2psi = tod%pixcache%sin2psi(psi(t,1))
+            rcos2psi = tod%pixcache%cos2psi(psi(t,2))
+            rsin2psi = tod%pixcache%sin2psi(psi(t,2))
 
             ! This is the model for each timestream
             iA = x(1,lpix)

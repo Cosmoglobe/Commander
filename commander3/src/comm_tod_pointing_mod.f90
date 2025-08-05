@@ -57,13 +57,13 @@ contains
 
       eff = tod%pol_eff(det)
       do i = 1, tod%scans(scan_id)%ntod
-         p = tod%pix2ind(pix(i))
+         p = tod%pixcache%pix2ind(pix(i))
          if (nmap == 3) then
             if ((psi(i) > 4096)) then
                write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i)
                cycle
             end if
-            s_sky(i) = map(1,p) + eff*(map(2,p) * tod%cos2psi(psi(i)) + map(3,p) * tod%sin2psi(psi(i)))
+            s_sky(i) = map(1,p) + eff*(map(2,p) * tod%pixcache%cos2psi(psi(i)) + map(3,p) * tod%pixcache%sin2psi(psi(i)))
          else if (nmap == 1) then
             s_sky(i) = map(1,p)  ! Unpolarized channel
          end if
@@ -102,7 +102,11 @@ contains
          
          eff = tod%pol_eff(det)
          do i = 1, tod%scans(scan_id)%ntod
-            p = tod%pix2ind(pix(i,det))
+            p = tod%pixcache%pix2ind(pix(i,det))
+            if (p == -1) then
+               !write(*,*) tod%pixcache%ind2pix
+               write(*,*) "missing pixel", pix(i,det), tod%pixcache%ind2pix(tod%pixcache%nobs-2:tod%pixcache%nobs)
+            end if
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             
             if (nmap == 3) then
@@ -111,8 +115,8 @@ contains
                   cycle
                 end if
                 s_sky(i,det) = map(1,p,det) + eff * &
-                         & (map(2,p,det) * tod%cos2psi(psi(i,det)) + &
-                         &  map(3,p,det) * tod%sin2psi(psi(i,det)))
+                         & (map(2,p,det) * tod%pixcache%cos2psi(psi(i,det)) + &
+                         &  map(3,p,det) * tod%pixcache%sin2psi(psi(i,det)))
             else if (nmap == 1) then
                 s_sky(i,det) = map(1,p,det)  ! Unpolarized channel
             end if 
@@ -132,11 +136,11 @@ contains
 
             eff = tod%pol_eff(det)
             do i = 1, tod%scans(scan_id)%ntod
-               p = tod%pix2ind(pix(i,det))
+               p = tod%pixcache%pix2ind(pix(i,det))
                if (nmap == 3) then
                    s = map(1,p,0) + eff * &
-                      & (map(2,p,0) * tod%cos2psi(psi(i,det)) + &
-                      &  map(3,p,0) * tod%sin2psi(psi(i,det)))
+                      & (map(2,p,0) * tod%pixcache%cos2psi(psi(i,det)) + &
+                      &  map(3,p,0) * tod%pixcache%sin2psi(psi(i,det)))
                else if (nmap == 1) then
                    s = map(1,p,0)
                end if
@@ -181,8 +185,8 @@ contains
 
       do i = 1, tod%ndet
          do j = 1, tod%scans(scan_id)%ntod
-            lpoint = tod%pix2ind(pix(j, 1))
-            rpoint = tod%pix2ind(pix(j, 2))
+            lpoint = tod%pixcache%pix2ind(pix(j, 1))
+            rpoint = tod%pixcache%pix2ind(pix(j, 2))
             ! The gain imbalance parameters x are different for each radiometer.
             ! d13 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)]
             !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
@@ -197,12 +201,12 @@ contains
 
             s_skyA(j, i) = s_skyA(j,i) + map(1, lpoint, i) + &
                        &  sgn(i)*( &
-                       &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
-                       &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
+                       &  map(2, lpoint, i)*tod%pixcache%cos2psi(psi(j, 1)) + &
+                       &  map(3, lpoint, i)*tod%pixcache%sin2psi(psi(j, 1))) 
             s_skyB(j, i) = s_skyB(j,i) + map(1, rpoint, i) + &
                        &  sgn(i) *( &
-                       &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
-                       &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
+                       &  map(2, rpoint, i)*tod%pixcache%cos2psi(psi(j, 2)) + &
+                       &  map(3, rpoint, i)*tod%pixcache%sin2psi(psi(j, 2)))
                     
             if (iand(flag(j), tod%flag0) .ne. 0) then
                tmask(j, i) = 0.
@@ -214,14 +218,14 @@ contains
 
       if (present(s_bpA) .and. present(s_bpB)) then
          do i = 1, tod%scans(scan_id)%ntod
-            lpoint = tod%pix2ind(pix(i, 1))
-            rpoint = tod%pix2ind(pix(i, 2))
+            lpoint = tod%pixcache%pix2ind(pix(i, 1))
+            rpoint = tod%pixcache%pix2ind(pix(i, 2))
             tl     = map(1, lpoint, 0) 
             tr     = map(1, rpoint, 0) 
-            pl     = map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
-                  &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1))
-            pr     = map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
-                  &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2))
+            pl     = map(2, lpoint, 0)*tod%pixcache%cos2psi(psi(i, 1)) + &
+                  &  map(3, lpoint, 0)*tod%pixcache%sin2psi(psi(i, 1))
+            pr     = map(2, rpoint, 0)*tod%pixcache%cos2psi(psi(i, 2)) + &
+                  &  map(3, rpoint, 0)*tod%pixcache%sin2psi(psi(i, 2))
 
             do det = 1, tod%ndet      
                s_bpA(i, det) = s_skyA(i, det) - (tl + sgn(det)*pl) 

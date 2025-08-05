@@ -50,9 +50,9 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:) :: ind2ang ! Pixel angles
      real(dp),     allocatable, dimension(:,:) :: ind2vec ! Pixel unit vectors
      real(dp),     allocatable, dimension(:,:) :: ind2vec_ecl ! Ecliptic unit vector
-     real(dp),     allocatable, dimension(:,:) :: ind2vec_ecl_lowres ! Lowres ecliptic
-     integer(i4b), allocatable, dimension(:)   :: udgrade_pix_zodi ! Highres to lowres
-     integer(i4b), allocatable, dimension(:)   :: pix2ind_lowres ! lowres zodi pixels
+     !real(dp),     allocatable, dimension(:,:) :: ind2vec_ecl_lowres ! Lowres ecliptic
+     !integer(i4b), allocatable, dimension(:)   :: udgrade_pix_zodi ! Highres to lowres
+     !integer(i4b), allocatable, dimension(:)   :: pix2ind_lowres ! lowres zodi pixels
      real(sp),     allocatable, dimension(:)   :: sin2psi  ! Lookup table of sin(2psi)
      real(sp),     allocatable, dimension(:)   :: cos2psi  ! Lookup table of cos(2psi)
      real(sp),     allocatable, dimension(:)   :: psi      ! Lookup table of psi
@@ -60,6 +60,7 @@ module comm_tod_mod
      procedure :: expand_storage
      procedure :: add_pixels
      procedure :: pix2ind
+     procedure :: get_ind_range
      procedure :: precomp_aux
   end type comm_tod_pixcache
 
@@ -216,7 +217,7 @@ module comm_tod_mod
      real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters, (xi_n, 2)
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nside_pixhist                         ! Nside for pixel histograms
-     integer(i4b)      :: nobs, nobs_lowres                     ! Number of observed pixels for this core
+     !integer(i4b)      :: nobs, nobs_lowres                     ! Number of observed pixels for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
@@ -238,9 +239,9 @@ module comm_tod_mod
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi)
-     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi)
-     real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
+     !real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi)
+     !real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi)
+     !real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
@@ -280,14 +281,14 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind
-     integer(i4b),       allocatable, dimension(:)     :: ind2pix, ind2sl ! Lookup tables used with pix2ind 
-     real(sp),           allocatable, dimension(:,:)   :: ind2ang ! Lookup tables used with pix2ind for pixel angles
-     real(dp),           allocatable, dimension(:,:)   :: ind2vec ! Lookup tables used with pix2ind for pixel unit vectors
-     real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl ! Lookuptable for lowres ind to ecliptic unit vector
-     real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
-     integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
+     !integer(i4b),       allocatable, dimension(:)     :: pix2ind
+     !integer(i4b),       allocatable, dimension(:)     :: ind2pix, ind2sl ! Lookup tables used with pix2ind 
+     !real(sp),           allocatable, dimension(:,:)   :: ind2ang ! Lookup tables used with pix2ind for pixel angles
+     !real(dp),           allocatable, dimension(:,:)   :: ind2vec ! Lookup tables used with pix2ind for pixel unit vectors
+     !real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl ! Lookuptable for lowres ind to ecliptic unit vector
+     !real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
+     !integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
+     !integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
      real(sp),           allocatable, dimension(:,:) :: mod_phase  ! Modulation phase (ndet,nscan)
 
      character(len=128)                                :: tod_type
@@ -314,7 +315,7 @@ module comm_tod_mod
      integer(i4b) :: zodi_n_comps
    !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      !real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
-     integer(i4b) :: zodi_cache_nobs_lowres
+     !integer(i4b) :: zodi_cache_nobs_lowres
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
@@ -430,6 +431,13 @@ interface
     logical(lgt),             intent(in), optional :: flag_missing
     integer(i4b)                                   :: ind
   end function pix2ind
+
+  module subroutine get_ind_range(self, pix1, pix2, ind1, ind2)
+    implicit none
+    class(comm_tod_pixcache), intent(in)    :: self
+    integer(i4b),             intent(in)    :: pix1, pix2
+    integer(i4b),             intent(out)   :: ind1, ind2
+  end subroutine get_ind_range
 
   module subroutine add_pixels(self, pix)
     implicit none
@@ -719,9 +727,11 @@ contains
     integer(i4b) :: i, j, k, l, ierr
     integer(i4b), allocatable, dimension(:) :: pix, psi
 
+    !write(*,*) "xyz1", self%myid
+    
     ! Construct observed pixel array
-    allocate(self%pix2ind(0:12*self%nside**2-1))
-    self%pix2ind = -2
+    !allocate(self%pix2ind(0:12*self%nside**2-1))
+    !self%pix2ind = -2
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod), psi(self%scans(i)%ntod))
        if (self%nhorn == 2) then
@@ -730,10 +740,10 @@ contains
           if (self%use_earth_elon)  allocate(self%scans(i)%d(1)%earth_elon(self%scans(i)%ntod,self%nhorn))
           do l = 1, self%nhorn
              call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
-             self%pix2ind(pix(1)) = -1
-             do k = 2, self%scans(i)%ntod
-                self%pix2ind(pix(k)) = -1
-             end do
+             !self%pix2ind(pix(1)) = -1
+             !do k = 2, self%scans(i)%ntod
+             !   self%pix2ind(pix(k)) = -1
+             !end do
              if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
@@ -749,16 +759,20 @@ contains
              if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-                self%pix2ind(pix(1)) = -1
+                !self%pix2ind(pix(1)) = -1
                 do k = 2, self%scans(i)%ntod
                    pix(k)  = pix(k-1)  + pix(k)
                    if (pix(k) > 12*self%nside**2-1) then
                        write(*,*) "Error: pixel number out of range for:"
                        write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
                    end if
-                   self%pix2ind(pix(k)) = -1
+                   !self%pix2ind(pix(k)) = -1
                 end do
                 if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
+!!$                if (any(pix==46051400)) then
+!!$                   write(*,*) "pix = 46051400", self%myid, self%scanid(i), j
+!!$                   write(*,*) "pix = 46051400", self%pixcache%pix2ind(46051400)
+!!$                end if
                 if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
                 if (self%use_moon_point)  then
                    call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%psi(l)%p, psi)
@@ -769,39 +783,49 @@ contains
          end do
       end if
       deallocate(pix,psi)
-    end do
-    self%nobs = count(self%pix2ind == -1)
-    allocate(self%ind2pix(self%nobs))
-    allocate(self%ind2sl(self%nobs))
-    allocate(self%ind2ang(2,self%nobs))
-    allocate(self%ind2vec(3,self%nobs))
+   end do
+   !write(*,*) "xyz2", self%myid, associated(self%pixcache)
+    !self%nobs = count(self%pix2ind == -1)
+    !allocate(self%ind2pix(self%nobs))
+    !allocate(self%ind2sl(self%nobs))
+    !allocate(self%ind2ang(2,self%nobs))
+    !allocate(self%ind2vec(3,self%nobs))
 
-    j = 1
-    do i = 0, 12*self%nside**2-1
-       if (self%pix2ind(i) == -1) then
-          self%ind2pix(j) = i
-          self%pix2ind(i) = j
-          call pix2ang_ring(self%nside, i, theta, phi)
-          call pix2vec_ring(self%nside, i, self%ind2vec(:,j))
-          call ang2pix_ring(self%nside_beam, theta, phi, self%ind2sl(j))
-          self%ind2ang(:,j) = [theta,phi]
-          j = j+1
-       end if
-    end do
+!!$    j = 1
+!!$    do i = 0, 12*self%nside**2-1
+!!$       if (self%pix2ind(i) == -1) then
+!!$          self%ind2pix(j) = i
+!!$          self%pix2ind(i) = j
+!!$          call pix2ang_ring(self%nside, i, theta, phi)
+!!$          call pix2vec_ring(self%nside, i, self%ind2vec(:,j))
+!!$          call ang2pix_ring(self%nside_beam, theta, phi, self%ind2sl(j))
+!!$          self%ind2ang(:,j) = [theta,phi]
+!!$          j = j+1
+!!$       end if
+!!$    end do
 
-    f_fill = self%nobs/(12.*self%nside**2)
-    call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
-    call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)
-    call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-    if (self%myid == 0) then
-       write(*,*) '|  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/self%info%nprocs,sp), real(100*f_fill_lim(2),sp)
-       write(*,*) '|'
-    end if
+!!$    f_fill = self%nobs/(12.*self%nside**2)
+!!$    call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
+!!$    call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)
+!!$    call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$    if (self%myid == 0) then
+!!$       write(*,*) '|  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/self%info%nprocs,sp), real(100*f_fill_lim(2),sp)
+!!$       write(*,*) '|'
+!!$    end if
 
     if (associated(self%pixcache)) then
        call self%pixcache%expand_storage(trim_unused=.true.)
+       !write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
        call self%pixcache%precomp_aux(self%npsi)
     end if
+
+!!$    if (self%myid == 118) then
+!!$       write(*,*) "test1", self%pixcache%nobs
+!!$       write(*,*) "test2", self%pixcache%ind2pix
+!!$       write(*,*) "ind", self%pixcache%pix2ind(46051400)
+!!$    end if
+    
+    !write(*,*) "xyz3", self%myid
     
   end subroutine precompute_lookups
 
@@ -1064,15 +1088,15 @@ contains
 
     call update_status(status, "ccc")
 
-    ! Precompute trigonometric functions
-    allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
-    allocate(self%psi(self%npsi))
-    do i = 1, self%npsi
-       psi             = (i-0.5)*2.0*pi/real(self%npsi,sp)
-       self%psi(i)     = psi
-       self%sin2psi(i) = sin(2.0*psi)
-       self%cos2psi(i) = cos(2.0*psi)
-    end do
+!!$    ! Precompute trigonometric functions
+!!$    allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
+!!$    allocate(self%psi(self%npsi))
+!!$    do i = 1, self%npsi
+!!$       psi             = (i-0.5)*2.0*pi/real(self%npsi,sp)
+!!$       self%psi(i)     = psi
+!!$       self%sin2psi(i) = sin(2.0*psi)
+!!$       self%cos2psi(i) = cos(2.0*psi)
+!!$    end do
     
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
@@ -2093,8 +2117,8 @@ contains
 
     do j = 1, size(pix)/subsamp !TODO: determine a good subsampling factor. 10? 50?
        k = subsamp*(j-1) + 1
-       pix_    = self%ind2sl(self%pix2ind(pix(k)))
-       psi_    = self%psi(psi(k))-polangle
+       pix_    = self%pixcache%ind2sl(self%pixcache%pix2ind(pix(k)))
+       psi_    = self%pixcache%psi(psi(k))-polangle
 
        sub_sl(j) = slconv%interp(pix_, psi_)
        x_sl(j) = k
@@ -2108,8 +2132,8 @@ contains
 
     !do last few samples
     do j = size(sub_sl)*subsamp+1, size(s_sl)
-      pix_    = self%ind2sl(self%pix2ind(pix(j)))
-      psi_    = self%psi(psi(j))-polangle
+      pix_    = self%pixcache%ind2sl(self%pixcache%pix2ind(pix(j)))
+      psi_    = self%pixcache%psi(psi(j))-polangle
       s_sl(j) = slconv%interp(pix_, psi_)
     end do
 
@@ -2240,14 +2264,14 @@ contains
          if (self%orb_4pi_beam) then
            v_ref = self%scans(scan)%v_sun
            do i = 1, ntod
-               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,k))), &
-                       & self%ind2ang(1,self%pix2ind(pix(i,k))), &
-                       & self%psi(psi(i,k))] ! [phi, theta, psi]
+               P(:,i) = [self%pixcache%ind2ang(2,self%pixcache%pix2ind(pix(i,k))), &
+                       & self%pixcache%ind2ang(1,self%pixcache%pix2ind(pix(i,k))), &
+                       & self%pixcache%psi(psi(i,k))] ! [phi, theta, psi]
            end do
          else
             v_ref = self%scans(scan)%v_sun 
             do i = 1, ntod
-               P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,k))) ! [v_x, v_y, v_z]
+               P(:,i) =  self%pixcache%ind2vec(:,self%pixcache%pix2ind(pix(i,k))) ! [v_x, v_y, v_z]
             end do
          end if
        else
@@ -2317,13 +2341,13 @@ contains
     end if
     if (self%orb_4pi_beam) then
        do i = 1, ntod
-          P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
-                  & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                  & self%psi(psi(i,j))] ! [phi, theta, psi]
+          P(:,i) = [self%pixcache%ind2ang(2,self%pixcache%pix2ind(pix(i,j))), &
+                  & self%pixcache%ind2ang(1,self%pixcache%pix2ind(pix(i,j))), &
+                  & self%pixcache%psi(psi(i,j))] ! [phi, theta, psi]
        end do
     else
        do i = 1, ntod
-          P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
+          P(:,i) =  self%pixcache%ind2vec(:,self%pixcache%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
        end do
     end if
 
@@ -3314,12 +3338,6 @@ contains
       !allocate spectral quantities
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
 
-      ! precompute ecliptic unit vectors
-      call ecl_to_gal_rot_mat(rotation_matrix)
-      allocate(self%ind2vec_ecl(3, self%nobs))
-      do i = 1, self%nobs
-         self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
-      end do
       
       ! If zodi sampling is turned on we precompute lowres zodi lookups
       if (.not. cpar%sample_zodi) return
@@ -3330,13 +3348,13 @@ contains
       npix_lowres = 12*zodi_nside**2
       npix_highres = 12*self%nside**2
 
-      ! Make lookup table for highres pixels to lowres pixels
-      allocate(self%udgrade_pix_zodi(0:npix_highres - 1))
-      do i = 0, npix_highres - 1
-         call ring2nest(self%nside, i, nest_pix)
-         nest_pix = nest_pix / n_subpix
-         call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
-      end do
+!!$      ! Make lookup table for highres pixels to lowres pixels
+!!$      allocate(self%udgrade_pix_zodi(0:npix_highres - 1))
+!!$      do i = 0, npix_highres - 1
+!!$         call ring2nest(self%nside, i, nest_pix)
+!!$         nest_pix = nest_pix / n_subpix
+!!$         call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
+!!$      end do
    
    end subroutine precompute_zodi_lookups
 
@@ -3789,8 +3807,8 @@ contains
        do i = 1, size(map_in,1)    ! ndet
           map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
           call map_in(i,j)%p%bcast_fullsky_map(m_buf)
-          do k = 1, tod%nobs
-             map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
+          do k = 1, tod%pixcache%nobs
+             map_out(:,k,i,j) = m_buf(tod%pixcache%ind2pix(k),:)
           end do
           if (present(map_full) .and. j .eq. 1) then
             do k = 1, nmaps
@@ -3800,7 +3818,7 @@ contains
             end do
           end if
        end do
-       do k = 1, tod%nobs
+       do k = 1, tod%pixcache%nobs
           do l = 1, nmaps
              map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
           end do

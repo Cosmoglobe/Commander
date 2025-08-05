@@ -1310,9 +1310,9 @@ contains
 
       ! Initialize cache
       if (use_lowres) then
-         allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
+         !allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
       else
-         allocate(cache(tod%nobs,                   tod%ndet))
+         allocate(cache(tod%pixcache%nobs,                   tod%ndet))
       end if
       cache_time = tod%scans(1)%t0(1)
       cache      = -1
@@ -1342,12 +1342,12 @@ contains
 
          ! Get lookup index for cache. If the pixel is already cached, used that value.
          if (use_lowres) then
-            lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
-            unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
+            !lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
+            !unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
          else
-            lookup_idx  = tod%pix2ind(pix(i))
+            lookup_idx  = tod%pixcache%pix2ind(pix(i))
             if (lookup_idx == -2) write(*,*) 'oor', tod%scanid(scan), det, i, pix(i)
-            unit_vector = tod%ind2vec_ecl(:, lookup_idx)
+            unit_vector = tod%pixcache%ind2vec_ecl(:, lookup_idx)
          end if
          
          if (cache(lookup_idx, det) > 0.d0) then
@@ -1626,7 +1626,7 @@ contains
         real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3), samprate
         real(dp) :: earth_lon, R_obs, R_min, R_max, lat, lon, s_tot, s_scat, s_therm, al, em
 
-        unit_vector = tod%ind2vec_ecl(:, tod%pix2ind(pix(ind)))
+        unit_vector = tod%pixcache%ind2vec_ecl(:, tod%pixcache%pix2ind(pix(ind)))
         obs_time    = tod%scans(scan)%t0(1) + (ind-1)*dt_tod 
         do j = 1, 3
            earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)

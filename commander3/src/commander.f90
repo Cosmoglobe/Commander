@@ -291,7 +291,7 @@ program commander
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
            call downsamp_invariant_structs(cpar)
-           call precompute_lowres_zodi_lookups(cpar)
+           !call precompute_lowres_zodi_lookups(cpar)
            !call compute_downsamp_zodi(cpar, zodi_model)      
            call create_zodi_sampgroup_mask(cpar, handle)
            first_zodi = .false.

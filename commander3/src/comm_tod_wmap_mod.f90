@@ -442,9 +442,9 @@ contains
 
       ! Distribute maps
       ! Allocate total map (for monopole sampling)
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+      allocate(map_sky(nmaps,self%pixcache%nobs,0:self%ndet,ndelta))
       allocate(map_full(nmaps, 0:npix-1))
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+      allocate(m_gain(nmaps,self%pixcache%nobs,0:self%ndet,1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
       call distribute_sky_maps(self, map_gain, 1., m_gain) ! uK to K
@@ -1061,24 +1061,24 @@ contains
             f_r = procmask(pix(t,1))
 
             dl(1) = 1+xbar
-            dl(2) = dx * self%cos2psi(lpsi)
-            dl(3) = dx * self%sin2psi(lpsi)
+            dl(2) = dx * self%pixcache%cos2psi(lpsi)
+            dl(3) = dx * self%pixcache%sin2psi(lpsi)
             dl    = dl * inv_sigma * f_l
 
             dr(1) = -(1-xbar)
-            dr(2) = dx * self%cos2psi(rpsi)
-            dr(3) = dx * self%sin2psi(rpsi)
+            dr(2) = dx * self%pixcache%cos2psi(rpsi)
+            dr(3) = dx * self%pixcache%sin2psi(rpsi)
             dr    = dr * inv_sigma * f_r
 
 
             pl(1) = dx
-            pl(2) = (1+xbar) * self%cos2psi(lpsi)
-            pl(3) = (1+xbar) * self%sin2psi(lpsi)
+            pl(2) = (1+xbar) * self%pixcache%cos2psi(lpsi)
+            pl(3) = (1+xbar) * self%pixcache%sin2psi(lpsi)
             pl    = pl * inv_sigma * f_l
 
             pr(1) = dx
-            pr(2) = -(1-xbar) * self%cos2psi(rpsi)
-            pr(3) = -(1-xbar) * self%sin2psi(rpsi)
+            pr(2) = -(1-xbar) * self%pixcache%cos2psi(rpsi)
+            pr(3) = -(1-xbar) * self%pixcache%sin2psi(rpsi)
             pr    = pr * inv_sigma * f_r
 
             do k1 = 1, self%nmaps_M_lowres

@@ -56,7 +56,10 @@ contains
           ind = locate(self%ind2pix(1:self%nobs), pix)
           flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
           if (flag_missing_) then
-             if (.not. self%ind2pix(ind) == pix) ind = -1
+             if (.not. self%ind2pix(ind) == pix) then
+                write(*,*) "pix2ind", pix, ind, self%nobs, self%ind2pix(ind-1:ind+1)
+                ind = -1
+             end if
           end if
        end if
     end if
@@ -72,8 +75,10 @@ contains
     integer(i4b), allocatable, dimension(:) :: newpix, oldpix
 
     if (self%fullsky) return
-    call wall_time(t1)
+!!$    call wall_time(t1)
 
+    !if (any(pix == 46051400)) write(*,*) 'hit'
+    
     allocate(newpix(size(pix)), oldpix(self%nobs))
     newpix = pix
     oldpix = self%ind2pix(1:self%nobs)
@@ -85,11 +90,14 @@ contains
        if (newpix(p) /= newpix(p-1)) n = n+1
     end do
     call self%expand_storage(n)
-    write(*,*) "new", n, self%nmax
+!    write(*,*) "new", n, self%nmax
     
     ! Merge new sorted list into existing
     i = 1; j = 1; k = 1
     do while (i <= self%nobs .and. j <= size(newpix))
+!!$       if (any(pix == 46051400) .and. self%nobs==22036) then
+!!$          write(*,*) k, i, j, oldpix(i), newpix(j)
+!!$       end if
        if (oldpix(i) == newpix(j)) then
           self%ind2pix(k) = oldpix(i)
           i = i+1; j = j+1; k = k+1
@@ -108,12 +116,20 @@ contains
        end do
     end do
 
+!!$    if(any(pix == 46051400)) then
+!!$       write(*,*) 'check leftover', i, self%nobs
+!!$       write(*,*) 'check leftover', j, size(newpix)
+!!$
+!!$    end if
+    
     if (i <= self%nobs) then
        ! Append left-over pixels in old array
+       !if(any(pix == 46051400)) write(*,*) 'old leftover'
        self%ind2pix(k:k+self%nobs-i) = oldpix(i:self%nobs)
        self%nobs = k+self%nobs-i
     else if (j <= size(newpix)) then
        ! Append left-over pixels in new array
+       !if(any(pix == 46051400)) write(*,*) 'new leftover'
        do while (j <= size(newpix))
           self%ind2pix(k) = newpix(j)
           j = j+1; k = k+1
@@ -125,11 +141,38 @@ contains
           end do
        end do
        self%nobs = k-1
+    else
+       ! No leftovers; just update nobs
+       self%nobs = k-1
     end if
-    call wall_time(t2)
-    write(*,*) "pix", t2-t1, self%nobs, size(newpix)
-
+!!$    call wall_time(t2)
+!!$    write(*,*) "pix", t2-t1, self%nobs, size(newpix)
+!!$    if(any(pix == 46051400)) then
+!!$       write(*,*) 'merge', any(pix == 46051400), any(self%ind2pix(1:self%nobs) == 46051400)
+!!$       write(*,*) 'merge2', self%nobs
+!!$    end if
+    
   end subroutine add_pixels
+
+  module subroutine get_ind_range(self, pix1, pix2, ind1, ind2)
+    implicit none
+    class(comm_tod_pixcache), intent(in)    :: self
+    integer(i4b),             intent(in)    :: pix1, pix2
+    integer(i4b),             intent(out)   :: ind1, ind2
+
+    if (self%nobs == 0) then
+       ind1 = -1
+       ind2 = -1
+    else
+       if (self%ind2pix(self%nobs) < pix1 .or. self%ind2pix(1) > pix2) then
+          ind1 = -2
+          ind2 = -2
+       else
+          ind1 = self%pix2ind(pix1, flag_missing=.false.)
+          ind2 = self%pix2ind(pix2, flag_missing=.false.)
+       end if
+    end if
+  end subroutine get_ind_range
   
   module subroutine expand_storage(self, n, trim_unused)
     implicit none
@@ -161,21 +204,24 @@ contains
 
     integer(i4b) :: i, pix
     real(sp)     :: psi
-    real(dp)     :: theta, phi 
+    real(dp)     :: theta, phi, rotation_matrix(3,3)
     
     allocate(self%ind2ang(2,self%nobs))
     allocate(self%ind2vec(3,self%nobs))
     allocate(self%ind2sl(self%nobs))
-
+    allocate(self%ind2vec_ecl(3, self%nobs))
+    
     ! Precompute pixel-based lookup tables
+    call ecl_to_gal_rot_mat(rotation_matrix)
     do i = 1, self%nobs
        pix = self%ind2pix(i)
        call pix2ang_ring(self%nside, pix, theta, phi)
        self%ind2ang(:,i) = [theta, phi]
        call pix2vec_ring(self%nside, pix, self%ind2vec(:,i))
        call ang2pix_ring(self%nside_sl, theta, phi, self%ind2sl(i))
+       self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
     end do
-
+    
     ! Precompute trigonometric functions
     self%npsi = npsi
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
