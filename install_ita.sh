@@ -42,10 +42,12 @@ hya1016="$prefix+(1[0-6])+$suffix"
 hya1719="$prefix+(1[7-9])+$suffix"
 hya20="$prefix+(20)+$suffix"
 hya21="$prefix+(21)+$suffix"
+prefix="pelican"
+pel12="$prefix+([1-2])+$suffix"
 #------------------------------------------------------------------------------
 # Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
-if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]]
+if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]] || [[ "${HOSTNAME}" =~ "pelican"* ]]
 then
 	#------------------------------------------------------------------------------
 	# Getting the total number of CPUs, taken from this answer:
@@ -134,6 +136,8 @@ then
     build_dir="build_hya20_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
     build_dir="build_hya21_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $pel12 ]]; then
+    build_dir="build_pel12_${toolchain}_${buildtype}"
 	fi
   echo $build_dir
 	#------------------------------------------------------------------------------
