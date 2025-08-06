@@ -301,11 +301,12 @@ contains
 
       ! Choose absolute bandpass sampling
       !if (trim(constructor%freq) == '030-WMAP_Ka') then
-      if (constructor%freq(1:10) == '090-WMAP_W') then
-         constructor%sample_abs_bp   = .false.
-      else
-         constructor%sample_abs_bp   = .true.
-      end if
+      !if (constructor%freq(1:10) == '090-WMAP_W') then
+      !   constructor%sample_abs_bp   = .false.
+      !else
+      !   constructor%sample_abs_bp   = .true.
+      !end if
+      ! constructor%bp_delta = constructor%bp_delta - constructor%bp_delta(0,:)
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -401,7 +402,7 @@ contains
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
-      real(sp),       allocatable, dimension(:)     :: procmask, procmask2
+      real(sp),       allocatable, dimension(:)     :: procmask, procmask2, procmask_pol
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky, m_gain
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
@@ -499,8 +500,8 @@ contains
 
 
       ! Distribute processing masks
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
+      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1), procmask_pol(0:npix-1))
+      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1); procmask_pol = m_buf(:,2)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
@@ -973,7 +974,7 @@ contains
           if (sample_rel_bandpass) then
              ! Testing
              ! M_diag is the inverse of the variance
-             chisq_S(1,1) = sum(procmask2 * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+             chisq_S(1,1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
 
              ! Starting at previous solution seems like a good idea, 
              ! but convergence tends to be longer.
@@ -985,7 +986,7 @@ contains
                 call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                                & epsil, procmask2, map_full, M_diag, b_map, l, &
                                & prefix, postfix, self%comp_S, 0)
-                chisq_S(1,l-self%output_n_maps+1) = sum(procmask2 * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+                chisq_S(1,l-self%output_n_maps+1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
              end do
              call mpi_barrier(self%comm, ierr)
           end if
@@ -1004,7 +1005,7 @@ contains
       ! Clean up temporary arrays
 
       call timer%start(TOD_ALLOC, self%band)
-      deallocate(procmask, procmask2)
+      deallocate(procmask, procmask2, procmask_pol)
       deallocate(b_map, M_diag)
       deallocate(map_full)
       deallocate(bicg_sol)
