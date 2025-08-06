@@ -23,15 +23,7 @@ if __name__ == "__main__":
     d = np.roll(d, -360, axis=1)
 
     ntod = d.shape[0]
-
-    # d = np.reshape(d, (ntod * g.IFG_SIZE))
-
-    # noise_sigma = 0.01
     sigma = np.load("test_output/white_noise.npz")["noise"]
-    # N_inv = np.identity(g.IFG_SIZE * ntod) / noise_scale**2 # is this correct?
-    # N_inv = scipy.sparse.diags(
-    #     np.ones(g.IFG_SIZE * ntod) / noise_scale**2, format="csr"
-    # )  # sparse matrix
 
     npix = hp.nside2npix(g.NSIDE)
     # P = np.linspace(0, npix, npix, endpoint=False, dtype=int)
@@ -57,7 +49,7 @@ if __name__ == "__main__":
                 min=0,
                 max=200,
                 xsize=2000,
-                norm='hist',
+                # norm='hist',
             )
             plt.savefig(f"./test_output/mapmaker_white_noise/{int(frequencies[nui]):04d}.png")
             plt.close()

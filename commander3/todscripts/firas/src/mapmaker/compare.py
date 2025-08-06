@@ -91,12 +91,38 @@ hp.mollview(white_noise_map, title="White noise mapmaker", unit="MJy/sr", min=0,
 hp.graticule()
 plt.savefig("test_output/compare/white_noise_mapmaker.png")
 difference_map = simulated_map - white_noise_map
-hp.mollview(difference_map, title="Simulated - White noise mapmaker", unit="MJy/sr", min=-1, max=1)
+hp.mollview(difference_map, title="Simulated - White noise mapmaker", unit="MJy/sr", min=-1, max=1, cmap='RdBu_r')
 hp.graticule()
 plt.savefig("test_output/compare/difference_map_white_noise.png")
 ratio_map = simulated_map / white_noise_map
 print("Ratio between simulated map and white noise mapmaker: ", ratio_map)
 # plot ratio map
-hp.mollview(ratio_map, title="Ratio map", unit="MJy/sr", min=0.5, max=1.5)
+hp.mollview(ratio_map, title="Ratio map", unit="MJy/sr", min=0.5, max=1.5, cmap='RdBu_r')
 hp.graticule()
 plt.savefig("test_output/compare/ratio_map_white_noise.png")
+
+# compare naive mapmaker with maps made from the sed
+binned_mapmaker = hp.read_map("test_output/binned_mapmaker/0544.fits")
+hp.mollview(binned_mapmaker, title="Binned mapmaker", unit="MJy/sr", min=0, max=200)
+hp.graticule()
+plt.savefig("test_output/compare/binned_mapmaker.png")
+difference_map = simulated_map - binned_mapmaker
+hp.mollview(difference_map, title="Simulated - Binned mapmaker", unit="MJy/sr", min=-1, max=1, cmap='RdBu_r')
+hp.graticule()
+plt.savefig("test_output/compare/difference_map_binned.png")
+ratio_map = simulated_map / binned_mapmaker
+print("Ratio between simulated map and binned mapmaker: ", ratio_map)
+# plot ratio map
+hp.mollview(ratio_map, title="Ratio map simulated / binned", unit="MJy/sr", min=0.5, max=1.5, cmap='RdBu_r')
+hp.graticule()
+plt.savefig("test_output/compare/ratio_map_binned.png")
+
+# compare binned mapmaker with white noise mapmaker
+difference_map = binned_mapmaker - white_noise_map
+hp.mollview(difference_map, title="Binned - White noise mapmaker", unit="MJy/sr", min=-1, max=1, cmap='RdBu_r')
+plt.savefig("test_output/compare/difference_map_binned_white_noise.png")
+ratio_map = binned_mapmaker / white_noise_map
+print("Ratio between binned mapmaker and white noise mapmaker: ", ratio_map)
+# plot ratio map
+hp.mollview(ratio_map, title="Ratio map binned / white noise", unit="MJy/sr", min=0.5, max=1.5, cmap='RdBu_r')
+plt.savefig("test_output/compare/ratio_map_binned_white_noise.png")
