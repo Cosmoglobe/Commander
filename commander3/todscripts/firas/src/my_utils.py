@@ -49,11 +49,13 @@ def generate_frequencies(channel, mode, nfreq=None):
     if not (mode == "lf" and (channel_str == "lh" or channel_str == "rh")):
         if nfreq == None:
             nfreq = nf[f"{channel_str}_{mode}"]
-        f_ghz = np.linspace(
-            nu0[mode],
-            nu0[mode] + dnu[mode] * (nfreq - 1),
-            nfreq,
-        )
+            f_ghz = np.linspace(
+                nu0[mode],
+                nu0[mode] + dnu[mode] * (nfreq - 1),
+                nfreq,
+            )
+        else:
+            f_ghz = np.linspace(0, dnu[mode] * (nfreq - 1), nfreq)
     else:
         raise ValueError("Invalid channel and mode combination")
 

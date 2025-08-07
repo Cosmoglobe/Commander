@@ -2,10 +2,19 @@
 Script to compare the dust simulation with the original FIRAS maps.
 """
 
+import os
+import sys
+
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import globals as g
+import my_utils as mu
 
 path = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 filename = "FIRAS_map_0544GHz_lowf.fits"
@@ -23,7 +32,7 @@ hp.graticule()
 plt.savefig("test_output/compare/dust_map.png")
 
 # plot simulated 545 map
-simulated_map = hp.read_map("test_output/dust_maps/0546.fits")
+simulated_map = hp.read_map("test_output/dust_maps/0544.fits")
 hp.mollview(simulated_map, title="Simulated 545 GHz map", unit="MJy/sr", min=0, max=200)
 hp.graticule()
 plt.savefig("test_output/compare/simulated_map.png")
@@ -126,3 +135,31 @@ print("Ratio between binned mapmaker and white noise mapmaker: ", ratio_map)
 # plot ratio map
 hp.mollview(ratio_map, title="Ratio map binned / white noise", unit="MJy/sr", min=0.5, max=1.5, cmap='RdBu_r')
 plt.savefig("test_output/compare/ratio_map_binned_white_noise.png")
+
+# do the same but for all frequencies
+frequencies = mu.generate_frequencies("ll", "ss", 257)
+binned_mapmaker = np.zeros((hp.nside2npix(g.NSIDE), len(frequencies)))
+for nui, frequency in enumerate(frequencies):
+    binned_mapmaker[:, nui] = hp.read_map(f"./test_output/binned_mapmaker/{int(frequency):04d}.fits")
+white_noise_map = np.zeros((hp.nside2npix(g.NSIDE), len(frequencies)))
+for nui, frequency in enumerate(frequencies):
+    white_noise_map[:, nui] = hp.read_map(f"./test_output/mapmaker_white_noise/{int(frequency):04d}.fits")
+simulated_map = np.zeros((hp.nside2npix(g.NSIDE), len(frequencies)))
+for nui, frequency in enumerate(frequencies):
+    simulated_map[:, nui] = hp.read_map(f"./test_output/dust_maps/{int(frequency):04d}.fits")
+
+difference_map = simulated_map - binned_mapmaker
+for nui, frequency in enumerate(frequencies):
+    title = f"Simulated - Binned {int(frequency):04d} GHz"
+    output_path = f"test_output/compare/difference_map_binned/{int(frequency):04d}.png"
+    hp.mollview(difference_map[:, nui], title=title, unit="MJy/sr", min=-1, max=1, cmap='RdBu_r')
+    plt.savefig(output_path)
+    plt.close(plt.gcf())
+
+difference_map = simulated_map - white_noise_map
+for nui, frequency in enumerate(frequencies):
+    title = f"Simulated - White noise {int(frequency):04d} GHz"
+    output_path = f"test_output/compare/difference_map_white_noise/{int(frequency):04d}.png"
+    hp.mollview(difference_map[:, nui], title=title, unit="MJy/sr", min=-1, max=1, cmap='RdBu_r')
+    plt.savefig(output_path)
+    plt.close(plt.gcf())

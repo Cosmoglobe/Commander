@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -24,7 +25,6 @@ def plot_ifgs(ifg):
         # plt.ylim(-300, 300)
         plt.savefig(f"./test_output/ifgs/{i}.png")
         plt.close()
-        plt.clf()
 
 def plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal):
     # clean previous maps
@@ -32,16 +32,21 @@ def plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal):
         os.remove(f"./test_output/dust_maps/{file}")
     # plot map for each frequency
     dust_map = dust_map_downgraded_mjy[:, np.newaxis] * signal[np.newaxis, :]
-    for i in range(len(frequencies)):
-        print(f"Plotting dust map for frequency {i}")
+    for i, frequency in enumerate(frequencies):
+        logging.info(f"Plotting dust map for frequency {i}")
         # dust_map = dust_map_downgraded_mjy * signal[i]
         if PNG:
-            hp.mollview(dust_map[:, i], title=f"{int(frequencies.value[i]):04d} GHz", unit="MJy/sr", min=0, max=200)
-            plt.savefig(f"./test_output/dust_maps/{int(frequencies.value[i]):04d}.png")
-            plt.close()
+            hp.mollview(dust_map[:, i], title=f"{int(frequency):04d} GHz", unit="MJy/sr", min=0, max=200)
+            try:
+                plt.savefig(f"./test_output/dust_maps/{int(frequency):04d}.fits")
+            except Exception as e:
+                logging.error(f"Failed to save plot for frequency {int(frequency):04d}: {e}")
             plt.clf()
         if FITS:
-            hp.write_map(f"./test_output/dust_maps/{int(frequencies.value[i]):04d}.fits", dust_map[:, i], overwrite=True)
+            output_file = f"./test_output/dust_maps/{int(frequency):04d}.fits"
+            if os.path.exists(output_file):
+                logging.warning(f"Overwriting existing file: {output_file}")
+            hp.write_map(output_file, dust_map[:, i], overwrite=True)
 
 
 def plot_m_invert(frequencies):
@@ -101,10 +106,10 @@ if __name__ == "__main__":
     # ifg = np.load("test_output/ifgs.npz")['ifg']
     # plot_ifgs(ifg)
 
-    # dust_map_downgraded_mjy, frequencies, signal = sim_dust()
+    dust_map_downgraded_mjy, frequencies, signal = sim_dust()
 
-    # plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
+    plot_dust_maps(dust_map_downgraded_mjy, frequencies, signal)
     # # plot_m_invert(frequencies)
     # plot_m_cg_per_tod(frequencies)
 
-    plot_simulated_hit_map()
+    # plot_simulated_hit_map()

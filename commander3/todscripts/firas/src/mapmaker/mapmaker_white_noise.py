@@ -26,7 +26,6 @@ if __name__ == "__main__":
     sigma = np.load("test_output/white_noise.npz")["noise"]
 
     npix = hp.nside2npix(g.NSIDE)
-    # P = np.linspace(0, npix, npix, endpoint=False, dtype=int)
     P = np.load("test_output/ifgs.npz")["pix"]
 
     numerator = np.zeros((npix, d.shape[1]), dtype=float)

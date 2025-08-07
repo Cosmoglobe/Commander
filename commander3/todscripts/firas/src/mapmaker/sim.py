@@ -29,9 +29,9 @@ def sim_dust():
     T_d = 21 * u.K
     beta_d = 1.53
 
-    frequencies = mu.generate_frequencies("ll", "ss", 257) * u.GHz
+    frequencies = mu.generate_frequencies("ll", "ss", 257)
 
-    signal = dust(frequencies, A_d, nu0_dust, beta_d, T_d).value
+    signal = dust(frequencies * u.GHz, A_d, nu0_dust, beta_d, T_d).value
     # check for invalid value encountered in divide
     signal = np.nan_to_num(signal)
     
