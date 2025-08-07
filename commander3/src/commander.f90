@@ -423,7 +423,7 @@ contains
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k .eq. 1) then
              do j = 0, ndet
-                delta(j,:,k) = data(i)%bp(j)%p%delta
+                 delta(j,:,k) = data(i)%bp(j)%p%delta
              end do
              do l = 1, npar
                 delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)

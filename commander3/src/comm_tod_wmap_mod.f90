@@ -127,6 +127,8 @@ contains
       constructor%noise_psd_model = 'oof_quad'
       constructor%comp_S          = .true.
 
+
+
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
@@ -146,64 +148,82 @@ contains
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
+         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
+         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
+         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
          constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
+         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '060-WMAP_V2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.040]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.040]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W3') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W4') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
+         constructor%gain_samprate = constructor%samprate / 2**22
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
       end if
+
+      ! Gain PSD Wiener filter parameters; determined by trial-and-error
+      constructor%gain_tune_sigma0 = .false.
+      ! V and W have length N = 2**22, all others 2**21
+      ! constructor%gain_samprate = constructor%samprate / N
+      constructor%gain_sigma_0     = 3d-3 !3d-4                     ! Default from LFI
+      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
+      constructor%gain_alpha       = -1.d0                          ! Default from LFI
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
       if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
@@ -234,12 +254,6 @@ contains
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
 
-      ! Gain PSD Wiener filter parameters; determined by trial-and-error
-      constructor%gain_tune_sigma0 = .false.
-      constructor%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
-      constructor%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
-      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
-      constructor%gain_alpha       = -1.d0                          ! Default from LFI
 
       if (constructor%myid == 0) then
          allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
@@ -301,12 +315,11 @@ contains
 
       ! Choose absolute bandpass sampling
       !if (trim(constructor%freq) == '030-WMAP_Ka') then
-      !if (constructor%freq(1:10) == '090-WMAP_W') then
-      !   constructor%sample_abs_bp   = .false.
-      !else
-      !   constructor%sample_abs_bp   = .true.
-      !end if
-      ! constructor%bp_delta = constructor%bp_delta - constructor%bp_delta(0,:)
+      if (constructor%freq(1:10) == '090-WMAP_W') then
+         constructor%sample_abs_bp   = .false.
+      else
+         constructor%sample_abs_bp   = .true.
+      end if
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -607,7 +620,8 @@ contains
               call update_status(status, "abscal")
               if (trim(self%freq) == '023-WMAP_K') then
                 if (self%myid == 0) then
-                  self%gain0(0) = 1.1815 + 0.001 * rand_gauss(handle)
+                  ! Taken from the 0.2% absolute calibration reported in WMAP9 release.
+                  self%gain0(0) = 1.1815 * (1 + 0.2/100 * rand_gauss(handle))
                   write(*,*) '|    Prior sampling abscal ', self%gain0(0)
                 end if
                 call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
