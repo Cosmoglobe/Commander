@@ -22,6 +22,14 @@ module sort_utils
   use healpix_types
   implicit none
 
+INTERFACE swap
+  MODULE PROCEDURE swap_i, swap_r, swap_rv, swap_c,&
+    swap_cv, swap_cm, swap_z, swap_zv, swap_zm,&
+    masked_swap_is,masked_swap_iv,masked_swap_im,&
+    masked_swap_rs,masked_swap_rv,masked_swap_rm
+END INTERFACE
+
+
 contains
 
 !********************
@@ -932,6 +940,333 @@ contains
 !!$       text = repeat('0',9-len_trim(temp_text)) // temp_text
 !!$    end if
 !!$  end subroutine get_string_from_int
+
+
+  ! Quicksort implementation from Numerical Recipes Fortran 90 implementation. 
+  ! Gets around the very large stack for large integer arrays.
+  SUBROUTINE quicksort_nr_sp(arr)
+    IMPLICIT NONE
+  
+    REAL(SP), DIMENSION(:), INTENT(INOUT) :: arr
+  
+    INTEGER(I4B), PARAMETER :: NN = 15        ! Cutoff for insertion sort
+    INTEGER(I4B), PARAMETER :: NSTACK = 50    ! Size of manual stack for subarrays
+  
+    REAL(SP) :: a                            ! Temporary storage for insertion sort and pivot
+    INTEGER(I4B) :: n, k                    ! n = size of array, k = middle index
+    INTEGER(I4B) :: i, j                    ! Loop variables and partition pointers
+    INTEGER(I4B) :: jstack                  ! Stack pointer
+    INTEGER(I4B) :: l, r                    ! Left and right bounds of current subarray
+    INTEGER(I4B), DIMENSION(NSTACK) :: istack  ! Manual stack to hold subarray bounds
+  
+    n = size(arr)                           ! Array size
+    jstack = 0                             ! Initialize stack pointer
+    l = 1                                 ! Start index
+    r = n                                 ! End index
+  
+    DO
+      ! If subarray is small enough, use insertion sort
+      IF (r - l < NN) THEN
+        DO j = l + 1, r
+          a = arr(j)
+          DO i = j - 1, l, -1
+            IF (arr(i) <= a) EXIT
+            arr(i + 1) = arr(i)         ! Shift element right
+          END DO
+          arr(i + 1) = a                ! Insert element
+        END DO
+  
+        ! If stack is empty, sorting is done
+        IF (jstack == 0) RETURN
+  
+        ! Pop the next subarray bounds from the stack
+        r = istack(jstack)
+        l = istack(jstack - 1)
+        jstack = jstack - 2
+  
+      ELSE
+        ! Median-of-three pivot selection and reordering
+        k = (l + r) / 2
+  
+        CALL swap(arr(k), arr(l + 1))
+        CALL swap(arr(l), arr(r), arr(l) > arr(r))
+        CALL swap(arr(l + 1), arr(r), arr(l + 1) > arr(r))
+        CALL swap(arr(l), arr(l + 1), arr(l) > arr(l + 1))
+  
+        ! Initialize partition pointers
+        i = l + 1
+        j = r
+        a = arr(l + 1)   ! Pivot element
+  
+        ! Partition loop
+        DO
+          ! Move i right until arr(i) >= pivot
+          DO
+            i = i + 1
+            IF (arr(i) >= a) EXIT
+          END DO
+  
+          ! Move j left until arr(j) <= pivot
+          DO
+            j = j - 1
+            IF (arr(j) <= a) EXIT
+          END DO
+  
+          IF (j < i) EXIT  ! Pointers crossed, partitioning done
+  
+          CALL swap(arr(i), arr(j))   ! Swap elements
+        END DO
+  
+        ! Place pivot in correct position
+        arr(l + 1) = arr(j)
+        arr(j) = a
+  
+        ! Push larger subarray bounds onto stack; process smaller subarray immediately
+        jstack = jstack + 2
+        IF (jstack > NSTACK) write(*,*) 'quicksort_nr_sp: NSTACK too small'
+  
+        IF (r - i + 1 >= j - l) THEN
+          istack(jstack) = r
+          istack(jstack - 1) = i
+          r = j - 1
+        ELSE
+          istack(jstack) = j - 1
+          istack(jstack - 1) = l
+          l = i
+        END IF
+      END IF
+    END DO
+  
+  END SUBROUTINE quicksort_nr_sp
+  
+  SUBROUTINE quicksort_nr_int(arr)
+      IMPLICIT NONE
+  
+      INTEGER(I4B), DIMENSION(:), INTENT(INOUT) :: arr
+      INTEGER(I4B), PARAMETER :: NN = 15, NSTACK = 50
+  
+      INTEGER(I4B) :: a
+      INTEGER(I4B) :: n, k, i, j, jstack, l, r
+      INTEGER(I4B), DIMENSION(NSTACK) :: istack
+  
+      n = SIZE(arr)
+      jstack = 0
+      l = 1
+      r = n
+  
+      DO
+          ! Insertion sort when subarray small enough
+          IF (r - l < NN) THEN
+              DO j = l + 1, r
+                  a = arr(j)
+                  DO i = j - 1, l, -1
+                      IF (arr(i) <= a) EXIT
+                      arr(i + 1) = arr(i)
+                  END DO
+                  arr(i + 1) = a
+              END DO
+  
+              IF (jstack == 0) RETURN
+              r = istack(jstack)
+              l = istack(jstack - 1)
+              jstack = jstack - 2
+  
+          ELSE
+              ! Median-of-three partitioning
+              k = (l + r) / 2
+              CALL swap(arr(k), arr(l + 1))
+              CALL swap(arr(l), arr(r), arr(l) > arr(r))
+              CALL swap(arr(l + 1), arr(r), arr(l + 1) > arr(r))
+              CALL swap(arr(l), arr(l + 1), arr(l) > arr(l + 1))
+  
+              i = l + 1
+              j = r
+              a = arr(l + 1)
+  
+              ! Partitioning loop
+              DO
+                  DO
+                      i = i + 1
+                      IF (arr(i) >= a) EXIT
+                  END DO
+                  DO
+                      j = j - 1
+                      IF (arr(j) <= a) EXIT
+                  END DO
+                  IF (j < i) EXIT
+                  CALL swap(arr(i), arr(j))
+              END DO
+  
+              arr(l + 1) = arr(j)
+              arr(j) = a
+  
+              ! Push larger subarray on stack
+              jstack = jstack + 2
+              IF (jstack > NSTACK) write(*,*) "quicksort_nr_int: NSTACK too small"
+  
+              IF (r - i + 1 >= j - l) THEN
+                  istack(jstack)     = r
+                  istack(jstack - 1) = i
+                  r = j - 1
+              ELSE
+                  istack(jstack)     = j - 1
+                  istack(jstack - 1) = l
+                  l = i
+              END IF
+          END IF
+      END DO
+  END SUBROUTINE quicksort_nr_int
+  
+  SUBROUTINE swap_i(a, b)
+      INTEGER(I4B), INTENT(INOUT) :: a, b
+      INTEGER(I4B) :: dum
+      dum = a
+      a   = b
+      b   = dum
+  END SUBROUTINE swap_i
+  
+  SUBROUTINE masked_swap_is(a, b, mask)
+      INTEGER(I4B), INTENT(INOUT) :: a, b
+      LOGICAL(LGT), INTENT(IN)    :: mask
+      INTEGER(I4B) :: swp
+      IF (mask) THEN
+          swp = a
+          a   = b
+          b   = swp
+      END IF
+  END SUBROUTINE masked_swap_is
+  
+  SUBROUTINE masked_swap_iv(a, b, mask)
+      INTEGER(I4B), DIMENSION(:), INTENT(INOUT) :: a, b
+      LOGICAL(LGT),  DIMENSION(:), INTENT(IN)   :: mask
+      INTEGER(I4B), DIMENSION(SIZE(a)) :: swp
+      WHERE (mask)
+          swp = a
+          a   = b
+          b   = swp
+      END WHERE
+  END SUBROUTINE masked_swap_iv
+  
+  SUBROUTINE masked_swap_im(a, b, mask)
+      INTEGER(I4B), DIMENSION(:,:), INTENT(INOUT) :: a, b
+      LOGICAL(LGT),  DIMENSION(:,:), INTENT(IN)   :: mask
+      INTEGER(I4B), DIMENSION(SIZE(a,1), SIZE(a,2)) :: swp
+      WHERE (mask)
+          swp = a
+          a   = b
+          b   = swp
+      END WHERE
+  END SUBROUTINE masked_swap_im
+  
+  SUBROUTINE masked_swap_rs(a, b, mask)
+    REAL(SP), INTENT(INOUT) :: a, b
+    LOGICAL(LGT), INTENT(IN) :: mask
+    REAL(SP) :: swp
+  
+    IF (mask) THEN
+      swp = a
+      a = b
+      b = swp
+    END IF
+  END SUBROUTINE masked_swap_rs
+  
+  SUBROUTINE masked_swap_rv(a, b, mask)
+    REAL(SP), DIMENSION(:), INTENT(INOUT) :: a, b
+    LOGICAL(LGT), DIMENSION(:), INTENT(IN) :: mask
+    REAL(SP), DIMENSION(SIZE(a)) :: swp
+  
+    WHERE (mask)
+      swp = a
+      a = b
+      b = swp
+    END WHERE
+  END SUBROUTINE masked_swap_rv
+  
+  SUBROUTINE masked_swap_rm(a, b, mask)
+    REAL(SP), DIMENSION(:,:), INTENT(INOUT) :: a, b
+    LOGICAL(LGT), DIMENSION(:,:), INTENT(IN) :: mask
+    REAL(SP), DIMENSION(SIZE(a,1), SIZE(a,2)) :: swp
+  
+    WHERE (mask)
+      swp = a
+      a = b
+      b = swp
+    END WHERE
+  END SUBROUTINE masked_swap_rm
+  
+  SUBROUTINE swap_r(a, b)
+    REAL(SP), INTENT(INOUT) :: a, b
+    REAL(SP) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_r
+  
+  SUBROUTINE swap_rv(a, b)
+    REAL(SP), DIMENSION(:), INTENT(INOUT) :: a, b
+    REAL(SP), DIMENSION(SIZE(a)) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_rv
+  
+  SUBROUTINE swap_c(a, b)
+    COMPLEX(SPC), INTENT(INOUT) :: a, b
+    COMPLEX(SPC) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_c
+  
+  SUBROUTINE swap_cv(a, b)
+    COMPLEX(SPC), DIMENSION(:), INTENT(INOUT) :: a, b
+    COMPLEX(SPC), DIMENSION(SIZE(a)) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_cv
+  
+  SUBROUTINE swap_cm(a, b)
+    COMPLEX(SPC), DIMENSION(:,:), INTENT(INOUT) :: a, b
+    COMPLEX(SPC), DIMENSION(SIZE(a,1), SIZE(a,2)) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_cm
+  
+  SUBROUTINE swap_z(a, b)
+    COMPLEX(DPC), INTENT(INOUT) :: a, b
+    COMPLEX(DPC) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_z
+  
+  SUBROUTINE swap_zv(a, b)
+    COMPLEX(DPC), DIMENSION(:), INTENT(INOUT) :: a, b
+    COMPLEX(DPC), DIMENSION(SIZE(a)) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_zv
+
+  SUBROUTINE swap_zm(a, b)
+    COMPLEX(DPC), DIMENSION(:,:), INTENT(INOUT) :: a, b
+    COMPLEX(DPC), DIMENSION(SIZE(a,1), SIZE(a,2)) :: dum
+  
+    dum = a
+    a = b
+    b = dum
+  END SUBROUTINE swap_zm
+
+
 
 
 end module sort_utils
