@@ -66,6 +66,8 @@ pix_ecl = {}  # ecliptic coordinates
 pix_gal = {}  # galactic coordinates
 gal_lat = {}
 gal_lon = {}
+ecl_lat = {}
+ecl_lon = {}
 pix_cel = {}  # celestial coordinates, probably J1950
 # Longitudes and latitudes are stored in radians*1e4
 fact = 180.0 / np.pi / 1e4
@@ -102,6 +104,8 @@ for channel in channels:
     lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_longitude"][()] * fact
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_latitude"][()] * fact
     pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+    ecl_lat[channel] = lat
+    ecl_lon[channel] = lon
     print(f"getting up/down for channel {channel}")
     scan[channel] = scan_up_down(lat).astype(int)
 
@@ -135,6 +139,8 @@ for channel in channels:
             "pix_gal": list(pix_gal[channel]),
             "gal_lat": list(gal_lat[channel]),
             "gal_lon": list(gal_lon[channel]),
+            "ecl_lat": list(ecl_lat[channel]),
+            "ecl_lon": list(ecl_lon[channel]),
             "pix_ecl": list(pix_ecl[channel]),
             "pix_cel": list(pix_cel[channel]),
             "pix_terr": list(pix_terr[channel]),
@@ -408,7 +414,27 @@ merged_df = merged_df.drop(
     ]
 )
 
+lines_before = len(merged_df)
+merged_df["ecl_lat"] = merged_df.apply(clean_variable, axis=1, args=("ecl_lat",))
+merged_df["ecl_lon"] = merged_df.apply(clean_variable, axis=1, args=("ecl_lon",))
+merged_df = merged_df[(merged_df["ecl_lat"] != np.nan)]
+merged_df = merged_df[(merged_df["ecl_lon"] != np.nan)]
+merged_df = merged_df.drop(
+    columns=[
+        "ecl_lat_lh",
+        "ecl_lat_ll",
+        "ecl_lat_rh",
+        "ecl_lat_rl",
+        "ecl_lon_lh",
+        "ecl_lon_ll",
+        "ecl_lon_rh",
+        "ecl_lon_rl",
+    ]
+)
+
 merged_df = merged_df.reset_index(drop=True)
+lines_after = len(merged_df)
+print(f"Merging ecliptic lat/lon reduced the number of lines by {lines_before - lines_after}")
 
 # ENGINEERING DATA - all except xcal which will be added only to the calibration data later
 
@@ -868,6 +894,8 @@ sky_variables = [
     "pix_gal",
     "gal_lat",
     "gal_lon",
+    "ecl_lat",
+    "ecl_lon",
     "pix_ecl",
     "pix_cel",
     "pix_terr",
