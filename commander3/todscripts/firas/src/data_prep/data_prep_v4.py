@@ -394,7 +394,9 @@ for channel in channels:
 # scan should be the same for all channels
 merged_df["scan"] = merged_df.apply(clean_variable, axis=1, args=("scan",))
 merged_df = merged_df.drop(columns=["scan_lh", "scan_ll", "scan_rh", "scan_rl"])
-merged_df = merged_df[(merged_df["scan"] == 0) | (merged_df["scan"] == 1)]
+merged_df = merged_df[(merged_df["scan"] == -1) | (merged_df["scan"] == 1)]
+
+print(f"Amount of lines before merging scan: {len(merged_df)}")
 
 # galactic latitude and longitude
 merged_df["gal_lat"] = merged_df.apply(clean_variable, axis=1, args=("gal_lat",))
@@ -413,6 +415,8 @@ merged_df = merged_df.drop(
         "gal_lon_rl",
     ]
 )
+
+print(f"Amount of lines before merging ecliptic lat/lon: {len(merged_df)}")
 
 lines_before = len(merged_df)
 merged_df["ecl_lat"] = merged_df.apply(clean_variable, axis=1, args=("ecl_lat",))
@@ -434,7 +438,7 @@ merged_df = merged_df.drop(
 
 merged_df = merged_df.reset_index(drop=True)
 lines_after = len(merged_df)
-print(f"Merging ecliptic lat/lon reduced the number of lines by {lines_before - lines_after}")
+print(f"Merging ecliptic lat/lon reduced the number of lines by {lines_before - lines_after}. Amount now: {lines_after}")
 
 # ENGINEERING DATA - all except xcal which will be added only to the calibration data later
 
