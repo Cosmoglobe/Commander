@@ -153,6 +153,8 @@ subroutine tod2file_dp3(filename,d)
    close(unit)
  end subroutine tod2file_dp3
 
+
+
   !**************************************************
   !             Constructors
   !**************************************************
@@ -254,7 +256,7 @@ subroutine tod2file_dp3(filename,d)
     end do
     deallocate(pixlist)
     call QuickSort_int(p_new%rings)
-    call quicksort_nr_int(p_new%pix)
+    call QuickSort_int(p_new%pix)
 
     ! Select m's
     p_new%nm   = 0
