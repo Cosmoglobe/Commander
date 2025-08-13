@@ -37,7 +37,7 @@ module comm_map_mod
 !  include "mpif.h"
       
   private
-  public comm_map, comm_mapinfo, map_ptr, write_map
+  public comm_map, comm_mapinfo, map_ptr, write_map, free_all_mapinfos
 
 
   type :: comm_mapinfo
@@ -1763,5 +1763,39 @@ subroutine tod2file_dp3(filename,d)
     end do
 
   end subroutine add_random_fluctuation
+
+
+  subroutine free_all_mapinfos()
+    implicit none
+    class(comm_mapinfo), pointer :: cur, nxt
+    class(comm_map),    pointer :: cmap
+
+
+    ! Now walk the mapinfos list and free each entry
+    cur => mapinfos
+    do while (associated(cur))
+       nxt => cur%nextLink
+
+       ! Finalize SHARP structures
+       call sharp_destroy_alm_info(cur%alm_info)
+       call sharp_destroy_geom_info(cur%geom_info_T)
+       if (cur%nmaps == 3) call sharp_destroy_geom_info(cur%geom_info_P)
+
+       ! Deallocate allocatables
+       if (allocated(cur%rings)) deallocate(cur%rings)
+       if (allocated(cur%ms))    deallocate(cur%ms)
+       if (allocated(cur%mind))  deallocate(cur%mind)
+       if (allocated(cur%lm))    deallocate(cur%lm)
+       if (allocated(cur%pix))   deallocate(cur%pix)
+       if (allocated(cur%W))     deallocate(cur%W)
+
+       nullify(cur%nextLink)
+       deallocate(cur)
+
+       cur => nxt
+    end do
+
+    nullify(mapinfos)
+  end subroutine free_all_mapinfos
 
 end module comm_map_mod

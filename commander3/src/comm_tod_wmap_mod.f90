@@ -127,8 +127,6 @@ contains
       constructor%noise_psd_model = 'oof_quad'
       constructor%comp_S          = .true.
 
-
-
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
@@ -148,82 +146,65 @@ contains
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
-         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
-         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
-         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
          constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
-         constructor%gain_samprate = constructor%samprate / 2**21
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '060-WMAP_V2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.040]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.040]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W3') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else if (trim(constructor%freq) == '090-WMAP_W4') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
-         constructor%gain_samprate = constructor%samprate / 2**22
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
       end if
 
-      ! Gain PSD Wiener filter parameters; determined by trial-and-error
-      constructor%gain_tune_sigma0 = .false.
-      ! V and W have length N = 2**22, all others 2**21
-      ! constructor%gain_samprate = constructor%samprate / N
-      constructor%gain_sigma_0     = 3d-3 !3d-4                     ! Default from LFI
-      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
-      constructor%gain_alpha       = -1.d0                          ! Default from LFI
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
       if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
@@ -296,6 +277,48 @@ contains
       ! Read the actual TOD
       call constructor%read_tod(constructor%label)
 
+      if (trim(constructor%freq) == '023-WMAP_K') then
+         constructor%gain_samprate = constructor%samprate / 2**21
+         constructor%gain_fknee       = constructor%gain_samprate
+      else if (trim(constructor%freq) == '030-WMAP_Ka') then
+         constructor%gain_samprate = constructor%samprate / 2**21
+         constructor%gain_fknee       = constructor%gain_samprate
+      else if (trim(constructor%freq) == '040-WMAP_Q1') then
+         constructor%gain_samprate = constructor%samprate / 2**21
+         constructor%gain_fknee       = constructor%gain_samprate
+      else if (trim(constructor%freq) == '040-WMAP_Q2') then
+         constructor%gain_samprate = constructor%samprate / 2**21
+         constructor%gain_fknee       = constructor%gain_samprate
+      else if (trim(constructor%freq) == '060-WMAP_V1') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else if (trim(constructor%freq) == '060-WMAP_V2') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else if (trim(constructor%freq) == '090-WMAP_W1') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else if (trim(constructor%freq) == '090-WMAP_W2') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else if (trim(constructor%freq) == '090-WMAP_W3') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else if (trim(constructor%freq) == '090-WMAP_W4') then
+         constructor%gain_samprate = constructor%samprate / 2**22
+         constructor%gain_fknee       = constructor%gain_samprate*5
+      else
+         write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
+         stop
+      end if
+
+      ! Gain PSD Wiener filter parameters; determined by trial-and-error
+      constructor%gain_tune_sigma0 = .false.
+      ! V and W have length N = 2**22, all others 2**21
+      ! constructor%gain_samprate = constructor%samprate / N
+      constructor%gain_sigma_0     = 3d-3 !3d-4                     ! Default from LFI
+      constructor%gain_alpha       = -1.d0                          ! Default from LFI
+
       ! Initialize bandpass mean and proposal matrix
       call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
@@ -315,11 +338,12 @@ contains
 
       ! Choose absolute bandpass sampling
       !if (trim(constructor%freq) == '030-WMAP_Ka') then
-      if (constructor%freq(1:10) == '090-WMAP_W') then
-         constructor%sample_abs_bp   = .false.
-      else
-         constructor%sample_abs_bp   = .true.
-      end if
+      !if (constructor%freq(1:10) == '090-WMAP_W') then
+      !   constructor%sample_abs_bp   = .false.
+      !else
+      !   constructor%sample_abs_bp   = .true.
+      !end if
+      constructor%sample_abs_bp   = .true.
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -499,6 +523,7 @@ contains
 
       ! Distribute maps
       ! Allocate total map (for monopole sampling)
+      call update_status(status, "distributing maps")
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       if (self%comp_S) then
          allocate(map_full(nmaps+1, 0:npix-1))
@@ -518,6 +543,7 @@ contains
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
+      call update_status(status, "allocating binned maps")
       ! Prepare intermediate data structures
       if (sample_abs_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
@@ -562,6 +588,7 @@ contains
 
       if (mod(iter-1, 10) == 0 .or. self%first_call) call self%precompute_M_lowres
 
+      call update_status(status, "precomputing sidelobes")
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
          call timer%start(TOD_SL_PRE, self%band)
@@ -988,7 +1015,8 @@ contains
           if (sample_rel_bandpass) then
              ! Testing
              ! M_diag is the inverse of the variance
-             chisq_S(1,1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+             !chisq_S(1,1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+             chisq_S(1,1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
 
              ! Starting at previous solution seems like a good idea, 
              ! but convergence tends to be longer.
@@ -1000,7 +1028,8 @@ contains
                 call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                                & epsil, procmask2, map_full, M_diag, b_map, l, &
                                & prefix, postfix, self%comp_S, 0)
-                chisq_S(1,l-self%output_n_maps+1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+                !chisq_S(1,l-self%output_n_maps+1) = sum(procmask_pol * bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
+                chisq_S(1,l-self%output_n_maps+1) = sum(bicg_sol(:, nmaps+1)**2 * M_diag(:,1))
              end do
              call mpi_barrier(self%comm, ierr)
           end if
