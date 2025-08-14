@@ -382,11 +382,11 @@ contains
         if (.not. any(self%scans(i)%d%accept)) cycle
         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, skip_nonlin=0, darkdata=.true.)
 
-!!$        open(58,file='res.dat', recl=1024)
-!!$        do j = 1, sd%ntod
-!!$           write(58,*) j, sd%tod(j,1), sd%pix(j,1,1), sd%flag(j,1)
-!!$        end do
-!!$        close(58)
+!        open(58,file=trim(chaindir) // '/res.dat', recl=1024)
+!        do j = 1, sd%ntod
+!           write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1)
+!        end do
+!        close(58)
         
         ! Subtract A/B detector crosstalk
         ! Not implemented yet
@@ -406,22 +406,31 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
-       if (.not. self%first_call) then
-          do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
-             ! fill gaps and deconvolve rolloff
-             !call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
-                            !& ps_output = 'init_' // itertext // '_' // scantext)
-             if (iter > 2) then
-                call int2string(iter, itertext)
-                call int2string(self%scanid(i), scantext)
-                call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle, &
-                                        & ps_output = itertext // '_' // scantext)
-             else
-                call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
-             end if
-          end do
-       end if
+       call int2string(self%scanid(i), scantext) ! ADDED
+       if (self%myid == 0) write(*,*) 'chaindir = ', trim(chaindir) ! ADDED
+       open(58,file=trim(chaindir) // '/tod_' // scantext // '_.dat', recl=1024) !ADDED
+       do j = 1, sd%ntod !ADDED
+          write(58,*) j, sd%tod(j,1), sd%mask(j,1) ! ADDED
+       end do ! ADDED
+       close(58) ! ADDED
+       if (self%myid == 0) write(*,*) trim(chaindir) // '/tod_' // scantext // '_.dat PRINTED'! ADDED
+
+!       if (.not. self%first_call) then
+!          do j = 1, self%ndet
+!             if (.not. self%scans(i)%d(j)%accept) cycle
+!             ! fill gaps and deconvolve rolloff
+!             !call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
+!                            !& ps_output = 'init_' // itertext // '_' // scantext)
+!             if (iter > 1) then
+!                call int2string(iter, itertext)
+!                call int2string(self%scanid(i), scantext)
+!                call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle, &
+!                                        & ps_output = itertext // '_' // scantext)
+!             else
+!                call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
+!             end if
+!          end do
+!       end if
 
        ! Fix dc level jumps 
        call self%stitch_hfi_dc_level(i, sd)
@@ -1286,15 +1295,15 @@ contains
     
 
     ! Fill gaps and deconvolve high frequency rolloff
-    if (skip_nonlin > 2 .and. present(handle)) then
-       if (.not. self%first_call) then
-          do i = 1, self%ndet
-             if (.not. self%scans(scan)%d(i)%accept) cycle
-             !call fill_gaps(self, sd%tod(:,i), handle, scan, i, sd%mask(:,i), sd%s_tot(:,i), sd%pix(:,:,1), nomono=.true.,filling='white')
-             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
-          end do
-       end if
-    end if
+!    if (skip_nonlin > 2 .and. present(handle)) then
+!       if (.not. self%first_call) then
+!          do i = 1, self%ndet
+!             if (.not. self%scans(scan)%d(i)%accept) cycle
+!             !call fill_gaps(self, sd%tod(:,i), handle, scan, i, sd%mask(:,i), sd%s_tot(:,i), sd%pix(:,:,1), nomono=.true.,filling='white')
+!             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
+!          end do
+!       end if
+!    end if
     
 
   end subroutine apply_nonlin_corr_hfi
@@ -1393,7 +1402,7 @@ contains
 
 
     if(present(ps_output)) then
-       open(58,file='testdir3/0_tod_and_others_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/0_tod_and_others_' // ps_output // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) tod(l), s_sub(l), mask(l), flag(l), gain, sigma_0, self%flag0
        end do
@@ -1403,7 +1412,7 @@ contains
     ! Prepare TOD residual
     d_prime = tod * mask !- gain * s_sub
     if(present(ps_output)) then
-       open(58,file='testdir3/1_masked_tod_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/1_masked_tod_' // ps_output // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) d_prime(l)
        end do
@@ -1436,7 +1445,7 @@ contains
     deallocate(d_prime)
 
     if(present(ps_output)) then
-       open(58,file='testdir3/2_masked_tod_ps_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/2_masked_tod_ps_' // ps_output // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), ps(l,2)
        end do
@@ -1468,7 +1477,7 @@ contains
 
     ! Define high-frequency rolloff on signal subtracted tod
     if(present(ps_output)) then
-       open(58,file='testdir3/3_bin_masked_tod_ps_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/3_bin_masked_tod_ps_' // ps_output // '.dat', recl=1024)
        do l = 1, nbin
           write(58,*) bin_spec(l,1), bin_spec(l,2)
        end do
@@ -1484,7 +1493,7 @@ contains
        end if
     end do
     rolloff_scale = rolloff_scale / k
-    if (self%myid==0) write(*,*) 'scan: ',self%scanid(scan),' ; rolloff_scale = ',rolloff_scale
+!    if (self%myid==0) write(*,*) 'scan: ',self%scanid(scan),' ; rolloff_scale = ',rolloff_scale
 
     call spline(rolloff_filter, bin_spec(:,1), dble(bin_spec(:,2)/rolloff_scale))
     deallocate(bin_spec)
@@ -1501,7 +1510,7 @@ contains
     !call fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, nomono=.false., dospike=.false., filling='white')
 
     if(present(ps_output)) then
-       open(58,file='testdir3/4_flagged_tod_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/4_flagged_tod_' // ps_output // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) flag_mask(l), tod(l)
        end do
@@ -1531,7 +1540,7 @@ contains
     call timer%stop(TOT_FFT) 
    
     if(present(ps_output)) then
-       open(58,file='testdir3/5_deconv_ps_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/5_deconv_ps_' // ps_output // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), ps(l,2)
        end do
@@ -1547,7 +1556,7 @@ contains
     call dfftw_destroy_plan(plan_back)
 
     if(present(ps_output)) then
-       open(58,file='testdir3/6_deconv_tod_' // ps_output // '.dat', recl=1024)
+       open(58,file='testchain2/6_deconv_tod_' // ps_output // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) tod(l)
        end do
