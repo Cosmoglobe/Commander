@@ -106,6 +106,8 @@ for channel in channels:
     pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
     ecl_lat[channel] = lat
     ecl_lon[channel] = lon
+    print(f"ecliptic lat for channel {channel} max: {np.max(ecl_lat[channel])} and min: {np.min(ecl_lat[channel])}")
+    print(f"ecliptic lon for channel {channel} max: {np.max(ecl_lon[channel])} and min: {np.min(ecl_lon[channel])}")
     print(f"getting up/down for channel {channel}")
     scan[channel] = scan_up_down(lat).astype(int)
 

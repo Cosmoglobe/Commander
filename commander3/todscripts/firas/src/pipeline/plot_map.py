@@ -84,11 +84,11 @@ for channel in g.CHANNELS:
             data_density[f"{channel}_{mode}"] = np.zeros(g.NPIX)
 
             if g.COORDINATES == "G":
-                for i in range(len(pix_gal)):
-                    hpxmap[f"{channel}_{mode}"][pix_gal[i]] += np.abs(
+                for i, pix in enumerate(pix_gal):
+                    hpxmap[f"{channel}_{mode}"][pix] += np.abs(
                         sky[i]
                     )
-                    data_density[f"{channel}_{mode}"][pix_gal[i]] += 1
+                    data_density[f"{channel}_{mode}"][pix] += 1
             elif g.COORDINATES == "E":
                 for i in range(len(pix_ecl)):
                     hpxmap[f"{channel}_{mode}"][pix_ecl[i]] += np.abs(
@@ -134,8 +134,9 @@ for channel in g.CHANNELS:
                         m[:, freq],
                         title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                         unit="MJy/sr",
-                        min=0,
+                        min=1,
                         max=max_amp,
+                        norm='log'
                     )
                     plt.savefig(
                         f"{g.SAVE_PATH}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_nside{g.NSIDE}.png"
