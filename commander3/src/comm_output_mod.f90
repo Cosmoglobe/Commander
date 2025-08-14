@@ -104,7 +104,7 @@ contains
     character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
-    class(comm_map),     pointer :: rms_map => null(), chisq_map_eff => null()
+    class(comm_map),     pointer :: rms_map => null()
     class(comm_comp),    pointer :: c => null()
     class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
@@ -118,25 +118,6 @@ contains
     chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
          & '_c' // trim(adjustl(ctext)) // '.h5'
 
-!!$    ! Delete existing chain file if necessary; create new file if necessary; open file
-!!$    if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
-!!$       if (trim(cpar%chain_status) == 'new') then
-!!$          inquire(file=trim(chainfile), exist=exist)
-!!$          if (exist) call rm(trim(chainfile))
-!!$       else if (trim(cpar%chain_status) == 'append') then
-!!$          
-!!$       else
-!!$          write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
-!!$          call mpi_finalize(ierr)
-!!$          stop
-!!$       end if
-!!$       inquire(file=trim(chainfile), exist=exist)
-!!$       if (.not. exist) then
-!!$          call open_hdf_file(chainfile, file, 'w')
-!!$          call close_hdf_file(file)
-!!$       end if
-!!$       first_call = .false.
-!!$    end if
     if (cpar%myid_chain == 0 .and. output_hdf) then
        inquire(file=trim(chainfile), exist=exist)
        call open_hdf_file(chainfile, file, 'b')
@@ -168,15 +149,11 @@ contains
        write(outline,fmt='(a10)') itext
     end if
 
-    !if (cpar%myid_chain == 0) then
-    !   call create_hdf_group(file, trim(adjustl(itext))//'/statistics')
-    !end if
 
     ! Output component results
     c => compList
     call wall_time(t1)
     do while (associated(c))
-!       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
        if (.not. c%output) then
           c => c%next()
           cycle
@@ -298,8 +275,6 @@ contains
                    else if (j == 3) then
                      label = label3
                    end if
-                   !call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
-                   !    & theta_sum/c%theta(i)%p%info%npix)
                 end if
              end do
           end do
@@ -326,14 +301,10 @@ contains
        if (cpar%output_chisq) then
           info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
           chisq_map => comm_map(info)
-          chisq_map_eff => comm_map(info)
        end if
        do i = 1, numband
           !call wall_time(t3)
           map => compute_residual(i)
-          !call update_status(status, "output_res1_"//trim(data(i)%label))
-          !call data(i)%apply_proc_mask(map)
-          !map%map = map%map * data(i)%mask%map ! Apply frequency mask to current residual
           if (cpar%output_residuals) then
              N => data(i)%N
              select type (N)
@@ -346,7 +317,6 @@ contains
                   & trim(postfix)//'.fits')
              !call wall_time(t4)
           end if
-          !call update_status(status, "output_res2_"//trim(data(i)%label))
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
@@ -361,17 +331,6 @@ contains
              ! uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                ! N => data(i)%N
-                ! select type (N)
-                ! Defining chisq_eff = -2*log(L) such that
-                ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
-                ! log(det(Sigma)) -> 2*log(2*pi*sigma)
-                ! class is (comm_N_rms)
-                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                ! class is (comm_N_lcut)
-                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                ! end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -381,13 +340,10 @@ contains
        
        if (cpar%output_chisq) then
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
-          call mpi_reduce(sum(chisq_map_eff%map), chisq_eff, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
-          call chisq_map_eff%writeFITS(trim(cpar%outdir)//'/chisq_eff_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc();     deallocate(chisq_map)
-          call chisq_map_eff%dealloc(); deallocate(chisq_map_eff)
        end if
        call update_status(status, "output_chisq")
     end if
@@ -397,19 +353,7 @@ contains
        if (new_header) fg_header=trim(fg_header)//'          full_chisq           avg_chisq       chisq_highlat      avg_reduced_chisq'
        write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(to be implemented)', '(to be implemented)'
        outline = trim(outline)//trim(temptxt)
-       !need to find a nice way of only gathering high latitude chisq
-
-
-       !call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq', &
-       !       & chisq)
-       !call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
-       !       & chisq/(12*cpar%nside_chisq**2))
-       !call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq_eff', &
-       !       & chisq_eff)
-       !call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq_eff', &
-       !       & chisq_eff/(12*cpar%nside_chisq**2))
              
-
        !write fg_mean info to file and close file
        if (new_header) write(unit,fmt='(a)') trim(fg_header)
        write(unit,fmt='(a)') trim(outline)

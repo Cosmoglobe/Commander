@@ -1255,7 +1255,7 @@ contains
     case ("pseudoinv")
        call initDiffPrecond_pseudoinv(comm)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
@@ -1397,7 +1397,7 @@ contains
     case ("pseudoinv")
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported "//trim(precond_type))
     end select
 
   end subroutine updateDiffPrecond
@@ -2105,7 +2105,7 @@ contains
     case ("pseudoinv")
        call applyDiffPrecond_pseudoinv(x)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported "//trim(precond_type))
     end select
 
   end subroutine applyDiffPrecond

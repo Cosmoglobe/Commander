@@ -19,7 +19,6 @@
 !
 !================================================================================
 program commander
-  use comm_param_mod
   use comm_data_mod
   use comm_signal_mod
   use comm_cr_mod
@@ -46,6 +45,11 @@ program commander
   character(len=*), parameter :: version = '1.0.0'
   character(len=32)           :: arg
   integer                     :: arg_indx
+
+  character(len=256)          :: line
+  integer(i4b) :: ntoks, memsize
+  character(len=512), dimension(100) :: toks
+
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -334,6 +338,13 @@ program commander
      call timer%incr_numsamp(0)
      !write(*,*) timer%numsamp
      call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
+
+     call print_rss(line)
+     call get_tokens(line, " ", toks, ntoks)
+     read(toks(2),*) memsize
+     call mpi_allreduce(MPI_IN_PLACE, memsize, 1, &
+          & MPI_INTEGER, MPI_SUM, cpar%comm_chain, ierr)
+     if (cpar%myid == 0) write(*,*) 'after ', memsize
   end do
 
   

@@ -64,6 +64,7 @@ module comm_data_mod
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
+     real(dp), allocatable, dimension(:,:) :: map_buff, alm_buff
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -364,6 +365,9 @@ contains
     ! Dump unit conversion factors to file
     if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
 
+    ! Buffer arrays, useful for computing residuals
+    allocate(data(n)%alm_buff(0:data(n)%info%nalm-1, data(n)%info%nmaps))
+    allocate(data(n)%map_buff(0:data(n)%info%np-1, data(n)%info%nmaps))
 
   end subroutine initialize_data_mod
 

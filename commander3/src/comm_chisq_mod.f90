@@ -24,10 +24,43 @@ module comm_chisq_mod
   use comm_diffuse_comp_mod
   use comm_ptsrc_comp_mod
   use comm_template_comp_mod
+  use iso_c_binding
   implicit none
 
 
+  type, bind(C) :: mallinfo_t
+     integer(c_int) :: arena
+     integer(c_int) :: ordblks
+     integer(c_int) :: smblks
+     integer(c_int) :: hblks
+     integer(c_int) :: hblkhd
+     integer(c_int) :: usmblks
+     integer(c_int) :: fsmblks
+     integer(c_int) :: uordblks
+     integer(c_int) :: fordblks
+     integer(c_int) :: keepcost
+  end type mallinfo_t
+
+  interface
+     function c_mallinfo() bind(C, name="mallinfo")
+        import :: mallinfo_t
+        type(mallinfo_t) :: c_mallinfo
+     end function c_mallinfo
+  end interface
+
 contains
+
+  function get_uordblks() result(val)
+    integer(c_size_t) :: val
+    type(mallinfo_t) :: mi
+
+    mi = c_mallinfo()
+    val = int(mi%uordblks, c_size_t)
+  end function get_uordblks
+
+
+
+
 
   subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval, evalpol)
     implicit none
@@ -207,10 +240,10 @@ contains
     real(dp)     :: t1, t2, t3, t4
     class(comm_comp),    pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
-    integer(i4b), allocatable, dimension(:)   :: pix
     integer(i4b) :: ierr
     logical(lgt) :: nonzero
     class(comm_map), pointer :: ptsrc
+
     
     ! Initialize to full data set
     res   => comm_map(data(band)%info)  ! Diffuse
@@ -237,22 +270,15 @@ contains
 
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true.)
-          res%alm = res%alm + alm
-          !call res%add_alm(alm, c%x%info)
-          deallocate(alm)
+          data(band)%alm_buff     = c%getBand(band, alm_out=.true.)
+          res%alm = res%alm + data(band)%alm_buff
           nonzero = .true.
        class is (comm_ptsrc_comp)
-          allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
-          map       = c%getBand(band)
-          ptsrc%map = ptsrc%map + map
-          deallocate(map)
+          data(band)%map_buff       = c%getBand(band)
+          ptsrc%map = ptsrc%map + data(band)%map_buff
        class is (comm_template_comp)
-          allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
-          map       = c%getBand(band)
-          ptsrc%map = ptsrc%map + map
-          deallocate(map)
+          data(band)%map_buff       = c%getBand(band)
+          ptsrc%map = ptsrc%map + data(band)%map_buff
        end select
        c => c%next()
     end do
@@ -348,7 +374,6 @@ contains
     class(comm_comp), pointer :: c
     class(comm_map),  pointer :: out
     real(dp),     allocatable, dimension(:,:) :: map, alm
-    integer(i4b), allocatable, dimension(:)   :: pix
     
     do i = 1, numband
        out => comm_map(data(i)%info)  

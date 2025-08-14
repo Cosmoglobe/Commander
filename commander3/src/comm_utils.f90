@@ -36,6 +36,15 @@ module comm_utils
   !include "mpif.h"
   include 'fftw3.f'
 
+  interface
+    function malloc_trim(pad) bind(C, name="malloc_trim") result(res)
+      import :: c_int, c_size_t
+      integer(c_size_t), value :: pad
+      integer(c_int) :: res
+    end function malloc_trim
+  end interface
+
+
 contains
 
   function median(array) result(res)
@@ -1343,6 +1352,38 @@ contains
     deallocate(xarr,yarr,covarr)
 
   end function calc_corr_len
+
+  subroutine print_rss(line)
+    implicit none
+    character(len=256), intent(out) :: line
+    integer(i4b) :: ios
+    open(unit=99, file="/proc/self/status", status="old", action="read", iostat=ios)
+    if (ios == 0) then
+        do
+            read(99,'(A)',iostat=ios) line
+            if (ios /= 0) exit
+            if (index(line, "VmRSS:") > 0) then
+                !write(*,*) trim(line)
+                exit
+            end if
+        end do
+        close(99)
+    else
+        write(*,*) "Unable to read /proc/self/status"
+    end if
+  end subroutine print_rss
+
+  subroutine trim_memory()
+    implicit none
+    integer(c_int) :: res
+    res = malloc_trim(0_c_size_t)
+    !if (res == 0) then
+    !   write(*,*) "malloc_trim: No memory released"
+    !else
+    !   write(*,*) "malloc_trim: Memory released"
+    !end if
+  end subroutine trim_memory
+
 
   
 end module comm_utils
