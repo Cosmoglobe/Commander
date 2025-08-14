@@ -730,9 +730,12 @@ subroutine tod2file_dp3(filename,d)
     character(len=*), intent(in), optional :: hdfpath
     logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
 
-    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr, strt, stp, n, n_chunk
+    integer(i4b), parameter :: chunk_size = 1000  ! Used to avoid large MPI buffers
     logical(lgt) :: output_fits_, output_hdf_map_
     real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
+    real(dp),     allocatable, dimension(:)   :: buffer2
+    integer(i4b), allocatable, dimension(:)   :: buffer3
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -754,12 +757,20 @@ subroutine tod2file_dp3(filename,d)
           map(self%info%pix,:) = self%map
           do i = 1, self%info%nprocs-1
              call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-             call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             strt = 1
+             do while (strt <= np)
+               stp = min(strt + chunk_size - 1, np)
+               call mpi_recv(p(strt:stp), stp-strt+1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+               strt = stp + 1
+             end do
+
+
              allocate(buffer(np,nmaps))
              call mpi_recv(buffer, np*nmaps, &
                   & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
              map(p(1:np),:) = buffer(1:np,:)
              deallocate(buffer)
+
           end do
           !call update_status(status, "fits2")
           if (output_fits_) then
@@ -768,6 +779,7 @@ subroutine tod2file_dp3(filename,d)
           if (present(hdffile) .and. self%info%lmax == -1) then
              call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           end if
+          
           call update_status(status, "fits3")
        end if
 
@@ -782,7 +794,22 @@ subroutine tod2file_dp3(filename,d)
           do i = 1, self%info%nprocs-1
              call mpi_recv(nlm,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
              allocate(lm(2,0:nlm-1))
-             call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(buffer3(2*chunk_size))
+             
+             strt = 0
+             do while (strt <= nlm-1)
+                 stp = min(strt + chunk_size - 1, nlm-1)
+                 n_chunk = stp - strt + 1
+             
+                 call mpi_recv(buffer3(1:2*n_chunk), 2*n_chunk, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             
+                 lm(1,strt:stp) = buffer3(1:n_chunk)
+                 lm(2,strt:stp) = buffer3(n_chunk+1:2*n_chunk)
+             
+                 strt = stp + 1
+             end do
+             
+             deallocate(buffer3)
              allocate(buffer(0:nlm-1,nmaps))
              call mpi_recv(buffer, size(buffer), &
                   & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
@@ -794,16 +821,15 @@ subroutine tod2file_dp3(filename,d)
                 if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind, trim(filename)
                 alm(ind,:) = buffer(j,:)
              end do
-             deallocate(lm, buffer)
-          end do
-          call update_status(status, "fits4")
-          !write(*,*) 'size', shape(alm) 
-          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   real(alm,sp))
-          if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
-          call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
-          call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
-          !call update_status(status, "fits5")
-          deallocate(alm)
+              deallocate(lm, buffer)
+           end do
+           call update_status(status, "fits4")
+           call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   real(alm,sp))
+           if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+           call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
+           call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+           !call update_status(status, "fits5")
+           deallocate(alm)
        end if
 
        if (output_fits_ .or. output_hdf_map_) deallocate(p, map)
@@ -811,15 +837,37 @@ subroutine tod2file_dp3(filename,d)
     else
 
        if (output_fits_) then
-          call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
-          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
-          call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
+          call mpi_ssend(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          strt = 1
+          do while (strt <= self%info%np)
+            stp = min(strt + chunk_size - 1, self%info%np)
+            call mpi_ssend(self%info%pix(strt:stp), stp-strt+1, MPI_INTEGER, 0, 98, self%info%comm, mpistat, ierr)
+            strt = stp + 1
+          end do
+
+          call mpi_ssend(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
                & self%info%comm, ierr)
+
+
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then
-          call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
-          call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_ssend(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
+
+          allocate(buffer3(2*size(self%info%lm,2)))  ! temporary buffer
+          strt = 0
+          do while (strt <= size(self%info%lm,2)-1)
+              stp = min(strt + chunk_size - 1, size(self%info%lm,2)-1)
+              n_chunk = stp - strt + 1
+          
+              ! Flatten into buffer3: row-major
+              buffer3(1:n_chunk) = self%info%lm(1,strt:stp)
+              buffer3(n_chunk+1:2*n_chunk) = self%info%lm(2,strt:stp)
+          
+              call mpi_ssend(buffer3(1:2*n_chunk), 2*n_chunk, MPI_INTEGER, 0, 98, self%info%comm, ierr)
+              strt = stp + 1
+          end do
+          deallocate(buffer3)
           call mpi_send(self%alm,       size(self%alm),     MPI_DOUBLE_PRECISION, 0, 98, &
                & self%info%comm, ierr)
        end if
