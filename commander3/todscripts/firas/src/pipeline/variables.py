@@ -15,7 +15,7 @@ import globals as g
 mode = "ss"
 
 data = np.load(
-    g.PROCESSED_DATA_PATH,
+    g.PREPROCESSED_DATA_PATH_CAL,
     allow_pickle=True,
 )
 

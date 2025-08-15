@@ -15,8 +15,9 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 import globals as g
+import my_utils as mu
 
-data = np.load(g.PROCESSED_DATA_PATH_CAL)
+data = np.load(g.PREPROCESSED_DATA_PATH_CAL)
 
 channels = {"ll": 3}
 modes = {"ss": 0}
@@ -50,7 +51,10 @@ for mode in modes:
     sweeps = data[f"sweeps_{mode}"][:]
 
     for channel in channels:
-        if not(mode == "lf" and channel[1] == "h"):
-            bol_cmd_bias = data[f"bol_cmd_bias_{channel}_{mode}"][:]
-            bol_volt = data[f"bol_volt_{channel}_{mode}"][:]
-            gain = data[f"gain_{channel}_{mode}"][:]
+        bol_cmd_bias = data[f"bol_cmd_bias_{channel}_{mode}"][:]
+        bol_volt = data[f"bol_volt_{channel}_{mode}"][:]
+        gain = data[f"gain_{channel}_{mode}"][:]
+
+        # Calculate the OTF for the channel
+        frequencies = mu.generate_frequencies(channel, mode, 257)
+        otf = np.zeros(257, dtype=np.complex128)

@@ -39,7 +39,7 @@ PNG = True
 FITS = False
 
 # plotting parameters
-CHANNELS = ["ll"]
+CHANNELS = ["rh"]
 MODES = ["ss"]
 JOINT = False
 SCANUPDOWN = False

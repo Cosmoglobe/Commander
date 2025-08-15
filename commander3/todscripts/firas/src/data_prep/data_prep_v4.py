@@ -830,6 +830,10 @@ gmt_str_cal = calibration_df["gmt"].dt.strftime("%Y-%m-%d %H:%M:%S").to_numpy(dt
 sky_df = sky_df.reset_index(drop=True)
 calibration_df = calibration_df.reset_index(drop=True)
 
+# set up ids for each dataframe
+sky_df["id"] = sky_df.index + 1
+calibration_df["id"] = calibration_df.index + 1
+
 print(f"Dataframe after merging engineering data: {sky_df.tail()}")
 print(f"Dataframe after merging engineering data: {calibration_df.tail()}")
 
@@ -946,6 +950,7 @@ sky_variables = [
     "grt_addr_b",
     "sky_hrn_temp_a",
     "sky_hrn_temp_b",
+    "id",
 ]
 
 # saving to a h5 file

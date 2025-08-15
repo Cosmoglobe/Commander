@@ -136,7 +136,7 @@ for channel in g.CHANNELS:
                         unit="MJy/sr",
                         min=1,
                         max=max_amp,
-                        norm='log'
+                        # norm='log'
                     )
                     plt.savefig(
                         f"{g.SAVE_PATH}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_nside{g.NSIDE}.png"

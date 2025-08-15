@@ -81,7 +81,6 @@ variables = {}
 for variable_name in variable_names:
     variables[variable_name] = np.array(cal_data["df_data/" + variable_name][()])
 
-
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]

@@ -544,13 +544,15 @@ def filter_junk(
     full_filter : np.ndarray
     """
 
-    filter0 = stat_word_1 != 46 
-    filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217) #& (stat_word_5 != 19457) # makes the hole!
+    filter0 = stat_word_1 != 46 # couldn't find in cal ifgs
+    # filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) took out because looking at cal ifgs it looks fine
+    #& (stat_word_5 != 17217) # took out because looking at cal ifgs it looks fine
+    #& (stat_word_5 != 19457) # makes the hole!
     filter2 = (stat_word_9 != 15414) & (stat_word_9 != 45110)
     filter25 = (
-        (stat_word_12 != 6714) # hot horn season
-        & (stat_word_12 != 7866) # hot horn season
-        & (stat_word_12 != 18536) & (stat_word_12 != 19121) & (stat_word_12 != 54906) & (stat_word_12 != 63675)
+        #(stat_word_12 != 6714) # hot horn season - ifgs look fine, problem is calibration
+        # (stat_word_12 != 7866) # hot horn season - ifgs look fine, problem is calibration
+        (stat_word_12 != 18536) & (stat_word_12 != 19121) & (stat_word_12 != 54906) & (stat_word_12 != 63675)
     )
     filter3 = (
         (stat_word_13 != 17281)
@@ -629,10 +631,13 @@ def filter_junk(
     filtergrt = (a_bol_assem_rh > 0) & (a_bol_assem_rl > 0) & (a_bol_assem_lh > 0) & (b_bol_assem_lh > 0) & (a_bol_assem_ll > 0) & (b_bol_assem_ll > 0)
     filtercmd = (bol_cmd_bias_lh > 0) & (bol_cmd_bias_rh > 0)
 
-    full_filter = filter0 & filter1 & filter2 & filter25 &  filter3 & filter4 & filter5 & filter6 & filtergrt & filtercmd
+    full_filter = (filter0  #filter1 & 
+                & filter2 & filter25 &  filter3 & filter4 & filter5 & filter6 & filtergrt & filtercmd)
 
     return full_filter
 
+# def bad_mask_ifg():
+    
 
 def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
     """
