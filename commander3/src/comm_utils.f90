@@ -1353,25 +1353,27 @@ contains
 
   end function calc_corr_len
 
-  subroutine print_rss(line)
-    implicit none
-    character(len=256), intent(out) :: line
-    integer(i4b) :: ios
-    open(unit=99, file="/proc/self/status", status="old", action="read", iostat=ios)
-    if (ios == 0) then
-        do
-            read(99,'(A)',iostat=ios) line
-            if (ios /= 0) exit
-            if (index(line, "VmRSS:") > 0) then
-                !write(*,*) trim(line)
-                exit
-            end if
-        end do
-        close(99)
-    else
-        write(*,*) "Unable to read /proc/self/status"
-    end if
-  end subroutine print_rss
+  subroutine print_memavailable(line)
+      implicit none
+      character(len=256), intent(out) :: line
+      integer(i4b) :: ios
+      open(unit=99, file="/proc/meminfo", status="old", action="read", iostat=ios)
+      if (ios == 0) then
+          do
+              read(99,'(A)',iostat=ios) line
+              if (ios /= 0) exit
+              if (index(line, "MemAvailable:") > 0) then
+                  !write(*,*) trim(line)
+                  exit
+              end if
+          end do
+          close(99)
+      else
+          write(*,*) "Unable to read /proc/meminfo"
+      end if
+  end subroutine print_memavailable
+
+
 
   subroutine trim_memory()
     implicit none

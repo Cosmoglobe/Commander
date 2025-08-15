@@ -339,12 +339,12 @@ program commander
      !write(*,*) timer%numsamp
      call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
 
-     call print_rss(line)
-     call get_tokens(line, " ", toks, ntoks)
-     read(toks(2),*) memsize
-     call mpi_allreduce(MPI_IN_PLACE, memsize, 1, &
-          & MPI_INTEGER, MPI_SUM, cpar%comm_chain, ierr)
-     if (cpar%myid == 0) write(*,*) 'after ', memsize
+     if (cpar%myid == 0) then
+       call print_memavailable(line)
+       call get_tokens(line, " ", toks, ntoks)
+       read(toks(2),*) memsize  ! memsize in kB
+       write(*,*) 'mem available', memsize
+     end if
   end do
 
   
