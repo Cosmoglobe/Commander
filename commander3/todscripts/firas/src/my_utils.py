@@ -676,3 +676,9 @@ def tune_pointing(gal_lon, gal_lat, gmt, mtm_length, mtm_speed, offset=0):
             new_gal_vec[i] = np.nan
 
     return new_gal_vec
+
+def save_mollview(m, f_ghz, save_path, max_amp=200, norm='linear'):
+    for freqi, frequency in enumerate(f_ghz):
+        hp.mollview(m[:, freqi], title=f"{int(frequency):04d} GHz", min=1, max=max_amp, unit="MJy/sr", norm=norm)
+        plt.savefig(f"{save_path}{int(frequency):04d}.png")
+        plt.close()
