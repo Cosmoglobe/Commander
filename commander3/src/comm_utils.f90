@@ -1373,6 +1373,40 @@ contains
       end if
   end subroutine print_memavailable
 
+  subroutine print_mem_and_swap(line_mem, line_swap)
+      implicit none
+      character(len=256), intent(out) :: line_mem, line_swap
+      character(len=256) :: line
+      integer :: ios
+      logical :: found_mem, found_swap
+  
+      found_mem  = .false.
+      found_swap = .false.
+  
+      line_mem  = ""
+      line_swap = ""
+  
+      open(unit=99, file="/proc/meminfo", status="old", action="read", iostat=ios)
+      if (ios == 0) then
+          do
+              read(99,'(A)',iostat=ios) line
+              if (ios /= 0) exit
+              if (.not. found_mem  .and. index(line, "MemAvailable:") > 0) then
+                  line_mem = trim(line)
+                  found_mem = .true.
+              else if (.not. found_swap .and. index(line, "SwapFree:") > 0) then
+                  line_swap = trim(line)
+                  found_swap = .true.
+              end if
+              if (found_mem .and. found_swap) exit
+          end do
+          close(99)
+      else
+          write(*,*) "Unable to read /proc/meminfo"
+      end if
+  end subroutine print_mem_and_swap
+
+
 
 
   subroutine trim_memory()

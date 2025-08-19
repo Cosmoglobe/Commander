@@ -107,7 +107,7 @@ contains
        end do
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
-       res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+       res%xi_n_P_uni(3,:) = [-2.5d0, -0.01d0]   ! alpha
        res%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
        res%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        res%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig

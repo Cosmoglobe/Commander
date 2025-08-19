@@ -46,7 +46,7 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
-  character(len=256)          :: line
+  character(len=256)          :: line1, line2
   integer(i4b) :: ntoks, memsize
   character(len=512), dimension(100) :: toks
 
@@ -228,6 +228,12 @@ program commander
   !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
   !----------------------------------------------------------------------------------
   do while (iter <= cpar%num_gibbs_iter)
+     if (cpar%myid == 0) then
+       call print_mem_and_swap(line1, line2)
+       print *, "Available RAM:  ", trim(line1)
+       print *, "Available Swap: ", trim(line2)
+     end if
+
      ok = .true.
 
      call timer%start(TOT_GIBBSSAMP)
@@ -339,12 +345,6 @@ program commander
      !write(*,*) timer%numsamp
      call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
 
-     if (cpar%myid == 0) then
-       call print_memavailable(line)
-       call get_tokens(line, " ", toks, ntoks)
-       read(toks(2),*) memsize  ! memsize in kB
-       write(*,*) 'mem available', memsize
-     end if
   end do
 
   
