@@ -166,6 +166,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_procmask_zodi
      character(len=2048), allocatable, dimension(:)   :: ds_tod_filelist
      character(len=2048), allocatable, dimension(:)   :: ds_tod_jumplist
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_map_type
      character(len=2048), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=2048), allocatable, dimension(:)   :: ds_tod_dets
      character(len=2048), allocatable, dimension(:)   :: ds_tod_bp_init
@@ -627,7 +628,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n))
+    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n), cpar%ds_tod_map_type(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
@@ -737,6 +738,8 @@ contains
                   & par_int=cpar%ds_tod_scanrange(i,2))
              call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_tot_numscan(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MAPMAKE_TYPE'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_map_type(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_flag(i))
              cpar%ds_tod_flag(i) = cpar%ds_tod_flag(i) + 2**30  ! Always Enable dynamic flagging in Commander
@@ -3633,7 +3636,7 @@ end subroutine read_zodi_params_hash
                call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
           
-          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+          if (trim(cpar%cs_mono_prior(i)) /= 'none' .and. cpar%cs_mono_prior(i)(1:8) .ne. 'bandmono') then
             filename = get_token(cpar%cs_mono_prior(i), ":", 2)
             filename1 = get_token(filename, ",", 1)
             call validate_file(trim(cpar%datadir) //"/"// trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
@@ -3679,7 +3682,7 @@ end subroutine read_zodi_params_hash
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('spindust2')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_NU_P_INPUT_MAP'//itext)
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(cpar%cs_input_ind(2,i)), 'COMP_DBETA_INPUT_MAP'//itext)
              call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
@@ -4097,11 +4100,16 @@ end subroutine read_zodi_params_hash
     character(len=2048), dimension(2) :: toks
 
 
-    call get_tokens(string, ":", toks, num)    
-    chainfile = toks(1)
-    read(toks(2),*, iostat=e) initsamp
-    if (e .ne. 0) then
-      write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+    call get_tokens(string, ":", toks, num)
+    if(num <= 1) then !no sample number appended to end, default to first sample
+      chainfile = string
+      initsamp = 1
+    else
+      chainfile = toks(1)
+      read(toks(2),*, iostat=e) initsamp    
+      if (e .ne. 0) then
+        write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+      end if
     end if
 
     if (index(chainfile, '.h5') == 0) then

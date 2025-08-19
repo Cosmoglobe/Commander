@@ -95,8 +95,15 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
+<<<<<<< HEAD
   elif [[ "${HOSTNAME}" =~ $owl3845 ]]; then
     build_dir="build_owl3845_${toolchain}_${buildtype}"
+=======
+  elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
+    build_dir="build_owl4046_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
+    build_dir="build_owl38_${toolchain}_${buildtype}"
+>>>>>>> 0338455b833f722a8d4baacab1d453c1ae1bc068
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
     build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
@@ -176,8 +183,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load gcc/13.1
-    module load openmpi/gcc13/5.0.2
+    module load gcc/13.3.1
+    module load openmpi/gcc13/5.0.5
 		printf "\n"
 		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]

@@ -106,9 +106,9 @@ contains
     character(len=512) :: label
     character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-    
+ 
     label = cpar%ds_label(id_abs)
-    
+
     ! General parameters
     allocate(c)
     
