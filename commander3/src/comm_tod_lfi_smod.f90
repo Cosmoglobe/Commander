@@ -678,6 +678,7 @@ contains
     sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
     sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
+
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -756,18 +757,6 @@ contains
     call update_status(status, "L1_to_L2")
 
 
-    ! Sample 1Hz spikes
-!    if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
-!    end if
-
-    ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
-       !call sample_gain_psd(self, handle)
-    end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -780,6 +769,18 @@ contains
     if (output_scanlist) then
        allocate(slist(self%nscan))
        slist   = ''
+    end if
+
+
+    ! Sample 1Hz spikes
+    call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
+
+    ! Sample gain components in separate TOD loops; marginal with respect to n_corr
+    if (.not. self%enable_tod_simulations) then
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+       !call sample_gain_psd(self, handle)
     end if
 
     ! Perform loop over scans
@@ -806,8 +807,6 @@ contains
        else
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-       !sd%n_corr = 0.
-       !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -830,7 +829,7 @@ contains
        call timer%stop(TOD_ALLOC, self%band)
 
        call compute_calibrated_data(self, i, sd, d_calib)
-       
+
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
        if (self%output_4D_map > 0) then
           if (mod(iter-1,self%output_4D_map) == 0) then
@@ -849,6 +848,7 @@ contains
           end if
        end if
 
+       
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
@@ -1641,15 +1641,10 @@ contains
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
 
-          !write(*,*) tod%scanid(i), j, maxval(abs(sd%tod(:,j))), tod%scans(i)%d(j)%gain, maxval(abs(sd%s_sky(:,j))), maxval(abs(sd%s_sl(:,j))), maxval(abs(sd%s_orb(:,j)))
-          !res = sd%tod(:,j)/tod%scans(i)%d(j)%gain - (sd%s_sky(:,j) + &
-          !     & sd%s_sl(:,j) + sd%s_orb(:,j))
           do k = 1, tod%scans(i)%ntod
              if (sd%tod(k,j) /= sd%tod(k,j)) then
                 write(*,*) tod%scanid(i), j, k, sd%tod(k,j), tod%scans(i)%d(j)%gain, sd%s_sky(k,j), sd%s_sl(k,j), sd%s_orb(k,j)
              end if
-             !res(k) = 1/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &
-             !     & sd%s_sl(k,j) + sd%s_orb(k,j))
              res(k) = sd%tod(k,j)/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &
                   & sd%s_sl(k,j) + sd%s_orb(k,j))
           end do
@@ -1671,23 +1666,6 @@ contains
           end if
        end do
 
-!!$       if (trim(tod%freq) == '070') then 
-!!$          call int2string(tod%scanid(i),scantext)
-!!$          open(58,file='temp_1Hz_22S_PID'//scantext//'.dat')
-!!$          do k = 0, nbin-1
-!!$             write(58,*) s_bin(k,10,i)
-!!$          end do
-!!$          close(58)
-!!$       end if
-!!$
-!!$       if (trim(tod%freq) == '044') then 
-!!$          call int2string(tod%scanid(i),scantext)
-!!$          open(58,file='temp_1Hz_26S_PID'//scantext//'.dat')
-!!$          do k = 0, nbin-1
-!!$             write(58,*) s_bin(k,6,i)
-!!$          end do
-!!$          close(58)
-!!$       end if
 
        ! Clean up
         call sd%dealloc
@@ -1745,7 +1723,6 @@ contains
              tod%spike_amplitude(:,j) = tod%spike_amplitude(:,j) + eta / sqrt(A)
           end if
        end if
-       !if (tod%info%myid == 0) write(*,*) 'Spike amplitude =', j, tod%spike_amplitude(1,j)
     end do
 
     ! Clean up

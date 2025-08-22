@@ -94,27 +94,6 @@ program commander
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
-!!$  n = 100000
-!!$  q = 100000
-!!$  allocate(arr(n))
-!!$  do i = 1, n
-!!$     allocate(arr(i)%p(q))
-!!$     arr(i)%p = i
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'up', arr(i)%p(6)
-!!$        call update_status(status, "debug")
-!!$     end if
-!!$  end do
-!!$
-!!$  do i = 1, n
-!!$     deallocate(arr(i)%p)
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'down', i
-!!$        call update_status(status, "debug2")
-!!$     end if
-!!$  end do
-!!$  deallocate(arr)
-!!$  stop
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -156,16 +135,10 @@ program commander
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   ! Initialising Data -- load it into memory?
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
-  ! Debug statement to actually see whether
-  ! QUIET is loaded into memory
-  !stop
-  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
 
-!write(*,*) 'Setting gain to 1'
-!data(6)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
@@ -214,8 +187,6 @@ program commander
      first_sample = first_sample+1
   end if
   call timer%stop(TOT_INIT)
-  !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
-  !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
 
   ! Run Gibbs loop
@@ -475,13 +446,10 @@ contains
           end do
           call update_mixing_matrices(i, update_F_int=.true.)       
 
-          ! Evaluate sky for each detector given current bandpass
-          do j = 1, data(i)%tod%ndet
-             !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
-             !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
-             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
-          end do
+         ! Evaluate sky for each detector given current bandpass
+         do j = 1, data(i)%tod%ndet
+            call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+         end do
 
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then

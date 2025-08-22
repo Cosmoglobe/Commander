@@ -121,7 +121,6 @@ contains
     !call update_status(status, "todinit_alloc")
     call timer%stop(TOD_ALLOC, tod%band)
 
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
@@ -131,11 +130,7 @@ contains
             & self%psi(:,j,:), self%flag(:,j))
     end do
     call timer%stop(TOD_DECOMP, tod%band)
-    !call update_status(status, "todinit_decomp")
-    !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
-    !call update_status(status, "todinit_symmflag")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
     if (tod%ndiode == 1) then
@@ -152,8 +147,6 @@ contains
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
-    !call update_status(status, "todinit_tod")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
@@ -168,8 +161,6 @@ contains
        call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_gain, self%mask)
     end if
-    !call update_status(status, "todinit_sky")
-    !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
@@ -179,16 +170,11 @@ contains
        end do
     else if (init_s_sky_prop_) then
        do j = 2, self%ndelta
-          !if (.true. .or. tod%myid == 78) write(*,*) 'c62', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
     call timer%stop(TOD_PROJECT, tod%band)
-    !call update_status(status, "todinit_bp")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
 
     ! Perform sanity tests
     do j = 1, self%ndet
@@ -196,14 +182,11 @@ contains
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
-    !call update_status(status, "todinit_sanity")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     call timer%start(TOD_ORBITAL, tod%band)
     call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
     call timer%stop(TOD_ORBITAL, tod%band)
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
@@ -211,15 +194,12 @@ contains
        call compute_zodi_template(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
-    !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
        call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
                & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
@@ -231,13 +211,6 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
-!!$    if (tod%scanid(scan) == 3) then
-!!$       open(58,file='sidelobe_BP10.dat')
-!!$       do k = 1, size(self%s_sl,1)
-!!$          write(58,*) k, self%s_sl(k,1)
-!!$       end do
-!!$       close(58)
-!!$    end if
 
 
     !call update_status(status, "todinit_sl")
@@ -255,10 +228,6 @@ contains
     if (tod%apply_inst_corr) then
        call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
-!!$       do j = 1, self%ndet
-!!$          if (.not. tod%scans(scan)%d(j)%accept) cycle
-!!$          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
-!!$       end do
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
     !call update_status(status, "todinit_instcorr")

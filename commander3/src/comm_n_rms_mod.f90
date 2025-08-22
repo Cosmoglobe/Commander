@@ -164,7 +164,9 @@ contains
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       self%rms0     => comm_map(info)
+       if (.not. associated(self%rms0)) then
+          self%rms0     => comm_map(info)
+       end if
        self%rms0%map = map%map
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')
@@ -263,6 +265,7 @@ contains
     call iN%udgrade(self%siN_lowres)
     call iN%dealloc(); deallocate(iN)
     self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
+
 
   end subroutine update_N_rms
 

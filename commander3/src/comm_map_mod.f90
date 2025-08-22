@@ -328,31 +328,31 @@ subroutine tod2file_dp3(filename,d)
 
   end function constructor_mapinfo
 
-  function constructor_map(info, filename, mask_misspix, udgrade)
+  function constructor_map(info, filename, mask_misspix, udgrade) result(res)
     implicit none
     class(comm_mapinfo),                              intent(in),  target   :: info
     character(len=*),                                 intent(in),  optional :: filename
     logical(lgt),                                     intent(in),  optional :: udgrade
     real(dp),            allocatable, dimension(:,:), intent(out), optional :: mask_misspix
-    class(comm_map),     pointer                                            :: constructor_map
+    class(comm_map),     pointer                                            :: res
 
-    allocate(constructor_map)
-    constructor_map%info => info
+    allocate(res)
+    res%info => info
     ! Maybe make this an extra parameter of some sort?
-    allocate(constructor_map%map(0:info%np-1,info%nmaps))
-    allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
+    allocate(res%map(0:info%np-1,info%nmaps))
+    allocate(res%alm(0:info%nalm-1,info%nmaps))
 
     if (present(filename)) then
        if (present(mask_misspix)) then
           allocate(mask_misspix(0:info%np-1,info%nmaps))
-          call constructor_map%readFITS(filename, mask=mask_misspix, udgrade=udgrade)
+          call res%readFITS(filename, mask=mask_misspix, udgrade=udgrade)
        else
-          call constructor_map%readFITS(filename, udgrade=udgrade)
+          call res%readFITS(filename, udgrade=udgrade)
        end if
     else
-       if (info%np > 0) constructor_map%map = 0.d0
+       if (info%np > 0) res%map = 0.d0
     end if
-    if (info%nalm > 0) constructor_map%alm = 0.d0
+    if (info%nalm > 0) res%alm = 0.d0
     
   end function constructor_map
 

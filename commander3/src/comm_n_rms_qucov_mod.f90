@@ -189,7 +189,9 @@ contains
        ! This tests whether the rms_qucov case agrees with the rms case.
        !self%N_map%map(:,4) = 0d0
     else if (present(map)) then
-       self%N_map => comm_map(info)
+       if (.not. associated(self%N_map)) then
+          self%N_map => comm_map(info)
+       end if
        if (map%info%nmaps == 3) then
            self%N_map%map(:,1:3) = map%map
            self%N_map%map(:,4)   = 0
