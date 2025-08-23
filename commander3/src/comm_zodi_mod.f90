@@ -6,7 +6,7 @@ module comm_zodi_mod
 
    private
    public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
-   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
+   public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi, compute_obj_centric_signal
    public band_monopole, band_update_monopole
 
    type :: ZodiCompLOS
@@ -1486,7 +1486,7 @@ contains
       ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
       !     Contribution from thermal interplanetary dust emission.
       !
-      class(comm_tod),               intent(inout)        :: tod
+      class(comm_tod),               intent(in)           :: tod
       integer(i4b),    dimension(:), intent(in)           :: pix
       integer(i4b),                  intent(in)           :: scan, det
       type(ZodiModel),               intent(in)           :: model
@@ -1715,97 +1715,109 @@ contains
     end subroutine get_zodi_emission_adaptive
 
     
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s_zodi_tot, pix_dynamic, exclude_static, comp)
+   subroutine compute_zodi(zodi_model, tod, sd, det, comp)
       implicit none
-      class(ZodiModel),                 intent(in)               :: zodi_model
-      class(comm_tod),                  intent(inout)            :: tod
-      integer(i4b),                     intent(in)               :: det, scan
-      real(sp),         dimension(:),   intent(out)              :: s_zodi_tot
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
-      character(len=*),                 intent(in),     optional :: exclude_static
-      integer(i4b),                     intent(in),     optional :: comp
+      class(ZodiModel),     intent(in)             :: zodi_model
+      class(comm_tod),      intent(in)             :: tod
+      class(comm_scandata), intent(inout)          :: sd
+      integer(i4b),         intent(in),   optional :: det
+      integer(i4b),         intent(in),   optional :: comp
       
-      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
+      integer(i4b) :: i, j, d, h, hp, ntod, nhorn, ncomp, ndet
       real(sp)     :: w
       real(dp)     :: t1, t2
-      real(sp),     allocatable, dimension(:)   :: s_zodi
-      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
 
-      ntod  = size(s_zodi_tot)
-      ncomp = zodi_model%n_comps
-      band  = tod%id
+      ntod  = sd%ntod
+      nhorn = tod%nhorn
+      ndet  = tod%ndet;           if (present(det)) ndet = 1
+      ncomp = zodi_model%n_comps; if (present(comp)) ncomp = 1
 
-      ! Initialize
-      s_zodi_tot = 0.
-      
       ! Compute non-stationary zodi TOD through line-of-sight integration for each horn, and add together
-      call wall_time(t1)
-      if (present(pix_dynamic)) then
-         allocate(s_zodi(ntod))
-         do h = 1, size(pix_dynamic,2)
-            call get_zodi_emission_adaptive(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, accuracy=1e-3, samprate_min=1.0)
-!!$            open(58, file='zodi_approx.dat')
-!!$            do i = 1, size(s_zodi)
-!!$               write(58,*) i, s_zodi(i)
-!!$            end do
-!!$            close(58)
-            
-!!$            call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
-!!$            open(58, file='zodi_exact.dat')
-!!$            do i = 1, size(s_zodi)
-!!$               write(58,*) i, s_zodi(i)
-!!$            end do
-!!$            close(58)
-!!$            stop
-            
-            w = 1.d0; if (h > 1) w = -1.d0
-            s_zodi_tot = s_zodi_tot  + w * s_zodi
+      do j = 1, ndet
+         d = j; if (present(det)) d = det
+         do h = 1, nhorn
+            hp = h; if (nhorn == 1) hp = 0
+            ! Fast, but approximate
+            call get_zodi_emission_adaptive(tod, sd%pix(:,j,h), sd%scan, d, zodi_model, sd%s_zodi(:,j,hp), accuracy=1e-3, samprate_min=1.0)
+            ! Evaluate each sample
+            !call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
          end do
-         deallocate(s_zodi)
-      end if
-      call wall_time(t2)
+      end do
       
-      ! Add solar component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
-               if (tod%map_solar(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_solar(j,1)
-               end if
+    end subroutine compute_zodi
+
+   subroutine compute_obj_centric_signal(tod, sd, det)
+      implicit none
+      class(comm_tod),      intent(in)             :: tod
+      class(comm_scandata), intent(inout)          :: sd
+      integer(i4b),         intent(in),   optional :: det
+      
+      integer(i4b) :: i, j, k, d, h, hp, ntod, nhorn, ndet, scan
+      real(sp)     :: w
+      real(dp)     :: t1, t2
+      logical(lgt) :: incl_solar, incl_moon, incl_earth
+
+      incl_solar = .true.
+      incl_moon  = .false.
+      incl_earth = .false.
+
+      scan  = sd%scan
+      ntod  = sd%ntod
+      ndet  = tod%ndet; if (present(det)) ndet = 1
+      nhorn = tod%nhorn
+
+      sd%s_objctr = 0.
+      
+      ! Add solar component
+      if (incl_solar .and. associated(tod%map_solar)) then
+         do j = 1, sd%ndet
+            d = j; if (present(det)) d = det
+            do h = 1, tod%nhorn
+               hp = h; if (nhorn == 1) hp = 0
+               do i = 1, ntod
+                  k    = tod%scans(scan)%d(d)%pix_sol(i,h)
+                  if (tod%map_solar(k,1) > -1.d30) then
+                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_solar(k,1)
+                  end if
+               end do
             end do
          end do
       end if
-      return
 
       ! Add Moon component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'moon') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
-               if (tod%map_moon(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_moon(j,1)
-               end if
+      if (incl_moon .and. associated(tod%map_moon)) then
+         do j = 1, sd%ndet
+            d = j; if (present(det)) d = det
+            do h = 1, tod%nhorn
+               hp = h; if (nhorn == 1) hp = 0
+               do i = 1, ntod
+                  k    = tod%scans(scan)%d(d)%pix_moon(i,h)
+                  if (tod%map_moon(k,1) > -1.d30) then
+                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_moon(k,1)
+                  end if
+               end do
             end do
          end do
       end if
 
       ! Add Earth component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'earth') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
-               if (tod%map_earth(j) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_earth(j)
-               end if
+      if (incl_earth .and. associated(tod%map_earth)) then
+         do j = 1, sd%ndet
+            d = j; if (present(det)) d = det
+            do h = 1, tod%nhorn
+               hp = h; if (nhorn == 1) hp = 0
+               do i = 1, ntod
+                  k = max(min(int(tod%scans(scan)%d(d)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+                  if (tod%map_earth(k) > -1.d30) then
+                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_earth(k)
+                  end if
+               end do
             end do
          end do
       end if
 
-    end subroutine get_s_tot_zodi
+    end subroutine compute_obj_centric_signal
+
     
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------

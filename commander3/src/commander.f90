@@ -97,7 +97,7 @@ program commander
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
-  status%active = cpar%myid_chain == 0 !.false.
+  status%active = cpar%myid_chain == 1 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
 !!$  call initialize_dust_extinction_mod(cpar)
@@ -381,7 +381,7 @@ program commander
   end if
      
      ! Output sample to disk
-     call timer%start(TOT_OUTPUT)
+  call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
 
@@ -442,7 +442,8 @@ contains
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
+    type(map_ptr), allocatable, dimension(:)     :: s_gain
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
@@ -487,7 +488,7 @@ contains
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
-       allocate(s_gain(ndet,1))
+       allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -559,10 +560,10 @@ contains
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
                 if (associated(gainmap)) then
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., &
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
                      & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
                 else
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false.) 
                 end if
              end do
           end if
@@ -627,7 +628,7 @@ contains
           do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
-          call s_gain(j,1)%p%dealloc
+          call s_gain(j)%p%dealloc
        end do
        deallocate(s_sky, s_gain, delta, eta)
 

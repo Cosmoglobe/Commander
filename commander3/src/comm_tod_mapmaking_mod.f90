@@ -19,7 +19,7 @@
 !
 !================================================================================
 module comm_tod_mapmaking_mod
-   use comm_tod_mod
+   use comm_tod_driver_mod
    use comm_shared_arr_mod
    use comm_map_mod
    implicit none
@@ -142,7 +142,8 @@ contains
     integer(i4b) :: i, j, start_chunk, end_chunk, ind1, ind2, ierr
 
     if (.not. self%shared) return
-
+    call timer%start(TOD_MAPBIN, tod%band)
+    
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
@@ -161,7 +162,8 @@ contains
     end do
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
-
+    call timer%stop(TOD_MAPBIN, tod%band)
+    
   end subroutine synchronize_binmap
 
   ! Compute map with white noise assumption from correlated noise 
@@ -203,6 +205,7 @@ contains
     real(dp)     :: inv_sigmasq, eff
     nout = size(data,1)
  
+    call timer%start(TOD_MAPBIN, tod%band)
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = tod%output_n_maps + 4*(det-1)
@@ -272,7 +275,8 @@ contains
 
        end do
     end do
-
+    call timer%stop(TOD_MAPBIN, tod%band)
+    
   end subroutine bin_TOD
 
 
@@ -411,7 +415,7 @@ end subroutine bin_differential_TOD
       ! y = Ax
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
-      class(comm_tod),                 intent(in)              :: tod
+      class(comm_tod),                 intent(inout)           :: tod
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
       real(sp),     dimension(0:),     intent(in)              :: pmask
       logical(lgt), intent(in)                                 :: comp_S
@@ -422,20 +426,21 @@ end subroutine bin_differential_TOD
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
-      integer(i4b), allocatable, dimension(:)         :: flag
-      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       !integer(i4b), dimension(10) :: t_arr=(/52131,52496,52861,53227,53592,53957,54322, &
       !                                    &  54688,55053,55418/)
 
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
-      integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
+      integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps, oper
       real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi, monopole
+      class(comm_scandata), allocatable :: sd
+
       nhorn = tod%nhorn
       ndet  = tod%ndet
       nside = tod%nside
       nmaps = tod%nmaps
       npix  = 12*nside**2
+      oper  = get_sd_operation_code([SD_BASE,SD_IND])
 
       x      = 0.d0
       if (tod%myid == 0) then
@@ -458,11 +463,7 @@ end subroutine bin_differential_TOD
          end if
          if (.not. tod%scans(j)%d(1)%accept) cycle
          ntod = tod%scans(j)%ntod
-         allocate (pix(ntod, nhorn))             ! Decompressed pointing
-         allocate (psi(ntod, nhorn))             ! Decompressed pol angle
-         allocate (flag(ntod))                   ! Decompressed flags
-         call tod%decompress_pointing_and_flags(j, 1, pix, &
-             & psi, flag)
+         call init_scan_data(tod, j, oper, 0, sd, det=1)
 
          var = 0.d0
          do k = 1, 4
@@ -472,13 +473,13 @@ end subroutine bin_differential_TOD
 
          do t = 1, ntod
 
-            if (iand(flag(t),tod%flag0) .ne. 0) cycle
-            lpix = pix(t, 1)
-            rpix = pix(t, 2)
-            lcos2psi = tod%pixcache%cos2psi(psi(t,1))
-            lsin2psi = tod%pixcache%sin2psi(psi(t,1))
-            rcos2psi = tod%pixcache%cos2psi(psi(t,2))
-            rsin2psi = tod%pixcache%sin2psi(psi(t,2))
+            if (iand(sd%flag(t,1),tod%flag0) .ne. 0) cycle
+            lpix = sd%pix(t,1,1)
+            rpix = sd%pix(t,1,2)
+            lcos2psi = tod%pixcache%cos2psi(sd%psi(t,1,1))
+            lsin2psi = tod%pixcache%sin2psi(sd%psi(t,1,1))
+            rcos2psi = tod%pixcache%cos2psi(sd%psi(t,1,2))
+            rsin2psi = tod%pixcache%sin2psi(sd%psi(t,1,2))
 
             ! This is the model for each timestream
             iA = x(1,lpix)
@@ -510,7 +511,7 @@ end subroutine bin_differential_TOD
             end if
 
          end do
-         deallocate (pix, psi, flag)
+         call dealloc_scan_data(sd)
       end do
 
       if (tod%myid == 0) then
@@ -560,6 +561,7 @@ end subroutine bin_differential_TOD
 
     correct_transfer_ = .false.
     if(present(correct_transfer)) correct_transfer_ = correct_transfer
+    call timer%start(TOD_MAPSOLVE, tod%band)
 
     myid  = tod%myid
     nprocs= tod%numprocs
@@ -650,7 +652,7 @@ end subroutine bin_differential_TOD
       end if
 
       deallocate (A_tot, b_tot, bs_tot, W, eta)
-
+    call timer%stop(TOD_MAPSOLVE, tod%band)
 
   end subroutine finalize_binned_map_unpol
 
@@ -685,7 +687,8 @@ end subroutine bin_differential_TOD
 
     correct_transfer_ = .false.
     if(present(correct_transfer)) correct_transfer_ = correct_transfer
-
+    call timer%start(TOD_MAPSOLVE, tod%band)
+    
     myid  = tod%myid
     nprocs= tod%numprocs
     comm  = tod%comm
@@ -815,7 +818,7 @@ end subroutine bin_differential_TOD
       end do
 
       deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta, b_copy)
-
+    call timer%stop(TOD_MAPSOLVE, tod%band)
 
   end subroutine finalize_binned_map_nplus2
 
@@ -851,6 +854,8 @@ end subroutine bin_differential_TOD
     class(comm_mapinfo), pointer :: info 
     class(comm_map),     pointer :: smap 
 
+    call timer%start(TOD_MAPSOLVE, tod%band)
+    
     myid  = tod%myid
     nprocs= tod%numprocs
     comm  = tod%comm
@@ -997,7 +1002,8 @@ end subroutine bin_differential_TOD
       end if
 
       deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta)
-
+      call timer%stop(TOD_MAPSOLVE, tod%band)
+      
    end subroutine finalize_binned_map
 
    subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix, comp_S, split)
@@ -1042,7 +1048,7 @@ end subroutine bin_differential_TOD
      !  map_full: real (dp)
      !
      implicit none
-     class(comm_tod),                         intent(in) :: tod
+     class(comm_tod),                      intent(inout) :: tod
      type(planck_rng),                     intent(inout) :: handle
      real(dp),         dimension(:, :),    intent(inout) :: bicg_sol
      integer(i4b),                            intent(in) :: npix, nmaps
@@ -1142,9 +1148,9 @@ end subroutine bin_differential_TOD
           write(i_str, '(I0.3)') 0
           write(l_str, '(I1)') l
           call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                       & bicg_sol(:,1:3))
+                       & real(bicg_sol(:,1:3),dp))
           call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                       & r(:, 1:3))
+                       & real(r(:, 1:3),dp))
         end if
         bicg: do
            i = i + 1
@@ -1187,9 +1193,9 @@ end subroutine bin_differential_TOD
              write(i_str, '(I0.3)') 2*i-1
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,1:3))
+                          & real(bicg_sol(:,1:3),dp))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & s(:, 1:3))
+                          & real(s(:, 1:3),dp))
            end if
 
            if (abs(delta_s) .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
@@ -1230,9 +1236,9 @@ end subroutine bin_differential_TOD
              write(i_str, '(I0.3)') 2*i
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,1:3))
+                          & real(bicg_sol(:,1:3),dp))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & r(:, 1:3))
+                          & real(r(:, 1:3),dp))
            end if
 
            call tod%apply_map_precond(r, rhat)

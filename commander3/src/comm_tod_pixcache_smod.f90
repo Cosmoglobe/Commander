@@ -21,16 +21,16 @@
 submodule (comm_tod_mod) comm_tod_pixcache_mod
 contains
 
-  module function constructor_tod_pixcache(nside, nside_sl, nside_zodi, fullsky) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
     implicit none
-    integer(i4b),             intent(in) :: nside, nside_sl, nside_zodi 
+    integer(i4b),             intent(in) :: nside, nside_sl, nmaps
     logical(lgt),             intent(in) :: fullsky
     class(comm_tod_pixcache), pointer    :: c
 
     allocate(c)
     c%nside        = nside
     c%nside_sl     = nside_sl
-    c%nside_zodi   = nside_zodi
+    c%nmaps        = nmaps
     c%fullsky      = fullsky
     c%nmax         = 1
     c%nobs         = 0
@@ -110,6 +110,7 @@ contains
        end if
        ! Skip duplicates
        if (j > size(newpix)) exit
+       if (j == 1) cycle
        do while (newpix(j) == newpix(j-1))
           j = j+1
           if (j > size(newpix)) exit
@@ -206,6 +207,7 @@ contains
     real(sp)     :: psi
     real(dp)     :: theta, phi, rotation_matrix(3,3)
     
+    allocate(self%ind2pix_nest(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
     allocate(self%ind2vec(3,self%nobs))
     allocate(self%ind2sl(self%nobs))
@@ -215,6 +217,7 @@ contains
     call ecl_to_gal_rot_mat(rotation_matrix)
     do i = 1, self%nobs
        pix = self%ind2pix(i)
+       call ring2nest(self%nside, pix, self%ind2pix_nest(i))
        call pix2ang_ring(self%nside, pix, theta, phi)
        self%ind2ang(:,i) = [theta, phi]
        call pix2vec_ring(self%nside, pix, self%ind2vec(:,i))
@@ -235,4 +238,68 @@ contains
 
   end subroutine precomp_aux
 
+  module subroutine init_map_mask(self, map_sky, bitmask, map_gain, scale)
+    implicit none
+    class(comm_tod_pixcache),                 intent(inout) :: self
+    type(map_ptr),       dimension(1:,1:),    intent(in)    :: map_sky ! (ndet,ndelta)
+    class(comm_map),     pointer,             intent(in)    :: bitmask 
+    type(map_ptr),       dimension(1:),       intent(in), optional :: map_gain
+    real(sp),                                 intent(in), optional :: scale
+
+    integer(i4b) :: i, j, k, l, ndet, ndelta
+    real(sp), allocatable, dimension(:,:) :: buffer
+
+    ndet   = size(map_sky,1)
+    ndelta = size(map_sky,2)
+
+    ! Allocate storage in first call
+    if (.not. allocated(self%map_sky)) then
+       allocate(self%map_sky(self%nmaps,self%nobs,0:ndet,ndelta))
+       allocate(self%bitmask(self%nobs))
+       if (present(map_gain)) then
+          allocate(self%map_gain(self%nmaps,self%nobs,0:ndet))
+       end if
+    end if
+
+    ! Distribute sky and (optionally) gain maps
+    do j = 1, ndelta
+       do i = 1, ndet
+          call map_sky(i,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,i,j))
+          if (present(map_gain) .and. j == 1) then
+             call map_gain(i)%p%map2pix(self%ind2pix, self%map_gain(:,:,i))
+          end if
+!!$          if (self%nobs> 0) write(*,*) 'sly', j, i, sum(abs(self%map_sky(:,:,i,j)))
+!!$          if (self%nobs>0) write(*,*) 'a1', self%map_sky(:,109952,1,1)
+       end do
+
+       ! Compute detector average
+       do k = 1, self%nobs
+          do l = 1, self%nmaps
+             self%map_sky(l,k,0,j) = sum(self%map_sky(l,k,1:ndet,j))/ndet
+             if (present(map_gain) .and. j == 1) then
+                self%map_gain(l,k,0) = sum(self%map_gain(l,k,1:ndet))/ndet
+             end if
+          end do
+       end do
+!!$       write(*,*) 'nobs', j, self%nobs, ndet, ndelta
+
+
+    end do
+    
+    if (present(scale)) then
+       self%map_sky = scale * self%map_sky
+       if (present(map_gain)) self%map_gain = scale * self%map_gain
+    end if
+    
+    ! Distribute bitmask
+    allocate(buffer(bitmask%info%nmaps,self%nobs))
+    call bitmask%map2pix(self%ind2pix, buffer)
+    self%bitmask = 0
+    do i = 0, 6
+       self%bitmask = self%bitmask + nint(1.0-buffer(1,:)) * 2**i
+    end do
+    deallocate(buffer)
+    
+  end subroutine init_map_mask
+  
 end submodule comm_tod_pixcache_mod

@@ -13,14 +13,11 @@ module comm_tod_pixhist_mod
 
 contains
 
-  subroutine compute_tod_pixhist(tod, map_sky, map_gain, procmask, procmask2)
+  subroutine compute_tod_pixhist(tod)
     implicit none
     class(comm_tod),                              intent(inout) :: tod
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
-    integer(i4b) :: i, j, k, ierr, pix, npix_hist, q, bin(1), iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det
+    integer(i4b) :: i, j, k, ierr, pix, npix_hist, q, bin(1), iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det, oper, ind
     real(sp)     :: val, center, mu, sigma, x0, x1, delta0, f_threshold
     logical(lgt) :: refine
     type(comm_scandata) :: sd
@@ -37,6 +34,7 @@ contains
     ndet      = tod%ndet
     npix_hist = 12*tod%nside_pixhist**2
     q         = (tod%nside / tod%nside_pixhist)**2
+    oper      = get_sd_operation_code([SD_BASE,SD_TOD])
 
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1,ndet))  ! (mu, rms, nhit, min, max)
@@ -47,7 +45,8 @@ contains
     tod%pixhist(5,:,:)  = -1e30
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+       call init_scan_data(tod, i, oper, 0, sd)
+       call timer%start(TOD_PIXHIST, tod%band)
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
           do k = 1, sd%ntod
@@ -58,13 +57,14 @@ contains
              tod%pixhist(5,pix,j)  = max(tod%pixhist(5,pix,j), sd%tod(k,j))
           end do
        end do
-
-       ! Clean up
        call dealloc_scan_data(sd)
+       call timer%stop(TOD_PIXHIST, tod%band)
     end do
+    call timer%start(TOD_PIXHIST, tod%band)
     call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(4,:,:),  size(tod%pixhist(4,:,:)),  MPI_REAL, MPI_MIN, tod%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(5,:,:),  size(tod%pixhist(5,:,:)),  MPI_REAL, MPI_MAX, tod%comm, ierr)
     delta = (tod%pixhist(5,:,:)-tod%pixhist(4,:,:))/NBIN_HIST
+    call timer%stop(TOD_PIXHIST, tod%band)
 
     !if (tod%myid == 0) write(*,*) 'a', tod%pixhist(4:5,42527,1), delta(42527,1)
     
@@ -82,7 +82,8 @@ contains
        hist = 0.
        do i = 1, tod%nscan
           if (.not. any(tod%scans(i)%d%accept)) cycle
-          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+          call init_scan_data(tod, i, oper, 0, sd)
+          call timer%start(TOD_PIXHIST, tod%band)
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              do k = 1, sd%ntod
@@ -102,10 +103,10 @@ contains
                 hist(bin(1),pix,j) = hist(bin(1),pix,j) + 1
              end do
           end do
-          
-          ! Clean up
           call dealloc_scan_data(sd)
+          call timer%stop(TOD_PIXHIST, tod%band)
        end do
+       call timer%start(TOD_PIXHIST, tod%band)
        call mpi_allreduce(MPI_IN_PLACE, hist,  size(hist),  MPI_INTEGER, MPI_SUM, tod%comm, ierr)
 
        if (iter >= MAX_ITER_HIST) exit
@@ -169,10 +170,12 @@ contains
              !if (tod%myid == 0) write(*,*) 'b', iter, i, tod%pixhist(4:5,42527,1), delta(42527,1)
           end do
        end do
+       call timer%stop(TOD_PIXHIST, tod%band)
     end do
 
     
     ! Define cuts and output some histograms to disk
+    call timer%start(TOD_PIXHIST, tod%band)
     do det = 1, ndet
        do i = 0, npix_hist-1
           if (delta(i,det) == 0.) then
@@ -200,26 +203,27 @@ contains
           tod%pixhist(4,i,det) = mu - 4.0*sigma
           tod%pixhist(5,i,det) = mu + 4.0*sigma
           
-          if (tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
-             call int2string(i,pix_text)
-             open(58,file='pixhist'//pix_text//'.dat', recl=1024)
-             write(58,*) '# pixhist =', tod%pixhist(:,i,det)
-             do j = 1, NBIN_HIST
-                write(58,*) x(j), P(j)
-             end do
-             write(58,*)
-             write(58,*) tod%pixhist(4,i,det), 0.
-             write(58,*) tod%pixhist(4,i,det), 2.*maxval(P)
-             write(58,*)
-             write(58,*) tod%pixhist(5,i,det), 0.
-             write(58,*) tod%pixhist(5,i,det), 2.*maxval(P)
-          end if
+!!$          if (tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
+!!$             call int2string(i,pix_text)
+!!$             open(58,file='pixhist'//pix_text//'.dat', recl=1024)
+!!$             write(58,*) '# pixhist =', tod%pixhist(:,i,det)
+!!$             do j = 1, NBIN_HIST
+!!$                write(58,*) x(j), P(j)
+!!$             end do
+!!$             write(58,*)
+!!$             write(58,*) tod%pixhist(4,i,det), 0.
+!!$             write(58,*) tod%pixhist(4,i,det), 2.*maxval(P)
+!!$             write(58,*)
+!!$             write(58,*) tod%pixhist(5,i,det), 0.
+!!$             write(58,*) tod%pixhist(5,i,det), 2.*maxval(P)
+!!$          end if
        end do
     end do
     
     if (tod%myid == 0) write(*,fmt='(a,a,a,i6)') '    --> Pixhist, band = ', trim(tod%freq), ', numiter = ', iter
 
     deallocate(delta, hist)
+    call timer%start(TOD_PIXHIST, tod%band)
     
   end subroutine compute_tod_pixhist
 

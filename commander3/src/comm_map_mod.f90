@@ -98,6 +98,7 @@ module comm_map_mod
      procedure     :: getSigmaL
      procedure     :: getCrossSigmaL
      procedure     :: smooth
+     procedure     :: map2pix
      procedure     :: bcast_fullsky_map
      procedure     :: bcast_fullsky_alms
      procedure     :: distribute_alms
@@ -853,6 +854,112 @@ subroutine tod2file_dp3(filename,d)
     end if
     
   end subroutine writeFITS
+
+!!$  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
+!!$       & hdffile, hdfpath, output_fits, output_hdf_map)
+!!$    implicit none
+!!$
+!!$    class(comm_map),  intent(in) :: self
+!!$    character(len=*), intent(in) :: filename
+!!$    character(len=*), intent(in), optional :: comptype, unit, spectrumfile, ttype
+!!$    real(dp),         intent(in), optional :: nu_ref
+!!$    type(hdf_file),   intent(in), optional :: hdffile
+!!$    character(len=*), intent(in), optional :: hdfpath
+!!$    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
+!!$
+!!$    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+!!$    logical(lgt) :: output_fits_, output_hdf_map_
+!!$    real(sp),     allocatable, dimension(:,:) :: map, alm, buffer
+!!$    integer(i4b), allocatable, dimension(:)   :: p
+!!$    integer(i4b), allocatable, dimension(:,:) :: lm
+!!$    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+!!$
+!!$
+!!$    output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
+!!$    output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
+!!$
+!!$    ! Only the root actually writes to disk; data are distributed via MPI
+!!$    npix  = self%info%npix
+!!$    nmaps = self%info%nmaps
+!!$
+!!$    if (self%info%myid == 0) then
+!!$
+!!$       ! Distribute to other nodes
+!!$       call update_status(status, "fits1")
+!!$       if (output_fits_ .or. output_hdf_map_) then
+!!$          allocate(p(npix), map(0:npix-1,nmaps))
+!!$          map(self%info%pix,:) = self%map
+!!$          do i = 1, self%info%nprocs-1
+!!$             call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             call mpi_recv(map(p(1:np),:), np*nmaps, &
+!!$                  & MPI_REAL, i, 98, self%info%comm, mpistat, ierr)
+!!$          end do
+!!$          call update_status(status, "fits2")
+!!$          if (output_fits_) then
+!!$             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+!!$          end if
+!!$          if (present(hdffile) .and. self%info%lmax == -1) then
+!!$             call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'), map)
+!!$          end if
+!!$          call update_status(status, "fits3")
+!!$       end if
+!!$
+!!$       if (present(hdffile) .and. self%info%lmax >= 0) then
+!!$          allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
+!!$          do j = 0, self%info%nalm-1
+!!$             l   = self%info%lm(1,j)
+!!$             m   = self%info%lm(2,j)
+!!$             ind = l**2 + l + m
+!!$             alm(ind,:) = self%alm(j,:)
+!!$          end do
+!!$          do i = 1, self%info%nprocs-1
+!!$             call mpi_recv(nlm,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             allocate(lm(2,0:nlm-1))
+!!$             call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             allocate(buffer(0:nlm-1,nmaps))
+!!$             call mpi_recv(buffer, size(buffer), &
+!!$                  & MPI_REAL, i, 98, self%info%comm, mpistat, ierr)
+!!$             !write(*,*) trim(hdfpath), nlm
+!!$             do j = 0, nlm-1
+!!$                l   = lm(1,j)
+!!$                m   = lm(2,j)
+!!$                ind = l**2 + l + m
+!!$                if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind, trim(filename)
+!!$                alm(ind,:) = buffer(j,:)
+!!$             end do
+!!$             deallocate(lm, buffer)
+!!$          end do
+!!$          call update_status(status, "fits4")
+!!$          !write(*,*) 'size', shape(alm) 
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
+!!$          if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'), map)
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+!!$          !call update_status(status, "fits5")
+!!$          deallocate(alm)
+!!$       end if
+!!$
+!!$       if (output_fits_ .or. output_hdf_map_) deallocate(p, map)
+!!$
+!!$    else
+!!$
+!!$       if (output_fits_) then
+!!$          call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(real(self%map,sp), size(self%map), MPI_REAL, 0, 98, &
+!!$               & self%info%comm, ierr)
+!!$       end if
+!!$
+!!$       if (present(hdffile) .and. self%info%lmax >= 0) then
+!!$          call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(real(self%alm,sp), size(self%alm),     MPI_REAL, 0, 98, &
+!!$               & self%info%comm, ierr)
+!!$       end if
+!!$    end if
+!!$    
+!!$  end subroutine writeFITS
   
   subroutine readFITS(self, filename, mask, udgrade, dist_type)
     implicit none
@@ -1239,7 +1346,7 @@ subroutine tod2file_dp3(filename,d)
     allocate(buffer(0:map_out%info%npix-1,nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
-!    write(*,*) 'a', self%info%myid, sum(abs(m_in))
+    !write(*,*) 'a', self%info%myid, any(m_in/=m_in)
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
 !    write(*,*) 'b', self%info%myid, sum(abs(m_out))
     call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -1572,6 +1679,62 @@ subroutine tod2file_dp3(filename,d)
 
   end subroutine bcast_fullsky_map
 
+  subroutine map2pix(self, pix, vals)
+    implicit none
+    class(comm_map),                    intent(in)   :: self
+    integer(i4b),     dimension(1:),    intent(in)   :: pix
+    real(sp),         dimension(1:,1:), intent(out)  :: vals ! (nmaps, nobs)
+
+    integer(i4b) :: i, nmaps, npix, np, ierr
+    real(sp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+
+    ! Collect contributions from all cores to root
+    if (self%info%myid == 0) then
+       allocate(map(0:npix-1,nmaps))
+       map(self%info%pix,:) = self%map
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(0:np-1,nmaps))
+          call mpi_recv(p,      np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          call mpi_recv(buffer, np*nmaps, MPI_REAL,    i, 98, self%info%comm, mpistat, ierr)
+          map(p,:) = buffer
+          deallocate(p, buffer)
+       end do
+    else
+       allocate(map(0:self%info%np-1,nmaps))
+       map = self%map
+       call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(map,      size(map), MPI_REAL,    0, 98, self%info%comm, ierr)
+       deallocate(map)
+    end if
+
+    ! Distribute to each core according to pix
+    if (self%info%myid == 0) then
+       vals = transpose(map(pix,:))
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(nmaps,np))
+          call mpi_recv(p,  np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          buffer = transpose(map(p,:))
+          call mpi_send(buffer, np*nmaps, MPI_REAL,    i, 98, self%info%comm, ierr)
+          deallocate(p,buffer)
+       end do
+       deallocate(map)
+    else
+       np = size(pix)
+       call mpi_send(np,   1,        MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(pix,  np,       MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_recv(vals, np*nmaps, MPI_REAL,    0, 98, self%info%comm, mpistat, ierr)
+    end if
+  end subroutine map2pix
+
+  
   subroutine bcast_fullsky_alms(self)
     implicit none
     class(comm_map),                    intent(inout) :: self

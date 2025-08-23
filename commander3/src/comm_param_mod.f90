@@ -3545,15 +3545,6 @@ end subroutine read_zodi_params_hash
 
     chaindir = trim(cpar%outdir) // '/'
 
-#ifdef USE_INTEL   
-    !verify that the output directory exists
-    inquire(directory=cpar%outdir, exist=exist) 
-    if (.not. exist) then
-       write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
-       stop
-    end if
-#endif
-
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') then
           call validate_file(trim(cpar%cg_samp_group_mask(i)), 'CG_SAMPLING_GROUP_MASK'//itext)
