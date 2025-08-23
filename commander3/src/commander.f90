@@ -388,7 +388,9 @@ contains
           class is (comm_diffuse_comp)
              if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
                 rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
-                gainmap        => comm_map(c%x)
+                if (.not. associated(gainmap)) then
+                  gainmap        => comm_map(c%x)
+                end if
              end if
           end select
           c => c%next()

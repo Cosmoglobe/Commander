@@ -678,7 +678,6 @@ contains
     sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
     sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
-
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -793,7 +792,6 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
-!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
@@ -1668,9 +1666,9 @@ contains
 
 
        ! Clean up
-        call sd%dealloc
-        deallocate(res)
-        call timer%stop(TOD_1HZ, tod%band)
+       call sd%dealloc
+       deallocate(res)
+       call timer%stop(TOD_1HZ, tod%band)
     end do
 
     ! Compute smoothed templates
