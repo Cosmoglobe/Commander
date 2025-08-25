@@ -20,7 +20,7 @@ BAND_BANDPASS_TYPE&&&          = HFI_cmb
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
 BAND_NOMINAL_FREQ&&&           = 100
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = HFI_instrument_v3.h5
+BAND_BANDPASSFILE&&&           = HFI_instrument_v4.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0.1
@@ -43,8 +43,8 @@ BAND_TOD_END_SCANID&&&         = 18300 #53724
 BAND_TOD_TOT_NUMSCAN&&&        = 18338 #53724
 BAND_TOD_FLAG&&&               = 0
 BAND_TOD_ABSCAL_COMP&&&        = full
-#BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-2a,100-2b,100-3a,100-3b,100-4a,100-4b
-BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-4a,100-4b
+BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-2a,100-2b,100-3a,100-3b,100-4a,100-4b
+#BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-4a,100-4b
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
 BAND_TOD_INIT_FROM_HDF&&&      = default
 
@@ -66,12 +66,12 @@ BAND_REG_NOISEFILE&&&          = none
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
-BAND_BANDPASSFILE&&&           = HFI_instrument_v3.h5
+BAND_BANDPASSFILE&&&           = HFI_instrument_v4.h5
 
 BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_100_n1024_mask.fits
 BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_100_n1024_mask.fits
 N_GIBBS_PER_TOD&&&             = 1
-BAND_TOD_RIMO&&&               = HFI_instrument_v3.h5
+BAND_TOD_RIMO&&&               = HFI_instrument_v4.h5
 BAND_TOD_FILELIST&&&           = filelist_100.txt
 
 BAND_TOD_ZODI_SUBTRACTION&&&   = .false. 

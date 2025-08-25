@@ -136,7 +136,6 @@ contains
        if (c%lmax_ind >= 0) call c%theta(i)%p%YtW_scalar
     end do
 
-
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
     j = 1
@@ -367,7 +366,6 @@ contains
    class(map_ptr), dimension(:),              intent(inout), optional :: df    ! Derivative of mixmat with respect to parameter par; for Jeffreys prior
    integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
-
    integer(i4b) :: i, j, l, p,  nmaps, ierr !,checkv, p_min, p_max, n, k, 
    real(dp)     :: t1, t2 !lat, lon,
    logical(lgt) :: mixmatnull ! NEW ,only_pol, , bad, precomp, 
@@ -476,4 +474,7 @@ contains
  end subroutine updateMixmatLineRatios
  
  
-end module comm_line_comp_mod 
+
+ end module comm_line_comp_mod
+ 
+

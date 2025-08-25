@@ -100,18 +100,18 @@ contains
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
-!!$          if (present(mask_lowres)) then
-!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
-!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
-!!$          else
-!!$             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
-!!$             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
-!!$          end if
-          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
-          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
-          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
-             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
+          if (present(mask_lowres)) then
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
+          else
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
           end if
+!!$          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
+!!$             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
+!!$          end if
        end if
     end do
 !    tod%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
@@ -309,6 +309,10 @@ contains
                denom = denom + 1.d0
             end if
          end do
+         if (denom .eq. 0.d0) then
+            write(*,*) 'Warning: No valid gain estimates for detector ', j
+            cycle
+         end if
          mu = mu / denom
          !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
@@ -406,7 +410,7 @@ contains
     call tod%downsample_tod(s_sub(:,1), ext)    
     allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
     do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) then
+      if (.not. tod%scans(scan)%d(j)%accept) then
           residual(:,j) = 0.
           cycle
        end if
@@ -469,13 +473,23 @@ contains
     call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & tod%info%comm, ierr)
 
-    ! Compute gain update and distribute to all cores
-    if (tod%myid == 0) then
-       tod%gain0(0) = sum(b)/sum(A)
-       if (trim(tod%operation) == 'sample') then
-          ! Add fluctuation term if requested
-          tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
-       end if
+         ! Compute gain update and distribute to all cores
+      if (tod%myid == 0) then
+       ! write(*,*) 'ierr = ', ierr
+       ! write(*,*) "tod%ndet", tod%ndet
+       ! write(*,*) "tod%info%comm", tod%info%comm
+      
+      if (sum(A) .ne. 0) then
+         tod%gain0(0) = sum(b)/sum(A)
+         
+         if (trim(tod%operation) == 'sample') then
+            ! Add fluctuation term if requested
+            tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
+         end if
+      else 
+         write(*,*) 'Warning: No valid gain estimates for absolute gain. sum(b)/sum(A) gives 0 / 0'
+      end if
+
        if (tod%verbosity > 1) then
          write(*,*) '|      abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
@@ -486,7 +500,7 @@ contains
 
     do j = 1, tod%nscan
        do i = 1, tod%ndet
-          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
+          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain
        end do
     end do
 
@@ -777,7 +791,6 @@ contains
      !write(*, *) 'Sigma_0: ', sigma_0
      !write(*, *) 'alpha: ', alpha
      !write(*, *) 'fknee: ', fknee
-
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
      if (sample) then
         fourier_fluctuations = 0.d0
@@ -796,7 +809,13 @@ contains
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 0, n-1
-         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         if (inv_N_corr(i) + maxval(inv_N_wn2) .eq. 0.d0) then
+            write(*,*) 'Warning: inv_N_corr(i) + maxval(inv_N_wn2) = 0'
+            precond(i) = 1.d0
+         else
+            precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         end if
+         
          !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)
       end do
@@ -1198,7 +1217,7 @@ contains
       do i = 1, size(freqs) -1
          apod = (1 + freqs(i)/target_apod_freq)**5
          invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
-!        else
+         !        else
 !           invcov(i) = 1.d12
 !        end if
      end do
@@ -1558,6 +1577,11 @@ contains
      real(dp) :: lambda
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
 
+     integer(i4b) :: minfreq, maxfreq
+     minfreq = 2
+     maxfreq = 2000
+     if(size(gain_ps)-1 < maxfreq) maxfreq = size(gain_ps)-1
+
      if (sigma_0 <= 0.d0 .or. fknee <= 0.d0 .or. alpha < -3.d0) then
         psd_loglike = -1d30
         return
@@ -1567,7 +1591,7 @@ contains
    
 
      !TODO: fix this hardcoding issue here 
-     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
+     psd_loglike = -sum(gain_ps(minfreq:maxfreq) * inv_N_corr(minfreq:maxfreq) - log(inv_N_corr(minfreq:maxfreq))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike

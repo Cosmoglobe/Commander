@@ -184,6 +184,9 @@ contains
           else if (trim(data(n)%tod_type) == 'DIRBE') then
              data(n)%tod => comm_DIRBE_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'AKARI') then
+             data(n)%tod => comm_AKARI_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
@@ -324,19 +327,18 @@ contains
           end if
        end do
        call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
        ! Set up bp pointers in the TOD object
-       if (cpar%enable_TOD_analysis) then
-          if (data(n)%ndet .ne. 0) then
-             allocate(data(n)%tod%bp(0:data(n)%ndet))
-             do j = 0, data(n)%ndet
-                data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
-             end do
-          end if
+       if (cpar%enable_TOD_analysis .and. data(n)%tod_type /= 'none') then
+          allocate(data(n)%tod%bp(0:data(n)%ndet))
+          do j = 0, data(n)%ndet
+             data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
+          end do
        end if
 
        ! Initialize dust extinction map
@@ -385,9 +387,9 @@ contains
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
-             if (cpar%myid == 0 .and. j == 1) then
-               write(*,*) '|    Warning: smoothed rms map not being loaded'
-             end if
+!!$             if (cpar%myid == 0 .and. j == 1) then
+!!$               write(*,*) '|    Warning: smoothed rms map not being loaded'
+!!$             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do

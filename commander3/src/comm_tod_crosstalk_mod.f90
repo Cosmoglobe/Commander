@@ -57,19 +57,94 @@ contains
   end function xtalk_constructor
  
   ! estimates the crosstalk coeficients between each detector
-  subroutine estimate_crosstalk_matrix(self)
-    implicit none
-    class(comm_crosstalk),                            intent(in)      :: self
+  subroutine estimate_crosstalk_matrix(self,sd)
+    ! The (ndet,ndet) crosstalk matrix is computed for each scan by a least square estimation
+    ! y = bx + n
+    !
+    ! y := d_i
+    ! x := [d_1, ..., d_{i-1}, d_{i+1}, ..., d_{ndet}]
+    ! b = (x.T * x)^-1 * x.T * y
+    !
 
+    implicit none
+    class(comm_crosstalk),                            intent(inout)      :: self
+    class(comm_scandata),                             intent(in)         :: sd
+    integer(i4b) :: i, j, k, l, n
+    real(dp), dimension(:),   allocatable   :: xTy
+    real(dp), dimension(:,:), allocatable   :: sub_data, inv_xTx
+
+    allocate(sub_data(sd%ntod,sd%ndet-1))
+    allocate(inv_xTx(sd%ndet-1,sd%ndet-1))
+    allocate(xTy(sd%ndet-1))
+    inv_xTx = 0.0
+    xTy = 0.0
+
+    do i=1, sd%ndet
+
+       ! collect x
+       k=0
+       do j=1, sd%ndet
+          if (i/=j) then
+             k = k+1
+             sub_data(:,k) = sd%tod(:,j)
+          end if
+       end do
+
+       ! compute (x.T * x)^-1
+       do j=1, sd%ndet-1
+          do k=1, sd%ndet-1
+             do n=1, sd%ntod
+                inv_xTx(j,k) = inv_xTx(k,j) + sub_data(n,j) * sub_data(n,k)
+             end do
+          end do
+       end do
+       call invert_matrix(inv_xTx)
+
+       ! compute (x.T * y)
+       do j=1, sd%ndet-1
+          do n=1, sd%ntod
+             xTy(j) = xTy(j) + sub_data(n,j) * sd%tod(n,i)
+          end do
+       end do
+
+       ! solve for b
+       k=0
+       do j=1, sd%ndet
+          if (i/=j) then
+             k = k+1
+             do l=1, sd%ndet-1
+                self%crosstalk_matrix(j,i) = self%crosstalk_matrix(j,i) + inv_xTx(l,k) * xTy(l)
+             end do
+          end if
+       end do
+    end do
+
+    deallocate(xTy, sub_data, inv_xTx)
 
   end subroutine estimate_crosstalk_matrix
 
-  subroutine remove_crosstalk_signal(self, sd, i)
+  subroutine remove_crosstalk_signal(self, sd)
     implicit none
-    class(comm_crosstalk),                      intent(in)      :: self
+    class(comm_crosstalk),                      intent(inout)   :: self
     class(comm_scandata),                       intent(inout)   :: sd
-    integer(i4b),                               intent(in)      :: i
+
+    integer(i4b) :: i, j
+    real(dp), dimension(:,:), allocatable :: corr_tod
+
+    allocate(corr_tod(sd%ntod,sd%ndet))
+    corr_tod = 0.d0
+    call invert_matrix(self%crosstalk_matrix)
+
+    do i=1, sd%ndet
+       do j=1, sd%ndet
+          corr_tod(:,i) = corr_tod(:,i) + self%crosstalk_matrix(j,i) * sd%tod(:,j)
+       end do
+    end do
+    sd%tod = corr_tod
+
+    deallocate(corr_tod)
 
   end subroutine remove_crosstalk_signal
+
 
 end module comm_tod_crosstalk_mod

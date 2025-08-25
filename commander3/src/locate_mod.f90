@@ -23,7 +23,7 @@ module locate_mod
   implicit none
 
   interface locate
-     module procedure locate_int, locate_dp
+     module procedure locate_int, locate_dp, locate_sp
   end interface
 
 contains
@@ -104,6 +104,45 @@ contains
     end if
 
   end function locate_dp
+
+  function locate_sp(xx, x)
+    implicit none
+
+    real(sp),               intent(in) :: x
+    real(sp), dimension(:), intent(in) :: xx
+    integer(i4b)                       :: locate_sp
+
+    integer(i4b) :: n, jl, jm, ju
+    logical(lgt) :: ascnd
+
+    n     = size(xx)
+    if(n == 0) then
+      locate_sp = 0
+      return
+    end if
+    ascnd = (xx(n) >= xx(1))
+    jl    = 0
+    ju    = n+1
+
+    do 
+       if (ju-jl <= 1) exit
+       jm = (ju+jl)/2
+       if (ascnd .eqv. (x >= xx(jm))) then
+          jl = jm
+       else
+          ju = jm
+       end if
+    end do
+
+    if (x == xx(1)) then
+       locate_sp = 1
+    else if (x == xx(n)) then
+       locate_sp = n-1
+    else
+       locate_sp = jl
+    end if
+
+  end function locate_sp
 
 
 end module

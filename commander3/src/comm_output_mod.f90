@@ -390,7 +390,7 @@ contains
     end if
 
     ! get chisq for fg_mean file 
-    if (cpar%myid_chain == 0) then
+    if (cpar%myid_chain == 0 .and. cpar%output_chisq) then
        if (new_header) fg_header=trim(fg_header)//'          full_chisq           avg_chisq       chisq_highlat      avg_reduced_chisq'
        write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(to be implemented)', '(to be implemented)'
        outline = trim(outline)//trim(temptxt)
@@ -476,7 +476,7 @@ contains
              if (trim(data(i)%tod_type) == 'none') cycle
              if (allocated(data(i)%tod%pixhist)) then
                 allocate(map_out(0:size(data(i)%tod%pixhist,2)-1,5))
-                map_out = transpose(data(i)%tod%pixhist)
+                map_out = transpose(data(i)%tod%pixhist(:,:,1))
                 do j = 1, size(map_out,2)
                    call convert_nest2ring(data(i)%tod%nside_pixhist, map_out(:,j))
                 end do

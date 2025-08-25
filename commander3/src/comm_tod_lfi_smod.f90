@@ -672,13 +672,13 @@ contains
     call timer%start(TOD_ALLOC, self%band)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .false. !.not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0) .and. self%map_type /= 'nplus2'    ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   =      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
     
-    sample_rel_bandpass   = .false. !sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations .and. self%map_type /= 'nplus2'
     sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
@@ -765,9 +765,9 @@ contains
 
 
     ! Sample 1Hz spikes
-!    if(trim(self%level) == 'L1') then
+    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
-!    end if
+    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
@@ -783,6 +783,7 @@ contains
     else if (self%map_type == 'binned') then 
       call binmap%init(self, .true., sample_rel_bandpass)
     end if
+
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        call timer%start(TOD_ALLOC, self%band)
        allocate(chisq_S(self%ndet,size(delta,3)))
@@ -820,6 +821,7 @@ contains
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
+
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -1798,7 +1800,7 @@ contains
 
   end subroutine sample_1Hz_spikes
 
-  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -1821,20 +1823,27 @@ contains
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
+    integer(i4b),                          intent(in), optional :: det
 
-    integer(i4b) :: i, j, k, nbin, b
+    integer(i4b) :: i, j, k, l, nbin, b, ndet
     real(dp)     :: dt, t_tot, t
 
     dt    = 1.d0/self%samprate   ! Sample time
     t_tot = 1.d0                ! Time range in sec
-    nbin  = self%nbin_spike      ! Number of bins 
+    nbin  = self%nbin_spike      ! Number of bins
+    if (present(det)) then
+       ndet = 1
+    else
+       ndet = self%ndet
+    end if
 
-    do j = 1, self%ndet
+    do l = 1, ndet
+       j = l; if (present(det)) j = det
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
-          s(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+          s(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
 
