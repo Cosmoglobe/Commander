@@ -6,11 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-from my_utils import planck
+import utils.my_utils as utils
 
 T_CMB = 2.72548  # Fixsen 2009
 
@@ -72,7 +69,7 @@ for channel in channels.keys():
 
             m = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
             mask = data_density == 0
-            monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
+            monopole = utils.planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
             m[~mask] = hpxmap[~mask] / data_density[~mask][:, np.newaxis] - monopole
             m[mask] = hp.UNSEEN
 

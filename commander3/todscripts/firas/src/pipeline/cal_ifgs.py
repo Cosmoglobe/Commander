@@ -11,12 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-import my_utils as mu
+from utils import my_utils as utils
 from utils.config import gen_nyquistl
+from data import flagging
+from pipeline import ifg_spec
 
 T_CMB = 2.72548  # Fixsen 2009
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
@@ -24,7 +23,7 @@ channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 cal_data = h5py.File(
-    "../../data/cal_v4.4.h5",
+    "../data/cal_v4.4.h5",
     "r",
 )
 
@@ -39,9 +38,7 @@ f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(
-                channel, mode
-            )
+            f_ghz[f"{channel}_{mode}"] = utils.generate_frequencies(channel, mode)
 
 print("getting variables")
 variable_names = [
@@ -98,7 +95,7 @@ variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-filter_bad = mu.filter_junk(
+filter_bad = flagging.filter_junk(
     variables["stat_word_1"],
     variables["stat_word_5"],
     variables["stat_word_9"],
@@ -217,7 +214,7 @@ for channel in channels.keys():
             )
 
 fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )
 
 frec = {}
@@ -233,18 +230,20 @@ otf = {}
 otf257 = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             if mode[1] == "s":
                 cutoff = 5
             else:
                 cutoff = 7
             length = len(fits_data[f"{channel}_{mode}"][1].data["RTRANSFE"][0])
-            otf[f"{channel}_{mode}"]= (
+            otf[f"{channel}_{mode}"] = (
                 fits_data[f"{channel}_{mode}"][1].data["RTRANSFE"][0]
                 + 1j * fits_data[f"{channel}_{mode}"][1].data["ITRANSFE"][0]
             )
             otf257[f"{channel}_{mode}"] = np.zeros(257, dtype=np.complex128)
-            otf257[f"{channel}_{mode}"][cutoff:cutoff + length] = otf[f"{channel}_{mode}"]
+            otf257[f"{channel}_{mode}"][cutoff : cutoff + length] = otf[
+                f"{channel}_{mode}"
+            ]
             # print shape of otf
             otf[f"{channel}_{mode}"] = otf[f"{channel}_{mode}"][
                 np.abs(otf[f"{channel}_{mode}"]) > 0
@@ -347,12 +346,13 @@ for channel, channel_value in channels.items():
             axes[0].plot(variablesm[f"ifg_{channel}_{mode}"][n])
 
             print(f"IFG to spec of {channel}_{mode}")
-            f, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
+            f, spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
-                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]/ 25.5,  # needs this factor to put it into volts (from pipeline)
+                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
+                / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
@@ -372,7 +372,7 @@ for channel, channel_value in channels.items():
                 apod=apod[f"{channel}_{mode}"],
             )
 
-            bla = mu.spec_to_ifg(
+            bla = ifg_spec.spec_to_ifg(
                 spec=spec[f"{channel}_{mode}"],
                 # spec=bb_ical[f"{channel}_{mode}"],
                 # spec=planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"])
@@ -415,18 +415,18 @@ for channel, channel_value in channels.items():
             )
             plt.plot(
                 f_ghz["rh_ss"],
-                mu.planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n])
-                - mu.planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
+                utils.planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n])
+                - utils.planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
                 label="XCAL - ICAL",
             )
             plt.plot(
                 f_ghz["rh_ss"],
-                mu.planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n]),
+                utils.planck(f_ghz["rh_ss"], variablesm[f"xcal_{mode}"][n]),
                 label=f'Xcal = {variablesm[f"xcal_{mode}"][n]}',
             )
             plt.plot(
                 f_ghz["rh_ss"],
-                mu.planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
+                utils.planck(f_ghz["rh_ss"], variablesm[f"ical_{mode}"][n]),
                 label=f'Xcal = {variablesm[f"ical_{mode}"][n]}',
             )
             plt.legend(loc="best")
@@ -456,12 +456,12 @@ bb_bolometer_ll = {}
 bolometer_emiss = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
-            bb_ical[f"{channel}_{mode}"] = mu.planck(
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            bb_ical[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"ical_{mode}"],
             )
-            bb_xcal[f"{channel}_{mode}"] = mu.planck(
+            bb_xcal[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"xcal_{mode}"],
             )
@@ -474,7 +474,7 @@ for channel in channels.keys():
             ]
 
             # dihedral spectrum
-            bb_dihedral[f"{channel}_{mode}"] = mu.planck(
+            bb_dihedral[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"dihedral_{mode}"],
             )
@@ -486,7 +486,7 @@ for channel in channels.keys():
                 np.abs(dihedral_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_refhorn[f"{channel}_{mode}"] = mu.planck(
+            bb_refhorn[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"refhorn_{mode}"],
             )
@@ -499,7 +499,7 @@ for channel in channels.keys():
             ]
 
             # skyhorn spectrum
-            bb_skyhorn[f"{channel}_{mode}"] = mu.planck(
+            bb_skyhorn[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"skyhorn_{mode}"],
             )
@@ -512,19 +512,19 @@ for channel in channels.keys():
             ]
 
             # bolometer spectrum
-            bb_bolometer_rh[f"{channel}_{mode}"] = mu.planck(
+            bb_bolometer_rh[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"bolometer_rh_{mode}"],
             )
-            bb_bolometer_rl[f"{channel}_{mode}"] = mu.planck(
+            bb_bolometer_rl[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"bolometer_rl_{mode}"],
             )
-            bb_bolometer_lh[f"{channel}_{mode}"] = mu.planck(
+            bb_bolometer_lh[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"bolometer_lh_{mode}"],
             )
-            bb_bolometer_ll[f"{channel}_{mode}"] = mu.planck(
+            bb_bolometer_ll[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 variablesm[f"bolometer_ll_{mode}"],
             )
@@ -540,7 +540,7 @@ for channel in channels.keys():
 cal = {}
 for channel in channels.keys():
     for mode in modes.keys():
-        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             if mode[1] == "s":
                 cutoff = 5
             else:
@@ -635,7 +635,7 @@ extra_variables = [
 
 # save the calibration data
 np.savez(
-    "../../data/processed_cal.npz",
+    "../data/processed_cal.npz",
     **variablesm,
     **cal,
 )

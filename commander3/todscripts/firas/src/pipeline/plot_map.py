@@ -12,11 +12,8 @@ import numpy as np
 from astropy.io import fits
 from healpy.rotator import Rotator
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-from my_utils import generate_frequencies, planck
+import utils.my_utils as utils
 
 fits_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
 
@@ -59,7 +56,7 @@ for channel in g.CHANNELS:
                     ecl_lat, ecl_lon = r(gal_lat, gal_lon)
                     pix_ecl = hp.ang2pix(g.NSIDE, ecl_lon, ecl_lat, lonlat=True)
 
-            f_ghz[f"{channel}_{mode}"] = generate_frequencies(channel, mode)
+            f_ghz[f"{channel}_{mode}"] = utils.generate_frequencies(channel, mode)
 
             print(f"Plotting sky for {channel.upper()}{mode.upper()}")
             plt.imshow(
@@ -115,7 +112,7 @@ for channel in g.CHANNELS:
                 fits.writeto(f"{curr_path}{f"{channel}_{mode}_nside{g.NSIDE}"}.fits", data_density[f"{channel}_{mode}"], overwrite=True)
 
             m = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
-            monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
+            monopole = utils.planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
             mask = data_density[f"{channel}_{mode}"] == 0
             m[~mask] = (
                 hpxmap[f"{channel}_{mode}"][~mask]
@@ -179,7 +176,7 @@ for channel in g.CHANNELS:
 
                 m_up = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
                 m_down = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
-                monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
+                monopole = utils.planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
                 mask_up = data_density_up == 0
                 mask_down = data_density_down == 0
                 m_up[~mask_up] = (
@@ -241,7 +238,7 @@ if g.JOINT:
         )
 
     m_joint = np.zeros((g.NPIX, len(f_ghz["ll_lf"])))
-    monopole = planck(f_ghz["ll_lf"], np.array(g.T_CMB))
+    monopole = utils.planck(f_ghz["ll_lf"], np.array(g.T_CMB))
     joint_mask = joint_density == 0
     m_joint[~joint_mask] = (
         joint_map[~joint_mask] / joint_density[~joint_mask, np.newaxis] - monopole
@@ -268,7 +265,7 @@ if g.JOINT:
     joint_map = hpxmap["lh_ss"] + hpxmap["rh_ss"]
     joint_density = data_density["lh_ss"] + data_density["rh_ss"]
     m_joint = np.zeros((g.NPIX, (len(f_ghz["lh_ss"]) - len(f_ghz["ll_ss"]))))
-    monopole = planck(f_ghz["lh_ss"], np.array(g.T_CMB))[len(f_ghz["ll_ss"]) :]
+    monopole = utils.planck(f_ghz["lh_ss"], np.array(g.T_CMB))[len(f_ghz["ll_ss"]) :]
     joint_mask = joint_density == 0
 
     m_joint[~joint_mask] = (

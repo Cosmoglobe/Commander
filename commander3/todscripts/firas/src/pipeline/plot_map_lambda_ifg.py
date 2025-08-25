@@ -6,18 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-from my_utils import planck
+import utils.my_utils as utils
 
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}
 
-T_CMB = 2.72548  # Fixsen 2009
-
-data = np.load("../../output/data/lambda_sky.npz", allow_pickle=True)
+data = np.load("../output/data/lambda_sky.npz", allow_pickle=True)
 # print(data.files)
 sky = {}
 for channel in channels.keys():
@@ -96,7 +91,7 @@ for channel in channels.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             m[f"{channel}_{mode}"] = np.zeros((g.NPIX, len(sky[f"{channel}_{mode}"][0])))
             mask = data_density[f"{channel}_{mode}"] == 0
-            monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
+            monopole = utils.planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
             m[f"{channel}_{mode}"][~mask] = (
                 hpxmap[f"{channel}_{mode}"][~mask]
                 / data_density[f"{channel}_{mode}"][~mask, np.newaxis]

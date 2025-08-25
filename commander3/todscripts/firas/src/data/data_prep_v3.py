@@ -1,6 +1,8 @@
 """
 Data processing script has to be re-written again, not matching eng_time/time now,
 and instead interpolating over gmt to get the engineering data corresponding to the science data.
+
+Run directly: python data_prep_v3.py
 """
 
 import time
@@ -296,10 +298,7 @@ merged_df = merged_df[
 ]
 
 # gain
-merged_df[f"gain"] = merged_df.apply(
-    convert_gain,
-    axis=1,
-)
+merged_df[f"gain"] = merged_df.apply(convert_gain, axis=1)
 merged_df = merged_df[
     (merged_df[f"gain"] == 1)
     | (merged_df[f"gain"] == 3)

@@ -8,11 +8,8 @@ import numpy as np
 from astropy.io import fits
 from scipy.optimize import minimize
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-import my_utils as mu
+from utils import my_utils as utils
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
@@ -36,13 +33,13 @@ for mode in modes.keys():
     pix_gal = data[f"pix_gal_{mode}"]
     for channel in channels.keys():
         sky = np.abs(data[f"{channel}_{mode}"])
-        f_ghz = mu.generate_frequencies(channel, mode)
+        f_ghz = utils.generate_frequencies(channel, mode)
 
         print(f"Calculating BB curve for {channel.upper()}{mode.upper()}...")
         
         dust = (
             optical_depth_nu0
-            * mu.planck(f_ghz, t_dust)
+            * utils.planck(f_ghz, t_dust)
             * (f_ghz / nu0_dust) ** beta_dust
         )
 
@@ -65,7 +62,7 @@ for mode in modes.keys():
         temps = np.zeros(g.NPIX)
         for pixi in range(g.NPIX):
             if not np.isnan(m[pixi, :]).all():
-                temps[pixi] = minimize(mu.residuals, t0, args=(f_ghz, m[pixi, :])).x[0]
+                temps[pixi] = minimize(utils.residuals, t0, args=(f_ghz, m[pixi, :])).x[0]
             else:
                 temps[pixi] = np.nan
 
@@ -94,22 +91,22 @@ for mode in modes.keys():
         bb_curve_data = np.nanmean(m_excl_outliers, axis=0)
 
         # plt.plot(f_ghz, bb_curve, label="Data")
-        tf = minimize(mu.residuals, t0, args=(f_ghz, bb_curve_data)).x[0]
+        tf = minimize(utils.residuals, t0, args=(f_ghz, bb_curve_data)).x[0]
         print(f"BB temperature according to {channel.upper()}{mode.upper()} average temperature after fitting per pixel and fitting after averaging over sky: {bb_temp:.5f} K and {tf:.5f} K")
         plt.plot(
             f_ghz,
-            mu.planck(f_ghz, bb_temp),
+            utils.planck(f_ghz, bb_temp),
             label=f"Averaged after fitting: {bb_temp:.5f} K",
         )
         plt.plot(
             f_ghz,
-            mu.planck(f_ghz, tf),
+            utils.planck(f_ghz, tf),
             label=f"Fitting after averaging: {tf:.5f} K",
         )
         plt.plot(f_ghz, bb_curve_data, label="Data")
         plt.plot(
             f_ghz,
-            mu.planck(f_ghz, t0),
+            utils.planck(f_ghz, t0),
             label="Original",
         )
         # plt.plot(f_ghz, dust, label="Dust")
@@ -122,7 +119,7 @@ for mode in modes.keys():
         plt.clf()
 
         # plot also subtracted
-        difference = bb_curve_data - mu.planck(f_ghz, t0)
+        difference = bb_curve_data - utils.planck(f_ghz, t0)
         plt.plot(f_ghz, difference, label="Difference")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")

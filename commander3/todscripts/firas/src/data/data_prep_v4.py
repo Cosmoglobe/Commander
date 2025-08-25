@@ -13,8 +13,13 @@ import pandas as pd
 import tables as tb
 from scipy import interpolate
 
-from utils.my_utils import (clean_variable, convert_gain, get_temperature_hl,
-                            parse_date_string, scan_up_down)
+from utils.my_utils import (
+    clean_variable,
+    convert_gain,
+    get_temperature_hl,
+    parse_date_string,
+    scan_up_down,
+)
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -106,8 +111,12 @@ for channel in channels:
     pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
     ecl_lat[channel] = lat
     ecl_lon[channel] = lon
-    print(f"ecliptic lat for channel {channel} max: {np.max(ecl_lat[channel])} and min: {np.min(ecl_lat[channel])}")
-    print(f"ecliptic lon for channel {channel} max: {np.max(ecl_lon[channel])} and min: {np.min(ecl_lon[channel])}")
+    print(
+        f"ecliptic lat for channel {channel} max: {np.max(ecl_lat[channel])} and min: {np.min(ecl_lat[channel])}"
+    )
+    print(
+        f"ecliptic lon for channel {channel} max: {np.max(ecl_lon[channel])} and min: {np.min(ecl_lon[channel])}"
+    )
     print(f"getting up/down for channel {channel}")
     scan[channel] = scan_up_down(lat).astype(int)
 
@@ -314,6 +323,9 @@ merged_df = merged_df.drop(
         "adds_per_group_rl",
     ]
 )
+
+print(f"Amount of lines before merging adds_per_group: {len(merged_df)}")
+before = len(merged_df)
 merged_df = merged_df[
     (merged_df["adds_per_group"] == 1)
     | (merged_df["adds_per_group"] == 2)
@@ -321,6 +333,8 @@ merged_df = merged_df[
     | (merged_df["adds_per_group"] == 8)
     | (merged_df["adds_per_group"] == 12)
 ]
+print(f"Number of rows removed due to adds_per_group: {before - len(merged_df)}")
+print(f"Amount of lines after merging adds_per_group: {len(merged_df)}")
 
 # sweeps
 merged_df["sweeps"] = merged_df.apply(clean_variable, axis=1, args=("sweeps",))
@@ -440,7 +454,9 @@ merged_df = merged_df.drop(
 
 merged_df = merged_df.reset_index(drop=True)
 lines_after = len(merged_df)
-print(f"Merging ecliptic lat/lon reduced the number of lines by {lines_before - lines_after}. Amount now: {lines_after}")
+print(
+    f"Merging ecliptic lat/lon reduced the number of lines by {lines_before - lines_after}. Amount now: {lines_after}"
+)
 
 # ENGINEERING DATA - all except xcal which will be added only to the calibration data later
 
@@ -458,18 +474,10 @@ print(f"grts: {fdq_eng['en_analog/grt'].keys()}")
 
 for side in sides:
     # there are no high current readings for the bolometers
-    bol_assem[f"{side}_rh"] = fdq_eng[
-        f"en_analog/grt/{side}_lo_bol_assem"
-    ][:, 0]
-    bol_assem[f"{side}_rl"] = fdq_eng[
-        f"en_analog/grt/{side}_lo_bol_assem"
-    ][:, 1]
-    bol_assem[f"{side}_lh"] = fdq_eng[
-        f"en_analog/grt/{side}_lo_bol_assem"
-    ][:, 2]
-    bol_assem[f"{side}_ll"] = fdq_eng[
-        f"en_analog/grt/{side}_lo_bol_assem"
-    ][:, 3]
+    bol_assem[f"{side}_rh"] = fdq_eng[f"en_analog/grt/{side}_lo_bol_assem"][:, 0]
+    bol_assem[f"{side}_rl"] = fdq_eng[f"en_analog/grt/{side}_lo_bol_assem"][:, 1]
+    bol_assem[f"{side}_lh"] = fdq_eng[f"en_analog/grt/{side}_lo_bol_assem"][:, 2]
+    bol_assem[f"{side}_ll"] = fdq_eng[f"en_analog/grt/{side}_lo_bol_assem"][:, 3]
     for current in currents:
         ical[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_ical"][()]
         dihedral[f"{side}_{current}"] = fdq_eng[
@@ -703,7 +711,7 @@ df_eng["b_collimator"] = df_eng.apply(
 ).astype(np.float64)
 df_eng = df_eng.drop(
     columns=[
-        "a_hi_collimator",  
+        "a_hi_collimator",
         "a_lo_collimator",
         "b_hi_collimator",
         "b_lo_collimator",

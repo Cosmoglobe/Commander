@@ -13,7 +13,7 @@ from astropy.modeling.models import BlackBody
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-import my_utils as mu
+import commander3.todscripts.firas.src.utils.my_utils as mu
 
 fac_icm_ghz = 29.9792458  # convert cm-1 to GHz
 fac_watt_to_mjy = 1.0e15 / fac_icm_ghz

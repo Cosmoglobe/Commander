@@ -2,22 +2,20 @@
 This script takes the interferograms into spectra.
 """
 
-import os
-import sys
 from datetime import datetime
 
 import h5py
 import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-import my_utils as mu
+import utils.my_utils as utils
 from utils.config import gen_nyquistl
+from pipeline import pointing, ifg_spec
+from data import flagging
+from calibration import bolometer
+
 
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
@@ -84,7 +82,7 @@ for variable_name in variable_names:
     variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
 
 # Get the galactic longitude and latitude into a vector in order to interpolate
-gal_vec = mu.tune_pointing(
+gal_vec = pointing.tune_pointing(
     gal_lon=variables["gal_lon"],
     gal_lat=variables["gal_lat"],
     gmt=variables["gmt"],
@@ -105,7 +103,7 @@ variables["pix_gal"] = hp.ang2pix(
 ).astype(int)
 
 # filter out bad data (selected "by eye")
-filter_bad = mu.filter_junk(
+filter_bad = flagging.filter_junk(
     variables["stat_word_1"],
     variables["stat_word_5"],
     variables["stat_word_9"],
@@ -145,9 +143,7 @@ variables["ical"] = (
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
 variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
 variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
-variables["collimator"] = (
-    variables["a_collimator"] + variables["b_collimator"]
-) / 2
+variables["collimator"] = (variables["a_collimator"] + variables["b_collimator"]) / 2
 variables["bolometer_rh"] = (
     variables["a_bol_assem_rh"] + variables["b_bol_assem_rh"]
 ) / 2
@@ -161,7 +157,26 @@ variables["bolometer_ll"] = (
     variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
 ) / 2
 
-del variables["a_ical"], variables["b_ical"], variables["a_dihedral"], variables["b_dihedral"], variables["a_refhorn"], variables["b_refhorn"], variables["a_skyhorn"], variables["b_skyhorn"], variables["a_collimator"], variables["b_collimator"], variables["a_bol_assem_rh"], variables["b_bol_assem_rh"], variables["a_bol_assem_rl"], variables["b_bol_assem_rl"], variables["a_bol_assem_lh"], variables["b_bol_assem_lh"], variables["a_bol_assem_ll"], variables["b_bol_assem_ll"]
+del (
+    variables["a_ical"],
+    variables["b_ical"],
+    variables["a_dihedral"],
+    variables["b_dihedral"],
+    variables["a_refhorn"],
+    variables["b_refhorn"],
+    variables["a_skyhorn"],
+    variables["b_skyhorn"],
+    variables["a_collimator"],
+    variables["b_collimator"],
+    variables["a_bol_assem_rh"],
+    variables["b_bol_assem_rh"],
+    variables["a_bol_assem_rl"],
+    variables["b_bol_assem_rl"],
+    variables["a_bol_assem_lh"],
+    variables["b_bol_assem_lh"],
+    variables["a_bol_assem_ll"],
+    variables["b_bol_assem_ll"],
+)
 
 # filtering the data based on the mode used
 short_filter = variables["mtm_length"] == 0
@@ -179,7 +194,7 @@ for variable in variables.keys():
         variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
 
 fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )
 
 spec = {}
@@ -196,26 +211,28 @@ for channel, channel_value in channels.items():
 
             # optical transfer function
             otf = (
-                fits_data[1].data["RTRANSFE"][0]
-                + 1j * fits_data[1].data["ITRANSFE"][0]
+                fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
             )
             otf = otf[np.abs(otf) > 0]
 
-            apod = fits_data[1].data[
-                "APODIZAT"
-            ][0]
+            apod = fits_data[1].data["APODIZAT"][0]
 
             # bolometer parameters
-            R0, T0, G1, beta, rho, C1, C3, Jo, Jg = mu.get_bolometer_parameters(channel, mode)
+            R0, T0, G1, beta, rho, C1, C3, Jo, Jg = bolometer.get_bolometer_parameters(
+                channel, mode
+            )
 
-            print(f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}")
+            print(
+                f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}"
+            )
 
-            afreq, spec[f"spec_{channel}_{mode}"] = mu.ifg_to_spec(
+            afreq, spec[f"spec_{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
                 adds_per_group=variablesm[f"adds_per_group_{mode}"],
-                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"] / 25.5,  # needs this factor to put it into volts (from pipeline)
+                bol_cmd_bias=variablesm[f"bol_cmd_bias_{channel}_{mode}"]
+                / 25.5,  # needs this factor to put it into volts (from pipeline)
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec],
                 otf=otf,
@@ -237,94 +254,76 @@ for channel, channel_value in channels.items():
             print("Subtracting by the known emission sources")
 
             # frequency mapping
-            f_ghz = mu.generate_frequencies(channel, mode)
+            f_ghz = utils.generate_frequencies(channel, mode)
 
-            bb_ical = mu.planck(
+            bb_ical = utils.planck(
                 f_ghz,
                 variablesm[f"ical_{mode}"],
             )
             ical_emiss = (
-                fits_data[1].data["RICAL"][0]
-                + 1j * fits_data[1].data["IICAL"][0]
+                fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
             )
-            ical_emiss = ical_emiss[
-                np.abs(ical_emiss) > 0
-            ]
+            ical_emiss = ical_emiss[np.abs(ical_emiss) > 0]
 
             # dihedral spectrum
-            bb_dihedral = mu.planck(
+            bb_dihedral = utils.planck(
                 f_ghz,
                 variablesm[f"dihedral_{mode}"],
             )
             dihedral_emiss = (
-                fits_data[1].data["RDIHEDRA"][0]
-                + 1j * fits_data[1].data["IDIHEDRA"][0]
+                fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
             )
-            dihedral_emiss = dihedral_emiss[
-                np.abs(dihedral_emiss) > 0
-            ]
+            dihedral_emiss = dihedral_emiss[np.abs(dihedral_emiss) > 0]
 
-            bb_refhorn = mu.planck(
+            bb_refhorn = utils.planck(
                 f_ghz,
                 variablesm[f"refhorn_{mode}"],
             )
             refhorn_emiss = (
-                fits_data[1].data["RREFHORN"][0]
-                + 1j * fits_data[1].data["IREFHORN"][0]
+                fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
             )
-            refhorn_emiss = refhorn_emiss[
-                np.abs(refhorn_emiss) > 0
-            ]
+            refhorn_emiss = refhorn_emiss[np.abs(refhorn_emiss) > 0]
 
             # skyhorn spectrum
-            bb_skyhorn = mu.planck(
+            bb_skyhorn = utils.planck(
                 f_ghz,
                 variablesm[f"skyhorn_{mode}"],
             )
             skyhorn_emiss = (
-                fits_data[1].data["RSKYHORN"][0]
-                + 1j * fits_data[1].data["ISKYHORN"][0]
+                fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
             )
-            skyhorn_emiss = skyhorn_emiss[
-                np.abs(skyhorn_emiss) > 0
-            ]
+            skyhorn_emiss = skyhorn_emiss[np.abs(skyhorn_emiss) > 0]
 
-            bb_collimator= mu.planck(
+            bb_collimator = utils.planck(
                 f_ghz,
                 variablesm[f"collimator_{mode}"],
             )
             collimator_emiss = (
-                fits_data[1].data["RSTRUCTU"][0]
-                + 1j * fits_data[1].data["ISTRUCTU"][0]
+                fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
             )
-            collimator_emiss = collimator_emiss[
-                np.abs(collimator_emiss) > 0
-            ]
+            collimator_emiss = collimator_emiss[np.abs(collimator_emiss) > 0]
 
             # bolometer spectrum
-            bb_bolometer_rh = mu.planck(
+            bb_bolometer_rh = utils.planck(
                 f_ghz,
                 variablesm[f"bolometer_rh_{mode}"],
             )
-            bb_bolometer_rl = mu.planck(
+            bb_bolometer_rl = utils.planck(
                 f_ghz,
                 variablesm[f"bolometer_rl_{mode}"],
             )
-            bb_bolometer_lh = mu.planck(
+            bb_bolometer_lh = utils.planck(
                 f_ghz,
                 variablesm[f"bolometer_lh_{mode}"],
             )
-            bb_bolometer_ll = mu.planck(
+            bb_bolometer_ll = utils.planck(
                 f_ghz,
                 variablesm[f"bolometer_ll_{mode}"],
             )
             bolometer_emiss = (
-                fits_data[1].data["RBOLOMET"][0]
-                + 1j * fits_data[1].data["IBOLOMET"][0]
+                fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
             )
-            bolometer_emiss = bolometer_emiss[
-                np.abs(bolometer_emiss) > 0
-            ]
+            bolometer_emiss = bolometer_emiss[np.abs(bolometer_emiss) > 0]
 
             if mode[1] == "s":
                 cutoff = 5
@@ -335,43 +334,20 @@ for channel, channel_value in channels.items():
 
             # setting the frequency cut-off according to the header of the fits file
             sky[f"{channel}_{mode}"] = (
-                spec[f"spec_{channel}_{mode}"][
-                    :, cutoff : (len(otf) + cutoff)
-                ]
+                spec[f"spec_{channel}_{mode}"][:, cutoff : (len(otf) + cutoff)]
                 - (
                     (bb_ical * ical_emiss)
+                    + (bb_dihedral * dihedral_emiss)
+                    + (bb_refhorn * refhorn_emiss)
+                    + (bb_skyhorn * skyhorn_emiss)
+                    + (bb_collimator * collimator_emiss)
                     + (
-                        bb_dihedral
-                        * dihedral_emiss
-                    )
-                    + (
-                        bb_refhorn
-                        * refhorn_emiss
-                    )
-                    + (
-                        bb_skyhorn
-                        * skyhorn_emiss
-                    )
-                    + (
-                        bb_collimator
-                        * collimator_emiss
-                    )
-                    + (
-                        bb_bolometer_rh # TODO: keep just the one that is being used to measure?
+                        bb_bolometer_rh  # TODO: keep just the one that is being used to measure?
                         * bolometer_emiss
                     )
-                    + (
-                        bb_bolometer_rl
-                        * bolometer_emiss
-                    )
-                    + (
-                        bb_bolometer_lh
-                        * bolometer_emiss
-                    )
-                    + (
-                        bb_bolometer_ll
-                        * bolometer_emiss
-                    )
+                    + (bb_bolometer_rl * bolometer_emiss)
+                    + (bb_bolometer_lh * bolometer_emiss)
+                    + (bb_bolometer_ll * bolometer_emiss)
                 )
                 / otf[np.newaxis, :]
             )
@@ -434,9 +410,4 @@ for variable in extra_variables:
         ]
 
 # save the sky
-np.savez(
-    g.PROCESSED_DATA_PATH,
-    **variablesm,
-    **sky,
-    **spec
-)
+np.savez(g.PROCESSED_DATA_PATH, **variablesm, **sky, **spec)

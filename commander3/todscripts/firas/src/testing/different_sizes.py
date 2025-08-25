@@ -7,7 +7,7 @@ import numpy as np
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-import my_utils as mu
+import commander3.todscripts.firas.src.utils.my_utils as mu
 
 frequency = mu.generate_frequencies("ll", "ss", 257)
 spectrum = mu.planck(frequency, np.array([2.76]))[0]

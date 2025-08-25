@@ -1,6 +1,7 @@
 """
 This script is meant to plot the residuals of the calibration data.
 """
+
 import os
 import sys
 
@@ -8,12 +9,8 @@ import matplotlib.gridspec as grd
 import matplotlib.pyplot as plt
 import numpy as np
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
-
 import globals as g
-import my_utils as mu
+import utils.my_utils as utils
 
 data = np.load(g.PROCESSED_DATA_PATH_CAL)
 
@@ -30,17 +27,19 @@ for mode in modes.keys():
     ical = ical[sorted_indices]
 
     for channel in channels.keys():
-        if not(mode == "lf" and (channel == "lh" or channel == "rh")):
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             cal = data[f"{channel}_{mode}"]
-            
-            frequency = mu.generate_frequencies(channel, mode)
+
+            frequency = utils.generate_frequencies(channel, mode)
 
             # sort cal data by increasing xcal temp
             cal = cal[sorted_indices]
-            
-            ifig = plt.figure(figsize=(8,8))
+
+            ifig = plt.figure(figsize=(8, 8))
             # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 16))
-            gs = grd.GridSpec(3, 2, height_ratios=[1,1,1], width_ratios=[16,1], wspace=0.1)
+            gs = grd.GridSpec(
+                3, 2, height_ratios=[1, 1, 1], width_ratios=[16, 1], wspace=0.1
+            )
 
             ax1 = plt.subplot(gs[0])
             im = ax1.imshow(
@@ -54,15 +53,15 @@ for mode in modes.keys():
                 ],
                 vmax=200,
                 vmin=-200,
-                cmap='RdBu_r',
-                origin='lower',
+                cmap="RdBu_r",
+                origin="lower",
             )
-            
+
             ax1.set_title(f"{channel.upper()}{mode.upper()} Spectra Residuals")
             ax1.set_ylabel("Frequency (GHz)")
 
             colorAx = plt.subplot(gs[1])
-            plt.colorbar(im, cax= colorAx,label="Residuals (MJy/sr)")
+            plt.colorbar(im, cax=colorAx, label="Residuals (MJy/sr)")
 
             ax2 = plt.subplot(gs[2])
             ax2.plot(xcal)
@@ -75,11 +74,11 @@ for mode in modes.keys():
             ax3.set_xlabel("Index")
             ax3.set_ylabel("ICAL Temperature (K)")
             ax3.set_xlim(0, len(cal))
-            
+
             plt.tight_layout()
             # plt.show()
             plt.savefig(
-                f"/mn/stornext/d16/www_cmb/{os.environ['USER']}/firas/plots/residuals_spectra/{channel}{mode}.png", bbox_inches='tight'
+                f"/mn/stornext/d16/www_cmb/{os.environ['USER']}/firas/plots/residuals_spectra/{channel}{mode}.png",
+                bbox_inches="tight",
             )
             plt.clf()
-

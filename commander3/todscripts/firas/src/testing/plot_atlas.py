@@ -11,13 +11,13 @@ from astropy.io import fits
 from astropy.modeling.models import BlackBody
 
 import globals as g
-import my_utils as mu
+import commander3.todscripts.firas.src.utils.my_utils as mu
 
 sys.path.append('..')
 import h5py
 from astropy.io import fits
 
-import my_utils as mu
+import commander3.todscripts.firas.src.utils.my_utils as mu
 from utils.config import gen_nyquistl
 
 sys.path.append('../utils')

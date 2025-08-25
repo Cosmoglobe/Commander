@@ -5,27 +5,38 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-import my_utils as mu
+import utils.my_utils as utils
 
 # TODO: generalize for all channels and modes
 channel = "ll"
 mode = "ss"
 
 fits_data = fits.open(
-        f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
-    )
+    f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
+)
 
-emiss_xcal = fits_data[1].data["RTRANSFE"][0][:43] + 1j * fits_data[1].data["ITRANSFE"][0][:43]
-emiss_ical = fits_data[1].data["RICAL"][0][:43] + 1j * fits_data[1].data["IICAL"][0][:43]
-emiss_dihedral = fits_data[1].data["RDIHEDRA"][0][:43] + 1j * fits_data[1].data["IDIHEDRA"][0][:43]
-emiss_refhorn = fits_data[1].data["RREFHORN"][0][:43] + 1j * fits_data[1].data["IREFHORN"][0][:43]
-emiss_skyhorn = fits_data[1].data["RSKYHORN"][0][:43] + 1j * fits_data[1].data["ISKYHORN"][0][:43]
-emiss_bolometer = fits_data[1].data["RBOLOMET"][0][:43] + 1j * fits_data[1].data["IBOLOMET"][0][:43]
-emiss_collimator = fits_data[1].data["RSTRUCTU"][0][:43] + 1j * fits_data[1].data["ISTRUCTU"][0][:43]
+emiss_xcal = (
+    fits_data[1].data["RTRANSFE"][0][:43] + 1j * fits_data[1].data["ITRANSFE"][0][:43]
+)
+emiss_ical = (
+    fits_data[1].data["RICAL"][0][:43] + 1j * fits_data[1].data["IICAL"][0][:43]
+)
+emiss_dihedral = (
+    fits_data[1].data["RDIHEDRA"][0][:43] + 1j * fits_data[1].data["IDIHEDRA"][0][:43]
+)
+emiss_refhorn = (
+    fits_data[1].data["RREFHORN"][0][:43] + 1j * fits_data[1].data["IREFHORN"][0][:43]
+)
+emiss_skyhorn = (
+    fits_data[1].data["RSKYHORN"][0][:43] + 1j * fits_data[1].data["ISKYHORN"][0][:43]
+)
+emiss_bolometer = (
+    fits_data[1].data["RBOLOMET"][0][:43] + 1j * fits_data[1].data["IBOLOMET"][0][:43]
+)
+emiss_collimator = (
+    fits_data[1].data["RSTRUCTU"][0][:43] + 1j * fits_data[1].data["ISTRUCTU"][0][:43]
+)
 
 plt.plot(emiss_xcal, label="Xcal")
 plt.plot(emiss_ical, label="Ical")
@@ -40,9 +51,9 @@ plt.xlabel("Frequency Index")
 plt.ylabel("Emissivity")
 plt.show()
 
-frequencies_ll = mu.generate_frequencies(channel, mode)
+frequencies_ll = utils.generate_frequencies(channel, mode)
 print(frequencies_ll.shape)
-frequencies = mu.generate_frequencies(channel, mode, 257)
+frequencies = utils.generate_frequencies(channel, mode, 257)
 
 plt.plot(frequencies_ll, np.abs(emiss_xcal), label="Xcal")
 plt.plot(frequencies_ll, np.abs(emiss_ical), label="Ical")

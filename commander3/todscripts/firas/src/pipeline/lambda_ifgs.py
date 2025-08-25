@@ -4,12 +4,10 @@ import sys
 import numpy as np
 from astropy.io import fits
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
 import globals as g
-import my_utils as mu
+import utils.my_utils as utils
 from utils.config import gen_nyquistl
+from pipeline import ifg_spec
 
 data_path = "/mn/stornext/d16/cmbco/ola/firas/coadded_interferograms/"
 
@@ -28,7 +26,7 @@ for channel in channels.keys():
             )[1].data
 
 fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )
 frec = {}
 for channel, channel_value in channels.items():
@@ -123,7 +121,7 @@ spec = {}
 for channel, channel_value in channels.items():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            afreq, spec[f"{channel}_{mode}"] = mu.ifg_to_spec(
+            afreq, spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=ifg[f"{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
@@ -146,15 +144,14 @@ for channel, channel_value in channels.items():
                 sweeps=1,
                 apod=apod[f"{channel}_{mode}"],
             )
-            
+
 # frequency mapping
 f_ghz = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(
-                mode=mode,
-                channel=channel
+            f_ghz[f"{channel}_{mode}"] = utils.generate_frequencies(
+                mode=mode, channel=channel
             )
 
 ical_temp = {}
@@ -188,7 +185,7 @@ bol_emiss = {}
 for channel in channels.keys():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            bb_ical[f"{channel}_{mode}"] = mu.planck(
+            bb_ical[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 ical_temp[f"{channel}_{mode}"],
             )
@@ -200,7 +197,7 @@ for channel in channels.keys():
                 np.abs(ical_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_dihedral[f"{channel}_{mode}"] = mu.planck(
+            bb_dihedral[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 dihedral_temp[f"{channel}_{mode}"],
             )
@@ -212,7 +209,7 @@ for channel in channels.keys():
                 np.abs(dihedral_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_skyhorn[f"{channel}_{mode}"] = mu.planck(
+            bb_skyhorn[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 skyhorn_temp[f"{channel}_{mode}"],
             )
@@ -224,7 +221,7 @@ for channel in channels.keys():
                 np.abs(skyhorn_emiss[f"{channel}_{mode}"]) > 0
             ]
 
-            bb_refhorn[f"{channel}_{mode}"] = mu.planck(
+            bb_refhorn[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 refhorn_temp[f"{channel}_{mode}"],
             )
@@ -237,7 +234,7 @@ for channel in channels.keys():
             ]
 
             # bolometer spectrum
-            bb_bol[f"{channel}_{mode}"] = mu.planck(
+            bb_bol[f"{channel}_{mode}"] = utils.planck(
                 f_ghz[f"{channel}_{mode}"],
                 bath_temp[f"{channel}_{mode}"],
             )
@@ -300,6 +297,6 @@ for channel in channels.keys():
 
 # save the sky
 np.savez(
-    "../../output/data/lambda_sky.npz",
+    "../output/data/lambda_sky.npz",
     **sky,
 )

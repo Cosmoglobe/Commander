@@ -9,16 +9,13 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
-import my_utils as mu
+import utils.my_utils as utils
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
-data = np.load("../../data/processed_cal.npz")
+data = np.load("../data/processed_cal.npz")
 user = os.environ['USER']
 
 cal = {}
@@ -32,7 +29,7 @@ for channel in channels.keys():
             cal[f"xcal_{mode}"] = data[f"xcal_{mode}"]
             cal[f"ical_{mode}"] = data[f"ical_{mode}"]
 
-            f_ghz[f"{channel}_{mode}"] = mu.generate_frequencies(channel, mode)
+            f_ghz[f"{channel}_{mode}"] = utils.generate_frequencies(channel, mode)
 
 print("plotting cal")
 
