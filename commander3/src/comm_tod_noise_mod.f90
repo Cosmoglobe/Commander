@@ -615,15 +615,15 @@ contains
           end if
        end do
 
-!!$       if (.true.) then! .and. i == 1 .and. mod(self%scanid(scan),100) == 0) then
-!!$          call int2string(self%scanid(scan), stext)
-!!$          call int2string(i, dtext)
-!!$          open(58,file='noise_tod_'//stext//'_'//dtext//'.dat', recl=1024)
-!!$          do j = 1, ntod
-!!$             write(58,*) j, dt(j), sd%n_corr(j,i)
-!!$          end do
-!!$          close(58)
-!!$       end if
+       if (mod(self%scanid(scan),1000) == 0) then
+          call int2string(self%scanid(scan), stext)
+          call int2string(i, dtext)
+          open(58,file='noise_tod_'//stext//'_'//dtext//'.dat', recl=1024)
+          do j = 1, ntod
+             write(58,*) j, dt(j), sd%n_corr(j,i)
+          end do
+          close(58)
+       end if
 
        
        call timer%start(TOT_FFT)
@@ -655,7 +655,7 @@ contains
           end do
        end do
 
-       if (.false.) then! .and. i == 1 .and. mod(self%scanid(scan),100) == 0) then
+       if (mod(self%scanid(scan),1000) == 0) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file='noise_psd_'//stext//'_'//dtext//'.dat', recl=1024)

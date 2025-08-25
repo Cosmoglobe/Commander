@@ -69,6 +69,7 @@ contains
     hmax  = sd%hmax
     nhorn = sd%nhorn
     nbp   = sd%nbp 
+                                allocate(sd%det     (ndet))
     if (btest(oper,SD_IND))     allocate(sd%ind     (ntod, ndet, nhorn))
     if (btest(oper,SD_BASE))    allocate(sd%flag    (ntod, ndet))
     if (btest(oper,SD_MASK))    allocate(sd%mask    (ntod, ndet))
@@ -91,6 +92,15 @@ contains
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
 
+    ! Initialize detector list
+    if (present(det)) then
+       sd%det(1) = det
+    else
+       do i = 1, ndet
+          sd%det(i) = i
+       end do
+    end if
+    
     ! Initialize arrays that are not set in this routine
     if (btest(oper,SD_NCORR)) sd%n_corr = 0.
     
@@ -139,24 +149,38 @@ contains
     ! Precompute pix2ind
     if (btest(oper,SD_IND)) then
        call timer%start(TOD_PIX2IND, tod%band)
-       call compute_scan_pix2ind(tod, sd, det)
+       call compute_scan_pix2ind(tod, sd)
        call timer%stop(TOD_PIX2IND, tod%band)
+    end if
+
+    ! Disable broken detector-scans
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. tod%scans(scan)%d(d)%accept) cycle
+       if (tod%scans(scan)%d(d)%N_psd%sigma0 <= 0.d0) &
+            & tod%scans(scan)%d(d)%accept = .false.
+    end do
+
+    
+    ! Construct mask
+    if (btest(oper,SD_MASK)) then
+       call timer%start(TOD_PROJECT, tod%band)
+       call project_mask(tod, bitmask0, sd)
+       call timer%stop(TOD_PROJECT, tod%band)
+
+       ! Disable broken detector-scans
+       do j = 1, ndet
+          d = sd%det(j)
+          if (.not. tod%scans(scan)%d(d)%accept) cycle
+          if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(d)%accept = .false.
+       end do
     end if
     
     ! Construct sky signal template
     if (btest(oper,SD_SKY)) then
        call timer%start(TOD_PROJECT, tod%band)
-       call project_sky_and_mask(tod, sd, det)
+       call project_sky(tod, sd)
        call timer%stop(TOD_PROJECT, tod%band)
-
-       ! Disable broken detector-scans
-       do j = 1, ndet
-          d = j; if (present(det)) d = det
-          if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(d)%accept = .false.
-          if (tod%scans(scan)%d(d)%N_psd%sigma0 <= 0.d0) &
-               & tod%scans(scan)%d(d)%accept = .false.
-       end do
     end if
     
     ! Construct orbital dipole template
@@ -252,6 +276,7 @@ contains
     sd%ntod = -1; sd%ndet = -1; sd%nhorn = -1; sd%nbp = -1
 
     ! Deallocate data structures
+    if (allocated(sd%det))           deallocate(sd%det)
     if (allocated(sd%ind))           deallocate(sd%ind)
     if (allocated(sd%tod))           deallocate(sd%tod)
     if (allocated(sd%n_corr))        deallocate(sd%n_corr)
@@ -271,44 +296,121 @@ contains
     if (allocated(sd%s_inst))        deallocate(sd%s_inst)
     if (allocated(sd%s_gain))        deallocate(sd%s_gain)
     if (allocated(sd%dark))          deallocate(sd%dark)
+    if (allocated(sd%s_objctr))      deallocate(sd%s_objctr)
+    if (allocated(sd%s_calib))       deallocate(sd%s_calib)
   end subroutine dealloc_scan_data
 
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! detdata routines
+  ! Detector data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!!$  ! deallocates a det_data struture
-!!$  subroutine dealloc_det_data(dd)
-!!$    implicit none
-!!$    class(comm_detdata), intent(inout) :: dd
-!!$
-!!$    dd%nscan = -1
-!!$    if (allocated(dd%scans)) deallocate(dd%scans)
-!!$    if (allocated(dd%ntod))  deallocate(dd%ntod) 
-!!$    if (allocated(dd%tod))   deallocate(dd%tod)
-!!$  end subroutine dealloc_det_data
+  ! initializes a detector data structure for a single detector over the entire flight
+  ! - Flagged data are omitted
+  ! - nside_pix -> 0 = skip pix; >0 = ring; <0 = nest
+  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd)
+    implicit none
+    class(comm_tod),     intent(inout) :: tod
+    integer(i4b),        intent(in)    :: det
+    integer(i4b),        intent(in)    :: oper
+    integer(i4b),        intent(in)    :: bitmask0
+    integer(i4b),        intent(in)    :: nside_pix 
+    logical(lgt),        intent(in)    :: init_mjd
+    class(comm_detdata), intent(inout) :: dd
+    
+    integer(i4b) :: i, j, k, p, ntod, q
+    type(comm_scandata) :: sd
+    real(sp)     :: g
+    real(sp),     allocatable, dimension(:) :: data
+    integer(i4b), allocatable, dimension(:) :: pix
+    real(dp),     allocatable, dimension(:) :: mjd
 
-  ! initializes a det_data structure for a single detector over the entire flight
-  ! for a singlehorn experiment like planck
-!!$  subroutine init_det_data_singlehorn(dd, tod, det)
-!!$    implicit none
-!!$    class(comm_detdata),                       intent(inout)          :: dd
-!!$    class(comm_tod),                           intent(inout)          :: tod
-!!$    integer(i4b),                              intent(in)             :: det
-!!$
-!!$    integer(i4b) :: i
-!!$    
-!!$    dd%nscan = tod%nscan
-!!$    allocate(dd%ntod(dd%nscan))
-!!$
-!!$    do i = 1, tod%nscan
-!!$      ! decompress tod into dd%tod array
-!!$      dd%ntod(i) = tod%scans(i)%ntod
-!!$    end do
-!!$
-!!$  end subroutine init_det_data_singlehorn
-!!$
-!!$
+    q = abs(tod%info%nside/nside_pix)**2
+    
+    ! Find maximum number of samples
+    ntod = 0
+    do i = 1, tod%nscan
+       if (tod%scans(i)%d(det)%accept) ntod = ntod + tod%scans(i)%ntod
+    end do
+
+    allocate(data(ntod))
+    if (nside_pix /= 0) allocate(pix(ntod))
+    if (init_mjd)       allocate(mjd(ntod))
+    
+    ! Fill in buffer arrays
+    k = 0 ! Number of unmasked samples
+    do i = 1, tod%nscan
+       if (.not. tod%scans(i)%d(det)%accept) cycle
+       call init_scan_data(tod, i, oper, bitmask0, sd, det=det)
+
+       g = tod%scans(i)%d(det)%gain
+       do j = 1, sd%ntod
+          if (sd%mask(j,1) == 1.) then
+             k    = k+1
+
+             ! Initialize tod
+             data(k) = sd%tod(j,1)
+             if (allocated(sd%s_tot))  data(k) = data(k) - g * sd%s_tot(j,1,0,1)
+             if (allocated(sd%s_spur)) data(k) = data(k) -     sd%s_spur(j,1)
+             if (allocated(sd%n_corr)) data(k) = data(k) -     sd%n_corr(j,1)
+
+             ! Initialize pix
+             if (nside_pix /= 0) then
+                pix(k) = sd%pix(j,1,1)
+                if (nside_pix < 0) then
+                   ! Convert to nest
+                   call ring2nest(tod%info%nside, pix(k), p)
+                   pix(k) = p
+                end if
+
+                if (nside_pix < tod%info%nside .and. nside_pix < 0) then 
+                   ! Udgrade in nested ordering
+                   pix(k) = pix(k) / q
+                else
+                   write(*,*) 'Init_det_data: Ring udgrade not yet supported'
+                   stop
+                end if
+             end if
+
+             ! Initialize mjd
+             if (init_mjd) mjd(k) = tod%scans(i)%t0(1) + real(j-1,dp)/tod%samprate
+          end if
+       end do
+       
+       call dealloc_scan_data(sd)
+    end do
+
+    ! Store final arrays
+    dd%ntod = k
+    allocate(dd%tod(dd%ntod))
+    dd%tod = data(1:k)
+    deallocate(data)
+    
+    if (nside_pix /= 0) then
+       allocate(dd%pix(dd%ntod))
+       dd%pix = pix(1:k)
+       deallocate(pix)
+    end if
+    
+    if (init_mjd) then
+       allocate(dd%mjd(dd%ntod))
+       dd%mjd = mjd(1:k)
+       deallocate(mjd)
+    end if
+    
+  end subroutine init_det_data
+
+  ! deallocates a det_data struture
+  subroutine dealloc_det_data(dd)
+    implicit none
+    class(comm_detdata), intent(inout) :: dd
+
+    dd%ntod = -1
+    if (allocated(dd%tod))   deallocate(dd%tod)
+    if (allocated(dd%pix))   deallocate(dd%pix)
+    if (allocated(dd%mjd))   deallocate(dd%mjd)
+  end subroutine dealloc_det_data
+  
 !!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!$  ! Scandata 2 detdata
 !!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

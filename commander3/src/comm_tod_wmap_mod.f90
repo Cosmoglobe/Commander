@@ -1024,7 +1024,7 @@ contains
          !allocate(pix(ntod, nhorn))             ! Decompressed pointing
          !allocate(psi(ntod, nhorn))             ! Decompressed pol angle
          !allocate(flag(ntod))                   ! Decompressed flags
-         call init_scan_data(self, i, oper, 0, sd, det=1)
+         call init_scan_data(self, i, oper, -1, sd, det=1)
          !call self%decompress_pointing(sd, det=1)
          !call self%decompress_flags(sd, det=1)
 

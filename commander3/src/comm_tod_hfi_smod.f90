@@ -102,7 +102,7 @@ contains
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
     c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Signa0
-    c%xi_n_P_uni(2,:)  = [0.001d0, 6d0]  ! fknee
+    c%xi_n_P_uni(2,:)  = [0.001d0, 20d0]  ! fknee
     c%xi_n_P_uni(3,:)  = [-2.5d0, -0.3d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
@@ -420,6 +420,11 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
     end do
+    call timer%start(TOD_WAIT, self%band)
+    call mpi_barrier(self%comm, ierr) ! Improve timing information
+    call timer%stop(TOD_WAIT, self%band)
+
+    
 !!$    call update_status(status, "tod_nonlin"//ctext)
 
     ! Fit global timestream contaminants 
@@ -598,6 +603,10 @@ contains
        deallocate(d_calib)
 
     end do
+
+    call timer%start(TOD_WAIT, self%band)
+    call mpi_barrier(self%comm, ierr) ! Improve timing information
+    call timer%stop(TOD_WAIT, self%band)
     call update_status(status, "tod_postloop"//ctext)
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -904,7 +913,7 @@ contains
     class(comm_hfi_tod),                          intent(in)    :: tod
     integer(i4b),                                 intent(in)    :: scan
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, d
     real(sp)     :: sgn
 
 !!$    open(58,file='tod_adc.dat')
@@ -913,17 +922,18 @@ contains
 !!$    end do
 !!$    close(58)
     
-    do i = 1, tod%ndet
-       if (.not. tod%scans(scan)%d(i)%accept) cycle       
-       sgn = tod%mod_phase(i,scan)
+    do i = 1, self%ndet
+       d = self%det(i)
+       if (.not. tod%scans(scan)%d(d)%accept) cycle       
+       sgn = tod%mod_phase(d,scan)
        
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
-              self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
+              self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline1)
               !self%tod(j,i) =  (self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
            else
-              self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
+              self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline2)
               !self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
        end do
@@ -967,7 +977,7 @@ contains
     do scan = 1, self%nscan
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          call init_scan_data(self, scan, oper, 0, sd, nonlin_level=0)
+          call init_scan_data(self, scan, oper, -1, sd, nonlin_level=0)
           do j = 1, sd%ntod
              if (iand(sd%flag(j,i), self%flag0) .eq. 0) then
                 self%adu_range(i,1) = min(self%adu_range(i,1), nint(sd%tod(j,i)))
@@ -1083,9 +1093,10 @@ contains
 
        ! Read ADC tables
        if (self%adu_range(1,1) > 0) then
-          allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
+          !allocate(Q(minval(self%adu_range(:,1)):maxval(self%adu_range(:,2)),self%ndet))
           ! HKE -- commenting out for now
           !call read_hdf(chainfile, trim(adjustl(path))//'adc_Q', Q)
+          !deallocate(Q)
        end if
     end if
 

@@ -32,7 +32,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_detscan, comm_scandata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
@@ -387,6 +387,7 @@ module comm_tod_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
+     integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
      integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
@@ -410,6 +411,15 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
   end type comm_scandata
 
+  ! Class for uncompressed data of a single detector over the full flight; use sparingly
+  type :: comm_detdata
+     integer(i4b) :: ntod
+     real(sp),     allocatable, dimension(:) :: tod
+     integer(i4b), allocatable, dimension(:) :: pix
+     real(dp),     allocatable, dimension(:) :: mjd
+  end type comm_detdata
+
+  
 interface
   module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
     implicit none

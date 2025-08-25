@@ -142,7 +142,7 @@ contains
     integer(i4b) :: i, j, start_chunk, end_chunk, ind1, ind2, ierr
 
     if (.not. self%shared) return
-    call timer%start(TOD_MAPBIN, tod%band)
+    call timer%start(TOD_MAPSYN, tod%band)
     
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
@@ -162,7 +162,7 @@ contains
     end do
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
-    call timer%stop(TOD_MAPBIN, tod%band)
+    call timer%stop(TOD_MAPSYN, tod%band)
     
   end subroutine synchronize_binmap
 
@@ -463,7 +463,7 @@ end subroutine bin_differential_TOD
          end if
          if (.not. tod%scans(j)%d(1)%accept) cycle
          ntod = tod%scans(j)%ntod
-         call init_scan_data(tod, j, oper, 0, sd, det=1)
+         call init_scan_data(tod, j, oper, -1, sd, det=1)
 
          var = 0.d0
          do k = 1, 4

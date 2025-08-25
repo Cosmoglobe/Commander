@@ -26,20 +26,19 @@ module comm_tod_pointing_mod
 contains
 
   ! Sky signal template for single detector
-  subroutine compute_scan_pix2ind(tod, sd, det)
+  subroutine compute_scan_pix2ind(tod, sd)
      implicit none
-     class(comm_tod),      intent(in)             :: tod
-     class(comm_scandata), intent(inout)          :: sd
-     integer(i4b),         intent(in),   optional :: det
+     class(comm_tod),      intent(in)    :: tod
+     class(comm_scandata), intent(inout) :: sd
  
      integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
 
      scan  = sd%scan
      nmaps = tod%nmaps
-     ndet  = tod%ndet; if (present(det)) ndet = 1
+     ndet  = sd%ndet
 
      do j = 1, ndet ! Loop over detectors
-        d = j; if (present(det)) d = det
+        d = sd%det(j)
         
         if (.not. tod%scans(scan)%d(d)%accept) then
            sd%ind(:,j,:) = -999
@@ -49,7 +48,6 @@ contains
         do i = 1, tod%scans(scan)%ntod ! Loop over time samples
            do h = 1, sd%nhorn          ! Loop over horns
               sd%ind(i,j,h) = tod%pixcache%pix2ind(sd%pix(i,j,h))
-              !write(*,*) i, j, h, sd%pix(i,j,h), sd%ind(i,j,h)
               if (sd%pix(i,j,h) == -1) then
                  write(*,*) "missing pixel", sd%pix(i,j,h), tod%pixcache%ind2pix(tod%pixcache%nobs-2:tod%pixcache%nobs)
               end if
@@ -60,11 +58,10 @@ contains
 
   
   ! Sky signal template for single detector
-  subroutine project_sky_and_mask(tod, sd, det)
+  subroutine project_sky(tod, sd)
      implicit none
      class(comm_tod),      intent(in)             :: tod
      class(comm_scandata), intent(inout)          :: sd
-     integer(i4b),         intent(in),   optional :: det
  
      integer(i4b) :: i, j, k, d, h, hp, p, nmaps, scan, ndet
      logical(lgt) :: do_gain, do_bp
@@ -79,15 +76,14 @@ contains
      ! T - temperature; Q, U - Stoke's parameters
      scan  = sd%scan
      nmaps = tod%nmaps
-     ndet  = tod%ndet; if (present(det)) ndet = 1
+     ndet  = sd%ndet
 
      do j = 1, ndet ! Loop over detectors
-        d = j; if (present(det)) d = det
+        d = sd%det(j)
 
         if (.not. tod%scans(scan)%d(d)%accept) then
-           sd%s_sky(:,d,:,:) = 0.
-           sd%mask(:,d)  = 0.
-           if (allocated(tod%pixcache%map_gain)) sd%s_gain(:,d,:) = 0.
+           sd%s_sky(:,j,:,:) = 0.
+           if (allocated(tod%pixcache%map_gain)) sd%s_gain(:,j,:) = 0.
            cycle
         end if
 
@@ -95,21 +91,21 @@ contains
         do h = 1, sd%nhorn          ! Loop over horns
            hp = h; if (sd%nhorn == 1) hp = 0
            do i = 1, tod%scans(scan)%ntod ! Loop over time samples
-              p = sd%ind(i,d,h)
-              if ((sd%psi(i,d,h) > tod%npsi)) then
-                 write(*,*) 'Polarization angle is wrong', d, tod%scanid(scan), sd%psi(i,d,h)
+              p = sd%ind(i,j,h)
+              if ((sd%psi(i,j,h) > tod%npsi)) then
+                 write(*,*) 'Polarization angle is wrong', d, tod%scanid(scan), sd%psi(i,j,h)
                  cycle
               end if
               do k = 1, sd%nbp ! Loop over bandpass models
                  if (nmaps == 3) then
                     sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k) + &
-                         & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,d,h)) + &
-                         &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,d,h)))
+                         & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                         &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
                    ! write(*,*) j, i, p, sd%s_sky(i,j,hp,k), eff, tod%pixcache%map_sky(1:3,p,d,k), tod%pixcache%cos2psi(sd%psi(i,d,h)), tod%pixcache%sin2psi(sd%psi(i,d,h))
                     if (do_gain .and. k == 1) then
                        sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d) + &
-                            & eff*(tod%pixcache%map_gain(2,p,d) * tod%pixcache%cos2psi(sd%psi(i,d,h)) + &
-                            &      tod%pixcache%map_gain(3,p,d) * tod%pixcache%sin2psi(sd%psi(i,d,h)))
+                            & eff*(tod%pixcache%map_gain(2,p,d) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                            &      tod%pixcache%map_gain(3,p,d) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
                     end if
                  else 
                     sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k)
@@ -119,43 +115,34 @@ contains
                  if (do_bp) then
                     if (nmaps == 3) then
                        s = tod%pixcache%map_sky(1,p,0,k) + eff * &
-                            & (tod%pixcache%map_sky(2,p,0,k) * tod%pixcache%cos2psi(sd%psi(i,d,h)) + &
-                            &  tod%pixcache%map_sky(3,p,0,k) * tod%pixcache%sin2psi(sd%psi(i,d,h)))
+                            & (tod%pixcache%map_sky(2,p,0,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                            &  tod%pixcache%map_sky(3,p,0,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
                     else if (nmaps == 1) then
                        s = tod%pixcache%map_sky(1,p,0,k)
                     end if
                     sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
                  end if
               end do
-              if (h == 1) then
-                 if (iand(sd%flag(i,j), tod%flag0) .ne. 0) then
-                    sd%mask(i,j) = 0.
-                 else
-                    sd%mask(i,j) = 1.
-                 end if
-              end if
-              if (btest(tod%pixcache%bitmask(p), sd%bitmask0)) sd%mask(i,j) = 0.
            end do
         end do
      end do
-   end subroutine project_sky_and_mask
+   end subroutine project_sky
 
    ! Sky signal template for single detector
-   subroutine project_mask(tod, bitmask0, sd, det)
+   subroutine project_mask(tod, bitmask0, sd)
      implicit none
-     class(comm_tod),      intent(in)             :: tod
-     integer(i4b),         intent(in)             :: bitmask0
-     class(comm_scandata), intent(inout)          :: sd
-     integer(i4b),         intent(in), optional   :: det
+     class(comm_tod),      intent(in)    :: tod
+     integer(i4b),         intent(in)    :: bitmask0
+     class(comm_scandata), intent(inout) :: sd
  
      integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
 
      scan        = sd%scan
-     ndet        = tod%ndet; if (present(det)) ndet = 1
+     ndet        = sd%ndet
      sd%bitmask0 = bitmask0
      
      do j = 1, ndet ! Loop over detectors
-        d = j; if (present(det)) d = det
+        d = sd%det(j)
          
         if (.not. tod%scans(scan)%d(d)%accept) then
            sd%mask(:,j)  = 0.
@@ -172,9 +159,12 @@ contains
                     sd%mask(i,j) = 1.
                  end if
               end if
-              if (.not. btest(tod%pixcache%bitmask(p), sd%bitmask0)) sd%mask(i,j) = 0.
+              if (sd%bitmask0 >= 0 .and. sd%mask(i,j) == 1.) then
+                 if (btest(tod%pixcache%bitmask(p), sd%bitmask0)) sd%mask(i,j) = 0.
+              end if
            end do
         end do
+
      end do
    end subroutine project_mask
     

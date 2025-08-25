@@ -17,7 +17,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_OUTPUT    =  11
 
   ! Channel specific parameters
-  integer(i4b), parameter, public :: NUM_TOD       = 31
+  integer(i4b), parameter, public :: NUM_TOD       = 32
   integer(i4b), parameter, public :: TOD_TOT       =  1
   integer(i4b), parameter, public :: TOD_INIT      =  2
   integer(i4b), parameter, public :: TOD_SL_PRE    =  3
@@ -31,6 +31,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_NCORR     = 11
   integer(i4b), parameter, public :: TOD_XI_N      = 12
   integer(i4b), parameter, public :: TOD_MAPBIN    = 13
+  integer(i4b), parameter, public :: TOD_MAPSYN    = 32
   integer(i4b), parameter, public :: TOD_MAPSOLVE  = 14
   integer(i4b), parameter, public :: TOD_ZODI      = 15
   integer(i4b), parameter, public :: TOD_IMBAL     = 16
@@ -262,6 +263,7 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binning                  = ', t(b+TOD_MAPBIN)   / self%numsamp(band), 100*t(b+TOD_MAPBIN)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD chisq                    = ', t(b+TOD_CHISQ)   / self%numsamp(band), 100*t(b+TOD_CHISQ)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD bandpass                 = ', t(b+TOD_BP)   / self%numsamp(band), 100*t(b+TOD_BP)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binmap synchronization   = ', t(b+TOD_MAPSYN) / self%numsamp(band), 100*t(b+TOD_MAPSYN)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp(band), 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD load-balancing           = ', t(b+TOD_WAIT)  /  self%numsamp(band),   100*t(b+TOD_WAIT)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD MPI operations           = ', t(b+TOD_MPI)  /  self%numsamp(band),   100*t(b+TOD_MPI)/t(b+TOD_TOT)
