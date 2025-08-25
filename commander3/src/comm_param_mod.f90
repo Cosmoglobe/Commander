@@ -2678,6 +2678,7 @@ contains
           read(value,*) par_char
        elseif (present(par_string)) then
           read(value,*) par_string
+          par_string = trim(adjustl(value))
        elseif (present(par_sp)) then
           read(value,*) par_sp
        elseif (present(par_dp)) then
@@ -2691,6 +2692,8 @@ contains
     else
        found = .false.
     end if
+
+
   end subroutine parse_parameter
 
   !gets parameters from input arguments in Commander call
@@ -3391,6 +3394,7 @@ contains
       logical(lgt),     optional :: path
 
       logical(lgt)               :: found
+
 
       found = .false.
       call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
