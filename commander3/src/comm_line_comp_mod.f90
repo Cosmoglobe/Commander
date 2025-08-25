@@ -36,6 +36,7 @@ module comm_line_comp_mod
    contains
      procedure :: S    => evalSED_line
      procedure :: sampleSpecInd => sampleLineRatios
+     procedure :: updateMixmat => updateMixmatLineRatios
   end type comm_line_comp
 
   interface comm_line_comp
@@ -356,7 +357,6 @@ contains
   end subroutine sampleLineRatios
   
   ! update the mixing matrix, assumes only temperature and constant across the whole map
-
   subroutine updateMixmatLineRatios(self, theta, beta, band, df, par)
    implicit none
    class(comm_line_comp),                  intent(inout)           :: self
@@ -474,5 +474,7 @@ contains
  end subroutine updateMixmatLineRatios
  
  
+
  end module comm_line_comp_mod
  
+

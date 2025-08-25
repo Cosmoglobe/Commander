@@ -249,6 +249,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)     :: cs_mask
      character(len=2048), allocatable, dimension(:)     :: cs_mono_prior
      real(dp),           allocatable, dimension(:)     :: cs_latmask
+     logical(lgt),       allocatable, dimension(:)     :: cs_apply_dust_ext
      character(len=2048), allocatable, dimension(:)     :: cs_indmask
      character(len=2048), allocatable, dimension(:)     :: cs_defmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
@@ -844,6 +845,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
+    allocate(cpar%cs_apply_dust_ext(n))
     allocate(cpar%cs_pixreg_init_theta(MAXPAR,n))
     allocate(cpar%cs_almsamp_init(MAXPAR,n),cpar%cs_theta_prior(2,3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
@@ -880,6 +882,7 @@ contains
     
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
+    cpar%cs_apply_dust_ext=.false.
 
     do i = 1, n
        call int2string(i, itext)
@@ -907,6 +910,7 @@ contains
        ! Break up the diffuse parameter reading into something a bit more legible
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call read_diffuse_gen_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+          call get_parameter_hashtable(htbl, 'COMP_APPLY_DUST_EXTINCTION'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_dust_ext(i))
           select case (trim(cpar%cs_type(i)))
           case ('cmb')
              call read_cmb_params_hash(htbl,cpar)
