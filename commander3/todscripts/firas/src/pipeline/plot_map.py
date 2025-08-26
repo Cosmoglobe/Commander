@@ -33,8 +33,8 @@ if not os.path.exists(curr_path):
 hpxmap = {}
 data_density = {}
 f_ghz = {}
-for channel in g.CHANNELS:
-    for mode in g.MODES: 
+for channel in g.CHANNELS_PLOT:
+    for mode in g.MODES_PLOT: 
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             sky = data[f"{channel}_{mode}"]
             scan = data[f"scan_{mode}"]

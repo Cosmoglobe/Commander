@@ -39,8 +39,8 @@ PNG = True
 FITS = False
 
 # plotting parameters
-CHANNELS = ["ll"]
-MODES = ["ss"]
+CHANNELS_PLOT = ["ll"]
+MODES_PLOT = ["ss"]
 JOINT = False
 SCANUPDOWN = False
 
@@ -50,5 +50,10 @@ PEAK_POSITIONS = {
     "ll_ss": 360,
     "rl_ss": 360,
     "ll_lf": 90,
-    "rl_lf": 90
+    "rl_lf": 90,
 }
+
+IFG_SIZE = 512
+SPEC_SIZE = 257
+
+CHANNELS = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
