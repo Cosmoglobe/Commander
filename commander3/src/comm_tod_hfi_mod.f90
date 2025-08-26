@@ -34,6 +34,7 @@ module comm_tod_hfi_mod
   use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
+  use comm_tod_mapmaking_mod
   use comm_tod_pixhist_mod
   use comm_tod_adc_binfit_mod
   implicit none
@@ -46,7 +47,6 @@ module comm_tod_hfi_mod
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
-     real(sp), allocatable, dimension(:) :: pol_eff ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
@@ -154,7 +154,7 @@ interface
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-    type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+    type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
   end subroutine process_hfi_tod
 
   module subroutine load_instrument_hfi(self, instfile, band)
@@ -359,7 +359,7 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_hfi
 
-  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
+  module subroutine construct_corrtemp_hfi(self, sd, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -378,14 +378,12 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
-    real(sp),            dimension(:,:),   intent(out)   :: s
-    integer(i4b),                          intent(in), optional :: det
+    class(comm_hfi_tod),  intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin, handle, det)
+  module subroutine apply_nonlin_corr_hfi(self, sd, nonlin_lvl, handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -404,9 +402,8 @@ interface
     !       output template timestream
     implicit none
     class(comm_hfi_tod),                   intent(inout) :: self
-    integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
-    integer(i4b),                          intent(in)    :: skip_nonlin
+    integer(i4b),                          intent(in)    :: nonlin_lvl
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
   end subroutine apply_nonlin_corr_hfi

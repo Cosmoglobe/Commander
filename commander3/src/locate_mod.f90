@@ -59,7 +59,7 @@ contains
     if (x == xx(1)) then
        locate_int = 1
     else if (x == xx(n)) then
-       locate_int = n-1
+       locate_int = n
     else
        locate_int = jl
     end if
@@ -98,7 +98,7 @@ contains
     if (x == xx(1)) then
        locate_dp = 1
     else if (x == xx(n)) then
-       locate_dp = n-1
+       locate_dp = n
     else
        locate_dp = jl
     end if
@@ -137,7 +137,7 @@ contains
     if (x == xx(1)) then
        locate_sp = 1
     else if (x == xx(n)) then
-       locate_sp = n-1
+       locate_sp = n
     else
        locate_sp = jl
     end if
