@@ -47,6 +47,7 @@ contains
     integer(i4b),         intent(in),    optional :: nonlin_level 
     type(planck_rng),     intent(inout), optional :: handle
 
+
     integer(i4b) :: i, j, k, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl
 
     call timer%start(TOD_ALLOC, tod%band)
@@ -92,6 +93,7 @@ contains
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
 
+
     ! Initialize detector list
     if (present(det)) then
        sd%det(1) = det
@@ -104,6 +106,7 @@ contains
     ! Initialize arrays that are not set in this routine
     if (btest(oper,SD_NCORR)) sd%n_corr = 0.
     
+
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
     if (btest(oper,SD_BASE)) then
@@ -222,6 +225,7 @@ contains
        end do
     end if
 
+
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
@@ -229,6 +233,7 @@ contains
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
     
+
     ! Generate and apply instrument-specific correction template
     if (btest(oper,SD_INST)) then
        call timer%start(TOD_INSTCORR, tod%band)

@@ -63,14 +63,15 @@ contains
     call update_status(status, "init_diffuse_start")
 
     ! Initialize variables specific to diffuse source type
-    self%pol           = cpar%cs_polarization(id_abs)
-    self%nside         = cpar%cs_nside(id_abs)
-    self%lmin_amp      = cpar%cs_lmin_amp(id_abs)
-    self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
-    self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
-    self%l_apod        = cpar%cs_l_apod(id_abs)
-    self%nu_min        = cpar%cs_nu_min(id_abs)
-    self%nu_max        = cpar%cs_nu_max(id_abs)
+    self%pol            = cpar%cs_polarization(id_abs)
+    self%nside          = cpar%cs_nside(id_abs)
+    self%lmin_amp       = cpar%cs_lmin_amp(id_abs)
+    self%lmax_amp       = cpar%cs_lmax_amp(id_abs)
+    self%lmax_prior     = cpar%cs_lmax_amp_prior(id_abs)
+    self%l_apod         = cpar%cs_l_apod(id_abs)
+    self%nu_min         = cpar%cs_nu_min(id_abs)
+    self%nu_max         = cpar%cs_nu_max(id_abs)
+    self%apply_dust_ext = cpar%cs_apply_dust_ext(id_abs)
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
@@ -2003,7 +2004,7 @@ contains
              end if
 
              ! Initialize dust extinction
-             if (associated(data(i)%A_ext)) then
+             if (self%apply_dust_ext .and. associated(data(i)%A_ext)) then
                 A_ext = data(i)%A_ext%map(j,1)
              else
                 A_ext = 1.d0
@@ -2126,13 +2127,16 @@ contains
        call self%x%alm_equal(m)
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-
+    
 !!$    call m%Y()
 !!$    call m%writeFITS("test1.fits")
+
     
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+
+
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -2149,6 +2153,7 @@ contains
     call data(band)%B(d)%p%conv(trans=.false., map=m)
 !!$    call m%Y()
 !!$    call m%writeFITS("test3.fits")
+
        
     ! Return correct data product
     if (alm_out_) then
@@ -2208,7 +2213,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do

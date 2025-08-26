@@ -436,6 +436,7 @@ subroutine tod2file_dp3(filename,d)
 
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
+    if (allocated(self%alm_buff)) deallocate(self%alm_buff)
     nullify(self%info)
 
     if (associated(self%nextLink)) then
