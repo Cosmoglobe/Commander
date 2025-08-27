@@ -32,6 +32,7 @@ module comm_tod_DIRBE_mod
    !
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
+  use comm_tod_mapmaking_mod
    implicit none
 
    private
@@ -156,10 +157,8 @@ contains
       !end do
 
       ! Allocate sidelobe convolution data structures
-      allocate(c%slconv(c%ndet), c%orb_dp)
-
+      allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
       c%orb_dp => comm_orbdipole(comm=c%comm)
-
 
       ! Initialize all baseline corrections to zero
       !do i = 1, c%nscan
@@ -168,38 +167,6 @@ contains
 
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_dirbe
-
-
-    subroutine dumpToHDF_DIRBE(self, chainfile, path)
-      ! 
-      ! Writes instrument-specific TOD parameters to existing chain file
-      ! 
-      ! Arguments:
-      ! ----------
-      ! self:     derived class (comm_tod)
-      !           TOD object
-      ! chainfile: derived type (hdf_file)
-      !           Already open HDF file handle to existing chainfile
-      ! path:   string
-      !           HDF path to current dataset, e.g., "000001/tod/030"
-      !
-      ! Returns
-      ! ----------
-      ! None
-      !
-      implicit none
-      class(comm_dirbe_tod),               intent(in)     :: self
-      type(hdf_file),                      intent(in)     :: chainfile
-      character(len=*),                    intent(in)     :: path
-
-
-      if (self%myid == 0) then
-         if (self%map_solar_allocated == .true.) then
-           call write_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
-         end if
-      end if
-
-    end subroutine dumpToHDF_DIRBE
 
    !**************************************************
    !             Driver routine
@@ -250,9 +217,10 @@ contains
       real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
+
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
@@ -294,26 +262,29 @@ contains
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
       !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      if (trim(self%freq(1:2)) == '10') then
+      if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
-         sample_ncorr = .false.
+         !sample_ncorr = .false.
       else
          sample_ncorr = .false.
       end if
 
+      if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06') then
+         sample_gain        =  iter > 1
+      else
+         sample_gain = .false.
+      end if
+      
       if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
         & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
         & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-         sample_gain        =  iter > 1
          !                     Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
          flag_threshold     = [1.0,    -20., -5.0,       -3.0, -2.0, -1.5,     1.0,      -0.30,     1.0]
       else
-         sample_gain        =  iter > 1
          !                     Pixhist    Extreme            RMS ranges     Single     Ranges   Pointing
          flag_threshold     = [1.0,    -50., -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
          !flag_threshold     = [-1.0, -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
       end if
-      sample_gain = .false.
 
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -332,42 +303,24 @@ contains
       prefix_atlas = trim(chaindir) // '/atlas_' // trim(self%freq) // '_' // trim(zodi_param_text) // '_' // trim(up_down_text) // '_'
       postfix_atlas = '.fits'
 
-      ! Distribute maps
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-      if (self%sample_zodi .and. self%subtract_zodi) then
-         allocate(procmask_zodi(0:npix-1))
-         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
-      end if
-      deallocate(m_buf)
-
-      call update_status(status, "tod_init")
-
-      ! Write mask for debugging
-      if (.false. .and. self%myid == 0) then
-         print *, "writing masks"
-         call open_hdf_file(trim(chaindir)//'/mask.h5', tod_file, 'w')
-         call write_hdf(tod_file, '/procmask', procmask)
-         call write_hdf(tod_file, '/procmask2', procmask2)
-         call write_hdf(tod_file, '/procmask_zodi', procmask_zodi)
-         call close_hdf_file(tod_file)
-         stop
+      ! Define useful sd operation codes
+      if (sample_ncorr) then
+         oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
+              & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+      else
+         oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
+              & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
       end if
 
+      ! Initialize index-based sky map and mask
+      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain)
 
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
 
       ! Create pixel histograms
-      if (self%first_call) then
-         call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
-      end if
+      if (self%first_call) call compute_tod_pixhist(self)
       
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
@@ -376,7 +329,7 @@ contains
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask2, procmask2, smooth=.true., mask_threshold=0.1d0)
+         call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
       end if
 
       ! Prepare intermediate data structures
@@ -397,36 +350,31 @@ contains
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
          ! Create dynamic mask
          if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                    & sd%mask(:,j), sd%flag(:,j), flag_threshold, s_tot=sd%s_tot(:,j))
+               call self%create_dynamic_mask(sd, j, flag_threshold)
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
          end if
 
          ! Sample correlated noise
          if (sample_ncorr) then
-            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
-           ! Compute noise spectrum parameters
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+            call sample_n_corr(self, sd, handle, nomono=.true.)
+            call sample_noise_psd(self, sd, handle)
          else
-            sd%n_corr = 0.d0
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
          end if
 
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
+            call self%compute_tod_chisq(sd, j)
          end do
 
          ! Select data
@@ -437,8 +385,6 @@ contains
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
-         d_calib = 0.d0
-         !write(*,*) 'a', self%scanid(i), any(sd%s_zodi_scat/=sd%s_zodi_scat), any(sd%s_zodi_therm/=sd%s_zodi_therm)
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
@@ -518,7 +464,7 @@ contains
 
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
-         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+         call sample_bp(self, handle, chisq_S, delta)
          self%bp_delta = delta(:,:,1)
       end if
 
@@ -557,11 +503,6 @@ contains
       call binmap%dealloc()
       if (allocated(slist)) deallocate(slist)
       deallocate(map_sky, procmask, procmask2)
-      !  if (self%correct_sl) then
-      !     do i = 1, self%ndet
-      !        call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
-      !     end do
-      !  end if
 
       ! Parameter to check if this is first time routine has been
       self%first_call = .false.
@@ -570,6 +511,38 @@ contains
       
       call timer%stop(TOD_TOT, self%band)
    end subroutine process_DIRBE_tod   
+
+       subroutine dumpToHDF_DIRBE(self, chainfile, path)
+      ! 
+      ! Writes instrument-specific TOD parameters to existing chain file
+      ! 
+      ! Arguments:
+      ! ----------
+      ! self:     derived class (comm_tod)
+      !           TOD object
+      ! chainfile: derived type (hdf_file)
+      !           Already open HDF file handle to existing chainfile
+      ! path:   string
+      !           HDF path to current dataset, e.g., "000001/tod/030"
+      !
+      ! Returns
+      ! ----------
+      ! None
+      !
+      implicit none
+      class(comm_dirbe_tod),               intent(in)     :: self
+      type(hdf_file),                      intent(in)     :: chainfile
+      character(len=*),                    intent(in)     :: path
+
+
+      if (self%myid == 0) then
+         if (self%map_solar_allocated == .true.) then
+           call write_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
+         end if
+      end if
+
+    end subroutine dumpToHDF_DIRBE
+
 
 
 end module comm_tod_DIRBE_mod

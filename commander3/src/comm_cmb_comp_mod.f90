@@ -57,8 +57,10 @@ contains
     ! General parameters
     allocate(c)
     c%npar         = 0
-    call c%initDiffuse(cpar, id, id_abs)
+    allocate(c%poltype(1))
+    c%poltype  = 1
     call c%initLmaxSpecind(cpar, id, id_abs)
+    call c%initDiffuse(cpar, id, id_abs)
 
 
     ! Precompute mixmat integrator for each band
