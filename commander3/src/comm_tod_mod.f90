@@ -1218,10 +1218,10 @@ contains
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
     ! HKE: Hack to make HFI zodi run. Must be removed after HFI files are fixed:
-    self%t0(1) = scan/24.
-    self%t1(1) = (scan+0.99999)/24.
-    self%x1_obs = self%x0_obs
-    self%x1_earth = self%x0_earth
+    !self%t0(1) = scan/24.
+    !self%t1(1) = (scan+0.99999)/24.
+    !self%x1_obs = self%x0_obs
+    !self%x1_earth = self%x0_earth
     !write(*,*) "scan", scan, self%t0(1), self%t1(1)
 
     
@@ -3188,7 +3188,7 @@ contains
       class(comm_tod),   intent(inout) :: self
       type(comm_params),       intent(in) :: cpar
 
-      integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres
+      integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres, n_good, n
       real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
       real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
       real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
@@ -3263,13 +3263,28 @@ contains
          x_earth(:, i + 1) = x1_earth_packed(:, j)
       end do
 
-      do i = 2, size(time)
+      ! Remove duplicates
+      n = size(time)
+      i = 2
+      do while (i <= n)
+         if (time(i) <= time(i-1)) then
+            time(i:n-1)      = time(i+1:n)
+            x_obs(:,i:n-1)   = x_obs(:,i+1:n)
+            x_earth(:,i:n-1) = x_earth(:,i+1:n)
+            n                = n-1
+         else
+            i = i+1
+         end if
+      end do
+      
+      
+      do i = 2, n
          if (.not. time(i) > time(i - 1)) stop "precomputed MJD time array must be strictly increasing"
       end do
 
       do i = 1, 3
-         call spline_simple(self%x_obs_spline(i), time, x_obs(i, :))
-         call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
+         call spline_simple(self%x_obs_spline(i), time(1:n), x_obs(i, 1:n))
+         call spline_simple(self%x_earth_spline(i), time(1:n), x_earth(i, 1:n))
       end do
 
       !allocate spectral quantities
