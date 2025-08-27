@@ -285,6 +285,14 @@ program commander
      ! Skip other steps if TOD simulations
      if (cpar%enable_tod_simulations) exit
 
+
+     ! Sample stationary components
+     !if (first_zodi) then
+        if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
+        if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
+        if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+     !end if
+
      ! Sample zodi parameters
      if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
@@ -307,12 +315,6 @@ program commander
            end select
         end do
         
-        ! Sample stationary components
-        !if (first_zodi) then
-           if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-           if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-           if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
-        !end if
       
       call timer%stop(TOT_ZODI_SAMP)
    end if
