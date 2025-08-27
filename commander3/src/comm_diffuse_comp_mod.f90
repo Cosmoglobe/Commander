@@ -36,7 +36,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
-     logical(lgt)       :: output_localsamp_maps
+     logical(lgt)       :: output_localsamp_maps, apply_dust_ext
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 

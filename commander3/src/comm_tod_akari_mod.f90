@@ -32,6 +32,7 @@ module comm_tod_akari_mod
    !
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
+  use comm_tod_mapmaking_mod
    implicit none
 
    private
@@ -128,7 +129,7 @@ interface
       real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
    end subroutine process_akari_tod   
 
 end interface
