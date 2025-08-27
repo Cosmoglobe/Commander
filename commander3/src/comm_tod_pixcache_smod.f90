@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_mod) comm_tod_pixcache_mod
+submodule (comm_tod_mod) comm_tod_pixcache_smod
 contains
 
   module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
@@ -302,4 +302,4 @@ contains
     
   end subroutine init_map_mask
   
-end submodule comm_tod_pixcache_mod
+end submodule comm_tod_pixcache_smod
