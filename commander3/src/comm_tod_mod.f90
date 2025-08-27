@@ -1218,10 +1218,6 @@ contains
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
     ! HKE: Hack to make HFI zodi run. Must be removed after HFI files are fixed:
-    !self%t0(1) = scan/24.
-    !self%t1(1) = (scan+0.99999)/24.
-    !self%x1_obs = self%x0_obs
-    !self%x1_earth = self%x0_earth
     !write(*,*) "scan", scan, self%t0(1), self%t1(1)
 
     
