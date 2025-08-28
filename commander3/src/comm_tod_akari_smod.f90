@@ -364,11 +364,10 @@ contains
          ! end if
 
          ! Compute chisquare
-!!$         do j = 1, sd%ndet
-!!$            if (.not. self%scans(i)%d(j)%accept) cycle
-!!$            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-!!$              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
-!!$         end do
+         do j = 1, sd%ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            call self%compute_tod_chisq(sd, j)
+         end do
 
          ! Select data
 !!$         if (select_data) call remove_bad_data(self, i, sd%flag)

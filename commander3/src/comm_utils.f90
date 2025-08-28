@@ -956,8 +956,8 @@ contains
     else
        call add_card(header)
        do i = 2, nmaps
-         ! Will crash for nmaps > 99
-         write(headernum, '(I2.2)') i
+         ! Will crash for nmaps > 9
+         write(headernum, '(I1.1)') i
          call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype")
          call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
        end do
