@@ -336,6 +336,7 @@ module comm_tod_mod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
      procedure                           :: apply_nonlin_corr_inst
+     procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
@@ -2231,7 +2232,20 @@ contains
     type(planck_rng),                      intent(inout), optional :: handle
     integer(i4b),                          intent(in),    optional :: det
   end subroutine apply_nonlin_corr_inst
-  
+
+  subroutine apply_fast_flags_inst(self, sd)
+    !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+    !  Expensive operations should instead be added to the dynamic mask
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(inout)    :: self
+    class(comm_scandata),                  intent(inout)    :: sd
+  end subroutine apply_fast_flags_inst
+
   
   subroutine construct_orbital_dipole(self, sd, det, factor)
     ! construct a CMB orbital dipole template in the time domain 

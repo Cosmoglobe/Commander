@@ -505,4 +505,33 @@ contains
    end subroutine process_akari_tod   
 
 
+   module subroutine apply_fast_flags_akari(self, sd)
+     !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+     !  Expensive operations should instead be added to the dynamic mask
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     implicit none
+     class(comm_akari_tod),                 intent(inout)    :: self
+     class(comm_scandata),                  intent(inout)    :: sd
+
+     ! Exclude a sample by setting bit 29 in sd%flag to 1,
+     ! ie., sd%flag = sd%flag + 536870912
+
+     ! Nils and Katrine -- Add all fast flagging operations here (like getting rid of the 2 second ramp reset etc.)
+     ! If things need to be precomputed, and require more expensive analyses, it's better to add it to the dynamic mask,
+     ! which is only computed once. However, that's stored in an (nmask,2) array format, giving the samples of the start and
+     ! end of a rejected TOD segment. We clearly do not want the 2 second thing in there, as it would require a lot of memory
+     ! just to store it. So, use this routine for things like the 2 second mask, which may be computed quickly on the fly,
+     ! but the dynamic mask for things that are expensive.
+     !
+     ! Also note that the actual flag array should not change from Gibbs sample to Gibbs sample (at least not after some burn-in), and
+     ! so the flags in this array must be deterministic between iterations
+     
+   end subroutine apply_fast_flags_akari
+
+   
+
 end submodule comm_tod_akari_smod

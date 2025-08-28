@@ -112,6 +112,7 @@ contains
     if (btest(oper,SD_BASE)) then
        call tod%decompress_pointing(sd, det)
        call tod%decompress_flags(sd, det)
+       call tod%apply_fast_flags_inst(sd)
        if (sd%ndet > 1 .and. tod%symm_flags) call tod%symmetrize_flags(sd%flag)
     end if
        
