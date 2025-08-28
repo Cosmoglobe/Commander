@@ -26,7 +26,7 @@ def etfunction(channel, adds_per_group, samprate):
     tau = [0.00647, 0.03619, 0.00722, 0.04022]  # RH, RL, LH, LL treble boost
 
     dfhz = samprate / adds_per_group / g.IFG_SIZE
-    zxfer = np.zeros(g.SPEC_SIZE, dtype=complex)
+    zxfer = np.zeros((adds_per_group.shape[0], g.SPEC_SIZE), dtype=complex)
     for k in range(g.SPEC_SIZE):
         freqhz = k * dfhz
 
@@ -39,7 +39,7 @@ def etfunction(channel, adds_per_group, samprate):
         zdcblock = _dcblock(freqhz)
         zanalog = zbesl * ztboost * zdcblock
 
-        zxfer[k] = dcgain * zanalog * zdigital
+        zxfer[:, k] = dcgain * zanalog * zdigital
 
     ztrans = -zxfer
     return ztrans
@@ -65,9 +65,9 @@ def _digfltr(freqhz, ichan, samplrate):
 
 def _compress(fhz, ncompress, samplrate):
     pif = np.pi * fhz / samplrate
-    zsmooth = 1.0
-    if pif < 0.001:
-        return zsmooth
+    zsmooth = np.ones_like(fhz)
+    # if pif < 0.001: # this was just giving an earlier way out but now i want it to return something the size of the input
+    #     return zsmooth
     ampl = np.sin(pif * ncompress) / np.sin(pif)
     zphase = pif * (1 - ncompress) * 1j
     zsmooth = ampl / ncompress * np.exp(zphase)
