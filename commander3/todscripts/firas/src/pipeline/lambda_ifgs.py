@@ -1,13 +1,12 @@
 import os
 import sys
 
-import numpy as np
-from astropy.io import fits
-
 import globals as g
+import numpy as np
 import utils.my_utils as utils
-from utils.config import gen_nyquistl
+from astropy.io import fits
 from pipeline import ifg_spec
+from utils.config import gen_nyquistl
 
 data_path = "/mn/stornext/d16/cmbco/ola/firas/coadded_interferograms/"
 
@@ -121,7 +120,7 @@ spec = {}
 for channel, channel_value in channels.items():
     for mode in modes.keys():
         if not (mode == "lf" and channel in ["rh", "lh"]):
-            afreq, spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
+            spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=ifg[f"{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
@@ -130,16 +129,7 @@ for channel, channel_value in channels.items():
                 bol_volt=bol_volt[f"{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
-                Jo=Jo[f"{channel}_{mode}"],
-                Jg=Jg[f"{channel}_{mode}"],
                 Tbol=Tbol[f"{channel}_{mode}"],
-                rho=rho[f"{channel}_{mode}"],
-                R0=R0[f"{channel}_{mode}"],
-                T0=T0[f"{channel}_{mode}"],
-                beta=beta[f"{channel}_{mode}"],
-                G1=G1[f"{channel}_{mode}"],
-                C3=C3[f"{channel}_{mode}"],
-                C1=C1[f"{channel}_{mode}"],
                 gain=1,
                 sweeps=1,
                 apod=apod[f"{channel}_{mode}"],

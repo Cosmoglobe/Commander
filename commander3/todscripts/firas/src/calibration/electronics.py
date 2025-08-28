@@ -1,10 +1,11 @@
-import numpy as np
 import globals as g
 import matplotlib.pyplot as plt
+import numpy as np
 from astropy.io import fits
+from utils import frd, fut
 
 
-def etfunction(channel, adds_per_group, samprate):
+def etfunction(channel, adds_per_group, samprate, nui=None):
     """
     This function is adapted from Nathan Miller's python FIRAS pipeline in order to generate the corresponding electronics transfer function, according to:
 
@@ -18,6 +19,46 @@ def etfunction(channel, adds_per_group, samprate):
     if isinstance(channel, str):
         channel = g.CHANNELS[channel]
 
+    dfhz = samprate / adds_per_group / g.IFG_SIZE
+    # dfhz = samprate / adds_per_group / 640 # how to get exactly the same as theirs
+
+    if nui is None:
+        ampmax = -1
+        ztrans = np.zeros((adds_per_group.shape[0], g.SPEC_SIZE), dtype=complex)
+        for k in range(g.SPEC_SIZE):
+            freqhz = k * dfhz
+
+            zxfer = compute_etf_per_freq(freqhz, channel, samprate, adds_per_group)
+
+            ampl = np.sqrt(np.abs(zxfer) ** 2)
+            ampmax = max(ampl, ampmax)
+
+            if ampl < ampmax / 1000.0:
+                ztrans[:, k] = 100000.0
+            else:
+                ztrans[:, k] = -zxfer
+    else:
+        freqhz = nui * dfhz
+
+        zxfer = compute_etf_per_freq(freqhz, channel, samprate, adds_per_group)
+
+        ampmax = -1
+        ampl = np.sqrt(np.abs(zxfer) ** 2)
+        ampmax = max(ampl, ampmax)
+
+        if ampl < ampmax / 1000.0:
+            ztrans = 100000.0
+        else:
+            ztrans = -zxfer
+
+    return ztrans
+
+
+def compute_etf_per_freq(freqhz, channel, samprate, adds_per_group):
+    zdigfil = _digfltr(freqhz, channel, samprate)
+    zsmooth = _compress(freqhz, adds_per_group, samprate)
+    zdigital = zdigfil * zsmooth
+
     fixed_gain = 31.0 * 1.3823  # Preamp fixed gain
     bessel_gain = 1.2255 * 1.9099  # Bessel DC gain
     dcgain = bessel_gain * fixed_gain
@@ -25,24 +66,12 @@ def etfunction(channel, adds_per_group, samprate):
     bes3db = 100.0  # Bessel corner freq
     tau = [0.00647, 0.03619, 0.00722, 0.04022]  # RH, RL, LH, LL treble boost
 
-    dfhz = samprate / adds_per_group / g.IFG_SIZE
-    zxfer = np.zeros((adds_per_group.shape[0], g.SPEC_SIZE), dtype=complex)
-    for k in range(g.SPEC_SIZE):
-        freqhz = k * dfhz
+    zbesl = _bessel(freqhz, bes3db)
+    ztboost = _tboost(freqhz, tau[channel])
+    zdcblock = _dcblock(freqhz)
+    zanalog = zbesl * ztboost * zdcblock
 
-        zdigfil = _digfltr(freqhz, channel, samprate)
-        zsmooth = _compress(freqhz, adds_per_group, samprate)
-        zdigital = zdigfil * zsmooth
-
-        zbesl = _bessel(freqhz, bes3db)
-        ztboost = _tboost(freqhz, tau[channel])
-        zdcblock = _dcblock(freqhz)
-        zanalog = zbesl * ztboost * zdcblock
-
-        zxfer[:, k] = dcgain * zanalog * zdigital
-
-    ztrans = -zxfer
-    return ztrans
+    return dcgain * zanalog * zdigital
 
 
 def _digfltr(freqhz, ichan, samplrate):
@@ -66,8 +95,8 @@ def _digfltr(freqhz, ichan, samplrate):
 def _compress(fhz, ncompress, samplrate):
     pif = np.pi * fhz / samplrate
     zsmooth = np.ones_like(fhz)
-    # if pif < 0.001: # this was just giving an earlier way out but now i want it to return something the size of the input
-    #     return zsmooth
+    if np.all(pif < 0.001):
+        return zsmooth
     ampl = np.sin(pif * ncompress) / np.sin(pif)
     zphase = pif * (1 - ncompress) * 1j
     zsmooth = ampl / ncompress * np.exp(zphase)
@@ -108,7 +137,7 @@ if __name__ == "__main__":
     adds_per_group = 3  # random
     samprate = 681.43  # from fex_samprate
 
-    etf = etfunction(channel, adds_per_group, samprate)
+    etf = etfunction(channel, np.array([adds_per_group]), samprate)[0]
     print(etf)
     plt.plot(etf.real)
     plt.plot(etf.imag)
@@ -120,14 +149,21 @@ if __name__ == "__main__":
     print(fits_etf)
 
     plt.plot(
-        # np.arange(7, 7 + fits_etf.real.size),
+        np.arange(5, 5 + fits_etf.real.size),
         fits_etf.real,
         color="black",
     )
     plt.plot(
-        # np.arange(7, 7 + fits_etf.imag.size),
+        np.arange(5, 5 + fits_etf.imag.size),
         fits_etf.imag,
         color="black",
         linestyle="--",
     )
+
+    # compare with etf from pipeline
+    etfs = frd.elex_transfcnl(samprate=681.43, nfreq=257)
+    erecno = fut.get_recnum(0, channel, adds_per_group).astype(np.int32)
+    plt.plot(etfs[erecno, :].real, color="red")
+    plt.plot(etfs[erecno, :].imag, color="red", linestyle="--")
+
     plt.show()

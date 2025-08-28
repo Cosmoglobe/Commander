@@ -6,16 +6,15 @@ import os
 import sys
 from datetime import datetime
 
+import globals as g
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-
-import globals as g
-from utils import my_utils as utils
-from utils.config import gen_nyquistl
 from data import flagging
 from pipeline import ifg_spec
+from utils import my_utils as utils
+from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
@@ -346,7 +345,7 @@ for channel, channel_value in channels.items():
             axes[0].plot(variablesm[f"ifg_{channel}_{mode}"][n])
 
             print(f"IFG to spec of {channel}_{mode}")
-            f, spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
+            spec[f"{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
@@ -356,17 +355,7 @@ for channel, channel_value in channels.items():
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec[f"{channel}_{mode}"]],
                 otf=otf[f"{channel}_{mode}"],
-                Jo=Jo[f"{channel}_{mode}"],
-                Jg=Jg[f"{channel}_{mode}"],
-                # Tbol=Tbol[f"{channel}_{mode}"],
                 Tbol=variablesm[f"bolometer_{channel}_{mode}"],
-                rho=rho[f"{channel}_{mode}"],
-                R0=R0[f"{channel}_{mode}"],
-                T0=T0[f"{channel}_{mode}"],
-                beta=beta[f"{channel}_{mode}"],
-                G1=G1[f"{channel}_{mode}"],
-                C3=C3[f"{channel}_{mode}"],
-                C1=C1[f"{channel}_{mode}"],
                 gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod[f"{channel}_{mode}"],

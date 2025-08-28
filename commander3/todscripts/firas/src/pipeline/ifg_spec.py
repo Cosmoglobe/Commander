@@ -1,6 +1,5 @@
-import numpy as np
-
 import globals as g
+import numpy as np
 from calibration import bolometer
 from utils import frd, fut
 from utils import my_utils as utils
@@ -70,16 +69,7 @@ def ifg_to_spec(
     bol_volt,
     fnyq_icm,
     otf,
-    Jo,
-    Jg,
     Tbol,
-    rho,
-    R0,
-    T0,
-    beta,
-    G1,
-    C3,
-    C1,
     apod,
     gain=1,
     sweeps=1,
@@ -148,37 +138,42 @@ def ifg_to_spec(
     spec = spec / etf
     spec = spec / spec_norm
 
-    afreq = utils.get_afreq(mtm_speed, utils.channels[channel], 257)
+    # afreq = utils.get_afreq(mtm_speed, utils.channels[channel], 257)
 
-    S0 = bolometer.calculate_dc_response(
-        bol_cmd_bias=bol_cmd_bias,
-        bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
-        Tbol=Tbol,
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
+    # S0 = bolometer.calculate_dc_response(
+    #     bol_cmd_bias=bol_cmd_bias,
+    #     bol_volt=bol_volt,
+    #     Jo=Jo,
+    #     Jg=Jg,
+    #     Tbol=Tbol,
+    #     rho=rho,
+    #     R0=R0,
+    #     T0=T0,
+    #     beta=beta,
+    #     G1=G1,
+    # )
+
+    # tau = bolometer.calculate_time_constant(
+    #     C3=C3,
+    #     Tbol=Tbol,
+    #     C1=C1,
+    #     G1=G1,
+    #     beta=beta,
+    #     bol_volt=bol_volt,
+    #     Jo=Jo,
+    #     Jg=Jg,
+    #     bol_cmd_bias=bol_cmd_bias,
+    #     rho=rho,
+    #     T0=T0,
+    # )
+
+    # B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
+    # spec = spec / S0[:, np.newaxis] * B
+
+    B = bolometer.get_bolometer_response_function(
+        channel, mode, bol_cmd_bias, bol_volt, Tbol
     )
-
-    tau = bolometer.calculate_time_constant(
-        C3=C3,
-        Tbol=Tbol,
-        C1=C1,
-        G1=G1,
-        beta=beta,
-        bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
-        bol_cmd_bias=bol_cmd_bias,
-        rho=rho,
-        T0=T0,
-    )
-
-    B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-    spec = spec / S0[:, np.newaxis] * B
+    spec = spec / B
 
     if mtm_speed == 0:
         cutoff = 5
@@ -191,7 +186,7 @@ def ifg_to_spec(
 
     spec = spec * g.FAC_ERG_TO_MJY
 
-    return afreq, spec
+    return spec
 
 
 def spec_to_ifg(

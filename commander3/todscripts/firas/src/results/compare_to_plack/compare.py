@@ -1,6 +1,7 @@
 """
 Script to compare the current FIRAS maps to the Planck official maps in the corresponding frequencies.
 """
+
 import os
 import sys
 
@@ -27,7 +28,7 @@ for i, band in enumerate(bands):
     # if int(band) > 639:
     #     firas_path = "maps/frequency_maps/rh_ss/galactic/"
     planck_filename = "planck_" + band + "_smoothed.fits"
-    firas_filename = f"{firas_bands[i]}_offset0.5_nside32.fits"
+    firas_filename = f"{firas_bands[i]}_nside32.fits"
 
     planck_map = fits.open(path + planck_path + planck_filename)[0].data
     firas_map = fits.open(path + firas_path + firas_filename)[0].data
@@ -37,6 +38,14 @@ for i, band in enumerate(bands):
         print(firas_filename + " is None")
         continue
     diff = planck_map - firas_map
-    hp.mollview(diff, title="Planck - FIRAS " + band + " GHz", nest=False, xsize=2000, min=-20, max=20)
+    hp.mollview(
+        diff,
+        title="Planck - FIRAS " + band + " GHz",
+        nest=False,
+        xsize=2000,
+        min=-20,
+        max=20,
+        cmap="RdBu_r",
+    )
     hp.graticule()
     plt.savefig(save_path + band + ".png")

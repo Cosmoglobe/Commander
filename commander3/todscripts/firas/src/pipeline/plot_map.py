@@ -140,7 +140,7 @@ for channel in g.CHANNELS_PLOT:
                     )
                     plt.close()
                 if g.FITS:
-                    fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_nside{g.NSIDE}.fits", m[:, freq], overwrite=True)
+                    fits.writeto(f"{fits_path}maps/frequency_maps/{channel}_{mode}/galactic/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_nside{g.NSIDE}.fits", m[:, freq], overwrite=True)
 
             if g.SCANUPDOWN:
                 print("Plotting up/down scan map")

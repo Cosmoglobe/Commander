@@ -5,67 +5,44 @@ where Y is the Fourier transformed interferogram and R is defined by
 R = 1/OTF * sum over all emitters i (excluding XCAL) of E_i * P(T_i).
 """
 
-import h5py
-import numpy as np
+import time
 
 import globals as g
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
 from calibration import bolometer, electronics
+from scipy.optimize import dual_annealing, minimize, newton
 from utils import my_utils as utils
-from scipy.optimize import minimize
-import time
 
 
 def D(Ei, nui):
-    ifg = data[f"ifg_{channel}"][:]
     Y = np.fft.rfft(ifg, axis=1)
     Y = Y[:, nui]
 
-    bol_cmd_bias = data[f"bol_cmd_bias_{channel}"][:]
-    bol_volt = data[f"bol_volt_{channel}"][:]
-
-    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = bolometer.get_bolometer_parameters(
-        channel, mode
-    )
-
-    # bolometer response function
-    S0 = bolometer.calculate_dc_response(
-        bol_cmd_bias=bol_cmd_bias / 25.5,
-        bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
+    B = bolometer.get_bolometer_response_function(
+        channel,
+        mode,
+        bol_cmd_bias / 25.5,
+        bol_volt,
         Tbol=temps[9],  # TODO: generalize for other channels
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
     )
-
-    tau = bolometer.calculate_time_constant(
-        C3=C3,
-        Tbol=temps[9],  # TODO: generalize for other channels
-        C1=C1,
-        G1=G1,
-        beta=beta,
-        bol_volt=bol_volt,
-        Jo=Jo,
-        Jg=Jg,
-        bol_cmd_bias=bol_cmd_bias / 25.5,
-        rho=rho,
-        T0=T0,
-    )
-
-    omega = utils.get_afreq(0 if mode[1] == "s" else 1, channel, 257)
-
-    B = S0[:, np.newaxis] / (1 + 1j * omega[np.newaxis, :] * tau[:, np.newaxis])
     B = B[:, nui]
 
     # electronics transfer function
     samprate = 681.43  # from fex_samprate
-    Z = electronics.etfunction(channel, adds_per_group, samprate)[:, nui]
+    Z = electronics.etfunction(channel, adds_per_group, samprate, nui)
+    # plt.plot(Z.real)
+    # plt.plot(Z.imag)
+    # plt.show()
 
     H = Ei[0]
 
+    # print(f"Y: {Y}")
+    # print(f"H: {H}")
+    print(f"Z: {Z[Z == 0]}")
+    print(f"Z: {Z.shape}")
+    # print(f"B: {B}")
     return Y / H / Z / B
 
 
@@ -99,8 +76,30 @@ def full_function(Ei, nui):
     return np.sum(result**2)
 
 
+# def real_to_complex(z):
+#     """
+#     Real vector of length 2n -> complex of length n.
+#     Taken from https://stackoverflow.com/questions/51211055/can-scipy-optimize-minimize-functions-of-complex-variables-at-all-and-how.
+#     """
+#     return z[: len(z) // 2] + 1j * z[len(z) // 2 :]
+
+
+# def complex_to_real(z):
+#     """
+#     Complex vector of length n -> real of length 2n
+#     Taken from https://stackoverflow.com/questions/51211055/can-scipy-optimize-minimize-functions-of-complex-variables-at-all-and-how.
+#     """
+#     return np.concatenate((np.real(z), np.imag(z)))
+
+
 if __name__ == "__main__":
     data = h5py.File(g.PREPROCESSED_DATA_PATH_CAL, "r")["df_data"]
+
+    # TODO: generalize
+    channel = "ll"
+    mode = "ss"
+
+    ifg = data[f"ifg_{channel}"][:]
 
     # TODO: fit for temp weight coefficients too
     xcal = (data["a_xcal"][:] + data["b_xcal"][:]) / 2
@@ -113,6 +112,30 @@ if __name__ == "__main__":
     bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
     bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
     bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
+
+    adds_per_group = data["adds_per_group"][:]
+    sweeps = data["sweeps"][:]
+
+    bol_cmd_bias = data[f"bol_cmd_bias_{channel}"][:]
+    bol_volt = data[f"bol_volt_{channel}"][:]
+
+    # we don't want the records where the bol_cmd_bias is lower than 0
+    valid = bol_cmd_bias > 0
+    ifg = ifg[valid]
+    xcal = xcal[valid]
+    ical = ical[valid]
+    dihedral = dihedral[valid]
+    refhorn = refhorn[valid]
+    skyhorn = skyhorn[valid]
+    collimator = collimator[valid]
+    bolometer_rh = bolometer_rh[valid]
+    bolometer_rl = bolometer_rl[valid]
+    bolometer_lh = bolometer_lh[valid]
+    bolometer_ll = bolometer_ll[valid]
+    adds_per_group = adds_per_group[valid]
+    sweeps = sweeps[valid]
+    bol_cmd_bias = bol_cmd_bias[valid]
+    bol_volt = bol_volt[valid]
 
     temps = [
         xcal,
@@ -127,27 +150,28 @@ if __name__ == "__main__":
         bolometer_ll,
     ]
 
-    adds_per_group = data["adds_per_group"][:]
-    sweeps = data["sweeps"][:]
-
-    # TODO: generalize
-    channel = "ll"
-    mode = "ss"
-
     frequencies = utils.generate_frequencies(channel, mode, 257)
 
     solution = np.zeros((g.SPEC_SIZE, 10), dtype=complex)  # 10 emissivities to fit
     start0 = time.time()
-    for nui in range(g.SPEC_SIZE):
+    for nui in range(0, g.SPEC_SIZE):
         print(f"Fitting frequency {nui+1}/{g.SPEC_SIZE}...")
 
         start = time.time()
-        Ei = np.zeros(
+        Ei = np.ones(
             10, dtype=complex
         )  # First guess for the emissivities of all emitters
-        solution[nui] = minimize(full_function, Ei, args=(nui,)).x
+        # solution[nui] = minimize(full_function, Ei, args=(nui,)).x
+        # solution[nui] = minimize(
+        #     lambda z, nui: full_function(real_to_complex(z), nui),
+        #     x0=complex_to_real(Ei),
+        #     args=(nui,),
+        # ).x
+        solution[nui] = newton(full_function, Ei, args=(nui,))
+        # solution[nui] = dual_annealing(full_function, bounds=[(0, 2)] * 10, args=(nui,))
+        print(f"Solution is {solution[nui]}")
         print(f"Time taken: {time.time() - start:.2f} seconds")
 
     print(f"Total time taken: {time.time() - start0:.2f} seconds")
     # save solution
-    np.save("fitted_emissivities.npy", solution)
+    # np.save("fitted_emissivities.npy", real_to_complex(solution))

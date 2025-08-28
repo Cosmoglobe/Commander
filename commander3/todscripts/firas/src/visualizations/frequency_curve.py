@@ -5,11 +5,10 @@ This script is meant to plot a curve of the intensity of the galaxy and outside 
 import os
 import sys
 
+import globals as g
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-
-import globals as g
 import utils.my_utils as utils
 
 data = np.load(g.PROCESSED_DATA_PATH)
@@ -73,7 +72,11 @@ for channel in channels.keys():
             high_lat_mask = high_lat_mask | mask
             low_lat_mask = low_lat_mask | mask
 
-            m = hpxmap / data_density[:, np.newaxis]  # divide by data density
+            m = np.zeros_like(hpxmap)
+            m[~mask] = (
+                hpxmap[~mask] / data_density[~mask][:, np.newaxis]
+            )  # divide by data density
+            m[mask] = np.nan
 
             high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
             low_lat_map = np.where(low_lat_mask[:, np.newaxis] == 1, np.nan, m)
@@ -188,4 +191,4 @@ for channel in channels.keys():
                 plt.savefig(
                     f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/low_lat/{int(f_ghz[freqi]):04d}.png"
                 )
-                plt.clf()
+                plt.close(fig)

@@ -1,15 +1,14 @@
 import os
 import sys
 
+import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-
-import globals as g
 from calibration import bolometer
+from pipeline import ifg_spec
 from simulations.main import generate_ifg
 from utils.config import gen_nyquistl
-from pipeline import ifg_spec
 
 # get temperatures
 data = np.load(g.PROCESSED_DATA_PATH_CAL)
@@ -111,7 +110,7 @@ for mode in modes:
                 channel, mode
             )
 
-            _, processed_spectra = ifg_spec.ifg_to_spec(
+            processed_spectra = ifg_spec.ifg_to_spec(
                 original_ifgs,
                 channel=channel,
                 mode=mode,
@@ -122,15 +121,6 @@ for mode in modes:
                 gain=gain,
                 fnyq_icm=fnyq["icm"][frec],
                 otf=otf,
-                Jo=Jo,
-                Jg=Jg,
-                T0=T0,
-                R0=R0,
-                G1=G1,
-                C1=C1,
-                C3=C3,
-                beta=beta,
-                rho=rho,
                 Tbol=temps[f"bolometer_{channel}"],
                 apod=apod,
             )

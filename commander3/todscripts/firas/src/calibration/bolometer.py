@@ -1,7 +1,7 @@
+import globals as g
 import numpy as np
 from astropy.io import fits
-
-import globals as g
+from utils import my_utils as utils
 
 
 def get_bolometer_parameters(channel, mode):
@@ -41,7 +41,8 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Tbol, R0, T0, G1, beta, rho, J
     X = V * rho
     Y = R / R0 / X
 
-    SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
+    mult = Y * Tbol * np.sinh(X / Tbol)
+    SQ = np.log(mult)
     Tbol = T0 / SQ**2
 
     SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
@@ -84,3 +85,40 @@ def calculate_time_constant(
     tau = C / G * (Z + 1.0) * (R * H + RL) / ((Z * R + RL) * (H + 1.0))
 
     return tau
+
+
+def get_bolometer_response_function(channel, mode, bol_cmd_bias, bol_volt, Tbol):
+    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = get_bolometer_parameters(channel, mode)
+
+    # bolometer response function
+    S0 = calculate_dc_response(
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        Tbol=Tbol,
+        R0=R0,
+        T0=T0,
+        G1=G1,
+        beta=beta,
+        rho=rho,
+        Jo=Jo,
+        Jg=Jg,
+    )
+
+    tau = calculate_time_constant(
+        C3=C3,
+        Tbol=Tbol,
+        C1=C1,
+        G1=G1,
+        beta=beta,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        bol_cmd_bias=bol_cmd_bias,
+        rho=rho,
+        T0=T0,
+    )
+
+    omega = utils.get_afreq(0 if mode[1] == "s" else 1, channel, 257)
+
+    B = S0[:, np.newaxis] / (1 + 1j * omega[np.newaxis, :] * tau[:, np.newaxis])
+    return B

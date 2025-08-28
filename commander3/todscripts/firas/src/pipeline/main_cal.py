@@ -4,16 +4,15 @@ This script takes the interferograms into spectra.
 
 from datetime import datetime
 
+import globals as g
 import h5py
 import numpy as np
-from astropy.io import fits
-
-import globals as g
 import utils.my_utils as utils
-from utils.config import gen_nyquistl
+from astropy.io import fits
+from calibration import bolometer
 from data import flagging
 from pipeline import ifg_spec
-from calibration import bolometer
+from utils.config import gen_nyquistl
 
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
@@ -190,7 +189,7 @@ for mode, mode_value in modes.items():
             print(
                 f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}"
             )
-            _, spec[f"spec_{channel}_{mode}"] = ifg_spec.ifg_to_spec(
+            spec[f"spec_{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
@@ -200,16 +199,7 @@ for mode, mode_value in modes.items():
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec],
                 otf=otf,
-                Jo=Jo,
-                Jg=Jg,
                 Tbol=variablesm[f"bolometer_{channel}_{mode}"],
-                rho=rho,
-                R0=R0,
-                T0=T0,
-                beta=beta,
-                G1=G1,
-                C3=C3,
-                C1=C1,
                 gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod,

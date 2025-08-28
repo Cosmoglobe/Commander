@@ -4,18 +4,16 @@ This script takes the interferograms into spectra.
 
 from datetime import datetime
 
+import globals as g
 import h5py
 import healpy as hp
 import numpy as np
-from astropy.io import fits
-
-import globals as g
 import utils.my_utils as utils
-from utils.config import gen_nyquistl
-from pipeline import pointing, ifg_spec
-from data import flagging
+from astropy.io import fits
 from calibration import bolometer
-
+from data import flagging
+from pipeline import ifg_spec, pointing
+from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 NSIDE = 32
@@ -226,7 +224,7 @@ for channel, channel_value in channels.items():
                 f"Converting interferograms to spectra for {channel.upper()}{mode.upper()}"
             )
 
-            afreq, spec[f"spec_{channel}_{mode}"] = ifg_spec.ifg_to_spec(
+            spec[f"spec_{channel}_{mode}"] = ifg_spec.ifg_to_spec(
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
@@ -236,16 +234,7 @@ for channel, channel_value in channels.items():
                 bol_volt=variablesm[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec],
                 otf=otf,
-                Jo=Jo,
-                Jg=Jg,
                 Tbol=variablesm[f"bolometer_{channel}_{mode}"],
-                rho=rho,
-                R0=R0,
-                T0=T0,
-                beta=beta,
-                G1=G1,
-                C3=C3,
-                C1=C1,
                 gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{mode}"],
                 apod=apod,
