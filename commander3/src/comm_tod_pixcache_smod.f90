@@ -171,6 +171,9 @@ contains
        else
           ind1 = self%pix2ind(pix1, flag_missing=.false.)
           ind2 = self%pix2ind(pix2, flag_missing=.false.)
+          if (ind1 == -1) ind1 = 1
+          if (self%ind2pix(ind1) < pix1) ind1 = ind1+1
+          if (ind2 == -1) ind2 = self%nobs
        end if
     end if
   end subroutine get_ind_range

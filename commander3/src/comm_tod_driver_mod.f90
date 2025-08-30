@@ -331,7 +331,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: pix
     real(dp),     allocatable, dimension(:) :: mjd
 
-    q = abs(tod%info%nside/nside_pix)**2
+    q = (tod%info%nside/nside_pix)**2
     
     ! Find maximum number of samples
     ntod = 0
@@ -395,6 +395,7 @@ contains
     if (nside_pix /= 0) then
        allocate(dd%pix(dd%ntod))
        dd%pix = pix(1:k)
+       !if (tod%myid == 0 .and. det == 2) write(*,*) 'd', dd%pix(1:5)
        deallocate(pix)
     end if
     

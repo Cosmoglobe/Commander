@@ -148,6 +148,7 @@ contains
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
        call tod%pixcache%get_ind_range(start_chunk, end_chunk, ind1, ind2)
+       !if (self%sA_map%myid_shared == 0) write(*,*) tod%pixcache%ind2pix(1), tod%pixcache%ind2pix(tod%pixcache%nobs), start_chunk, ind1, end_chunk, ind2
 
        call mpi_win_fence(0, self%sA_map%win, ierr)
        call mpi_win_fence(0, self%sb_map%win, ierr)

@@ -50,7 +50,7 @@ contains
        call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd)
        call timer%start(TOD_PIXHIST, tod%band)
        
-!!$       if (tod%myid == 0 .and. det == 1) then
+!!$       if (tod%myid == 0 .and. det == 2) then
 !!$          open(58,file='detdata.dat', recl=1024)
 !!$          do j = 1, dd%ntod
 !!$             write(58,*) j, dd%tod(j), dd%pix(j)
