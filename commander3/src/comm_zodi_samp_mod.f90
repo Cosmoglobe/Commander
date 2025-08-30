@@ -836,15 +836,6 @@ contains
       character(len=512) :: model
       class(comm_scandata), allocatable :: sd
       real(dp),      allocatable, dimension(:)       :: A, b
-      real(sp),      allocatable, dimension(:)       :: s_sky
-      real(sp),      allocatable, dimension(:,:)     :: s_scat, s_therm
-      real(sp),      allocatable, dimension(:)       :: s_zodi
-      real(sp),      allocatable, dimension(:,:,:,:) :: map_sky
-      type(map_ptr), allocatable, dimension(:,:)     :: sky_signal
-      real(sp),      allocatable, dimension(:)       :: tod, mask, procmask
-      real(dp),      allocatable, dimension(:,:)     :: m_buf
-      integer(i4b),  allocatable, dimension(:,:)     :: pix, psi
-      integer(i4b),  allocatable, dimension(:)       :: flag
       character(len=128), dimension(100)             :: active_bands
       logical(lgt), allocatable, dimension(:)        :: active
 
@@ -868,6 +859,7 @@ contains
            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,SD_ZODI])
       
       do band = 1, numband
+         write(*,*) i, trim(data(band)%tod_type), trim(map_id), trim(model), 
          if (trim(data(band)%tod_type) == 'none') cycle
          if (trim(map_id) == 'solar') then
             model = cpar%ds_tod_solar_model(data(band)%tod%band)
@@ -993,7 +985,6 @@ contains
                end do
                call dealloc_scan_data(sd)
             end do
-            deallocate(procmask,map_sky, sky_signal)
          end do
          
          ! Gather information across cores
