@@ -1387,7 +1387,7 @@ contains
     character(len=6)   :: scantext
     character(len=512) :: filename
     type(hdf_file) :: h5_file
-    class(comm_scandata), allocatable :: sd
+    type(comm_scandata) :: sd
     real(dp), allocatable, dimension(:,:)     :: m_buf
  !   real(sp), allocatable, dimension(:)       :: procmask
     real(sp), allocatable, dimension(:,:)     :: tod

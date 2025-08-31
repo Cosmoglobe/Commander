@@ -1229,7 +1229,7 @@ contains
         allocate(self%xarr_moon(3,self%n_interp), self%xarr_obs(3,self%n_interp), self%xarr_earth(3,self%n_interp))
         allocate(self%time_arr(self%n_interp))
         call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
-        !call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
+        call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
         call read_hdf(file, slabel // "/common/earthpos_arr",  self%xarr_obs)
         call read_hdf(file, slabel // "/common/satpos_arr",  self%xarr_earth)
     end if
@@ -2899,7 +2899,9 @@ contains
        alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
        x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)  + alpha * tod%scans(scan)%xarr_obs(:,b+1)    ! Observatory position at time t in heliocentric/Ecliptic coordinates
        x_moon  = (1.d0-alpha) * tod%scans(scan)%xarr_moon(:,b) + alpha * tod%scans(scan)%xarr_moon(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
-       
+
+!!$       write(*,*) tod%scanid(scan), det, 'moon', x_moon
+!!$       write(*,*) tod%scanid(scan), det, 'obs ', x_obs
        x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
        x_obs2moon = matmul(M_ecl2gal, x_obs2moon)         ! Moon position in Galactic coordinates
@@ -2909,6 +2911,7 @@ contains
        call pix2ang_ring(tod%nside, pix(j), theta0, phi0) ! Galactic coordinates
        call compute_euler_matrix_zyz(-psi0, -theta0, -phi0, M)
        vec = matmul(M, x_obs2moon)
+       !write(*,*) tod%scanid(scan), det, j, vec
        call vec2pix_ring(tod%nside, vec, pix_moon(j))
     end do
     

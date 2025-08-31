@@ -434,7 +434,7 @@ end subroutine bin_differential_TOD
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps, oper
       real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi, monopole
-      class(comm_scandata), allocatable :: sd
+      type(comm_scandata) :: sd
 
       nhorn = tod%nhorn
       ndet  = tod%ndet

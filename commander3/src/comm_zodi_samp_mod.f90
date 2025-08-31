@@ -124,14 +124,14 @@ contains
       type(hdf_file) :: tod_file
       character(len=4) :: scan_str
       type(comm_detscan), pointer :: d
-      class(comm_scandata), allocatable :: sd
+      type(comm_scandata) :: sd
 
       if (cpar%myid == cpar%root) print *, "downsampling tod and pointing"
       ! For each zodi band, create downsampled residual time stream
 
       call ecl_to_gal_rot_mat(M_ecl2gal)
 
-      oper = get_sd_operation_code([SD_BASE,SD_IND,SD_TOD])
+      oper = get_sd_operation_code([SD_BASE,SD_IND,SD_TOD,SD_MASK])
       
       do i = 1, numband
          ! Only generate downsampled arrays for tod bands and bands where we have zodi
@@ -179,7 +179,10 @@ contains
                do k = 1, ntod_lowres
                   kp = (k-1)*thin + 1
                   if (nhorn == 1) then
-                     d%downsamp_tod_full(k) = sd%tod(kp,j) - data(i)%tod%scans(scan)%d(j)%gain * sd%s_objctr(kp,j,1)
+                     d%downsamp_tod_full(k) = sd%tod(kp,j) 
+                     if (allocated(sd%s_objctr)) then
+                        d%downsamp_tod_full(k) = d%downsamp_tod_full(k) - data(i)%tod%scans(scan)%d(j)%gain * sd%s_objctr(kp,j,1)
+                     end if
                   else
                      write(*,*) 'Multi-horn zodi fitting not yet implemented'
                      stop
@@ -834,7 +837,7 @@ contains
       integer(i4b) :: band, i, j, k, ndet, scan, nscan, npix, nmaps, p, ierr, ntod, nhorn, npix_band, ncomp, nactive, oper
       real(dp)     :: res, w, vec(3), elon, amp
       character(len=512) :: model
-      class(comm_scandata), allocatable :: sd
+      type(comm_scandata) :: sd
       real(dp),      allocatable, dimension(:)       :: A, b
       character(len=128), dimension(100)             :: active_bands
       logical(lgt), allocatable, dimension(:)        :: active
@@ -856,10 +859,9 @@ contains
       nmaps = 1
 
       oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-           & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+           & SD_SKY,SD_INST,SD_ZODI,SD_SPUR])
       
       do band = 1, numband
-         write(*,*) i, trim(data(band)%tod_type), trim(map_id), trim(model), 
          if (trim(data(band)%tod_type) == 'none') cycle
          if (trim(map_id) == 'solar') then
             model = cpar%ds_tod_solar_model(data(band)%tod%band)
@@ -939,7 +941,7 @@ contains
                
                do j = 1, ndet
                   if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-                  
+
                   ! Get data and pointing
 !!$                  allocate(pix(ntod, nhorn), psi(ntod, nhorn), flag(ntod), tod(ntod), mask(ntod))
 !!$                  if (data(i)%tod%compressed_tod) then
@@ -978,7 +980,7 @@ contains
 
                      !call pix2vec_ring(data(i)%tod%nside, p, vec)
                      !elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
-                     res      = sd%tod(k,j) / data(i)%tod%scans(scan)%d(j)%gain - sd%s_tot(k,j,0,1)
+                     res      = (sd%tod(k,j)-sd%s_spur(k,j)) / data(i)%tod%scans(scan)%d(j)%gain - sd%s_tot(k,j,0,1)
                      A(p)     = A(p) + w * amp * amp
                      b(p)     = b(p) + w * amp * res
                   end do
