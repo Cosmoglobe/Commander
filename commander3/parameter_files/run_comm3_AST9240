@@ -4,16 +4,28 @@ list2=owl{25..28}.uio.no
 list3=owl{29..30}.uio.no
 list4=owl{31..35}.uio.no
 list5=owl{36..37}.uio.no
-list6=hyades{2..3}.uio.no
-list7=hyades4.uio.no
-list8=hyades5.uio.no
-list9=hyades6.uio.no
-list10=hyades{7..9}.uio.no
-list11=hyades{10..16}.uio.no
-lists=(list1 list2 list3 list4 list5 list6 list7 list8 list9 list10 list11)
-ns=(24 72 64 64 128 86 64 24 64)
+list6=owl38.uio.no
+list7=owl{39..46}.uio.no
+list8=hyades{2..3}.uio.no
+list9=hyades5.uio.no
+list10=hyades6.uio.no
+list11=hyades{7..16}.uio.no
+list12=beehive46.uio.no
+list13=hyades21.uio.no
+list14=hyades4.uio.no
+list15=pelican{1..2}.uio.no
+bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
+bee2631="$prefix+(2[6-9]|3[0-1])+$suffix"
+bee3436="$prefix+(3[4-6])+$suffix"
+bee3742="$prefix+(3[7-9]|4[0-2])+$suffix"
+bee4345="$prefix+(4[3-5])+$suffix"
+bee46="$prefix+(46)+$suffix"
+hya21="$prefix+(47)+$suffix"
+
+lists=(list1 list2 list3 list4 list5 list6 list7 list8 list9 list10 list11 list12 list13 list14 list15)
+ns=(24 72 64 64 128 192 384 86 128 24 64 48 64 64 384)
 tLen=${#lists[@]}
-builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "hya13" "hya4" "hya5" "hya6" "hya79" "hya1016")
+builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "owl38" "owl3946" "hya13" "hya5" "hya6" "hya716" "bee46" "hya21" "hya4" "pel12")
 module purge
 module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
 
