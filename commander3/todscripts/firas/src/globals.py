@@ -35,8 +35,8 @@ NSIDE = 32
 NPIX = hp.nside2npix(NSIDE)
 
 # save parameters
-PNG = True
-FITS = False
+PNG = False
+FITS = True
 
 # plotting parameters
 CHANNELS_PLOT = ["ll"]

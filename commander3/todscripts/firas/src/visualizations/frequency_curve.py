@@ -10,11 +10,15 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 import utils.my_utils as utils
+from astropy.io import fits
 
-data = np.load(g.PROCESSED_DATA_PATH)
+# data = np.load(g.PROCESSED_DATA_PATH)
 
 modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+
+path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
+firas_path = "maps/frequency_maps/"
 
 spectral_lines = [
     115,
@@ -50,33 +54,38 @@ mask_alm = hp.sphtfunc.map2alm(low_lat_mask, pol=False)
 low_lat_mask = hp.alm2map(mask_alm, g.NSIDE, pol=False)
 low_lat_mask = np.where(low_lat_mask < 0.5, 0, 1)
 
-for channel in channels.keys():
-    for mode in modes.keys():
+for channel in g.CHANNELS_PLOT:
+    for mode in g.MODES_PLOT:
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            print(f"Processing {channel} {mode}")
             f_ghz = utils.generate_frequencies(channel, mode)
 
-            pix_gal = data[f"pix_gal_{mode}"]
-            sky = np.abs(data[f"{channel}_{mode}"])
+            # pix_gal = data[f"pix_gal_{mode}"]
+            # sky = np.abs(data[f"{channel}_{mode}"])
             monopole = utils.planck(f_ghz, np.array(g.T_CMB))
             high_lat_amp = np.zeros(len(f_ghz))
             low_lat_amp = np.zeros(len(f_ghz))
 
-            hpxmap = np.zeros((g.NPIX, len(f_ghz)))
-            data_density = np.zeros(g.NPIX)
+            # hpxmap = np.zeros((g.NPIX, len(f_ghz)))
+            # data_density = np.zeros(g.NPIX)
 
-            for todi in range(len(pix_gal)):
-                hpxmap[pix_gal[todi]] += sky[todi]
-                data_density[pix_gal[todi]] += 1
+            # for todi in range(len(pix_gal)):
+            #     hpxmap[pix_gal[todi]] += sky[todi]
+            #     data_density[pix_gal[todi]] += 1
 
-            mask = data_density == 0
-            high_lat_mask = high_lat_mask | mask
-            low_lat_mask = low_lat_mask | mask
+            # mask = data_density == 0
+            # high_lat_mask = high_lat_mask | mask
+            # low_lat_mask = low_lat_mask | mask
 
-            m = np.zeros_like(hpxmap)
-            m[~mask] = (
-                hpxmap[~mask] / data_density[~mask][:, np.newaxis]
-            )  # divide by data density
-            m[mask] = np.nan
+            m = np.zeros((g.NPIX, len(f_ghz)))
+            for fi, freq in enumerate(f_ghz):
+                m[:, fi] = fits.open(
+                    f"{path}{firas_path}{channel}_{mode}/galactic/{int(freq):04d}_nside32.fits"
+                )[0].data
+            # m[~mask] = (
+            #     hpxmap[~mask] / data_density[~mask][:, np.newaxis]
+            # )  # divide by data density
+            # m[mask] = np.nan
 
             high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
             low_lat_map = np.where(low_lat_mask[:, np.newaxis] == 1, np.nan, m)
@@ -86,14 +95,16 @@ for channel in channels.keys():
             median_high = np.nanmedian(high_lat_map, axis=0)
             dist = np.abs(high_lat_map - median_high) / std_high
 
-            high_lat_map = np.where(dist > 5, np.nan, high_lat_map)
+            high_lat_map = (
+                np.where(dist > 5, np.nan, high_lat_map) + monopole
+            )  # adding monopole back in since the input maps are monopole subtracted
             std_high = np.nanstd(high_lat_map, axis=0)
 
             std_low = np.nanstd(low_lat_map, axis=0)
             median_low = np.nanmedian(low_lat_map, axis=0)
             dist = np.abs(low_lat_map - median_low) / std_low
 
-            low_lat_map = np.where(dist > 5, np.nan, low_lat_map) - monopole
+            low_lat_map = np.where(dist > 5, np.nan, low_lat_map)  # - monopole
             std_low = np.nanstd(low_lat_map, axis=0)
 
             high_lat_amp = np.nanmean(high_lat_map, axis=0)
@@ -139,7 +150,7 @@ for channel in channels.keys():
                 plt.savefig(
                     f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png"
                 )
-                plt.clf()
+                plt.close(fig)
 
                 fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
                 plt.subplots_adjust(wspace=0.3)
