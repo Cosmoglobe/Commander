@@ -250,6 +250,7 @@ contains
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
       output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
       use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
+      if (self%myid == 0) write(*, *) '[comm_tod_chipass_mod.f90] size(delta,3) > 1:', size(delta,3) > 1, size(delta,1), size(delta,2), size(delta,3)
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
@@ -276,10 +277,10 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
+      call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to K
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
-      !call map_in(1,1)%p%writeFITS("map_in.fits")
+      call distribute_sky_maps(self, map_gain, 1.e-3, m_gain) ! uK to K
+      call map_in(1,1)%p%writeFITS(trim(chaindir)//'/map_in.fits')
 
       
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -310,10 +311,41 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
+      ! sample baseline
+      ! Sample baseline for current scan
+      if (self%myid == 0) then
+         write(*,*) '|    --> Sampling baseline'
+      end if
+      !self%apply_inst_corr = .false. ! Disable baseline correction for just this call
+      self%apply_inst_corr = .true.
+      call update_status(status, "baseline")
+      do i = 1, self%nscan
+         if (.not. any(self%scans(i)%d%accept)) cycle
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2)
+         !call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
+         call timer%start(TOD_BASELINE, self%band)
+         if (self%myid == 0) write(*,*) 'sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
+         !if (self%myid == 0) write(*,*) '    size(sd%mask):', size(sd%mask)
+         !if (self%myid == 0) write(*,*) '    sd%mask(1,1):', sd%mask(1,1)
+         call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+         if (self%myid == 0) write(*,*) 'sample_baseline done'
+         call timer%stop(TOD_BASELINE, self%band)
+         call sd%dealloc
+      end do
+      !self%apply_inst_corr = .true.
+
+      call timer%start(TOD_WAIT, self%band)
+      call mpi_barrier(self%comm, ierr)
+      call timer%stop(TOD_WAIT, self%band)
+
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_gain:', sample_gain
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] handle:', handle
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration'
          call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
@@ -322,10 +354,12 @@ contains
 
       ! Prepare intermediate data structures
       call binmap%init(self, .true., sample_rel_bandpass)
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] samp. abs. or rel. bp?', (sample_abs_bandpass .or. sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
          chisq_S = 0.d0
       end if
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] output_scanlist?', output_scanlist
       if (output_scanlist) then
          allocate(slist(self%nscan))
          slist   = ''
@@ -333,9 +367,11 @@ contains
 
       ! Perform loop over scans
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] self%nscan:', self%nscan
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] skip?', (.not. any(self%scans(i)%d%accept))
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
@@ -349,18 +385,35 @@ contains
             end do
             close(58)
          end if
+
+         ! Sample correlated noise
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_ncorr?', sample_ncorr
+         if (sample_ncorr) then
+            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
+           ! Compute noise spectrum parameters
+            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         else
+            sd%n_corr = 0.d0
+            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+         end if
          
 
          ! Compute chisquare for bandpass fit
+         if (self%myid == 0) write(*,*) 'compute_chisq_abs_bp'
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-         
+         if (self%myid == 0) write(*,*) 'compute_chisq_abs_bp done'
+
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
          !write(*,*) 'a', self%scanid(i), any(sd%s_zodi_scat/=sd%s_zodi_scat), any(sd%s_zodi_therm/=sd%s_zodi_therm)
-         call compute_calibrated_data(self, i, sd, d_calib)    
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] compute_calibrated_data'
+         call compute_calibrated_data(self, i, sd, d_calib)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] compute_calibrated_data done'
 
          ! For debugging: write TOD to hdf
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] self%scanid(i):', self%scanid(i)
          if (.false.) then
             ! scan id appears to be the worst chi2
             if (self%scanid(i) < 10000) then 
@@ -386,8 +439,25 @@ contains
             end if
          end if
 
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] ', trim(chaindir)//'/map_in.fits'
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] dim pix: ', size(sd%pix, 1), size(sd%pix, 2), size(sd%pix, 3)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] dim tod: ', size(sd%tod, 1), size(sd%tod, 2)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] self%label(1):', trim(self%label(1))
+         if (.false.) then
+            ! scan id appears to be the worst chi2
+            if (self%scanid(i) == 10000) then
+               call int2string(self%scanid(i), scantext)
+               call open_hdf_file(trim(chaindir)//'/tod_point_scan_'//scantext//'.h5', tod_file, 'w')
+               call write_hdf(tod_file, '/tod', sd%tod)
+               call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+               call close_hdf_file(tod_file)
+            end if
+         end if
+
          ! Bin TOD
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] bin_TOD'
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] bin_TOD done'
 
          ! Update scan list
          call wall_time(t2)
@@ -410,14 +480,18 @@ contains
       if (output_scanlist) call self%output_scan_list(slist)
 
       ! Solve for maps
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] synchronize_binmap'
       call synchronize_binmap(binmap, self)
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] synchronize_binmap done'
       if (sample_rel_bandpass) then
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_rel_bandpass = T; self%nmaps:', self%nmaps
          if (self%nmaps > 1) then
             call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
          else
             call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
          end if
       else
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_rel_bandpass = F; self%nmaps:', self%nmaps
          if(self%nmaps > 1) then
             call finalize_binned_map(self, binmap, rms_out, 1.d0)
          else 
@@ -427,8 +501,11 @@ contains
       map_out%map = binmap%outmaps(1)%p%map
 
       ! Sample bandpass parameters
+      if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample bp?', (sample_rel_bandpass .or. sample_abs_bandpass)
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_bp'
          call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+         if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_bp done'
          self%bp_delta = delta(:,:,1)
       end if
 
@@ -479,7 +556,65 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
-   end subroutine process_chipass_tod   
+   end subroutine process_chipass_tod
+
+
+   subroutine sample_baseline(tod, scan, raw, s_tot, mask, handle)
+    !   Sample LFI specific 1Hz spikes shapes and amplitudes
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   scan:     local scan ID
+    !   raw:      raw tod in du
+    !   s_tot:    total signal model in mK
+    !   mask:     list of accepted samples
+    !   handle:   planck_rng derived type
+    !             Healpix definition for random number generation
+    implicit none
+    class(comm_chipass_tod),                   intent(inout) :: tod
+    integer(i4b),                           intent(in)    :: scan
+    real(sp),            dimension(1:,1:),  intent(in)    :: raw, s_tot, mask
+    type(planck_rng),                       intent(inout) :: handle
+
+    integer(i4b) :: i, j, k, n
+    real(dp)     :: dt, t_tot, t, A, b, mval, eta
+    real(dp), allocatable, dimension(:) :: x, y
+
+    allocate(x(tod%scans(scan)%ntod), y(tod%scans(scan)%ntod))
+    dt = 1.d0 / tod%scans(scan)%ntod
+
+
+    !write(*,*) 'sample_baseline 1'
+    do j = 1, tod%ndet
+       !write(*,*) 'sample_baseline 2 -- j:', j
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+
+       t = 0.d0
+       n = 0
+       !write(*,*) 'sample_baseline 3 -- t, dt, tod%scans(scan)%ntod:', t, dt, tod%scans(scan)%ntod
+       do k = 1, tod%scans(scan)%ntod
+          !write(*,*) '    sample_baseline 4 -- k:', k
+          t      = t + dt
+          !write(*,*) '    sample_baseline 4.1 -- t, k, j, mask(k,j):', t, k, j, mask(k,j)
+          if (mask(k,j) > 0.5) then
+             !write(*,*) '    sample_baseline 5'
+             n    = n + 1
+             x(n) = t
+             y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
+          end if
+          !write(*,*) '    sample_baseline 4.1'
+       end do
+
+       !write(*,*) '    sample_baseline fit_polynomial'
+       call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline)
+       !write(*,*) '    sample_baseline fit_polynomial done'
+    end do
+
+    deallocate(x, y)
+
+  end subroutine sample_baseline
 
 
 end module comm_tod_chipass_mod
