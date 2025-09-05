@@ -3,12 +3,12 @@ from __future__ import print_function
 import os
 import struct
 
-import numpy as np
 import h5py
+import numpy as np
 
-import data_types as dt
-import vax_conversion as vax_conversion
-from params import *
+import utils.data_types as dt
+import utils.vax_conversion as vax_conversion
+from utils.params import *
 
 fac_xcalin = 1
 fac_xcalout = 2
@@ -325,8 +325,9 @@ def fix_floats(data):
 
 
 def test_eng():
-    import glob
     import datetime
+    import glob
+
     import matplotlib.pyplot as plt
 
     fns = glob.glob("/Users/njmille2/COBE/FIRAS/data/fdq_eng/*")
@@ -357,8 +358,8 @@ def test_eng():
 
 
 def test_sdf():
-    import glob
     import datetime
+    import glob
 
     fns = glob.glob("/Users/njmille2/COBE/FIRAS/data/fdq_sdf/*")
 
@@ -371,8 +372,9 @@ def test_sdf():
 
 
 def test_ssi():
-    import glob
     import datetime
+    import glob
+
     import matplotlib.pyplot as plt
 
     fns = glob.glob("/Users/njmille2/COBE/FIRAS/data/fss_sssky/FSS*")

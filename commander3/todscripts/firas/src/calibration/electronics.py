@@ -31,12 +31,12 @@ def etfunction(channel, adds_per_group, samprate, nui=None):
             zxfer = compute_etf_per_freq(freqhz, channel, samprate, adds_per_group)
 
             ampl = np.sqrt(np.abs(zxfer) ** 2)
-            ampmax = max(ampl, ampmax)
+            ampmax = np.maximum(ampl, ampmax)
 
-            if ampl < ampmax / 1000.0:
-                ztrans[:, k] = 100000.0
-            else:
-                ztrans[:, k] = -zxfer
+            # if ampl < ampmax / 1000.0:
+            ztrans[:, k][ampl < ampmax / 1000.0] = 100000.0
+            # else:
+            ztrans[:, k][ampl >= ampmax / 1000.0] = -zxfer[ampl >= ampmax / 1000.0]
     else:
         freqhz = nui * dfhz
 

@@ -1,29 +1,24 @@
 import os
-import sys
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-
-sys.path.append("..")
-import globals as g
-import h5py
-import utils.my_utils as utils
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling.models import BlackBody
 
-sys.path.append("..")
-import h5py
-from astropy.io import fits
+import globals as g
+import utils.dataio2 as dataio
+import utils.my_utils as utils
+from calibration import bolometer
+from data import flagging
+from pipeline import ifg_spec
 from utils.config import gen_nyquistl
-
-sys.path.append("../utils")
-import dataio2 as dataio
 
 dt_float = "<f4"
 dt_fex_dtrf = np.dtype([("trans", dt_float, (128,))])
 
-fn = os.path.join("../../reference", "FEX_DTRF.DAT")
+fn = os.path.join("../reference", "FEX_DTRF.DAT")
 dtrf = np.fromfile(fn, dtype=dt_fex_dtrf)
 dataio.fix_floats(dtrf)
 
@@ -150,7 +145,7 @@ for param in change_parameters:
 
     otf *= emissivity_factors
 
-    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = utils.get_bolometer_parameters(ch, SM)
+    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = bolometer.get_bolometer_parameters(ch, SM)
 
     ical_emiss = pub_model[1].data["RICAL"][0] + 1j * pub_model[1].data["IICAL"][0]
 
@@ -251,7 +246,7 @@ for param in change_parameters:
     bol_cmd_bias_lh = eng["en_stat/bol_cmd_bias"][:, 2]
     bol_cmd_bias_ll = eng["en_stat/bol_cmd_bias"][:, 3]
 
-    filter_bad = utils.filter_junk(
+    filter_bad = flagging.filter_junk(
         stat_word_1,
         stat_word_5,
         stat_word_9,
@@ -382,7 +377,7 @@ for param in change_parameters:
     mirror_b_hi = mirror_b_hi[eng_inds]
 
     fnyq = gen_nyquistl(
-        "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+        "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
     )
 
     frec = 4 * (channels[ch] % 2) + scan_mode
@@ -406,7 +401,7 @@ for param in change_parameters:
     mtm_speed = mtm_speed[0]
     mtm_length = mtm_length[0]
 
-    spec_out = utils.ifg_to_spec(
+    spec_out = ifg_spec.ifg_to_spec(
         ifg=ifg,
         channel=ch,
         mode=sm,
@@ -451,7 +446,7 @@ for param in change_parameters:
     for i in range(len(spec_mbb)):
         spec_mbb[i] /= max(1e-12, max(abs(spec_mbb[i])))
 
-    ifg_mbb = utils.spec_to_ifg(
+    ifg_mbb = ifg_spec.spec_to_ifg(
         spec=spec_mbb,
         channel=ch,
         mode=sm,
@@ -459,16 +454,7 @@ for param in change_parameters:
         bol_cmd_bias=bol_cmd_bias[:5],
         bol_volt=bol_volt[:5],
         fnyq_icm=fnyq_icm,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol[:5],
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
-        C3=C3,
-        C1=C1,
         gain=gain[:5],
         sweeps=sweeps[:5],
         apod=apod,
@@ -488,7 +474,7 @@ for param in change_parameters:
     spec_mbb[1][offset : offset + NUM_FREQ] = (nu / (300 * u.GHz)).value ** 0
     spec_mbb[2][offset : offset + NUM_FREQ] = (nu / (300 * u.GHz)).value ** 1
 
-    ifg_mbb = utils.spec_to_ifg(
+    ifg_mbb = ifg_spec.spec_to_ifg(
         spec=spec_mbb,
         channel=ch,
         mode=sm,
@@ -496,16 +482,7 @@ for param in change_parameters:
         bol_cmd_bias=bol_cmd_bias[:5],
         bol_volt=bol_volt[:5],
         fnyq_icm=fnyq_icm,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol[:5],
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
-        C3=C3,
-        C1=C1,
         gain=gain[:5],
         sweeps=sweeps[:5],
         apod=apod,
@@ -620,7 +597,7 @@ for param in change_parameters:
     spec_ical[~np.isfinite(spec_ical)] = 0
     spec_ical[~np.isfinite(spec_ical)] = 0
 
-    ifg_th = utils.spec_to_ifg(
+    ifg_th = ifg_spec.spec_to_ifg(
         spec=spec_th,
         channel=ch,
         mode=sm,
@@ -628,16 +605,7 @@ for param in change_parameters:
         bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
         bol_volt=bol_volt[: len(spec_th)],
         fnyq_icm=fnyq_icm,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol[: len(spec_th)],
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
-        C3=C3,
-        C1=C1,
         gain=gain[: len(spec_th)],
         sweeps=sweeps[: len(spec_th)],
         apod=apod,
@@ -645,7 +613,7 @@ for param in change_parameters:
     )  # , etf)
     ifg_th[~np.isfinite(ifg_th)] = 0
 
-    ifg_xcal = utils.spec_to_ifg(
+    ifg_xcal = ifg_spec.spec_to_ifg(
         spec=spec_xcal,
         channel=ch,
         mode=sm,
@@ -653,16 +621,7 @@ for param in change_parameters:
         bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
         bol_volt=bol_volt[: len(spec_th)],
         fnyq_icm=fnyq_icm,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol[: len(spec_th)],
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
-        C3=C3,
-        C1=C1,
         gain=gain[: len(spec_th)],
         sweeps=sweeps[: len(spec_th)],
         apod=apod,
@@ -670,7 +629,7 @@ for param in change_parameters:
     )  # , etf)
     ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
-    ifg_ical = utils.spec_to_ifg(
+    ifg_ical = ifg_spec.spec_to_ifg(
         spec=spec_ical,
         channel=ch,
         mode=sm,
@@ -678,16 +637,7 @@ for param in change_parameters:
         bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
         bol_volt=bol_volt[: len(spec_th)],
         fnyq_icm=fnyq_icm,
-        Jo=Jo,
-        Jg=Jg,
         Tbol=Tbol[: len(spec_th)],
-        rho=rho,
-        R0=R0,
-        T0=T0,
-        beta=beta,
-        G1=G1,
-        C3=C3,
-        C1=C1,
         gain=gain[: len(spec_th)],
         sweeps=sweeps[: len(spec_th)],
         apod=apod,

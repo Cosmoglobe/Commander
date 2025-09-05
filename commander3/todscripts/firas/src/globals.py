@@ -35,11 +35,11 @@ NSIDE = 32
 NPIX = hp.nside2npix(NSIDE)
 
 # save parameters
-PNG = False
-FITS = True
+PNG = True
+FITS = False
 
 # plotting parameters
-CHANNELS_PLOT = ["ll"]
+CHANNELS_PLOT = ["rh"]
 MODES_PLOT = ["ss"]
 JOINT = False
 SCANUPDOWN = False

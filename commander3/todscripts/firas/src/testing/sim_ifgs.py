@@ -1,29 +1,22 @@
 import os
-import sys
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-
-sys.path.append("..")
-import h5py
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling.models import BlackBody
 
-sys.path.append("..")
 import globals as g
-import h5py
-import utils.my_utils as utils
-from astropy.io import fits
+import utils.dataio2 as dataio
+from data import flagging
+from pipeline import ifg_spec
 from utils.config import gen_nyquistl
-
-sys.path.append("../utils")
-import dataio2 as dataio
 
 dt_float = "<f4"
 dt_fex_dtrf = np.dtype([("trans", dt_float, (128,))])
 
-fn = os.path.join("../../reference", "FEX_DTRF.DAT")
+fn = os.path.join("../reference", "FEX_DTRF.DAT")
 dtrf = np.fromfile(fn, dtype=dt_fex_dtrf)
 dataio.fix_floats(dtrf)
 
@@ -252,7 +245,7 @@ stat_word_16 = eng["en_stat/stat_word_16"][()]
 lvdt_stats = eng["en_stat/lvdt_stat"][()]
 lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
 
-filter_bad = mu.filter_junk(
+filter_bad = flagging.filter_junk(
     stat_word_1=stat_word_1,
     stat_word_5=stat_word_5,
     stat_word_9=stat_word_9,
@@ -441,7 +434,7 @@ mirror_b_hi = mirror_b_hi[eng_inds]
 
 
 fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )
 
 frec = 4 * (channels[ch] % 2) + scan_mode
@@ -473,7 +466,7 @@ plt.colorbar()
 mtm_speed = mtm_speed[0]
 mtm_length = mtm_length[0]
 
-spec_out = utils.ifg_to_spec(
+spec_out = ifg_spec.ifg_to_spec(
     ifg=ifg,
     channel=ch,
     mode=sm,
@@ -485,6 +478,7 @@ spec_out = utils.ifg_to_spec(
     gain=gain,
     sweeps=sweeps,
     apod=apod,
+    Tbol=Tbol
 )
 
 
@@ -620,7 +614,7 @@ spec_ical[~np.isfinite(spec_ical)] = 0
 plt.show()
 
 
-ifg_th = mu.spec_to_ifg(
+ifg_th = ifg_spec.spec_to_ifg(
     spec=spec_th,
     channel=ch,
     mode=sm,
@@ -628,16 +622,7 @@ ifg_th = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -646,7 +631,7 @@ ifg_th = mu.spec_to_ifg(
 ifg_th[~np.isfinite(ifg_th)] = 0
 
 
-ifg_xcal = mu.spec_to_ifg(
+ifg_xcal = ifg_spec.spec_to_ifg(
     spec=spec_xcal,
     channel=ch,
     mode=sm,
@@ -654,16 +639,7 @@ ifg_xcal = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -671,7 +647,7 @@ ifg_xcal = mu.spec_to_ifg(
 )
 ifg_xcal[~np.isfinite(ifg_xcal)] = 0
 
-ifg_ical = mu.spec_to_ifg(
+ifg_ical = ifg_spec.spec_to_ifg(
     spec=spec_ical,
     channel=ch,
     mode=sm,
@@ -679,16 +655,7 @@ ifg_ical = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -697,7 +664,7 @@ ifg_ical = mu.spec_to_ifg(
 ifg_ical[~np.isfinite(ifg_ical)] = 0
 
 
-ifg_skyh = mu.spec_to_ifg(
+ifg_skyh = ifg_spec.spec_to_ifg(
     spec=spec_skyh,
     channel=ch,
     mode=sm,
@@ -705,16 +672,7 @@ ifg_skyh = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -722,7 +680,7 @@ ifg_skyh = mu.spec_to_ifg(
 )
 ifg_skyh[~np.isfinite(ifg_skyh)] = 0
 
-ifg_refh = mu.spec_to_ifg(
+ifg_refh = ifg_spec.spec_to_ifg(
     spec=spec_refh,
     channel=ch,
     mode=sm,
@@ -730,16 +688,7 @@ ifg_refh = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -748,7 +697,7 @@ ifg_refh = mu.spec_to_ifg(
 ifg_refh[~np.isfinite(ifg_refh)] = 0
 
 
-ifg_dih = mu.spec_to_ifg(
+ifg_dih = ifg_spec.spec_to_ifg(
     spec=spec_dih,
     channel=ch,
     mode=sm,
@@ -756,16 +705,7 @@ ifg_dih = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -774,7 +714,7 @@ ifg_dih = mu.spec_to_ifg(
 ifg_dih[~np.isfinite(ifg_dih)] = 0
 
 
-ifg_struct = mu.spec_to_ifg(
+ifg_struct = ifg_spec.spec_to_ifg(
     spec=spec_struct,
     channel=ch,
     mode=sm,
@@ -782,16 +722,7 @@ ifg_struct = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,
@@ -799,7 +730,7 @@ ifg_struct = mu.spec_to_ifg(
 )
 ifg_struct[~np.isfinite(ifg_struct)] = 0
 
-ifg_bol = mu.spec_to_ifg(
+ifg_bol = ifg_spec.spec_to_ifg(
     spec=spec_bol,
     channel=ch,
     mode=sm,
@@ -807,16 +738,7 @@ ifg_bol = mu.spec_to_ifg(
     bol_cmd_bias=bol_cmd_bias[: len(spec_th)],
     bol_volt=bol_volt[: len(spec_th)],
     fnyq_icm=fnyq_icm,
-    Jo=Jo,
-    Jg=Jg,
     Tbol=Tbol,
-    rho=rho,
-    R0=R0,
-    T0=T0,
-    beta=beta,
-    G1=G1,
-    C3=C3,
-    C1=C1,
     gain=gain[: len(spec_th)],
     sweeps=sweeps[: len(spec_th)],
     apod=apod,

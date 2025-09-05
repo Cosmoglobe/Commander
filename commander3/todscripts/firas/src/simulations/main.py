@@ -10,10 +10,10 @@ import numpy as np
 from astropy.io import fits
 
 import globals as g
+from calibration import bolometer
+from pipeline import ifg_spec
 from utils import my_utils as utils
 from utils.config import gen_nyquistl
-from pipeline import ifg_spec
-from calibration import bolometer
 
 modes = {"ss": 0, "lf": 3}
 # modes = {"ss": 0}
@@ -141,15 +141,6 @@ def generate_ifg(
         apod=apod,
         otf=emiss_xcal,
         fnyq_icm=fnyq["icm"][frec],
-        R0=R0,
-        T0=T0,
-        G1=G1,
-        beta=beta,
-        rho=rho,
-        C1=C1,
-        C3=C3,
-        Jo=Jo,
-        Jg=Jg,
     )
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
 
