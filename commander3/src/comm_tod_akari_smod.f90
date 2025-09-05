@@ -234,6 +234,8 @@ contains
 
       !call timer%start(TOD_ALLOC, self%band)
 
+      ! Output input sky model
+      call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
       
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
