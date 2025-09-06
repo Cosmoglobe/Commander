@@ -207,7 +207,7 @@ contains
       type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -255,7 +255,8 @@ contains
       ! else
       !    sample_ncorr = .false.
       ! end if
-      sample_ncorr = .false.
+      sample_ncorr = .false. !iter > 2
+      sample_xi_n  = .false.
 
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
            & SD_SKY,SD_INST,SD_NCORR,SD_BP,SD_ORB,SD_ZODI])
@@ -355,15 +356,16 @@ contains
          end if
 
          ! Sample correlated noise
-         ! if (sample_ncorr) then
-         !    !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         !    call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
-         !   ! Compute noise spectrum parameters
-         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-         ! else
-         !    sd%n_corr = 0.d0
-         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
-         ! end if
+         if (sample_ncorr) then
+            call sample_n_corr(self, sd, handle)
+            if (sample_xi_n) then
+               call sample_noise_psd(self, sd, handle)
+            else
+               call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+            end if
+         else
+            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+         end if
 
          ! Compute chisquare
          do j = 1, sd%ndet
