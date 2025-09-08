@@ -17,29 +17,109 @@ import globals as g
 import utils.my_utils as utils
 
 original_path = "/mn/stornext/d16/cmbco/ola/firas/healpix_products/"
-new_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
+new_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/maps/frequency_maps/"
 save_path = g.SAVE_PATH + "maps/results/"
 
-frequencies = utils.generate_frequencies("ll", "ss")
-data_lowf = fits.open(f"{original_path}firas_hpx_destriped_sky_spectra_lowf_v2.fits")
-data_high = fits.open(f"{original_path}firas_hpx_destriped_sky_spectra_high_v2.fits")
-for freqi, freq in enumerate(frequencies):
-    spectrum = data_lowf[1].data["SPECTRUM"]
 
-    lat = data_lowf[1].data["GAL_LAT"]
-    lon = data_lowf[1].data["GAL_LON"]
+def get_original_maps(channel, mode):
+    if channel[1] == "l":
+        regime = "lowf"
+    elif channel[1] == "h":
+        regime = "high"
+    else:
+        raise ValueError("Channel must be either 'lh', 'll', 'rh' or 'rl'")
+
+    if regime == "lowf":
+        frequencies = utils.generate_frequencies(channel, mode)
+    else:
+        nu0 = 612.187290000  # GHz
+        deltanu = 13.6041620000  # GHz
+        nfreq = 170
+        frequencies = nu0 + deltanu * np.arange(nfreq)
+
+    data = fits.open(f"{original_path}firas_hpx_destriped_sky_spectra_{regime}_v2.fits")
+    spectrum = data[1].data["SPECTRUM"]
+
+    lat = data[1].data["GAL_LAT"]
+    lon = data[1].data["GAL_LON"]
 
     pix = hp.ang2pix(16, lon, lat, lonlat=True)
-    weight = data_lowf[1].data["WEIGHT"]
-    m = np.zeros(hp.nside2npix(16))
-    for i in range(len(pix)):
-        m[pix[i]] += spectrum[i, freqi] * weight[i]
-    denom = np.bincount(pix, weights=weight, minlength=hp.nside2npix(16))
-    mask = denom == 0
-    m[~mask] /= denom[~mask]
-    m[mask] = hp.UNSEEN
-    monopole = utils.planck(freq, g.T_CMB)
-    m -= monopole
-    hp.mollview(m, title=f"FIRAS original")
-    plt.savefig(f"{save_path}original_{int(freq):04d}.png")
-    plt.close()
+    weight = data[1].data["WEIGHT"]
+    m = np.zeros((len(frequencies), hp.nside2npix(16)))
+    for freqi, freq in enumerate(frequencies):
+        for i in range(len(pix)):
+            m[freqi, pix[i]] += spectrum[i, freqi] * weight[i]
+        denom = np.bincount(pix, weights=weight, minlength=hp.nside2npix(16))
+        mask = denom == 0
+        m[freqi, ~mask] /= denom[~mask]
+        m[freqi, mask] = hp.UNSEEN
+        monopole = utils.planck(freq, g.T_CMB)
+        m[freqi] -= monopole
+        # max_amp = 25 if regime == "lowf" else 100
+        # hp.mollview(
+        #     m[freqi],
+        #     title=f"Original FIRAS {regime.upper()} @ {int(freq):04d} GHz (monopole subtracted)",
+        #     min=0,
+        #     max=max_amp,
+        #     unit="MJy/sr",
+        # )
+        # plt.savefig(f"{save_path}{regime}/original_{int(freq):04d}.png")
+        # plt.close()
+
+    return m, frequencies
+
+
+def difference_ratio_maps(channel, mode, frequencies, m):
+    if channel[1] == "l":
+        regime = "lowf"
+    elif channel[1] == "h":
+        regime = "high"
+    else:
+        raise ValueError("Channel must be either 'lh', 'll', 'rh' or 'rl'")
+
+    path = f"{new_path}{channel}_{mode}/galactic/"
+    for freqi, freq in enumerate(frequencies):
+        m_new = fits.open(f"{path}{int(freq):04d}_nside16.fits")[0].data
+        hp.mollview(
+            m_new,
+            title=f"New pipeline FIRAS LOWF @ {int(freq):04d} GHz",
+            min=1,
+            max=25,
+            unit="MJy/sr",
+        )
+        plt.savefig(f"{save_path}{regime}/new_{int(freq):04d}.png")
+        plt.close()
+
+        difference = m_new - m[freqi]
+
+        hp.mollview(
+            difference,
+            title=f"New pipeline - original FIRAS LOWF @ {int(freq):04d} GHz",
+            min=-10,
+            max=10,
+            unit="MJy/sr",
+            cmap="bwr",
+        )
+        plt.savefig(f"{save_path}{regime}/difference_{int(freq):04d}.png")
+        plt.close()
+
+        ratio = m_new / m[freqi]
+        hp.mollview(
+            ratio,
+            title=f"New pipeline / original FIRAS LOWF @ {int(freq):04d} GHz",
+            min=0.5,
+            max=1.5,
+            unit="",
+            cmap="bwr",
+        )
+        plt.savefig(f"{save_path}{regime}/ratio_{int(freq):04d}.png")
+        plt.close()
+
+
+# plot lowf and then high
+m_lowf, freq_lowf = get_original_maps("ll", "ss")
+m_high, freq_high = get_original_maps("rh", "ss")
+
+# load maps generated from new pipeline
+difference_ratio_maps("ll", "ss", freq_lowf, m_lowf)
+difference_ratio_maps("rh", "ss", freq_high, m_high)
