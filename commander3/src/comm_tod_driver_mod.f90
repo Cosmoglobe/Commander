@@ -10,6 +10,7 @@ module comm_tod_driver_mod
   use comm_tod_jump_mod
   use comm_tod_adc_mod
   use comm_zodi_mod
+  use comm_tod_objctr_mod
   use comm_tod_cray_mod
   use comm_shared_arr_mod
   use comm_huffman_mod

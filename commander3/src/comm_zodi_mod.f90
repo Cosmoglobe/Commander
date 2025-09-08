@@ -6,7 +6,7 @@ module comm_zodi_mod
 
    private
    public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
-   public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi, compute_obj_centric_signal
+   public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi
    public band_monopole, band_update_monopole
 
    type :: ZodiCompLOS
@@ -252,20 +252,6 @@ contains
       
       if (cpar%myid_chain == 0) then
          write(*,*) ' Total number of free zodi parameters = ', count(zodi_model%theta_stat(:,0)==0)
-!!$         do i = 1, zodi_model%npar_tot
-!!$            write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:)
-!!$         end do
-      end if
-
-      ! Initialize stationary zodi component
-      if (cpar%incl_zodi_solar_comp) then
-         !allocate(zodi_model%map_static(0:12*cpar%zodi_solar_nside**2-1,1))
-         !allocate(zodi_model%amp_static(numband))
-         !zodi_model%amp_static = 1.d0
-         !zodi_model%map_static = 0.d0
-         !if (trim(cpar%zodi_solar_initmap) /= 'none') then
-         !   call read_map(trim(cpar%datadir)//'/'//trim(cpar%zodi_solar_initmap), zodi_model%map_static)
-         !end if
       end if
 
       allocate(comp_LOS(zodi_model%n_comps))
@@ -756,153 +742,57 @@ contains
          call write_hdf(file, trim(adjustl(comp_path))//'/albedo', self%comps(i)%c%albedo)
       end do
 
-      ! Static component
-      !path = trim(adjustl(zodi_path))//'/static'
-      !call create_hdf_group(file, trim(adjustl(path)))
-      !call write_hdf(file, trim(adjustl(path))//'/map', self%map_static)
-      !call write_hdf(file, trim(adjustl(path))//'/amp', self%amp_static)
-
       call close_hdf_file(file)
       deallocate(params,labels)
    end subroutine
-
+   
    subroutine comp_from_chain(self, cpar, params, comp_idx)
-      ! Initialize a component from a chain
-      class(ZodiModel), target, intent(inout) :: self
-      type(comm_params), intent(in) :: cpar
-      real(dp), intent(inout) :: params(:, :)
-      integer(i4b), intent(in) :: comp_idx
-
-      logical(lgt) :: exist
-      integer(i4b) :: i, j, l, ierr, initsamp
-      character(len=6) :: itext
-
-      type(hdf_file) :: file
-
-      character(len=32), allocatable :: param_labels(:)
-      character(len=2048) :: chainfile, group_name
-
-      if (cpar%myid == cpar%root) then
-         if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
-            call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
-         else
-            call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
-         end if
-         inquire (file=trim(chainfile), exist=exist)
-         if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
-         l = len(trim(chainfile))
-         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-         
-         call open_hdf_file(trim(chainfile), file, "r")
-         
-         call int2string(initsamp, itext)
-         group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx))))
-         if (.not. hdf_group_exists(file, group_name)) then
-            print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(comp_idx))), "not found in chain:", trim(chainfile)
-            stop
-         end if 
-
-         param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(comp_idx))), add_common=.true.)
-         do j = 1, size(param_labels)
-            call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
-                  & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
-         end do
-         deallocate(param_labels)
-      end if
-      ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-
-   end subroutine
-   ! subroutine model_from_chain(self, cpar)
-   !    ! Initializes parts of the zodi model from the chain file
-   !    class(ZodiModel), target, intent(inout) :: self
-   !    type(comm_params), intent(in) :: cpar
-   !    logical(lgt) :: exist
-   !    integer(i4b) :: i, j, l, unit, ierr, initsamp, hdferr
-   !    character(len=6) :: itext
-
-   !    type(hdf_file) :: file
-   !    real(dp) :: comp_params(100), params(100, 100), general_params(100)
-   !    character(len=32), allocatable :: common_param_labels(:), param_labels(:)
-   !    character(len=512) :: chainfile, group_name
-   !    TYPE(h5o_info_t) :: object_info
-
-   !    params = 0.
-   !    if (cpar%myid == cpar%root) then
-   !       call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-   !       inquire (file=trim(chainfile), exist=exist)
-   !       if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
-   !       l = len(trim(chainfile))
-   !       if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-         
-   !       call open_hdf_file(trim(chainfile), file, "r")
-         
-   !       call int2string(initsamp, itext)
-   !       do i = 1, cpar%zs_ncomps
-   !          group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
-   !          if (.not. hdf_group_exists(file, group_name)) then
-   !             params(i, :) = cpar%zs_comp_params(i, :, 1)
-   !             cycle
-   !          end if 
-   !          param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
-   !          do j = 1, size(param_labels)
-   !             call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
-   !                 & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
-   !          end do
-   !             params(i, :) = comp_params
-   !       end do 
-   !       do i = 1, self%n_general_params
-   !          call read_hdf(file, trim(adjustl(itext)//'/zodi/general/'//trim(adjustl(self%general_labels(i)))), general_params(i))
-   !       end do
-   !       call close_hdf_file(file)
-   !    end if
-   !    call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-   !    call mpi_bcast(general_params, size(general_params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-   !    call self%init_general_params(general_params)
-   !    call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
-
-   ! end subroutine model_from_chain
-
-!!$   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
-!!$      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-!!$      ! integrated thermal zodiacal emission and scattered zodiacal light.
-!!$      !
-!!$      ! Parameters:
-!!$      ! -----------
-!!$      ! s_scat :
-!!$      !     Integrated contribution from scattered sunlight light.
-!!$      ! s_therm :
-!!$      !     Integrated contribution from thermal interplanetary dust emission.
-!!$      ! s_zodi :
-!!$      !     Zodiacal signal.
-!!$      ! emissivity :
-!!$      !     Emissivity of the zodiacal components.
-!!$      ! albedo :
-!!$     !     Albedo of the zodiacal components.
-!!$     implicit none
-!!$     integer(i4b),                  intent(in)  :: band
-!!$     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
-!!$     real(sp),     dimension(:),    intent(out) :: s_zodi
-!!$     integer(i4b),                  intent(in), optional :: comp_id
-!!$     
-!!$     integer(i4b) :: i, first
-!!$     real(dp)     :: al, em
-!!$
-!!$     first = 1; if (present(comp_id)) first = comp_id
-!!$     
-!!$     s_zodi = 0.
-!!$     do i = first, first+size(s_therm,2)-1
-!!$        al     = zodi_model%comps(i)%c%albedo(band)
-!!$        em     = zodi_model%comps(i)%c%emissivity(band)
-!!$        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-!!$        if (trim(zodi_model%phasefunc_type) == 'Wright') then
-!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) +             em * s_therm(:,i-first+1))
-!!$        else
-!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
-!!$        end if
-!!$     end do
-!!$   end subroutine get_s_zodi
-
+     ! Initialize a component from a chain
+     class(ZodiModel), target, intent(inout) :: self
+     type(comm_params), intent(in) :: cpar
+     real(dp), intent(inout) :: params(:, :)
+     integer(i4b), intent(in) :: comp_idx
+     
+     logical(lgt) :: exist
+     integer(i4b) :: i, j, l, ierr, initsamp
+     character(len=6) :: itext
+     
+     type(hdf_file) :: file
+     
+     character(len=32), allocatable :: param_labels(:)
+     character(len=2048) :: chainfile, group_name
+     
+     if (cpar%myid == cpar%root) then
+        if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
+           call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
+        else
+           call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
+        end if
+        inquire (file=trim(chainfile), exist=exist)
+        if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
+        l = len(trim(chainfile))
+        if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+        
+        call open_hdf_file(trim(chainfile), file, "r")
+        
+        call int2string(initsamp, itext)
+        group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx))))
+        if (.not. hdf_group_exists(file, group_name)) then
+           print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(comp_idx))), "not found in chain:", trim(chainfile)
+           stop
+        end if
+        
+        param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(comp_idx))), add_common=.true.)
+        do j = 1, size(param_labels)
+           call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
+                & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
+        end do
+        deallocate(param_labels)
+     end if
+     ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     
+   end subroutine comp_from_chain
    
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
      implicit none
@@ -1745,78 +1635,6 @@ contains
       end do
       
     end subroutine compute_zodi
-
-   subroutine compute_obj_centric_signal(tod, sd, det)
-      implicit none
-      class(comm_tod),      intent(in)             :: tod
-      class(comm_scandata), intent(inout)          :: sd
-      integer(i4b),         intent(in),   optional :: det
-      
-      integer(i4b) :: i, j, k, d, h, hp, ntod, nhorn, ndet, scan
-      real(sp)     :: w
-      real(dp)     :: t1, t2
-      logical(lgt) :: incl_solar, incl_moon, incl_earth
-
-      incl_solar = .true.
-      incl_moon  = .false.
-      incl_earth = .false.
-
-      scan  = sd%scan
-      ntod  = sd%ntod
-      ndet  = tod%ndet; if (present(det)) ndet = 1
-      nhorn = tod%nhorn
-
-      sd%s_objctr = 0.
-      
-      ! Add solar component
-      if (incl_solar .and. associated(tod%map_solar)) then
-         do j = 1, sd%ndet
-            d = j; if (present(det)) d = det
-            do h = 1, tod%nhorn
-               hp = h; if (nhorn == 1) hp = 0
-               do i = 1, ntod
-                  k    = tod%scans(scan)%d(d)%pix_sol(i,h)
-                  if (tod%map_solar(k,1) > -1.d30) then
-                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_solar(k,1)
-                  end if
-               end do
-            end do
-         end do
-      end if
-
-      ! Add Moon component by Healpix map lookup
-      if (incl_moon .and. associated(tod%map_moon)) then
-         do j = 1, sd%ndet
-            d = j; if (present(det)) d = det
-            do h = 1, tod%nhorn
-               hp = h; if (nhorn == 1) hp = 0
-               do i = 1, ntod
-                  k    = tod%scans(scan)%d(d)%pix_moon(i,h)
-                  if (tod%map_moon(k,1) > -1.d30) then
-                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_moon(k,1)
-                  end if
-               end do
-            end do
-         end do
-      end if
-
-      ! Add Earth component by Healpix map lookup
-      if (incl_earth .and. associated(tod%map_earth)) then
-         do j = 1, sd%ndet
-            d = j; if (present(det)) d = det
-            do h = 1, tod%nhorn
-               hp = h; if (nhorn == 1) hp = 0
-               do i = 1, ntod
-                  k = max(min(int(tod%scans(scan)%d(d)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
-                  if (tod%map_earth(k) > -1.d30) then
-                     sd%s_objctr(i,j,hp) = sd%s_objctr(i,j,hp) + tod%map_earth(k)
-                  end if
-               end do
-            end do
-         end do
-      end if
-
-    end subroutine compute_obj_centric_signal
 
     
    ! Functions for evaluating the zodiacal emission

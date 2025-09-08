@@ -196,7 +196,8 @@ module comm_tod_mod
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
-     logical(lgt) :: symm_flags               
+     logical(lgt) :: symm_flags
+     character(len=16), allocatable, dimension(:) :: incl_objctr
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain

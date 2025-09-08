@@ -22,6 +22,7 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_tod_objctr_samp_mod
   use comm_sparse_mod
   use comm_dust_extinction_mod
   implicit none
@@ -156,6 +157,7 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
+  call initialize_objctr_mod(cpar);          call update_status(status, "init_objctr")
   call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
   call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
   call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
@@ -288,9 +290,9 @@ program commander
 
      ! Sample stationary components
      !if (first_zodi) then
-        if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-        if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-        if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+        if (cpar%sample_earth_maps) call sample_objctr_map(cpar, handle, 'earth')
+        if (cpar%sample_solar_maps) call sample_objctr_map(cpar, handle, 'solar')
+        if (cpar%sample_moon_maps)  call sample_objctr_map(cpar, handle, 'moon')
      !end if
 
      ! Sample zodi parameters
