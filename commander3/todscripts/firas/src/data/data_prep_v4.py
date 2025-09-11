@@ -2,8 +2,6 @@
 After re-reading the Explanatory Supplement I think the engineering data is not completely raw and is already interpolated, i.e. the gmt values it has are not the "true" ones. So I am going back to a different way of pre-processing the data to compare and see which makes more sense.
 """
 
-import os
-import sys
 import time
 
 import h5py
@@ -11,8 +9,8 @@ import healpy as hp
 import numpy as np
 import pandas as pd
 import tables as tb
-from scipy import interpolate
 
+import globals as g
 from utils.my_utils import (
     clean_variable,
     convert_gain,
@@ -20,11 +18,6 @@ from utils.my_utils import (
     parse_date_string,
     scan_up_down,
 )
-
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
-import globals as g
 
 # check how much time the script takes to run
 start_time = time.time()
@@ -259,6 +252,9 @@ merged_df = merged_df[
     | (merged_df["ifg_rh"].apply(lambda x: np.isnan(x).all() == False))
     | (merged_df["ifg_rl"].apply(lambda x: np.isnan(x).all() == False))
 ]
+
+# set ids
+merged_df["index"] = np.arange(len(merged_df))
 
 # SCIENCE REJECTS
 
@@ -859,6 +855,7 @@ for channel in channels:
     )
 
 sky_variables = [
+    "id",
     "a_ical",
     "b_ical",
     "a_dihedral",
@@ -958,7 +955,7 @@ sky_variables = [
     "grt_addr_b",
     "sky_hrn_temp_a",
     "sky_hrn_temp_b",
-    "id",
+    "index",
 ]
 
 # saving to a h5 file

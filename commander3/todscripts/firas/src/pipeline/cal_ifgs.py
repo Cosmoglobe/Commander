@@ -11,7 +11,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
-from data import flagging
+from flagging import filter
 from pipeline import ifg_spec
 from utils import my_utils as utils
 from utils.config import gen_nyquistl
@@ -94,7 +94,7 @@ variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-filter_bad = flagging.filter_junk(
+filter_bad = filter.filter_junk(
     variables["stat_word_1"],
     variables["stat_word_5"],
     variables["stat_word_9"],

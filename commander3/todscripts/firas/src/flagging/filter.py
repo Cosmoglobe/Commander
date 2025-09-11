@@ -152,3 +152,69 @@ def filter_junk(
     )
 
     return full_filter
+
+
+def flag(stat_word_9, lvdt_stat_b):
+    """
+    This function returns a mask with the bad flags based on looking at the calibration interferograms.
+    """
+
+    sw9_filter = stat_word_9 != 15417
+    print(
+        f"sw9_filter: Removing {(sw9_filter.size- sw9_filter.sum())/sw9_filter.size * 100} % of the data"
+    )
+    lsb_filter = lvdt_stat_b != 96
+    print(
+        f"lsb_filter: Removing {(lsb_filter.size - lsb_filter.sum()) / lsb_filter.size * 100} % of the data"
+    )
+
+    return sw9_filter & lsb_filter
+
+
+def filter_bol(
+    a_bol_assem_rh,
+    a_bol_assem_rl,
+    a_bol_assem_lh,
+    a_bol_assem_ll,
+    b_bol_assem_rh,
+    b_bol_assem_rl,
+    b_bol_assem_lh,
+    b_bol_assem_ll,
+    bol_cmd_bias_rh,
+    bol_cmd_bias_rl,
+    bol_cmd_bias_lh,
+    bol_cmd_bias_ll,
+):
+    filtergrt = (
+        (a_bol_assem_rh > 0)
+        & (a_bol_assem_rl > 0)
+        & (a_bol_assem_lh > 0)
+        & (a_bol_assem_ll > 0)
+        & (b_bol_assem_rh > 0)
+        & (b_bol_assem_rl > 0)
+        & (b_bol_assem_lh > 0)
+        & (b_bol_assem_ll > 0)
+    )
+    print(
+        f"filtergrt: Removing {(filtergrt.size - filtergrt.sum()) / filtergrt.size * 100} % of the data"
+    )
+    filtercmd = (
+        (bol_cmd_bias_rh > 0)
+        & (bol_cmd_bias_rl > 0)
+        & (bol_cmd_bias_lh > 0)
+        & (bol_cmd_bias_ll > 0)
+    )
+    print(
+        f"filtercmd: Removing {(filtercmd.size - filtercmd.sum()) / filtercmd.size * 100} % of the data"
+    )
+
+    return filtergrt & filtercmd
+
+
+def flag_bad_ifgs():
+    """
+    These are the IDs given by the pre-processing script so it might change depending on if we change the way of associating IFGs in the preprocessing.
+    """
+    # idx_cal = [3490]
+    # return idx_cal
+    pass

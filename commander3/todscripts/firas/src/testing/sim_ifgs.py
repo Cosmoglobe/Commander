@@ -9,7 +9,7 @@ from astropy.modeling.models import BlackBody
 
 import globals as g
 import utils.dataio2 as dataio
-from data import flagging
+from flagging import filter
 from pipeline import ifg_spec
 from utils.config import gen_nyquistl
 
@@ -245,7 +245,7 @@ stat_word_16 = eng["en_stat/stat_word_16"][()]
 lvdt_stats = eng["en_stat/lvdt_stat"][()]
 lvdt_stat_a, lvdt_stat_b = lvdt_stats.T
 
-filter_bad = flagging.filter_junk(
+filter_bad = filter.filter_junk(
     stat_word_1=stat_word_1,
     stat_word_5=stat_word_5,
     stat_word_9=stat_word_9,

@@ -11,7 +11,7 @@ import globals as g
 import utils.dataio2 as dataio
 import utils.my_utils as utils
 from calibration import bolometer
-from data import flagging
+from flagging import filter
 from pipeline import ifg_spec
 from utils.config import gen_nyquistl
 
@@ -246,7 +246,7 @@ for param in change_parameters:
     bol_cmd_bias_lh = eng["en_stat/bol_cmd_bias"][:, 2]
     bol_cmd_bias_ll = eng["en_stat/bol_cmd_bias"][:, 3]
 
-    filter_bad = flagging.filter_junk(
+    filter_bad = filter.filter_junk(
         stat_word_1,
         stat_word_5,
         stat_word_9,
