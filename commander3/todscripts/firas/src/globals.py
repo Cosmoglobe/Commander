@@ -47,6 +47,8 @@ SCANUPDOWN = False
 PEAK_POSITIONS = {
     "lh_ss": 357,
     "rh_ss": 357,
+    "lh_lf": 355,
+    "rh_lf": 355,
     "ll_ss": 360,
     "rl_ss": 360,
     "ll_lf": 90,

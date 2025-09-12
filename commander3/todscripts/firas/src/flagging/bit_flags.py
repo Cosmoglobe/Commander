@@ -17,16 +17,84 @@ import numpy as np
 
 import globals as g
 
+
+def get_bin_matrix(stat_word_number):
+    status_word = cal_data[f"df_data/stat_word_{stat_word_number}"][:].astype(int)
+    sw = np.zeros((len(status_word), 16), dtype=int)
+    for i in range(len(status_word)):
+        bitstr = np.binary_repr(status_word[i], width=16)
+        sw[i, :] = np.array(list(bitstr), dtype=int)[::-1]
+    return sw
+
+
+def print_percentages(sw, num):
+    print(f"status_word_{num}")
+    for i in range(16):
+        print(f"Bit {i+1}: {(np.sum(sw, axis=0)[i] / len(sw)) * 100} %")
+
+
+def plot_matrix(sw, num):
+    plt.imshow(sw, aspect="auto", cmap="gray_r", interpolation="none")
+    plt.colorbar(label="Bit value")
+    plt.xlabel("Bit number")
+    plt.ylabel("Interferogram index")
+    plt.title(f"Bit flags for stat_word_{num}")
+    plt.savefig(f"./flagging/output/bit_flags_stat_word_{num}.png")
+    plt.clf()
+
+
+def plot_hist(sw, num):
+    # percentage of times each bit is set
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.bar(range(1, 17), np.sum(sw, axis=0) / len(sw) * 100)
+    ax.set_xticks(range(1, 17))
+    ax.set_xlabel("Bit number")
+    ax.set_ylabel("Percentage (%)")
+    ax.set_title(f"Bit flag percentages for stat_word_{num}")
+    plt.savefig(f"./flagging/output/bit_flag_percentages_stat_word_{num}.png")
+    plt.clf()
+
+
+def plot_ifgs(sw, sw_num, bit_num, set_to=1):
+    # indices of the ifgs that have the specified bit set
+    idx_bits = np.where(sw[:, bit_num - 1] == set_to)[0]
+
+    num_idx = len(idx_bits)
+
+    for i in range(0, num_idx, num_idx // 10):
+        id = idx_bits[i]
+
+        mode = ""
+        mode = "s" if mtm_length[id] == 0 else "l"
+        mode = mode + ("s" if mtm_speed[id] == 0 else "f")
+
+        fig, ax = plt.subplots(2, 2, figsize=(10, 6))
+        ax[0, 0].plot(ifg_rh[id, :])
+        ax[0, 0].set_title("ifg_rh")
+        ax[0, 0].axvline(x=g.PEAK_POSITIONS[f"rh_{mode}"], color="r", linestyle="--")
+        ax[0, 1].plot(ifg_rl[id, :])
+        ax[0, 1].set_title("ifg_rl")
+        ax[0, 1].axvline(x=g.PEAK_POSITIONS[f"rl_{mode}"], color="r", linestyle="--")
+        ax[1, 0].plot(ifg_lh[id, :])
+        ax[1, 0].set_title("ifg_lh")
+        ax[1, 0].axvline(x=g.PEAK_POSITIONS[f"lh_{mode}"], color="r", linestyle="--")
+        ax[1, 1].plot(ifg_ll[id, :])
+        ax[1, 1].set_title("ifg_ll")
+        ax[1, 1].axvline(x=g.PEAK_POSITIONS[f"ll_{mode}"], color="r", linestyle="--")
+        fig.suptitle(
+            f"Interferograms with stat_word_{sw_num} bit {bit_num} set to {set_to}\nIndex {idx[id]}\nMode {mode.upper()}\nICAL: {ical[id]:.2f}, XCAL: {xcal[id]:.2f}",
+        )
+        plt.tight_layout()
+        plt.savefig(
+            f"./flagging/output/ifgs_stat_word_{sw_num}_bit{bit_num}_{idx[id]}.png"
+        )
+        plt.close(fig)
+
+
 cal_data = h5py.File(
     g.PREPROCESSED_DATA_PATH_CAL,
     "r",
 )
-
-stat_word_5 = cal_data["df_data/stat_word_5"][:].astype(int)
-stat_word_9 = cal_data["df_data/stat_word_9"][:].astype(int)
-stat_word_12 = cal_data["df_data/stat_word_12"][:].astype(int)
-stat_word_13 = cal_data["df_data/stat_word_13"][:].astype(int)
-stat_word_16 = cal_data["df_data/stat_word_16"][:].astype(int)
 
 ifg_ll = cal_data["df_data/ifg_ll"][:]
 ifg_lh = cal_data["df_data/ifg_lh"][:]
@@ -36,69 +104,28 @@ ifg_rh = cal_data["df_data/ifg_rh"][:]
 mtm_speed = cal_data["df_data/mtm_speed"][:]
 mtm_length = cal_data["df_data/mtm_length"][:]
 
+a_xcal = cal_data["df_data/a_xcal"][:]
+b_xcal = cal_data["df_data/b_xcal"][:]
+xcal = (a_xcal + b_xcal) / 2
+a_ical = cal_data["df_data/a_ical"][:]
+b_ical = cal_data["df_data/b_ical"][:]
+ical = (a_ical + b_ical) / 2
+
 idx = cal_data["df_data/index"][:]
-print(f"idx: {idx}")
 
-sw5 = np.zeros((len(stat_word_5), 16), dtype=int)
-sw9 = np.zeros((len(stat_word_9), 16), dtype=int)
-sw12 = np.zeros((len(stat_word_12), 16), dtype=int)
-sw13 = np.zeros((len(stat_word_13), 16), dtype=int)
-sw16 = np.zeros((len(stat_word_16), 16), dtype=int)
-for i in range(len(stat_word_12)):
-    bitstr5 = np.binary_repr(stat_word_5[i], width=16)
-    bitstr9 = np.binary_repr(stat_word_9[i], width=16)
-    bitstr12 = np.binary_repr(stat_word_12[i], width=16)
-    bitstr13 = np.binary_repr(stat_word_13[i], width=16)
-    bitstr16 = np.binary_repr(stat_word_16[i], width=16)
-    sw5[i, :] = np.array(list(bitstr5), dtype=int)
-    sw9[i, :] = np.array(list(bitstr9), dtype=int)
-    sw12[i, :] = np.array(list(bitstr12), dtype=int)
-    sw13[i, :] = np.array(list(bitstr13), dtype=int)
-    sw16[i, :] = np.array(list(bitstr16), dtype=int)
+stat_word_nums = [5, 9, 12, 13, 16]
+for num in stat_word_nums:
+    sw = get_bin_matrix(num)
+    print_percentages(sw, num)
+    plot_matrix(sw, num)
+    plot_hist(sw, num)
 
-print(f"sw5: {sw5}")
+sw5 = get_bin_matrix(5)
+plot_ifgs(sw5, 5, 4, set_to=1)
 
-plt.imshow(sw5, aspect="auto", cmap="gray_r", interpolation="none")
-plt.colorbar(label="Bit value")
-plt.xlabel("Bit number")
-plt.ylabel("Interferogram index")
-plt.title("Bit flags for stat_word_5")
-plt.savefig("./flagging/output/bit_flags_stat_word_5.png")
-plt.clf()
+sw9 = get_bin_matrix(9)
+plot_ifgs(sw9, 9, 16, set_to=0)
 
-# percentage of times each bit is set
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.bar(range(1, 17), np.sum(sw5, axis=0) / len(stat_word_5) * 100)
-ax.set_xticks(range(1, 17))
-ax.set_xlabel("Bit number")
-ax.set_ylabel("Percentage (%)")
-ax.set_title("Bit flag percentages for stat_word_5")
-plt.savefig("./flagging/output/bit_flag_percentages_stat_word_5.png")
-
-print("stat_word_5")
-for i in range(16):
-    print(f"Bit {i+1}: {(np.sum(sw5, axis=0)[i] / len(stat_word_5)) * 100} %")
-
-# indices of the ifgs that have bit 13 set
-sw5_bit13_idx = np.where(sw5[:, 12] == 1)[0]
-
-for i in range(0, len(sw5_bit13_idx), 100):
-    id = sw5_bit13_idx[i]
-    fig, ax = plt.subplots(2, 2, figsize=(10, 6))
-    ax[0, 0].plot(ifg_ll[id, :])
-    ax[0, 0].set_title("ifg_ll")
-    ax[0, 1].plot(ifg_lh[id, :])
-    ax[0, 1].set_title("ifg_lh")
-    ax[1, 0].plot(ifg_rl[id, :])
-    ax[1, 0].set_title("ifg_rl")
-    ax[1, 1].plot(ifg_rh[id, :])
-    ax[1, 1].set_title("ifg_rh")
-    fig.suptitle(
-        f"Interferograms with stat_word_5 bit 13 set, index {idx[id]}, mtm_speed {mtm_speed[id]}, mtm_length {mtm_length[id]}"
-    )
-    plt.tight_layout()
-    plt.savefig(f"./flagging/output/ifgs_stat_word_5_bit13_{id}.png")
-    plt.clf()
 
 # TODO: fraction analysis
 # TODO: correlation between flags
