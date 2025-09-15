@@ -68,25 +68,41 @@ def plot_ifgs(sw, sw_num, bit_num, set_to=1):
         mode = "s" if mtm_length[id] == 0 else "l"
         mode = mode + ("s" if mtm_speed[id] == 0 else "f")
 
-        fig, ax = plt.subplots(2, 2, figsize=(10, 6))
+        highfreq_lim = np.max([np.abs(ifg_rh[id, :]), np.abs(ifg_lh[id, :])])
+        lowfreq_lim = np.max([np.abs(ifg_ll[id, :]), np.abs(ifg_rl[id, :])])
+
+        fig, ax = plt.subplots(3, 2, figsize=(10, 6))
         ax[0, 0].plot(ifg_rh[id, :])
         ax[0, 0].set_title("ifg_rh")
         ax[0, 0].axvline(x=g.PEAK_POSITIONS[f"rh_{mode}"], color="r", linestyle="--")
-        ax[0, 1].plot(ifg_rl[id, :])
-        ax[0, 1].set_title("ifg_rl")
-        ax[0, 1].axvline(x=g.PEAK_POSITIONS[f"rl_{mode}"], color="r", linestyle="--")
+        ax[0, 0].set_ylim(-1.1 * highfreq_lim, 1.1 * highfreq_lim)
         ax[1, 0].plot(ifg_lh[id, :])
         ax[1, 0].set_title("ifg_lh")
         ax[1, 0].axvline(x=g.PEAK_POSITIONS[f"lh_{mode}"], color="r", linestyle="--")
+        ax[1, 0].set_ylim(-1.1 * highfreq_lim, 1.1 * highfreq_lim)
+        ax[2, 0].plot(ifg_lh[id, :] + ifg_rh[id, :])
+        ax[2, 0].set_title("ifg_lh + ifg_rh")
+        ax[2, 0].axvline(x=g.PEAK_POSITIONS[f"lh_{mode}"], color="r", linestyle="--")
+        ax[2, 0].set_ylim(-1.1 * highfreq_lim, 1.1 * highfreq_lim)
+        ax[0, 1].plot(ifg_rl[id, :])
+        ax[0, 1].set_title("ifg_rl")
+        ax[0, 1].axvline(x=g.PEAK_POSITIONS[f"rl_{mode}"], color="r", linestyle="--")
+        ax[0, 1].set_ylim(-1.1 * lowfreq_lim, 1.1 * lowfreq_lim)
         ax[1, 1].plot(ifg_ll[id, :])
         ax[1, 1].set_title("ifg_ll")
         ax[1, 1].axvline(x=g.PEAK_POSITIONS[f"ll_{mode}"], color="r", linestyle="--")
+        ax[1, 1].set_ylim(-1.1 * lowfreq_lim, 1.1 * lowfreq_lim)
+        ax[2, 1].plot(ifg_ll[id, :] + ifg_rl[id, :])
+        ax[2, 1].set_title("ifg_ll + ifg_rl")
+        ax[2, 1].axvline(x=g.PEAK_POSITIONS[f"ll_{mode}"], color="r", linestyle="--")
+        ax[2, 1].set_ylim(-1.1 * lowfreq_lim, 1.1 * lowfreq_lim)
+        plt.subplots_adjust(hspace=0.5)
         fig.suptitle(
             f"Interferograms with stat_word_{sw_num} bit {bit_num} set to {set_to}\nIndex {idx[id]}\nMode {mode.upper()}\nICAL: {ical[id]:.2f}, XCAL: {xcal[id]:.2f}",
         )
         plt.tight_layout()
         plt.savefig(
-            f"./flagging/output/ifgs_stat_word_{sw_num}_bit{bit_num}_{idx[id]}.png"
+            f"./flagging/output/ifgs_stat_word_{sw_num}/bit{bit_num}_{idx[id]}.png"
         )
         plt.close(fig)
 
@@ -100,6 +116,10 @@ ifg_ll = cal_data["df_data/ifg_ll"][:]
 ifg_lh = cal_data["df_data/ifg_lh"][:]
 ifg_rl = cal_data["df_data/ifg_rl"][:]
 ifg_rh = cal_data["df_data/ifg_rh"][:]
+ifg_ll = ifg_ll - np.median(ifg_ll, axis=1)[:, None]
+ifg_lh = ifg_lh - np.median(ifg_lh, axis=1)[:, None]
+ifg_rl = ifg_rl - np.median(ifg_rl, axis=1)[:, None]
+ifg_rh = ifg_rh - np.median(ifg_rh, axis=1)[:, None]
 
 mtm_speed = cal_data["df_data/mtm_speed"][:]
 mtm_length = cal_data["df_data/mtm_length"][:]
@@ -122,10 +142,26 @@ for num in stat_word_nums:
 
 sw5 = get_bin_matrix(5)
 plot_ifgs(sw5, 5, 4, set_to=1)
+plot_ifgs(sw5, 5, 7, set_to=1)
+plot_ifgs(sw5, 5, 8, set_to=0)
+plot_ifgs(sw5, 5, 9, set_to=1)
+plot_ifgs(sw5, 5, 10, set_to=1)
+plot_ifgs(sw5, 5, 11, set_to=0)
+plot_ifgs(sw5, 5, 12, set_to=0)
 
-sw9 = get_bin_matrix(9)
-plot_ifgs(sw9, 9, 16, set_to=0)
+# sw9 = get_bin_matrix(9)
+# plot_ifgs(sw9, 9, 16, set_to=0)
+# plot_ifgs(sw9, 9, 13, set_to=0)
+# plot_ifgs(sw9, 9, 14, set_to=0)
 
+# sw12 = get_bin_matrix(12)
+# plot_ifgs(sw12, 12, 1, set_to=1)
+# plot_ifgs(sw12, 12, 3, set_to=1)
+# plot_ifgs(sw12, 12, 4, set_to=0)
+# plot_ifgs(sw12, 12, 6, set_to=0)
+# plot_ifgs(sw12, 12, 8, set_to=1)
+# plot_ifgs(sw12, 12, 9, set_to=1)
+# plot_ifgs(sw12, 12, 14, set_to=1)
 
 # TODO: fraction analysis
 # TODO: correlation between flags

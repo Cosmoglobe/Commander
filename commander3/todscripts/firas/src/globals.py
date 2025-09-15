@@ -47,10 +47,14 @@ SCANUPDOWN = False
 PEAK_POSITIONS = {
     "lh_ss": 357,
     "rh_ss": 357,
+    "lh_sf": 359,
+    "rh_sf": 359,
     "lh_lf": 355,
     "rh_lf": 355,
     "ll_ss": 360,
     "rl_ss": 360,
+    "ll_sf": 90,  # technically these two are fs (not sf)
+    "rl_sf": 90,
     "ll_lf": 90,
     "rl_lf": 90,
 }
