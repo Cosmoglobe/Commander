@@ -80,7 +80,18 @@ def plot_ifgs(sw, sw_num, bit_num, set_to=1):
         ax[1, 0].set_title("ifg_lh")
         ax[1, 0].axvline(x=g.PEAK_POSITIONS[f"lh_{mode}"], color="r", linestyle="--")
         ax[1, 0].set_ylim(-1.1 * highfreq_lim, 1.1 * highfreq_lim)
-        ax[2, 0].plot(ifg_lh[id, :] + ifg_rh[id, :])
+        ax[2, 0].plot(
+            ifg_lh[id, :]
+            + ifg_rh[id, :]
+            * np.max(np.abs(ifg_lh), axis=1)[:, np.newaxis]
+            / np.max(np.abs(ifg_rh), axis=1)[:, np.newaxis]
+        )
+        ax[2, 0].plot(
+            ifg_rh[id, :]
+            + ifg_lh[id, :]
+            * np.max(np.abs(ifg_rh), axis=1)[:, np.newaxis]
+            / np.max(np.abs(ifg_lh), axis=1)[:, np.newaxis]
+        )
         ax[2, 0].set_title("ifg_lh + ifg_rh")
         ax[2, 0].axvline(x=g.PEAK_POSITIONS[f"lh_{mode}"], color="r", linestyle="--")
         ax[2, 0].set_ylim(-1.1 * highfreq_lim, 1.1 * highfreq_lim)
@@ -92,7 +103,18 @@ def plot_ifgs(sw, sw_num, bit_num, set_to=1):
         ax[1, 1].set_title("ifg_ll")
         ax[1, 1].axvline(x=g.PEAK_POSITIONS[f"ll_{mode}"], color="r", linestyle="--")
         ax[1, 1].set_ylim(-1.1 * lowfreq_lim, 1.1 * lowfreq_lim)
-        ax[2, 1].plot(ifg_ll[id, :] + ifg_rl[id, :])
+        ax[2, 1].plot(
+            ifg_ll[id, :]
+            + ifg_rl[id, :]
+            * np.max(np.abs(ifg_ll), axis=1)[:, np.newaxis]
+            / np.max(np.abs(ifg_rl), axis=1)[:, np.newaxis]
+        )
+        ax[2, 1].plot(
+            ifg_rl[id, :]
+            + ifg_ll[id, :]
+            * np.max(np.abs(ifg_rl), axis=1)[:, np.newaxis]
+            / np.max(np.abs(ifg_ll), axis=1)[:, np.newaxis]
+        )
         ax[2, 1].set_title("ifg_ll + ifg_rl")
         ax[2, 1].axvline(x=g.PEAK_POSITIONS[f"ll_{mode}"], color="r", linestyle="--")
         ax[2, 1].set_ylim(-1.1 * lowfreq_lim, 1.1 * lowfreq_lim)
