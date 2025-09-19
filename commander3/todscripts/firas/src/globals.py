@@ -63,3 +63,4 @@ IFG_SIZE = 512
 SPEC_SIZE = 257
 
 CHANNELS = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
+MODES = {"ss": 0, "lf": 3}  # can change when i have the new cal models

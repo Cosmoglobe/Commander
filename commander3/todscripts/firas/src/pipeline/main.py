@@ -4,21 +4,17 @@ This script takes the interferograms into spectra.
 
 from datetime import datetime
 
-import globals as g
 import h5py
 import healpy as hp
 import numpy as np
-import utils.my_utils as utils
 from astropy.io import fits
+
+import globals as g
+import utils.my_utils as utils
 from calibration import bolometer
 from flagging import filter
 from pipeline import ifg_spec, pointing
 from utils.config import gen_nyquistl
-
-T_CMB = 2.72548  # Fixsen 2009
-NSIDE = 32
-channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
-modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
     g.PREPROCESSED_DATA_PATH_SKY,
@@ -71,7 +67,7 @@ channel_dependent = [
     "gain",
 ]
 
-for channel in channels:
+for channel in g.CHANNELS.keys():
     for variable_name in channel_dependent:
         variable_names = variable_names + [f"{variable_name}_{channel}"]
 
@@ -97,7 +93,7 @@ gal_vec = gal_vec[valid_indices]
 
 variables["gal_lon"], variables["gal_lat"] = hp.vec2ang(gal_vec, lonlat=True)
 variables["pix_gal"] = hp.ang2pix(
-    NSIDE, variables["gal_lon"], variables["gal_lat"], lonlat=True
+    g.NSIDE, variables["gal_lon"], variables["gal_lat"], lonlat=True
 ).astype(int)
 
 # filter out bad data (selected "by eye")
@@ -188,7 +184,7 @@ filters["lf"] = long_filter & fast_filter
 
 variablesm = {}
 for variable in variables.keys():
-    for mode in modes.keys():
+    for mode in g.MODES.keys():
         variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
 
 fnyq = gen_nyquistl(
@@ -198,8 +194,8 @@ fnyq = gen_nyquistl(
 spec = {}
 sky = {}
 
-for channel, channel_value in channels.items():
-    for mode, mode_value in modes.items():
+for channel, channel_value in g.CHANNELS.items():
+    for mode, mode_value in g.MODES.items():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             fits_data = fits.open(
                 f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
@@ -389,7 +385,7 @@ extra_variables = [
     "scan",
 ]
 for variable in extra_variables:
-    for mode in modes.keys():
+    for mode in g.MODES.keys():
         variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
             valid_indices
         ]
