@@ -180,13 +180,13 @@ if __name__ == "__main__":
         Ei = np.ones(
             10, dtype=complex
         )  # First guess for the emissivities of all emitters
-        # solution[nui] = minimize(full_function, Ei, args=(nui,)).x
+        solution[nui] = minimize(full_function, Ei, args=(nui, ifg)).x
         # solution[nui] = minimize(
         #     lambda z, nui: full_function(real_to_complex(z), nui),
         #     x0=complex_to_real(Ei),
         #     args=(nui,),
         # ).x
-        solution[nui] = newton(full_function, Ei, args=(nui, ifg))
+        # solution[nui] = newton(full_function, Ei, args=(nui, ifg))
         # solution[nui] = dual_annealing(full_function, bounds=[(0, 2)] * 10, args=(nui,))
         print(f"Solution is {solution[nui]}")
         print(f"Time taken: {time.time() - start:.2f} seconds")
