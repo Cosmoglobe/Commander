@@ -7,16 +7,25 @@ R = 1/OTF * sum over all emitters i (excluding XCAL) of E_i * P(T_i).
 
 import time
 
-import globals as g
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-from calibration import bolometer, electronics
 from scipy.optimize import dual_annealing, minimize, newton
+
+import globals as g
+from calibration import bolometer, electronics
 from utils import my_utils as utils
+from utils.config import gen_nyquistl
 
 
-def D(Ei, nui):
+def D(Ei, nui, ifg):
+    # subtract dither
+    ifg = ifg - np.median(ifg, axis=1)[:, None]
+    ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"], axis=1)
+
+    # "normalize" ifg by gain and sweeps
+    ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
+
     Y = np.fft.rfft(ifg, axis=1)
     Y = Y[:, nui]
 
@@ -38,12 +47,14 @@ def D(Ei, nui):
 
     H = Ei[0]
 
+    spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
+
     # print(f"Y: {Y}")
     # print(f"H: {H}")
-    print(f"Z: {Z[Z == 0]}")
-    print(f"Z: {Z.shape}")
+    # print(f"Z: {Z[Z == 0]}")
+    # print(f"Z: {Z.shape}")
     # print(f"B: {B}")
-    return Y / H / Z / B
+    return Y / H / Z / B / spec_norm * g.FAC_ERG_TO_MJY
 
 
 def R(Ei, nui):
@@ -71,8 +82,8 @@ def S(nui):
     return utils.planck(frequencies[nui], temps[0])
 
 
-def full_function(Ei, nui):
-    result = D(Ei, nui) - R(Ei, nui) - S(nui)
+def full_function(Ei, nui, ifg):
+    result = D(Ei, nui, ifg) - R(Ei, nui) - S(nui)
     return np.sum(result**2)
 
 
@@ -118,6 +129,7 @@ if __name__ == "__main__":
 
     bol_cmd_bias = data[f"bol_cmd_bias_{channel}"][:]
     bol_volt = data[f"bol_volt_{channel}"][:]
+    gain = data[f"gain_{channel}"][:]
 
     # we don't want the records where the bol_cmd_bias is lower than 0
     valid = bol_cmd_bias > 0
@@ -136,6 +148,7 @@ if __name__ == "__main__":
     sweeps = sweeps[valid]
     bol_cmd_bias = bol_cmd_bias[valid]
     bol_volt = bol_volt[valid]
+    gain = gain[valid]
 
     temps = [
         xcal,
@@ -152,6 +165,12 @@ if __name__ == "__main__":
 
     frequencies = utils.generate_frequencies(channel, mode, 257)
 
+    fnyq = gen_nyquistl(
+        "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
+    )
+    frec = 4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]
+    fnyq_icm = fnyq["icm"][frec]
+
     solution = np.zeros((g.SPEC_SIZE, 10), dtype=complex)  # 10 emissivities to fit
     start0 = time.time()
     for nui in range(0, g.SPEC_SIZE):
@@ -167,7 +186,7 @@ if __name__ == "__main__":
         #     x0=complex_to_real(Ei),
         #     args=(nui,),
         # ).x
-        solution[nui] = newton(full_function, Ei, args=(nui,))
+        solution[nui] = newton(full_function, Ei, args=(nui, ifg))
         # solution[nui] = dual_annealing(full_function, bounds=[(0, 2)] * 10, args=(nui,))
         print(f"Solution is {solution[nui]}")
         print(f"Time taken: {time.time() - start:.2f} seconds")

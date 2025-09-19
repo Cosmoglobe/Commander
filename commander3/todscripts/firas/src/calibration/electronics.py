@@ -1,7 +1,8 @@
-import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
+import globals as g
 from utils import frd, fut
 
 
@@ -42,14 +43,17 @@ def etfunction(channel, adds_per_group, samprate, nui=None):
 
         zxfer = compute_etf_per_freq(freqhz, channel, samprate, adds_per_group)
 
-        ampmax = -1
         ampl = np.sqrt(np.abs(zxfer) ** 2)
-        ampmax = max(ampl, ampmax)
+        ampmax = -1 * np.ones_like(ampl)
+        # print(f"ampl shape: {ampl.shape}")
+        ampmax = np.maximum(ampl, ampmax)
+        # print(f"ampmax shape: {ampmax.shape}")
 
-        if ampl < ampmax / 1000.0:
-            ztrans = 100000.0
-        else:
-            ztrans = -zxfer
+        ztrans = np.zeros_like(ampmax, dtype=complex)
+        # if ampl < ampmax / 1000.0:
+        ztrans[ampl < ampmax / 1000.0] = 100000.0
+        # else:
+        ztrans[ampl >= ampmax / 1000.0] = -zxfer[ampl >= ampmax / 1000.0]
 
     return ztrans
 
