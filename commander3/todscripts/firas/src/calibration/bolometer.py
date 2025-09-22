@@ -1,6 +1,7 @@
-import globals as g
 import numpy as np
 from astropy.io import fits
+
+import globals as g
 from utils import my_utils as utils
 
 
@@ -120,5 +121,8 @@ def get_bolometer_response_function(channel, mode, bol_cmd_bias, bol_volt, Tbol)
 
     omega = utils.get_afreq(0 if mode[1] == "s" else 1, channel, 257)
 
-    B = S0[:, np.newaxis] / (1 + 1j * omega[np.newaxis, :] * tau[:, np.newaxis])
+    if S0.ndim == 1:
+        S0 = S0[:, np.newaxis]
+        tau = tau[:, np.newaxis]
+    B = S0 / (1 + 1j * omega[np.newaxis, :] * tau)
     return B

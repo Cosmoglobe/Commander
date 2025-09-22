@@ -8,9 +8,8 @@ R = 1/OTF * sum over all emitters i (excluding XCAL) of E_i * P(T_i).
 import time
 
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import dual_annealing, minimize, newton
+from scipy.optimize import minimize
 
 import globals as g
 from calibration import bolometer, electronics
@@ -18,16 +17,38 @@ from utils import my_utils as utils
 from utils.config import gen_nyquistl
 
 
-def D(Ei, nui, ifg):
+def D(
+    Ei,
+    nui,
+    ifg,
+    channel,
+    mode,
+    gain,
+    sweeps,
+    bol_cmd_bias,
+    bol_volt,
+    temps,
+    adds_per_group,
+    fnyq_icm,
+):
     # subtract dither
-    ifg = ifg - np.median(ifg, axis=1)[:, None]
-    ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"], axis=1)
+    if ifg.ndim == 1:
+        ifg = ifg - np.median(ifg)
+        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"])
 
-    # "normalize" ifg by gain and sweeps
-    ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
+        ifg = ifg / gain / sweeps
 
-    Y = np.fft.rfft(ifg, axis=1)
-    Y = Y[:, nui]
+        Y = np.fft.rfft(ifg)
+        Y = Y[nui]
+    else:
+        ifg = ifg - np.median(ifg, axis=1)[:, None]
+        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"], axis=1)
+
+        # "normalize" ifg by gain and sweeps
+        ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
+
+        Y = np.fft.rfft(ifg, axis=1)
+        Y = Y[:, nui]
 
     B = bolometer.get_bolometer_response_function(
         channel,
@@ -57,7 +78,7 @@ def D(Ei, nui, ifg):
     return Y / H / Z / B / spec_norm * g.FAC_ERG_TO_MJY
 
 
-def R(Ei, nui):
+def R(Ei, nui, temps, frequencies):
     """
     R is the function that weights each of the emitters.
 
@@ -69,7 +90,7 @@ def R(Ei, nui):
         2D array of the emissivities over frequency for each of the other nine emitters.
         1: ICAL, 2: dihedral, 3: refhorn, 4: skyhorn, 5: collimator, 6: bolometer_rh, 7: bolometer_rl, 8: bolometer_lh, 9: bolometer_ll
     """
-    sum = np.zeros_like(adds_per_group, dtype=complex)
+    sum = np.zeros_like(temps[0], dtype=complex)
     for i in range(1, Ei.shape[0]):
         sum += Ei[i] * utils.planck(temps[i], frequencies[nui])
 
@@ -78,12 +99,43 @@ def R(Ei, nui):
     return sum / H
 
 
-def S(nui):
+def S(nui, frequencies, temps):
     return utils.planck(frequencies[nui], temps[0])
 
 
-def full_function(Ei, nui, ifg):
-    result = D(Ei, nui, ifg) - R(Ei, nui) - S(nui)
+def full_function(
+    Ei,
+    nui,
+    ifg,
+    channel,
+    mode,
+    gain,
+    sweeps,
+    bol_cmd_bias,
+    bol_volt,
+    temps,
+    adds_per_group,
+    fnyq_icm,
+    frequencies,
+):
+    result = (
+        D(
+            Ei,
+            nui,
+            ifg,
+            channel,
+            mode,
+            gain,
+            sweeps,
+            bol_cmd_bias,
+            bol_volt,
+            temps,
+            adds_per_group,
+            fnyq_icm,
+        )
+        - R(Ei, nui, temps, frequencies)
+        - S(nui, frequencies, temps)
+    )
     return np.sum(result**2)
 
 
@@ -180,7 +232,24 @@ if __name__ == "__main__":
         Ei = np.ones(
             10, dtype=complex
         )  # First guess for the emissivities of all emitters
-        solution[nui] = minimize(full_function, Ei, args=(nui, ifg)).x
+        solution[nui] = minimize(
+            full_function,
+            Ei,
+            args=(
+                nui,
+                ifg,
+                channel,
+                mode,
+                gain,
+                sweeps,
+                bol_cmd_bias,
+                bol_volt,
+                temps,
+                adds_per_group,
+                fnyq_icm,
+                frequencies,
+            ),
+        ).x
         # solution[nui] = minimize(
         #     lambda z, nui: full_function(real_to_complex(z), nui),
         #     x0=complex_to_real(Ei),
@@ -193,4 +262,4 @@ if __name__ == "__main__":
 
     print(f"Total time taken: {time.time() - start0:.2f} seconds")
     # save solution
-    # np.save("fitted_emissivities.npy", real_to_complex(solution))
+    np.save("fitted_emissivities.npy", solution)

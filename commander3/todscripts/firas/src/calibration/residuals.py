@@ -1,10 +1,8 @@
-import os
-import sys
-
-import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
+import globals as g
 from calibration import bolometer
 from pipeline import ifg_spec
 from simulations.main import generate_ifg
