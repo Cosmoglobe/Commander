@@ -9,6 +9,7 @@ import time
 
 import h5py
 import numpy as np
+from astropy.io import fits
 from scipy.optimize import minimize
 
 import globals as g
@@ -30,23 +31,36 @@ def D(
     temps,
     adds_per_group,
     fnyq_icm,
+    apod=False,
 ):
+    if apod:
+        fits_data = fits.open(
+            f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
+        )
+        apod_func = fits_data[1].data["APODIZAT"][0]
+
     # subtract dither
     if ifg.ndim == 1:
         ifg = ifg - np.median(ifg)
-        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"])
 
         ifg = ifg / gain / sweeps
 
+        if apod:
+            ifg = ifg * apod_func
+
+        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"])
         Y = np.fft.rfft(ifg)
         Y = Y[nui]
     else:
         ifg = ifg - np.median(ifg, axis=1)[:, None]
-        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"], axis=1)
 
         # "normalize" ifg by gain and sweeps
         ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
 
+        if apod:
+            ifg = ifg * apod_func
+
+        ifg = np.roll(ifg, -g.PEAK_POSITIONS[f"{channel}_{mode}"], axis=1)
         Y = np.fft.rfft(ifg, axis=1)
         Y = Y[:, nui]
 

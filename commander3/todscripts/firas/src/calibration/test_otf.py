@@ -176,7 +176,7 @@ for freqi, freq in enumerate(frequencies):
     # print(f"D, R, S: {D}, {R}, {S}")
     residuals_fitted[freqi] = D - R - S
 
-residuals_pub = np.zeros(257, dtype=complex)
+residuals_pub = np.zeros(43, dtype=complex)
 for freqi, freq in enumerate(frequencies_pub):
     D_pub = fit_otf.D(
         emissivities[freqi, :],
@@ -198,9 +198,17 @@ for freqi, freq in enumerate(frequencies_pub):
 
 
 plt.figure(figsize=(10, 6))
-plt.plot(ifgs[n, :], label="Original IFG", color="black")
-plt.plot(residuals_fitted, label="Fitted Emissivities Residuals", color="red")
-plt.plot(residuals_pub, label="Published Emissivities Residuals", color="blue")
+# plt.plot(ifgs[n, :], label="Original IFG", color="black")
+plt.plot(
+    frequencies, residuals_fitted, label="Fitted Emissivities Residuals", color="red"
+)
+plt.plot(
+    frequencies_pub,
+    residuals_pub,
+    label="Published Emissivities Residuals",
+    color="blue",
+)
+plt.plot(frequencies, utils.planck(frequencies, g.T_CMB), label="CMB", color="green")
 plt.xlabel("Frequency (GHz)")
 plt.ylabel("Signal")
 plt.title(f"IFG {n+1} Comparison")
