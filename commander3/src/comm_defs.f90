@@ -85,6 +85,13 @@ module comm_defs
   integer(i4b), parameter :: SD_OBJCTR   = 21
   integer(i4b), parameter :: SD_JUMP     = 22
 
-
+  !**************************************************
+  !           TOD data bit definitions
+  !**************************************************
+  integer(i4b), parameter :: TOD_RAMP_RESET      =  5
+  integer(i4b), parameter :: TOD_CALLAMP1        =  15
+  integer(i4b), parameter :: TOD_CALLAMP2        =  16
   
+
+
 end module comm_defs
