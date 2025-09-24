@@ -263,6 +263,7 @@ if __name__ == "__main__":
                 fnyq_icm,
                 frequencies,
             ),
+            # jac="cs",
         ).x
         # solution[nui] = minimize(
         #     lambda z, nui: full_function(real_to_complex(z), nui),

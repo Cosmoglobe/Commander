@@ -58,49 +58,73 @@ ifg_ll = ifg_ll[n] / gain_ll[n] / sweeps[n]
 # ifg_ll = np.roll(ifg_ll, -g.PEAK_POSITIONS["ll_ss"], axis=1)
 
 # normalize by amplitude at PEAK_POSITIONS
-ifg_rh_norm = ifg_rh / ifg_rh[g.PEAK_POSITIONS["rh_ss"]]
-ifg_rl_norm = ifg_rl / ifg_rl[g.PEAK_POSITIONS["rl_ss"]]
-ifg_lh_norm = ifg_lh / ifg_lh[g.PEAK_POSITIONS["lh_ss"]]
-ifg_ll_norm = ifg_ll / ifg_ll[g.PEAK_POSITIONS["ll_ss"]]
+# ifg_rh_norm = ifg_rh / ifg_rh[g.PEAK_POSITIONS["rh_ss"]]
+# ifg_rl_norm = ifg_rl / ifg_rl[g.PEAK_POSITIONS["rl_ss"]]
+# ifg_lh_norm = ifg_lh / ifg_lh[g.PEAK_POSITIONS["lh_ss"]]
+# ifg_ll_norm = ifg_ll / ifg_ll[g.PEAK_POSITIONS["ll_ss"]]
 
-ifg_low = ifg_ll_norm - ifg_rl_norm
-ifg_high = ifg_lh_norm - ifg_rh_norm
+ifg_low_normr = (
+    ifg_rl
+    - ifg_ll * ifg_rl[g.PEAK_POSITIONS["rl_ss"]] / ifg_ll[g.PEAK_POSITIONS["ll_ss"]]
+)
+ifg_low_norml = (
+    ifg_ll
+    - ifg_rl * ifg_ll[g.PEAK_POSITIONS["ll_ss"]] / ifg_rl[g.PEAK_POSITIONS["rl_ss"]]
+)
+ifg_high_normr = (
+    ifg_rh
+    - ifg_lh * ifg_rh[g.PEAK_POSITIONS["rh_ss"]] / ifg_lh[g.PEAK_POSITIONS["lh_ss"]]
+)
+ifg_high_norml = (
+    ifg_lh
+    - ifg_rh * ifg_lh[g.PEAK_POSITIONS["lh_ss"]] / ifg_rh[g.PEAK_POSITIONS["rh_ss"]]
+)
 
 
-max_amp_high = np.max([np.abs(ifg_lh_norm).max(), np.abs(ifg_rh_norm).max()])
-max_amp_low = np.max([np.abs(ifg_ll_norm).max(), np.abs(ifg_rl_norm).max()])
+max_amp_high = np.max([np.abs(ifg_lh).max(), np.abs(ifg_rh).max()])
+max_amp_low = np.max([np.abs(ifg_ll).max(), np.abs(ifg_rl).max()])
 
-fig, ax = plt.subplots(3, 2, figsize=(10, 6))
+fig, ax = plt.subplots(4, 2, figsize=(10, 6))
 
-ax[0, 0].plot(ifg_rh_norm)
+ax[0, 0].plot(ifg_rh)
 ax[0, 0].axvline(g.PEAK_POSITIONS["rh_ss"], color="r", linestyle="--")
 ax[0, 0].set_title("IFG RH")
 ax[0, 0].set_ylim([-1.1 * max_amp_high, 1.1 * max_amp_high])
 
-ax[1, 0].plot(ifg_lh_norm)
+ax[1, 0].plot(ifg_lh)
 ax[1, 0].axvline(g.PEAK_POSITIONS["lh_ss"], color="r", linestyle="--")
 ax[1, 0].set_title("IFG LH")
 ax[1, 0].set_ylim([-1.1 * max_amp_high, 1.1 * max_amp_high])
 
-ax[2, 0].plot(ifg_high)
+ax[2, 0].plot(ifg_high_norml)
 ax[2, 0].axvline(g.PEAK_POSITIONS["lh_ss"], color="r", linestyle="--")
-ax[2, 0].set_title("IFG High (LH + RH)")
+ax[2, 0].set_title("IFG High (LH + RH) Normalized to Left")
 ax[2, 0].set_ylim([-1.1 * max_amp_high, 1.1 * max_amp_high])
 
-ax[0, 1].plot(ifg_rl_norm)
+ax[3, 0].plot(ifg_high_normr)
+ax[3, 0].axvline(g.PEAK_POSITIONS["rh_ss"], color="r", linestyle="--")
+ax[3, 0].set_title("IFG High (LH + RH) Normalized to Right")
+ax[3, 0].set_ylim([-1.1 * max_amp_high, 1.1 * max_amp_high])
+
+ax[0, 1].plot(ifg_rl)
 ax[0, 1].axvline(g.PEAK_POSITIONS["rl_ss"], color="r", linestyle="--")
 ax[0, 1].set_title("IFG RL")
 ax[0, 1].set_ylim([-1.1 * max_amp_low, 1.1 * max_amp_low])
 
-ax[1, 1].plot(ifg_ll_norm)
+ax[1, 1].plot(ifg_ll)
 ax[1, 1].axvline(g.PEAK_POSITIONS["ll_ss"], color="r", linestyle="--")
 ax[1, 1].set_title("IFG LL")
 ax[1, 1].set_ylim([-1.1 * max_amp_low, 1.1 * max_amp_low])
 
-ax[2, 1].plot(ifg_low)
+ax[2, 1].plot(ifg_low_norml)
 ax[2, 1].axvline(g.PEAK_POSITIONS["ll_ss"], color="r", linestyle="--")
-ax[2, 1].set_title("IFG Low (LL + RL)")
+ax[2, 1].set_title("IFG Low (LL + RL) Normalized to Left")
 ax[2, 1].set_ylim([-1.1 * max_amp_low, 1.1 * max_amp_low])
+
+ax[3, 1].plot(ifg_low_normr)
+ax[3, 1].axvline(g.PEAK_POSITIONS["rl_ss"], color="r", linestyle="--")
+ax[3, 1].set_title("IFG Low (LL + RL) Normalized to Right")
+ax[3, 1].set_ylim([-1.1 * max_amp_low, 1.1 * max_amp_low])
 
 plt.tight_layout()
 plt.show()
