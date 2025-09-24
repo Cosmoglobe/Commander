@@ -155,9 +155,11 @@ fnyq_icm = fnyq["icm"][frec]
 
 n = random.randint(0, ifgs.shape[0] - 1)
 
-residuals_fitted = np.zeros(257, dtype=complex)
+D = np.zeros(257, dtype=complex)
+R = np.zeros(257, dtype=complex)
+S = np.zeros(257, dtype=complex)
 for freqi, freq in enumerate(frequencies):
-    D = fit_otf.D(
+    D[freqi] = fit_otf.D(
         fitted_emissivities[freqi, :],
         freqi,
         ifgs[n],
@@ -171,10 +173,10 @@ for freqi, freq in enumerate(frequencies):
         adds_per_group[n],
         fnyq_icm,
     )
-    R = fit_otf.R(fitted_emissivities[freqi, :], freqi, temps[:, n], frequencies)
-    S = fit_otf.S(freqi, frequencies, temps[:, n])
+    R[freqi] = fit_otf.R(fitted_emissivities[freqi, :], freqi, temps[:, n], frequencies)
+    S[freqi] = fit_otf.S(freqi, frequencies, temps[:, n])
     # print(f"D, R, S: {D}, {R}, {S}")
-    residuals_fitted[freqi] = D - R - S
+residuals_fitted = D - R - S
 
 residuals_pub = np.zeros(43, dtype=complex)
 for freqi, freq in enumerate(frequencies_pub):
@@ -212,6 +214,25 @@ plt.plot(frequencies, utils.planck(frequencies, g.T_CMB), label="CMB", color="gr
 plt.xlabel("Frequency (GHz)")
 plt.ylabel("Signal")
 plt.title(f"IFG {n+1} Comparison")
+plt.legend()
+plt.grid()
+plt.savefig("./calibration/output/ifg_residuals_comparison.png")
+plt.close()
+
+# plot the different components of the residual
+plt.plot(frequencies, residuals_fitted.real, label="Residual", color="red")
+plt.plot(frequencies, residuals_fitted.imag, color="red", linestyle="dashed")
+plt.plot(frequencies, D.real, label="D", color="blue")
+plt.plot(frequencies, D.imag, color="blue", linestyle="dashed")
+plt.plot(frequencies, R.real, label="R", color="green")
+plt.plot(frequencies, R.imag, color="green", linestyle="dashed")
+plt.plot(frequencies, S.real, label="S", color="orange")
+plt.plot(frequencies, S.imag, color="orange", linestyle="dashed")
+plt.plot(frequencies, D.real - R.real, label="D-R", color="purple")
+plt.plot(frequencies, (D - R).imag, color="purple", linestyle="dashed")
+plt.xlabel("Frequency (GHz)")
+plt.ylabel("Signal")
+plt.title(f"IFG {n+1} Residual Components")
 plt.legend()
 plt.grid()
 plt.show()

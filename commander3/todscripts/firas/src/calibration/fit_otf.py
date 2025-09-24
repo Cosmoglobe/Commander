@@ -106,7 +106,7 @@ def R(Ei, nui, temps, frequencies):
     """
     sum = np.zeros_like(temps[0], dtype=complex)
     for i in range(1, Ei.shape[0]):
-        sum += Ei[i] * utils.planck(temps[i], frequencies[nui])
+        sum += Ei[i] * utils.planck(frequencies[nui], temps[i])
 
     H = Ei[0]
 
