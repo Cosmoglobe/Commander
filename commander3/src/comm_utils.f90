@@ -1726,8 +1726,6 @@ contains
     
   end subroutine compute_running_variance_dp
 
-!! ADDED ====================================================
-
   function bin_spec_lin(x, ps, dx) result(bin_spec)
     !
     ! Routine to bin a power spectrum with uniform bins
@@ -1893,5 +1891,4 @@ contains
     deallocate(log_bin_spec,lin_bin_spec)
   end function bin_spec_loglin
 
-!! ==========================================================
 end module comm_utils

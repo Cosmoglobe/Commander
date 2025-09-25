@@ -59,7 +59,7 @@ contains
     !          TOD-domain correlated noise realization
     ! 
     implicit none
-    class(comm_tod),                    intent(in)     :: self
+    class(comm_tod),                    intent(inout)     :: self ! MODDED (in > inout)
     real(sp),         dimension(1:,1:), intent(in)     :: tod
     type(planck_rng),                   intent(inout)  :: handle
     integer(i4b),                       intent(in)     :: scan
@@ -72,19 +72,22 @@ contains
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
+    integer(i4b) :: nbin ! ADDED
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
+    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu ! MODDED (added dnu)
     real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
     character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
+    integer(i4b), allocatable, dimension(:) :: bin_count ! ADDED
+    real(sp),     allocatable, dimension(:) :: bin_sum, bin_spec  ! ADDED 
     
     ! Splined PSD params
-    integer(i4b) :: nbin ! ADDED
-    real(sp)     :: dnu, threshold  ! ADDED
+!    integer(i4b) :: nbin ! ADDED
+!    real(sp)     :: dnu, threshold  ! ADDED
 !    real(sp), allocatable, dimension(:,:) :: psd, binned_psd ! ADDED
 
     call timer%start(TOD_NCORR, self%band)
@@ -115,8 +118,47 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain     = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
-       N_wn     = sigma_0**2  ! white noise power spectrum
+
+       ! Setting new white noise level from powspec ! ADDED
+       if (self%first_call) then
+          sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
+          N_wn     = sigma_0**2
+       else
+          do l = 1, n-1
+             ps(l) = abs(dv(l)) ** 2 / ntod
+          end do
+
+          ! Binning
+          dnu = 5.d-1 ! Hz
+          nbin = (samprate/2) * ((n-1) - 1/(n-1)) / dnu
+          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin))
+
+          bin_sum = 0.d0; bin_count = 0; bin_spec = 0.d0
+          do l = 1, n-1
+             j = (samprate/2)/(n-1) * (l  - 1) /dnu + 1
+             if (j >= 1 .and. j <= nbin) then
+                bin_sum(j)   = bin_sum(j) + ps(l)
+                bin_count(j) = bin_count(j) + 1
+             end if
+          end do
+
+          do j = 1, nbin
+             if (bin_count(j) > 0) bin_spec(j) = bin_sum(j) / bin_count(j)
+          end do
+          deallocate(bin_sum,bin_count)
+
+          N_wn = bin_spec(1)
+          do j = 1, nbin
+             if (bin_spec(l) < N_wn) then
+                N_wn = bin_spec(l)
+             end if
+          end do
+          deallocate(bin_spec)
+
+          sigma_0 = abs(sqrt(N_wn))
+          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0
+       end if
+       if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
 
        ! Prepare TOD residual
        d_prime = tod(:,i) - gain * s_sub(:,i)
