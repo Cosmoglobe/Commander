@@ -954,11 +954,19 @@ contains
     nout = size(d_calib,1)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
+       !write(*,*) '[comm_tod_driver_mod] gain:', tod%scans(scan)%d(j)%gain
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       !write(*,*) '[comm_tod_driver_mod] tod%compressed_tod:', tod%compressed_tod 
        if (tod%compressed_tod) then
         d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
+        !write(*,*) '[comm_tod_driver_mod] tod:', tod%scans(scan)%d(j)%tod
+        !write(*,*) '[comm_tod_driver_mod] n_corr:', sd%n_corr(:,j)
+        !write(*,*) '[comm_tod_driver_mod] inv_gain:', inv_gain
+        !write(*,*) '[comm_tod_driver_mod] s_tot:', sd%s_tot(:,j)
+        !write(*,*) '[comm_tod_driver_mod] s_sky:', sd%s_sky(:,j)
+        !write(*,*) '[comm_tod_driver_mod] s_bp:', sd%s_bp(:,j)
         d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
