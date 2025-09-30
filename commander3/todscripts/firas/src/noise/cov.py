@@ -17,15 +17,19 @@ sys.path.append(grandparent)
 import globals as g
 from utils.config import gen_nyquistl
 
-sky_data = h5py.File(
-    g.PREPROCESSED_DATA_PATH_SKY,
+# sky_data = h5py.File(
+#     g.PREPROCESSED_DATA_PATH_SKY,
+#     "r",
+# )
+cal_data = h5py.File(
+    g.PREPROCESSED_DATA_PATH_CAL,
     "r",
 )
 
-print(sky_data["df_data/ifg_ll"].shape)
+print(cal_data["df_data/ifg_ll"].shape)
 
-ifgs_ll = sky_data["df_data/ifg_ll"]
-ifgs_rl = sky_data["df_data/ifg_rl"]
+ifgs_ll = cal_data["df_data/ifg_ll"]
+ifgs_rl = cal_data["df_data/ifg_rl"]
 
 ifgs_ll = ifgs_ll - np.median(ifgs_ll, axis=1, keepdims=True)
 ifgs_rl = ifgs_rl - np.median(ifgs_rl, axis=1, keepdims=True)
@@ -64,7 +68,7 @@ plt.colorbar()
 plt.title("Correlation Coefficient Matrix of IFGs")
 plt.xlabel("IFG Index")
 plt.ylabel("IFG Index")
-plt.savefig("./../test_output/cov.png")
+plt.savefig("./noise/output/cov.png")
 plt.clf()
 
 channel_value = 3
@@ -73,7 +77,7 @@ mode_value = 0
 frec = 4 * (channel_value % 2) + mode_value
 
 fnyq = gen_nyquistl(
-    "../../../reference/fex_samprate.txt", "../../../reference/fex_nyquist.txt", "int"
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )["hz"][frec]
 
 psd = np.abs(np.fft.rfft(ifgs_sub, axis=0)) ** 2
@@ -87,4 +91,4 @@ plt.yscale("log")
 plt.title("Power Spectral Density of IFGs")
 plt.xlabel("Frequency (Hz)")
 plt.ylabel("Power Spectral Density")
-plt.savefig("./../test_output/psd.png")
+plt.savefig("./noise/output/psd.png")
