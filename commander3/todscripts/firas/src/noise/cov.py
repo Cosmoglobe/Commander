@@ -80,12 +80,12 @@ fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )["hz"][frec]
 
-psd = np.abs(np.fft.rfft(ifgs_sub, axis=0)) ** 2
-freqs = np.fft.rfftfreq(ifgs_sub.shape[0], d=2 * fnyq)
+psd = np.abs(np.fft.rfft(ifgs_sub, axis=1)) ** 2
+freqs = np.fft.rfftfreq(ifgs_sub.shape[1], d=2 * fnyq)
 
 print(psd.shape)
 
-plt.plot(freqs, psd)
+plt.plot(freqs, psd.T)
 plt.xscale("log")
 plt.yscale("log")
 plt.title("Power Spectral Density of IFGs")
