@@ -327,11 +327,11 @@ contains
             call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2)
             !call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
             call timer%start(TOD_BASELINE, self%band)
-            if (self%myid == 0) write(*,*) 'sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
+            !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
             !if (self%myid == 0) write(*,*) '    size(sd%mask):', size(sd%mask)
             !if (self%myid == 0) write(*,*) '    sd%mask(1,1):', sd%mask(1,1)
             call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
-            if (self%myid == 0) write(*,*) 'sample_baseline done'
+            !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline done'
             call timer%stop(TOD_BASELINE, self%band)
             call sd%dealloc
          end do
@@ -404,9 +404,9 @@ contains
          
 
          ! Compute chisquare for bandpass fit
-         if (self%myid == 0) write(*,*) 'compute_chisq_abs_bp'
+         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] compute_chisq_abs_bp'
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-         if (self%myid == 0) write(*,*) 'compute_chisq_abs_bp done'
+         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] compute_chisq_abs_bp done'
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
