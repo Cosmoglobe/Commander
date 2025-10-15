@@ -2,6 +2,7 @@
 This script takes the interferograms into spectra.
 """
 
+import time
 from datetime import datetime
 
 import h5py
@@ -15,6 +16,9 @@ from calibration import bolometer
 from flagging import filter
 from pipeline import ifg_spec, pointing
 from utils.config import gen_nyquistl
+
+# Start timing
+script_start_time = time.time()
 
 sky_data = h5py.File(
     g.PREPROCESSED_DATA_PATH_SKY,
@@ -183,9 +187,11 @@ filters["ss"] = short_filter & slow_filter
 filters["lf"] = long_filter & fast_filter
 
 variablesm = {}
-for variable in variables.keys():
-    for mode in g.MODES.keys():
-        variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
+print("Filtering variables by mode...")
+for mode in g.MODES.keys():
+    mode_filter = filters[mode]
+    for variable in variables.keys():
+        variablesm[f"{variable}_{mode}"] = variables[variable][mode_filter]
 
 fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
@@ -194,22 +200,54 @@ fnyq = gen_nyquistl(
 spec = {}
 sky = {}
 
+# Pre-load all FITS data and emissivities to avoid repeated I/O
+print("Pre-loading FITS calibration data...")
+fits_cache = {}
+emissivities_cache = {}
+
 for channel, channel_value in g.CHANNELS.items():
     for mode, mode_value in g.MODES.items():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            key = f"{channel}_{mode}"
             fits_data = fits.open(
                 f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
             )
+            
+            # Cache the data we need
+            fits_cache[key] = {
+                'otf': (fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]),
+                'apod': fits_data[1].data["APODIZAT"][0],
+            }
+            fits_cache[key]['otf'] = fits_cache[key]['otf'][np.abs(fits_cache[key]['otf']) > 0]
+            
+            # Cache all emissivities
+            emissivities_cache[key] = {
+                'ical': (fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]),
+                'dihedral': (fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]),
+                'refhorn': (fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]),
+                'skyhorn': (fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]),
+                'collimator': (fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]),
+                'bolometer': (fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]),
+            }
+            
+            # Filter out zeros from emissivities
+            for emiss_key in emissivities_cache[key]:
+                emissivities_cache[key][emiss_key] = emissivities_cache[key][emiss_key][
+                    np.abs(emissivities_cache[key][emiss_key]) > 0
+                ]
+            
+            fits_data.close()
 
+for channel, channel_value in g.CHANNELS.items():
+    for mode, mode_value in g.MODES.items():
+        if not (mode == "lf" and (channel == "lh" or channel == "rh")):
+            key = f"{channel}_{mode}"
+            
             frec = 4 * (channel_value % 2) + mode_value
-
-            # optical transfer function
-            otf = (
-                fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
-            )
-            otf = otf[np.abs(otf) > 0]
-
-            apod = fits_data[1].data["APODIZAT"][0]
+            
+            # Get cached data
+            otf = fits_cache[key]['otf']
+            apod = fits_cache[key]['apod']
 
             # bolometer parameters
             R0, T0, G1, beta, rho, C1, C3, Jo, Jg = bolometer.get_bolometer_parameters(
@@ -238,108 +276,57 @@ for channel, channel_value in g.CHANNELS.items():
 
             print("Subtracting by the known emission sources")
 
-            # frequency mapping
+            # frequency mapping (computed once per channel/mode)
             f_ghz = utils.generate_frequencies(channel, mode)
 
-            bb_ical = utils.planck(
-                f_ghz,
-                variablesm[f"ical_{mode}"],
-            )
-            ical_emiss = (
-                fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
-            )
-            ical_emiss = ical_emiss[np.abs(ical_emiss) > 0]
+            # Get cached emissivities
+            ical_emiss = emissivities_cache[key]['ical']
+            dihedral_emiss = emissivities_cache[key]['dihedral']
+            refhorn_emiss = emissivities_cache[key]['refhorn']
+            skyhorn_emiss = emissivities_cache[key]['skyhorn']
+            collimator_emiss = emissivities_cache[key]['collimator']
+            bolometer_emiss = emissivities_cache[key]['bolometer']
+            
+            # Compute all blackbody spectra at once (vectorized)
+            bb_ical = utils.planck(f_ghz, variablesm[f"ical_{mode}"])
+            bb_dihedral = utils.planck(f_ghz, variablesm[f"dihedral_{mode}"])
+            bb_refhorn = utils.planck(f_ghz, variablesm[f"refhorn_{mode}"])
+            bb_skyhorn = utils.planck(f_ghz, variablesm[f"skyhorn_{mode}"])
+            bb_collimator = utils.planck(f_ghz, variablesm[f"collimator_{mode}"])
+            bb_bolometer_rh = utils.planck(f_ghz, variablesm[f"bolometer_rh_{mode}"])
+            bb_bolometer_rl = utils.planck(f_ghz, variablesm[f"bolometer_rl_{mode}"])
+            bb_bolometer_lh = utils.planck(f_ghz, variablesm[f"bolometer_lh_{mode}"])
+            bb_bolometer_ll = utils.planck(f_ghz, variablesm[f"bolometer_ll_{mode}"])
 
-            # dihedral spectrum
-            bb_dihedral = utils.planck(
-                f_ghz,
-                variablesm[f"dihedral_{mode}"],
-            )
-            dihedral_emiss = (
-                fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
-            )
-            dihedral_emiss = dihedral_emiss[np.abs(dihedral_emiss) > 0]
-
-            bb_refhorn = utils.planck(
-                f_ghz,
-                variablesm[f"refhorn_{mode}"],
-            )
-            refhorn_emiss = (
-                fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
-            )
-            refhorn_emiss = refhorn_emiss[np.abs(refhorn_emiss) > 0]
-
-            # skyhorn spectrum
-            bb_skyhorn = utils.planck(
-                f_ghz,
-                variablesm[f"skyhorn_{mode}"],
-            )
-            skyhorn_emiss = (
-                fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
-            )
-            skyhorn_emiss = skyhorn_emiss[np.abs(skyhorn_emiss) > 0]
-
-            bb_collimator = utils.planck(
-                f_ghz,
-                variablesm[f"collimator_{mode}"],
-            )
-            collimator_emiss = (
-                fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
-            )
-            collimator_emiss = collimator_emiss[np.abs(collimator_emiss) > 0]
-
-            # bolometer spectrum
-            bb_bolometer_rh = utils.planck(
-                f_ghz,
-                variablesm[f"bolometer_rh_{mode}"],
-            )
-            bb_bolometer_rl = utils.planck(
-                f_ghz,
-                variablesm[f"bolometer_rl_{mode}"],
-            )
-            bb_bolometer_lh = utils.planck(
-                f_ghz,
-                variablesm[f"bolometer_lh_{mode}"],
-            )
-            bb_bolometer_ll = utils.planck(
-                f_ghz,
-                variablesm[f"bolometer_ll_{mode}"],
-            )
-            bolometer_emiss = (
-                fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
-            )
-            bolometer_emiss = bolometer_emiss[np.abs(bolometer_emiss) > 0]
-
-            if mode[1] == "s":
-                cutoff = 5
-            else:
-                cutoff = 7
+            cutoff = 5 if mode[1] == "s" else 7
 
             print(f"Cutting off the first {cutoff} frequencies")
 
-            # setting the frequency cut-off according to the header of the fits file
+            # Pre-compute the total emission contribution (vectorized sum)
+            # This combines all emissive components efficiently
+            total_emission = (
+                (bb_ical * ical_emiss)
+                + (bb_dihedral * dihedral_emiss)
+                + (bb_refhorn * refhorn_emiss)
+                + (bb_skyhorn * skyhorn_emiss)
+                + (bb_collimator * collimator_emiss)
+                + (bb_bolometer_rh * bolometer_emiss)  # TODO: keep just the one that is being used to measure?
+                + (bb_bolometer_rl * bolometer_emiss)
+                + (bb_bolometer_lh * bolometer_emiss)
+                + (bb_bolometer_ll * bolometer_emiss)
+            )
+            
+            # Single vectorized operation for sky extraction
             sky[f"{channel}_{mode}"] = (
                 spec[f"spec_{channel}_{mode}"][:, cutoff : (len(otf) + cutoff)]
-                - (
-                    (bb_ical * ical_emiss)
-                    + (bb_dihedral * dihedral_emiss)
-                    + (bb_refhorn * refhorn_emiss)
-                    + (bb_skyhorn * skyhorn_emiss)
-                    + (bb_collimator * collimator_emiss)
-                    + (
-                        bb_bolometer_rh  # TODO: keep just the one that is being used to measure?
-                        * bolometer_emiss
-                    )
-                    + (bb_bolometer_rl * bolometer_emiss)
-                    + (bb_bolometer_lh * bolometer_emiss)
-                    + (bb_bolometer_ll * bolometer_emiss)
-                )
-                / otf[np.newaxis, :]
-            )
+                - total_emission
+            ) / otf[np.newaxis, :]
 
 print("Saving sky")
+saving_start_time = time.time()
 
 # other varibles that i just want to save in the same place
+print("Processing extra variables...")
 extra_variables = [
     "stat_word_1",
     "stat_word_12",
@@ -384,15 +371,26 @@ extra_variables = [
     # "sky_hrn_temp_b",
     "scan",
 ]
+
+# Process all extra variables more efficiently by applying filters once per variable
 for variable in extra_variables:
+    # Load once and apply all filters
+    var_data = np.array(sky_data["df_data/" + variable])[valid_indices][filter_bad]
     for mode in g.MODES.keys():
-        variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
-            valid_indices
-        ]
-        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][filter_bad]
-        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][
-            filters[mode]
-        ]
+        variablesm[f"{variable}_{mode}"] = var_data[filters[mode]]
 
 # save the sky
 np.savez(g.PROCESSED_DATA_PATH, **variablesm, **sky, **spec)
+
+# Print timing summary
+script_end_time = time.time()
+total_time = script_end_time - script_start_time
+saving_time = script_end_time - saving_start_time
+
+print("\n" + "="*60)
+print("PERFORMANCE SUMMARY")
+print("="*60)
+print(f"Total execution time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+print(f"Data saving time: {saving_time:.2f} seconds")
+print(f"Processing time: {total_time - saving_time:.2f} seconds")
+print("="*60)

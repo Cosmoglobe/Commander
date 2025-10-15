@@ -31,11 +31,11 @@ FAC_ADC_SCALE = 204.75  # nathan's pipeline
 
 # map parameters
 COORDINATES = "G"
-NSIDE = 16
+NSIDE = 32
 NPIX = hp.nside2npix(NSIDE)
 
 # save parameters
-PNG = False
+PNG = True
 FITS = True
 
 # plotting parameters

@@ -337,8 +337,8 @@ merged_df["sweeps"] = merged_df.apply(clean_variable, axis=1, args=("sweeps",))
 merged_df = merged_df.drop(columns=["sweeps_lh", "sweeps_ll", "sweeps_rh", "sweeps_rl"])
 merged_df = merged_df[
     # (merged_df["sweeps"] == 1) |
-    (merged_df["sweeps"] == 4)
-    | (merged_df["sweeps"] == 16)
+    (merged_df["sweeps"] == 4)  # 4 is for long scans
+    | (merged_df["sweeps"] == 16)  # 16 is for short scans
 ]
 
 # attitude solution must be available (i.e. non-zero)
