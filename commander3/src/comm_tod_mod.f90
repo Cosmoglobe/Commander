@@ -1653,8 +1653,9 @@ contains
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
-    allocate(output(self%nscan_tot,self%ndet,npar))
-    allocate(  mjds(self%nscan_tot))
+    allocate(output(self%last_scan,self%ndet,npar))
+    allocate(  mjds(self%last_scan))
+
 
     ! Collect all parameters
     output = 0.d0
@@ -1718,7 +1719,6 @@ contains
 !!$             end where
           end do
        end do
-
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)

@@ -1167,7 +1167,7 @@ contains
     real(sp), allocatable, dimension(:,:)   :: phase
     real(sp), allocatable, dimension(:,:)   :: Q
 
-    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
+    allocate(base(self%last_scan,self%ndet,2), phase(self%last_scan,self%ndet))
     base  = 0.d0
     phase = 0.0
     do j = 1, self%ndet
