@@ -482,7 +482,7 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine estimate_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle)
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle, ps_output)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -511,6 +511,7 @@ interface
     real(sp),                   dimension(1:), intent(in)    :: mask
     integer(i4b),               dimension(1:), intent(inout) :: flag
     type(planck_rng),                          intent(inout) :: handle
+    character(len=*),                optional, intent(in)    :: ps_output
   end subroutine deconvolve_rolloff
 
   module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)

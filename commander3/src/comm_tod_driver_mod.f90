@@ -1097,7 +1097,7 @@ contains
 
     integer(i4b) :: i, j, k, l, iter, scan, n, ierr
     integer(i4b), parameter :: nstat = 7
-    real(dp)     :: mu, sigma
+    real(dp)     :: mu, sigma, dummy_var ! MODDED
     real(sp),     allocatable, dimension(:,:,:) :: stat
     logical(lgt), allocatable, dimension(:,:)   :: accept
     character(len=6), dimension(nstat) :: label
@@ -1150,7 +1150,7 @@ contains
                 if (threshold(l) <= 0.) cycle
                 do i = 1, tod%nscan_tot
                    if (stat(i,j,0) <= 0. .or. .not. accept(i,j)) cycle
-                   mu = 0.0; n = 0
+                   mu = 0.0; n = 0; sigma = 0.0
                    do k = max(i-iter*window,1), max(i-(iter-1)*window-1,1)
                       if (stat(k,j,0) == 0.) cycle
                       mu    = mu    + stat(k,j,l)
@@ -1163,7 +1163,7 @@ contains
                       sigma = sigma + real(stat(k,j,l),dp)**2
                       n     = n     + 1
                    end do
-                   if (n > window/2) then
+                   if (n > window/2 .and. n > 1) then
                       mu    = mu / n
                       sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
                       if (sigma > 0.) then

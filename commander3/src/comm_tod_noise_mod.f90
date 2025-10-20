@@ -59,7 +59,7 @@ contains
     !          TOD-domain correlated noise realization
     ! 
     implicit none
-    class(comm_tod),                    intent(inout)     :: self ! MODDED (in > inout)
+    class(comm_tod),                    intent(inout)  :: self ! MODDED (in > inout)
     real(sp),         dimension(1:,1:), intent(in)     :: tod
     type(planck_rng),                   intent(inout)  :: handle
     integer(i4b),                       intent(in)     :: scan
@@ -83,7 +83,8 @@ contains
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
     integer(i4b), allocatable, dimension(:) :: bin_count ! ADDED
-    real(sp),     allocatable, dimension(:) :: bin_sum, bin_spec  ! ADDED 
+    real(sp),     allocatable, dimension(:) :: bin_sum ! ADDED
+    real(sp),     allocatable, dimension(:,:) :: bin_spec  ! ADDED 
     
     ! Splined PSD params
 !    integer(i4b) :: nbin ! ADDED
@@ -119,23 +120,31 @@ contains
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain     = self%scans(scan)%d(i)%gain  ! Gain in V / K
 
+       ! Prepare TOD residual
+       d_prime = tod(:,i) - gain * s_sub(:,i)
+
        ! Setting new white noise level from powspec ! ADDED
        if (self%first_call) then
           sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
           N_wn     = sigma_0**2
        else
+          dt(1:ntod)           = d_prime(:)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
           do l = 1, n-1
              ps(l) = abs(dv(l)) ** 2 / ntod
           end do
 
           ! Binning
           dnu = 5.d-1 ! Hz
-          nbin = (samprate/2) * ((n-1) - 1/(n-1)) / dnu
-          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin))
+          nbin = (samprate/2) * (n-2)/(n-1) / dnu
+          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin,2))
 
           bin_sum = 0.d0; bin_count = 0; bin_spec = 0.d0
           do l = 1, n-1
-             j = (samprate/2)/(n-1) * (l  - 1) /dnu + 1
+             j = (samprate/2) * (l-1)/(n-1) /dnu + 1
              if (j >= 1 .and. j <= nbin) then
                 bin_sum(j)   = bin_sum(j) + ps(l)
                 bin_count(j) = bin_count(j) + 1
@@ -143,25 +152,26 @@ contains
           end do
 
           do j = 1, nbin
-             if (bin_count(j) > 0) bin_spec(j) = bin_sum(j) / bin_count(j)
+             bin_spec(j,1) = (samprate/2)/(n-1) + (j-0.5d0)*dnu
+             if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
           end do
           deallocate(bin_sum,bin_count)
 
-          N_wn = bin_spec(1)
+          N_wn = 1.d30
+!          open(58,file='testdir/binned_psd.dat', recl=1024)
           do j = 1, nbin
-             if (bin_spec(l) < N_wn) then
-                N_wn = bin_spec(l)
-             end if
+!             write(58,*) bin_spec(j,1), bin_spec(j,2)
+             if (bin_spec(j,2) < N_wn) N_wn = bin_spec(j,2)
           end do
+!          close(58)
           deallocate(bin_spec)
 
           sigma_0 = abs(sqrt(N_wn))
           self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0
        end if
-       if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
 
-       ! Prepare TOD residual
-       d_prime = tod(:,i) - gain * s_sub(:,i)
+!       if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
+
 
        ! Fill gaps in data 
        init_masked_region = .true.

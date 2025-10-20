@@ -267,6 +267,13 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
+    ! ADDED
+    integer(i4b) :: i2,err
+    integer*8    :: plan_fwd, plan_back
+    real(sp), allocatable, dimension(:)   :: d_prime, dt, dv
+    real(sp), allocatable, dimension(:,:) :: ps
+    ! =====
+
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
     
@@ -277,23 +284,23 @@ contains
        ! Do data selection, then start sampling
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
+       sample_ncorr          = iter  > 4 !.true.
        select_data           = iter == 1
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
-       sample_ncorr          = .false. !iter  > 4 !.true.
+       sample_ncorr          = iter  > 1 !.true.
        select_data           = iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = iter  > 1 !.true.                 
+       sample_gain           = .false. !.true.                 
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter  > 0 !.true.
        select_data           = iter == 1 ! self%first_call  
-       sample_adc            = iter  > 1 !.true.
+       sample_adc            = .false. !iter  > 1 !.true.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -401,12 +408,16 @@ contains
        call demodulate_tod(sd, self, i)
 
        ! Deconvolve high-frequency roll-off
-       if (.not. self%first_call) then
-          do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
+       do j = 1, self%ndet
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          if (iter > 2) then
+             call int2string(self%scanid(i), scantext)
+             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle, &
+                                     & ps_output = 'for_4K/deconv_ps_' // scantext // '.dat')
+          else
              call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
-          end do
-       end if
+          end if
+       end do
 
        ! Fix dc level jumps 
        call self%stitch_hfi_dc_level(i, sd)
@@ -492,7 +503,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false., nplus2=.true.)
+    call binmap%init(self, .true., .false., nplus2=.false.) ! MODDED
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -1272,12 +1283,10 @@ contains
 
     ! Deconvolve high-frequency roll-off
     if (skip_nonlin > 2 .and. present(handle)) then
-       if (.not. self%first_call) then
-          do i = 1, self%ndet
-             if (.not. self%scans(scan)%d(i)%accept) cycle
-             call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
-          end do
-       end if
+       do i = 1, self%ndet
+          if (.not. self%scans(scan)%d(i)%accept) cycle
+          call deconvolve_rolloff(self, sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
+       end do
     end if
     
 
@@ -1349,7 +1358,7 @@ contains
 
   end subroutine estimate_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle)
+  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle, ps_output)
     implicit none
     class(comm_hfi_tod),                       intent(inout) :: self
     real(sp),                   dimension(1:), intent(inout) :: tod
@@ -1358,6 +1367,7 @@ contains
     real(sp),                   dimension(1:), intent(in)    :: mask
     integer(i4b),               dimension(:),  intent(inout) :: flag
     type(planck_rng),                          intent(inout) :: handle
+    character(len=*),                optional, intent(in)    :: ps_output
 
     integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err
     integer*8    :: plan_fwd, plan_back
@@ -1397,7 +1407,7 @@ contains
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l)) ** 2 / ntod
+       ps(l,2) = abs(dv(l))** 2 / ntod
     end do
     deallocate(d_prime)
 
@@ -1461,9 +1471,9 @@ contains
           eval_spline = max(eval_spline,0.0001) ! to avoid exploding samples
           dv(l) = dv(l) / sqrt(eval_spline)
        end if
-       ps(l,2) = abs(dv(l)) ** 2 / ntod
+       !ps(l,2) = abs(dv(l)) ** 2 / ntod
     end do
-
+    
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT) 
@@ -1471,7 +1481,27 @@ contains
     dt  = dt / nfft
     tod = dt(1:ntod)
 
-    deallocate(dt, dv)
+    if (present(ps_output)) then
+       allocate(d_prime(ntod))
+       d_prime = (tod - gain * s_sub) * mask
+       dt = 0.d0; dv = 0.d0
+       dt(1:ntod)           = d_prime(:)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       call timer%start(TOT_FFT)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call timer%stop(TOT_FFT)
+       open(58,file=ps_output, recl=1024)
+       do l = 1, n-1
+          ps(l,1) = l*(samprate/2)/(n-1)
+          ps(l,2) = abs(dv(l)) ** 2 / ntod
+          write(58,*) ps(l,1), ps(l,2)
+       end do
+       close(58)
+       deallocate(d_prime)
+    end if
+
+
+    deallocate(dt, dv, ps)
     call free_spline(rolloff_filter)
     call dfftw_destroy_plan(plan_fwd)
     call dfftw_destroy_plan(plan_back)
