@@ -1097,7 +1097,7 @@ contains
 
     integer(i4b) :: i, j, k, l, iter, scan, n, ierr
     integer(i4b), parameter :: nstat = 7
-    real(dp)     :: mu, sigma, dummy_var ! MODDED
+    real(dp)     :: mu, sigma
     real(sp),     allocatable, dimension(:,:,:) :: stat
     logical(lgt), allocatable, dimension(:,:)   :: accept
     character(len=6), dimension(nstat) :: label

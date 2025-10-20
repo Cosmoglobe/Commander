@@ -257,7 +257,7 @@ contains
     type(comm_scandata) :: sd
     type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext, itertext
+    character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
@@ -267,12 +267,6 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-    ! ADDED
-    integer(i4b) :: i2,err
-    integer*8    :: plan_fwd, plan_back
-    real(sp), allocatable, dimension(:)   :: d_prime, dt, dv
-    real(sp), allocatable, dimension(:,:) :: ps
-    ! =====
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -410,13 +404,13 @@ contains
        ! Deconvolve high-frequency roll-off
        do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          if (iter > 2) then
-             call int2string(self%scanid(i), scantext)
-             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle, &
-                                     & ps_output = 'for_4K/deconv_ps_' // scantext // '.dat')
-          else
-             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
-          end if
+          !if (iter > 2) then
+          !   call int2string(self%scanid(i), scantext)
+          !   call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle, &
+          !                           & ps_output = 'deconv_ps_' // scantext // '.dat')
+          !else
+          call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
+          !end if
        end do
 
        ! Fix dc level jumps 
@@ -503,7 +497,7 @@ contains
 
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., .false., nplus2=.false.) ! MODDED
+    call binmap%init(self, .true., .false., nplus2=.false.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
