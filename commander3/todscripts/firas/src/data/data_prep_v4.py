@@ -12,7 +12,7 @@ import pandas as pd
 import tables as tb
 
 import globals as g
-from utils.my_utils import (
+from data.utils.my_utils import (
     clean_variable,
     convert_gain,
     get_temperature_hl,
@@ -205,6 +205,8 @@ non_duplicate_timestamps = (
 )
 
 print(f"Timestamps after removing close ones: {non_duplicate_timestamps.tail()}")
+
+
 print(df["lh"].columns)
 # outer-join the dataframes on gmt
 merged_df = pd.merge_asof(
@@ -213,7 +215,8 @@ merged_df = pd.merge_asof(
     on="gmt",
     direction="nearest",
     tolerance=tolerance,
-)
+).reset_index(drop=True)
+print(f"merged_df after lh merge_asof: {merged_df.tail()}")
 
 merged_df = pd.merge_asof(
     merged_df,
@@ -223,7 +226,8 @@ merged_df = pd.merge_asof(
     suffixes=("_lh", "_ll"),
     tolerance=tolerance,
     by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
-)
+).reset_index(drop=True)
+print(f"merged_df after ll merge_asof: {merged_df.tail()}")
 merged_df = pd.merge_asof(
     merged_df,
     df["rh"],
@@ -232,7 +236,8 @@ merged_df = pd.merge_asof(
     suffixes=("_ll", "_rh"),
     tolerance=tolerance,
     by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
-)
+).reset_index(drop=True)
+print(f"merged_df after rh merge_asof: {merged_df.tail()}")
 merged_df = pd.merge_asof(
     merged_df,
     df["rl"],
@@ -241,7 +246,8 @@ merged_df = pd.merge_asof(
     suffixes=("_rh", "_rl"),
     tolerance=tolerance,
     by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
-)
+).reset_index(drop=True)
+print(f"merged_df after rl merge_asof: {merged_df.tail()}")
 
 # sort by gmt
 merged_df = merged_df.sort_values("gmt").reset_index(drop=True)

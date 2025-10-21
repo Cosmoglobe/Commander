@@ -77,7 +77,7 @@ def get_temperature_hl(row, element, side, name_search=None):
         element_search = element
 
     # identify which component is passed on and match to line in fex_grttrans.txt
-    with open("../../reference/fex_grttrans.txt") as f:
+    with open("../reference/fex_grttrans.txt") as f:
         lines = f.readlines()
 
     if name_search is not None:
@@ -146,3 +146,17 @@ def scan_up_down(lat):
     scan = np.append(scan, scan[-1])  # last value is the same as the second to last
 
     return scan
+
+
+def binary_to_gmt(binary):
+    """
+    Converts input ADT time to 14-element string. Adapted from Nathan's pipeline.
+    """
+
+    # ADT is a 64-bit quadword containing the number of 100-nanosecond ticks
+    # since November 17, 1858
+
+    epoch = np.datetime64("1858-11-17T00:00:00")
+    # Convert binary to microseconds and add to epoch
+    microseconds = (0.1 * binary).astype("timedelta64[us]")
+    return epoch + microseconds

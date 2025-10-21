@@ -59,6 +59,17 @@ if __name__ == "__main__":
         df[channel] = df[channel].add_suffix(f"_{channel}")
         df[channel].rename(columns={f"eng_time_{channel}": "eng_time"}, inplace=True)
 
+    # plot midpoint time for each channel
+    plt.plot(df["rh"]["midpoint_time_rh"], label="rh")
+    plt.plot(df["rl"]["midpoint_time_rl"], label="rl")
+    plt.plot(df["lh"]["midpoint_time_lh"], label="lh")
+    plt.plot(df["ll"]["midpoint_time_ll"], label="ll")
+    plt.legend()
+    plt.xlabel("Sample Index")
+    plt.ylabel("Midpoint Time")
+    plt.title("Midpoint Times for Each Channel")
+    plt.show()
+
     # match 4 channels together based on eng_time
     merged_df = df["rh"]
     for channel in ["rl", "lh", "ll"]:
@@ -130,6 +141,18 @@ if __name__ == "__main__":
     plt.title("Binary Time Differences Between Channels")
     plt.savefig("eda/output/binary_time_differences.png")
     plt.close()
+
+    # plot compare of the midpoint times for each channel
+    num = 50000
+    plt.plot(merged_df["midpoint_time_rh"][:num], label="rh")
+    plt.plot(merged_df["midpoint_time_rl"][:num], label="rl")
+    plt.plot(merged_df["midpoint_time_lh"][:num], label="lh")
+    plt.plot(merged_df["midpoint_time_ll"][:num], label="ll")
+    plt.legend()
+    plt.xlabel("Sample Index")
+    plt.ylabel("Midpoint Time")
+    plt.title("Midpoint Times for Each Channel")
+    plt.show()
 
     # merged_by_gmt = df["rh"]
     # for channel in ["rl", "lh", "ll"]:
