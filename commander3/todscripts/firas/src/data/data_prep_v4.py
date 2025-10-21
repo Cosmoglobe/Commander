@@ -1,5 +1,6 @@
 """
-After re-reading the Explanatory Supplement I think the engineering data is not completely raw and is already interpolated, i.e. the gmt values it has are not the "true" ones. So I am going back to a different way of pre-processing the data to compare and see which makes more sense.
+After re-reading the Explanatory Supplement I think the engineering data is not completely raw and is already interpolated, i.e. the gmt values it has are not the "true" ones.
+So I am going back to a different way of pre-processing the data to compare and see which makes more sense.
 """
 
 import time

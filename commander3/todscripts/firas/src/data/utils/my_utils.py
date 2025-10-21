@@ -137,7 +137,7 @@ def scan_up_down(lat):
     Function to determine for each point in the dataframe if the instrument is scanning up or down based on the terrestrial latitude.
     """
     diff = np.diff(lat)
-    up = diff > 0 
+    up = diff > 0
     down = ~up
 
     scan = np.zeros_like(up, dtype=int)
