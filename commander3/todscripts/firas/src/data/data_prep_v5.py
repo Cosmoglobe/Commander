@@ -7,6 +7,7 @@ import numpy as np
 
 import data.utils.my_utils as data_utils
 import globals as g
+from data import stats
 
 # OPENING ORIGINAL DATA FILES
 fdq_sdf = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5")
@@ -67,40 +68,60 @@ b_hi_collimator = grt["b_hi_collimator"][:]
 
 group1 = en_analog["group1"]
 
+chan = fdq_eng["chan"]
+
 for channel, channel_i in g.CHANNELS.items():
-    data = fdq_sdf[f"fdq_sdf_{channel}"]
+    science_data = fdq_sdf[f"fdq_sdf_{channel}"]
 
-    sci_head = data["sci_head"]
-    gain = sci_head["gain"][:]
-    mtm_speed = sci_head["mtm_speed"][:]
-    mtm_length = sci_head["mtm_length"][:]
-    upmode = sci_head["sc_head1a"][:]
-    adds_per_group = sci_head["sc_head9"][:]
-    sweeps = sci_head["sc_head11"][:]
+    all_data = {}
 
-    ifg_data = data["ifg_data"]
-    ifg = ifg_data["ifg"][:]
+    sci_head = science_data["sci_head"]
+    all_data["gain"] = sci_head["gain"][:]
+    all_data["mtm_speed"] = sci_head["mtm_speed"][:]
+    all_data["mtm_length"] = sci_head["mtm_length"][:]
+    all_data["upmode"] = sci_head["sc_head1a"][:]
+    all_data["adds_per_group"] = sci_head["sc_head9"][:]
+    all_data["sweeps"] = sci_head["sc_head11"][:]
 
-    dq_data = data["dq_data"]
-    fake = dq_data["fake"][:]
-    xcal_pos = dq_data["xcal_pos"][:]
+    ifg_data = science_data["ifg_data"]
+    all_data["ifg"] = ifg_data["ifg"][:]
 
-    collect_time = data["collect_time"]
-    midpoint_time = data_utils.binary_to_gmt(collect_time["midpoint_time"][:])
+    dq_data = science_data["dq_data"]
+    all_data["fake"] = dq_data["fake"][:]
+    all_data["xcal_pos"] = dq_data["xcal_pos"][:]
+    all_data["data_quality"] = dq_data["data_quality"][:]
 
-    attitude = data["attitude"]
-    cel_lon = attitude["ra"][:] * fact
-    cel_lat = attitude["dec"][:] * fact
-    terr_lat = attitude["terr_latitude"][:] * fact
-    terr_lon = attitude["terr_longitude"][:] * fact
-    earth_limb = attitude["earth_limb"][:] * fact
-    sun_angle = attitude["sun_angle"][:] * fact
-    moon_angle = attitude["moon_angle"][:] * fact
-    gal_lon = attitude["galactic_longitude"][:] * fact
-    gal_lat = attitude["galactic_latitude"][:] * fact
-    ecl_lon = attitude["ecliptic_longitude"][:] * fact
-    ecl_lat = attitude["ecliptic_latitude"][:] * fact
-    solution = attitude["solution"][:]
+    collect_time = science_data["collect_time"]
+    all_data["midpoint_time"] = data_utils.binary_to_gmt(
+        collect_time["midpoint_time"][:]
+    )
+
+    attitude = science_data["attitude"]
+    all_data["cel_lon"] = attitude["ra"][:] * fact
+    all_data["cel_lat"] = attitude["dec"][:] * fact
+    all_data["terr_lat"] = attitude["terr_latitude"][:] * fact
+    all_data["terr_lon"] = attitude["terr_longitude"][:] * fact
+    all_data["earth_limb"] = attitude["earth_limb"][:] * fact
+    all_data["sun_angle"] = attitude["sun_angle"][:] * fact
+    all_data["moon_angle"] = attitude["moon_angle"][:] * fact
+    all_data["gal_lon"] = attitude["galactic_longitude"][:] * fact
+    all_data["gal_lat"] = attitude["galactic_latitude"][:] * fact
+    all_data["ecl_lon"] = attitude["ecliptic_longitude"][:] * fact
+    all_data["ecl_lat"] = attitude["ecliptic_latitude"][:] * fact
+    all_data["solution"] = attitude["solution"][:]
+
+    print(f"\n\nChannel: {channel.upper()}")
+
+    stats.table3_4(all_data["xcal_pos"], all_data["mtm_length"], all_data["mtm_speed"])
+
+    fpp_fail, fakeit, xcal_transit = stats.table4_1(
+        all_data["data_quality"], all_data["fake"], all_data["xcal_pos"]
+    )
+
+    for key in all_data:
+        all_data[key] = all_data[key][fpp_fail == False]
+        all_data[key] = all_data[key][fakeit == False]
+        all_data[key] = all_data[key][xcal_transit == False]
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
@@ -109,5 +130,13 @@ for channel, channel_i in g.CHANNELS.items():
     a_hi_bol_assem = grt["a_hi_bol_assem"][:, channel_i]
     b_lo_bol_assem = grt["b_lo_bol_assem"][:, channel_i]
     b_hi_bol_assem = grt["b_hi_bol_assem"][:, channel_i]
-    
+
     bol_volt = group1["bol_volt"][:, channel_i]
+
+    eng_upmode = chan["up_sci_mode"][:, channel_i]
+    eng_fake = chan["fakeit"][:, channel_i]
+    eng_adds_per_group = chan["up_adds_per_group"][:, channel_i]
+    eng_sweeps = chan["up_swps_per_ifg"][:, channel_i]
+    eng_mtm_speed = chan["xmit_mtm_speed"][:, channel_i]
+    eng_mtm_length = chan["xmit_mtm_len"][:, channel_i]
+    eng_gain = chan["sci_gain"][:, channel_i]
