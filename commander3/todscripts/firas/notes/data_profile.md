@@ -102,7 +102,7 @@
       - `sc_head1a`: Block type (sci mode). All of the science data was taken in science mode 4 during the mission. In this mode the on-board microprocessor averages the data, uses the anti-aliasing filters, and flags the glitches without removing them. The removal of the glitches is done in the ground procesing by the FIRAS pipeline. Shape: 590937. Values: {0, 2, 4}.
       - `sc_head1b`: Block ID. Shape: 590937. Values: {83}.
       - `sc_head2`: SW version number. Shape: 590937. Values: {13416, 13417, 13673}.
-      - `sc_head20`: Sturated sample count. Shape: 590937. Values: many.
+      - `sc_head20`: Saturated sample count. From the explanatory supplement: The saturated sample count is defined as the number of ADC samples greater than or equal to 95% of the maximum ADC range. Shape: 590937. Values: many.
       - `sc_head21`: Glitch total. Shape: 590937. Values: many.
       - `sc_head22`: Deglitcher overflow address. Shape: 590937. Values: {-1, 0, 644, 1024, 3076, 3204, 3368}.
       - `sc_head23`: Division of IFG performed (FCI RMS files only). Shape: 590937. Values: {-1, 0, 2730, 4096}.

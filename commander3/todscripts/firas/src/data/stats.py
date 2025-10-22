@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -46,3 +47,41 @@ def table4_1(data_quality, fake, xcal_pos):
     print(f"    Sky Records Passed by FPP: {sci.sum()}")
 
     return fpp_fail, fakeit, xcal_transit
+
+
+def table4_2(
+    cal_saturated,
+    cal_data_quality,
+    sky_saturated,
+    sky_data_quality,
+    cal_glitch,
+    sky_glitch,
+):
+    # TODO: this is the most questionable data selection
+    print("\nTable 4.2")
+
+    # calibration data
+    # TODO: there are some negative values, which they took as non-saturated, should we do the same? here we are doing the same as them
+    cal_saturated = cal_saturated > 0
+    print(f"    Saturated Sample Count: {cal_saturated.sum()}")
+    cal_sw = cal_data_quality[:, 3] != 0
+    print(f"    Microprocessor Status Word: {(cal_sw).sum()}")
+    glitch_rate = cal_glitch > 58
+    print(f"    Glitch Rate: {glitch_rate.sum()}")
+
+    # sky data
+    sky_saturated = sky_saturated > 0
+    print(f"    Saturated Sample Count: {sky_saturated.sum()}")
+    sky_sw = sky_data_quality[:, 3] != 0
+    print(f"    Microprocessor Status Word: {(sky_sw).sum()}")
+
+    # sky_glitch = glitch[sky] > 50
+    # # unique, counts = np.unique(sky_glitch, return_counts=True)
+    # # glitch_dict = dict(zip(unique, counts))
+    # # for key in sorted(glitch_dict.keys()):
+    # #     print(f"    Glitch Total {key}: {glitch_dict[key]}")
+    # print(f"    Glitch Rate: {sky_glitch.sum()}")
+
+    # TODO: look at glitch map and compare to IFGs
+
+    return cal_saturated, sky_saturated

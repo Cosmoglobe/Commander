@@ -3,6 +3,7 @@ So for this version we will keep each channel separate and use the midpoint_time
 """
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 
 import data.utils.my_utils as data_utils
@@ -82,9 +83,12 @@ for channel, channel_i in g.CHANNELS.items():
     all_data["upmode"] = sci_head["sc_head1a"][:]
     all_data["adds_per_group"] = sci_head["sc_head9"][:]
     all_data["sweeps"] = sci_head["sc_head11"][:]
+    all_data["saturated"] = sci_head["sc_head20"][:]
+    all_data["glitch"] = sci_head["sc_head21"][:]
 
     ifg_data = science_data["ifg_data"]
     all_data["ifg"] = ifg_data["ifg"][:]
+    all_data["gltch"] = ifg_data["gltch"][:]
 
     dq_data = science_data["dq_data"]
     all_data["fake"] = dq_data["fake"][:]
@@ -122,6 +126,25 @@ for channel, channel_i in g.CHANNELS.items():
         all_data[key] = all_data[key][fpp_fail == False]
         all_data[key] = all_data[key][fakeit == False]
         all_data[key] = all_data[key][xcal_transit == False]
+
+    cal_data = {}
+    sky_data = {}
+    for key in all_data:
+        cal_data[key] = all_data[key][all_data["xcal_pos"] == 1]
+        sky_data[key] = all_data[key][all_data["xcal_pos"] == 2]
+
+    cal_saturated, sky_saturated = stats.table4_2(
+        cal_data["saturated"],
+        cal_data["data_quality"],
+        sky_data["saturated"],
+        sky_data["data_quality"],
+        cal_data["glitch"],
+        sky_data["glitch"],
+    )
+
+    # for key in all_data:
+    #     cal_data[key] = cal_data[key][cal_saturated == False]
+    #     sky_data[key] = cal_data[key][sky_saturated == False]
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
