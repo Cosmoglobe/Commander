@@ -1,3 +1,9 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+import data.utils.my_utils as data_utils
+
+
 def table3_4(xcal_pos, mtm_length, mtm_speed):
     """Compute and print scan mode statistics as in table 3.4 of the FIRAS Explanatory Supplement."""
 
@@ -97,7 +103,7 @@ def table4_2(
     )
 
 
-def table4_5(earth_limb, midpoint_time, ical):
+def table4_5(earth_limb, midpoint_time, ical, sun_angle, upmode, dihedral):
     print("\nTable 4.5")
 
     earth_limb = earth_limb < 87
@@ -116,6 +122,12 @@ def table4_5(earth_limb, midpoint_time, ical):
         "90-208-1120",
         "90-220-0500",
     ]
+    # Vectorized date parsing using list comprehension (faster than loop)
+    start_times = [
+        data_utils.parse_date_string(t.replace("-", ""), include_s=False)
+        for t in start_times
+    ]
+
     end_times = [
         "89-327-2359",
         "89-343-0151",
@@ -129,3 +141,56 @@ def table4_5(earth_limb, midpoint_time, ical):
         "90-220-0459",
         "90-264-0936",
     ]
+    end_times = [
+        data_utils.parse_date_string(t.replace("-", ""), include_s=False)
+        for t in end_times
+    ]
+
+    allowed_ical_temps = [
+        [2.789],
+        [2.758, 2.763, 2.789],
+        [2.759, 2.771],
+        [2.758, 2.771],
+        [2.758, 2.771],
+        [2.758, 2.770],
+        [2.7455, 2.755, 2.768],
+        [2.746, 2.757, 2.769],
+        [2.757, 2.769],
+        [2.758, 2.770],
+        [2.758, 2.771],
+    ]
+
+    wrong_ical_temp = np.zeros(len(midpoint_time), dtype=bool)
+    for i, (start, end, temps) in enumerate(
+        zip(start_times, end_times, allowed_ical_temps)
+    ):
+        time_mask = (midpoint_time > start) & (midpoint_time < end)
+        temp_mask = np.ones(len(midpoint_time), dtype=bool)
+        for temp in temps:
+            temp_mask &= (ical > temp + 0.002) | (ical < temp - 0.002)
+        wrong_ical_temp |= time_mask & temp_mask
+    print(f"    Wrong ICAL Temperature: {sum(wrong_ical_temp)}")
+
+    sun_angle = sun_angle < 91.2
+    print(f"    Sun Angle < 91.2: {sun_angle.sum()}")
+
+    wrong_sci_mode = upmode != 4
+    print(f"    Wrong Science Mode: {wrong_sci_mode.sum()}")
+
+    dihedral_temp = dihedral > 5.5
+    print(f"    Dihedral Temperature > 5.5: {dihedral_temp.sum()}")
+
+    print(
+        f"    Sky Records Failed by FSS: {(earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp).sum()}"
+    )
+    print(
+        f"Sky Records Passed by FSS: {len(midpoint_time) - (earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp).sum()}"
+    )
+    
+    return (
+        earth_limb,
+        wrong_ical_temp,
+        sun_angle,
+        wrong_sci_mode,
+        dihedral_temp,
+    )

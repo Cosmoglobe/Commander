@@ -6,7 +6,7 @@ import numpy as np
 channels = ["lh", "ll", "rh", "rl"]
 
 
-def parse_date_string(gmt_nb):
+def parse_date_string(gmt_nb, include_s=True):
     # gmt_nb = str(gmt_nb)
     # print(gmt_nb)
 
@@ -16,8 +16,9 @@ def parse_date_string(gmt_nb):
     hour = int(gmt_nb[5:7])
     minute = int(gmt_nb[7:9])
     # second = round(float(f"{gmt_nb[9:11]}.{gmt_nb[11:]}"))
-    second = int(gmt_nb[9:11])
-    millisecond = int(gmt_nb[11:])
+    if include_s:
+        second = int(gmt_nb[9:11])
+        millisecond = int(gmt_nb[11:])
 
     # if second == 60:
     #     second = 0
@@ -34,6 +35,9 @@ def parse_date_string(gmt_nb):
     date = base_date + timedelta(days=day_of_year - 1)
 
     # Construct the complete datetime with time components
+    if not include_s:
+        second = 0
+        millisecond = 0
     final_date = datetime(
         year=date.year,
         month=date.month,

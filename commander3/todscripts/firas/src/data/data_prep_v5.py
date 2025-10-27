@@ -144,23 +144,52 @@ for channel, channel_i in g.CHANNELS.items():
 
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
-    cal_data["a_hi_ical"] = interpolators["a_hi_ical"](cal_data["midpoint_time_s"])
-    cal_data["a_lo_ical"] = interpolators["a_lo_ical"](cal_data["midpoint_time_s"])
-    # Vectorized temperature selection - much faster than looping
-    # TODO: we probably still want to change this
-    cal_data["a_ical"] = data_utils.get_temperature_hl_vectorized(
-        cal_data["a_lo_ical"], cal_data["a_hi_ical"], "ical", "a"
-    )
-    cal_data["b_hi_ical"] = interpolators["b_hi_ical"](cal_data["midpoint_time_s"])
-    cal_data["b_lo_ical"] = interpolators["b_lo_ical"](cal_data["midpoint_time_s"])
-    cal_data["b_ical"] = data_utils.get_temperature_hl_vectorized(
-        cal_data["b_lo_ical"], cal_data["b_hi_ical"], "ical", "b"
-    )
-    # TODO: we probably want to change this too
-    cal_data["ical"] = (cal_data["a_ical"] + cal_data["b_ical"]) / 2.0
-    print("ICal temperatures matched for calibration data.")
+    # Interpolate temperatures for sky data
+    elements = ["ical", "dihedral"]
+    sides = ["a", "b"]
 
-    stats.table4_5(sky_data["earth_limb"])
+    for element in elements:
+        for side in sides:
+            # Interpolate hi and lo temperatures
+            sky_data[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+                sky_data["midpoint_time_s"]
+            )
+            sky_data[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+                sky_data["midpoint_time_s"]
+            )
+            # Vectorized temperature selection
+            # TODO: we probably want to change this
+            sky_data[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
+                sky_data[f"{side}_lo_{element}"],
+                sky_data[f"{side}_hi_{element}"],
+                element,
+                side,
+            )
+
+        # Average temperatures from both sides
+        # TODO: we probably want to change this
+        sky_data[element] = (sky_data[f"a_{element}"] + sky_data[f"b_{element}"]) / 2.0
+        print(f"{element} temperatures matched for sky data.")
+
+    earth_limb, wrong_ical_temp, sun_angle, wrong_sci_mode, dihedral_temp = (
+        stats.table4_5(
+            sky_data["earth_limb"],
+            sky_data["midpoint_time_gmt"],
+            sky_data["ical"],
+            sky_data["sun_angle"],
+            sky_data["upmode"],
+            sky_data["dihedral"],
+        )
+    )
+
+    for key in sky_data:
+        sky_data[key] = sky_data[key][
+            (earth_limb == False)
+            & (wrong_ical_temp == False)
+            & (sun_angle == False)
+            & (wrong_sci_mode == False)
+            & (dihedral_temp == False)
+        ]
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
