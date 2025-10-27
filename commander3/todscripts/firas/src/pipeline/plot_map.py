@@ -3,21 +3,20 @@ Script to take the previously generated sky spectra (sky.npy) and plot a map wit
 """
 
 import os
-import sys
 from pathlib import Path
 
 import healpy as hp
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from healpy.rotator import Rotator
+import cosmoglobe as cg
 
 import globals as g
 import utils.my_utils as utils
 
 fits_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/fits_files/"
-
-data = np.load(g.PROCESSED_DATA_PATH)
 
 if g.COORDINATES == "G":
     folder = "galactic"
@@ -34,25 +33,25 @@ hpxmap = {}
 data_density = {}
 f_ghz = {}
 for channel in g.CHANNELS_PLOT:
-    for mode in g.MODES_PLOT: 
+    for mode in g.MODES_PLOT:
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            sky = data[f"{channel}_{mode}"]
-            scan = data[f"scan_{mode}"]
+            data = np.load(
+                f"{g.PROCESSED_DATA_PATH}sky_{channel}_{mode}.npz", allow_pickle=True
+            )
+            sky = data["sky"]
+            # scan = data[f"scan_{mode}"]
             if g.COORDINATES == "G":
-                if g.NSIDE == 32:
-                    pix_gal = data[f"pix_gal_{mode}"]
-                else:
-                    gal_lat = data[f"gal_lat_{mode}"]
-                    gal_lon = data[f"gal_lon_{mode}"]
-                    pix_gal = hp.ang2pix(g.NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
+                gal_lat = data["gal_lat"]
+                gal_lon = data["gal_lon"]
+                pix_gal = hp.ang2pix(g.NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
             elif g.COORDINATES == "E":
                 if g.NSIDE == 32:
-                    pix_ecl = data[f"pix_ecl_{mode}"]
+                    pix_ecl = data[f"pix_ecl"]
                 else:
                     # rotate gal lat and lon to ecliptic
-                    r = Rotator(coord=['G','E'])
-                    gal_lat = data[f"gal_lat_{mode}"]
-                    gal_lon = data[f"gal_lon_{mode}"]
+                    r = Rotator(coord=["G", "E"])
+                    gal_lat = data["gal_lat"]
+                    gal_lon = data["gal_lon"]
                     ecl_lat, ecl_lon = r(gal_lat, gal_lon)
                     pix_ecl = hp.ang2pix(g.NSIDE, ecl_lon, ecl_lat, lonlat=True)
 
@@ -82,15 +81,11 @@ for channel in g.CHANNELS_PLOT:
 
             if g.COORDINATES == "G":
                 for i, pix in enumerate(pix_gal):
-                    hpxmap[f"{channel}_{mode}"][pix] += np.abs(
-                        sky[i]
-                    )
+                    hpxmap[f"{channel}_{mode}"][pix] += np.abs(sky[i])
                     data_density[f"{channel}_{mode}"][pix] += 1
             elif g.COORDINATES == "E":
                 for i in range(len(pix_ecl)):
-                    hpxmap[f"{channel}_{mode}"][pix_ecl[i]] += np.abs(
-                        sky[i]
-                    )
+                    hpxmap[f"{channel}_{mode}"][pix_ecl[i]] += np.abs(sky[i])
                     data_density[f"{channel}_{mode}"][pix_ecl[i]] += 1
 
             # plot hit map
@@ -102,14 +97,20 @@ for channel in g.CHANNELS_PLOT:
                     norm="hist",
                 )
                 Path.mkdir(
-                    Path(f"{g.SAVE_PATH}maps/hit_maps/{folder}"), parents=True, exist_ok=True
+                    Path(f"{g.SAVE_PATH}maps/hit_maps/{folder}"),
+                    parents=True,
+                    exist_ok=True,
                 )
                 plt.savefig(
                     f"{g.SAVE_PATH}maps/hit_maps/{folder}/{f"{channel}_{mode}_nside{g.NSIDE}"}.png"
                 )
                 plt.close()
             if g.FITS:
-                fits.writeto(f"{curr_path}{f"{channel}_{mode}_nside{g.NSIDE}"}.fits", data_density[f"{channel}_{mode}"], overwrite=True)
+                fits.writeto(
+                    f"{curr_path}{f"{channel}_{mode}_nside{g.NSIDE}"}.fits",
+                    data_density[f"{channel}_{mode}"],
+                    overwrite=True,
+                )
 
             m = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
             monopole = utils.planck(f_ghz[f"{channel}_{mode}"], np.array(g.T_CMB))
@@ -120,27 +121,33 @@ for channel in g.CHANNELS_PLOT:
             ) - monopole
 
             # mask the map
-            m[mask] = np.nan  # hp.UNSEEN
+            m[mask] = hp.UNSEEN
 
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
                 if g.PNG:
                     max_amp = 200
-                    if channel == "ll" and mode == "ss":
-                        max_amp = 25
-                    hp.mollview(
+                    # if channel == "ll" and mode == "ss":
+                    #     max_amp = 25
+                    cg.plot(
                         m[:, freq],
                         title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                         unit="MJy/sr",
-                        min=1,
+                        min=0,
                         max=max_amp,
-                        norm='log'
+                        comp="freqmap",
+                        freq=int(f_ghz[f"{channel}_{mode}"][freq]) * u.GHz,
+                        cmap='planck'
                     )
                     plt.savefig(
-                        f"{g.SAVE_PATH}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_nside{g.NSIDE}.png"
+                        f"{g.SAVE_PATH}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_nside{g.NSIDE}.png", bbox_inches="tight"
                     )
                     plt.close()
                 if g.FITS:
-                    fits.writeto(f"{fits_path}maps/frequency_maps/{channel}_{mode}/galactic/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_nside{g.NSIDE}.fits", m[:, freq], overwrite=True)
+                    fits.writeto(
+                        f"{fits_path}maps/frequency_maps/{channel}_{mode}/galactic/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_nside{g.NSIDE}.fits",
+                        m[:, freq],
+                        overwrite=True,
+                    )
 
             if g.SCANUPDOWN:
                 print("Plotting up/down scan map")
@@ -149,30 +156,30 @@ for channel in g.CHANNELS_PLOT:
                 data_density_up = np.zeros(g.NPIX)
                 data_density_down = np.zeros(g.NPIX)
 
-                if g.COORDINATES == "G":
-                    for i in range(len(pix_gal)):
-                        if scan[i] == 1:
-                            hpxmap_up[pix_gal[i]] += np.abs(
-                                sky[f"{channel}_{mode}"][i]
-                            )
-                            data_density_up[pix_gal[i]] += 1
-                        elif scan[i] == 0:
-                            hpxmap_down[pix_gal[i]] += np.abs(
-                                sky[f"{channel}_{mode}"][i]
-                            )
-                            data_density_down[pix_gal[i]] += 1
-                elif g.COORDINATES == "E":
-                    for i in range(len(pix_ecl)):
-                        if scan[i] == 1:
-                            hpxmap_up[pix_ecl[i]] += np.abs(
-                                sky[f"{channel}_{mode}"][i]
-                            )
-                            data_density_up[pix_ecl[i]] += 1
-                        elif scan[i] == 0:
-                            hpxmap_down[pix_ecl[i]] += np.abs(
-                                sky[f"{channel}_{mode}"][i]
-                            )
-                            data_density_down[pix_ecl[i]] += 1
+                # if g.COORDINATES == "G":
+                #     for i in range(len(pix_gal)):
+                #         # if scan[i] == 1:
+                #         #     hpxmap_up[pix_gal[i]] += np.abs(
+                #         #         sky[f"{channel}_{mode}"][i]
+                #         #     )
+                #         #     data_density_up[pix_gal[i]] += 1
+                #         # elif scan[i] == 0:
+                #         #     hpxmap_down[pix_gal[i]] += np.abs(
+                #         #         sky[f"{channel}_{mode}"][i]
+                #         #     )
+                #         #     data_density_down[pix_gal[i]] += 1
+                # elif g.COORDINATES == "E":
+                #     for i in range(len(pix_ecl)):
+                #         if scan[i] == 1:
+                #             hpxmap_up[pix_ecl[i]] += np.abs(
+                #                 sky[f"{channel}_{mode}"][i]
+                #             )
+                #             data_density_up[pix_ecl[i]] += 1
+                #         elif scan[i] == 0:
+                #             hpxmap_down[pix_ecl[i]] += np.abs(
+                #                 sky[f"{channel}_{mode}"][i]
+                #             )
+                #             data_density_down[pix_ecl[i]] += 1
 
                 m_up = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
                 m_down = np.zeros((g.NPIX, len(f_ghz[f"{channel}_{mode}"])))
@@ -214,8 +221,16 @@ for channel in g.CHANNELS_PLOT:
                         )
                         plt.close()
                     if g.FITS:
-                        fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_up_nside{g.NSIDE}.fits", m_up[:, freq], overwrite=True)
-                        fits.writeto(f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_down_nside{g.NSIDE}.fits", m_down[:, freq], overwrite=True)
+                        fits.writeto(
+                            f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_up_nside{g.NSIDE}.fits",
+                            m_up[:, freq],
+                            overwrite=True,
+                        )
+                        fits.writeto(
+                            f"{curr_path}{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_down_nside{g.NSIDE}.fits",
+                            m_down[:, freq],
+                            overwrite=True,
+                        )
 
 
 if g.JOINT:
@@ -259,7 +274,11 @@ if g.JOINT:
             )
             plt.close()
         if g.FITS:
-            fits.writeto(f"{curr_path}{int(f_ghz['ll_lf'][freq]):04d}_nside{g.NSIDE}.fits", m_joint[:, freq], overwrite=True)
+            fits.writeto(
+                f"{curr_path}{int(f_ghz['ll_lf'][freq]):04d}_nside{g.NSIDE}.fits",
+                m_joint[:, freq],
+                overwrite=True,
+            )
 
     # high frequencies
     joint_map = hpxmap["lh_ss"] + hpxmap["rh_ss"]
@@ -290,4 +309,8 @@ if g.JOINT:
             )
             plt.close()
         if g.FITS:
-            fits.writeto(f"{curr_path}{int(f_ghz['lh_ss'][freq]):04d}_nside{g.NSIDE}.fits", m_joint[:, (freq - len(f_ghz["ll_ss"]))], overwrite=True)
+            fits.writeto(
+                f"{curr_path}{int(f_ghz['lh_ss'][freq]):04d}_nside{g.NSIDE}.fits",
+                m_joint[:, (freq - len(f_ghz["ll_ss"]))],
+                overwrite=True,
+            )

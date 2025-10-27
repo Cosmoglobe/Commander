@@ -4,6 +4,7 @@ So for this version we will keep each channel separate and use the midpoint_time
 
 import astropy.units as u
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 
 import data.utils.my_utils as data_utils
@@ -19,7 +20,9 @@ fdq_eng = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h
 fact = 180.0 / np.pi / 1e4
 
 ct_head = fdq_eng["ct_head"]
-eng_time = data_utils.binary_to_gmt(ct_head["time"][:])
+eng_time = ct_head["time"][:]
+eng_time_gmt = data_utils.binary_to_gmt(eng_time)
+eng_time_s = (eng_time * (100 * u.ns)).to("s")
 
 en_stat = fdq_eng["en_stat"]
 # side a
@@ -36,6 +39,7 @@ stat_word_16 = en_stat["stat_word_16"][:]
 en_analog = fdq_eng["en_analog"]
 grt = en_analog["grt"]
 grts, grt_times = get_data()
+
 # print(grt_times)
 # quit()
 
@@ -49,7 +53,7 @@ for channel, channel_i in g.CHANNELS.items():
     all_data = {}
 
     sci_head = science_data["sci_head"]
-    all_data["gain"] = sci_head["gain"][:]
+    all_data["gain"] = data_utils.convert_gain_array(sci_head["gain"][:])
     all_data["mtm_speed"] = sci_head["mtm_speed"][:]
     all_data["mtm_length"] = sci_head["mtm_length"][:]
     all_data["upmode"] = sci_head["sc_head1a"][:]
@@ -145,11 +149,16 @@ for channel, channel_i in g.CHANNELS.items():
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
     # Interpolate temperatures for sky data
-    elements = ["ical", "dihedral"]
+    elements = ["ical", "dihedral", "refhorn", "skyhorn", "collimator"]
     sides = ["a", "b"]
 
+    print(f"Using reference file to decide between high and low currents")
+    print("Ignoring b side for collimator temperatures")
+    print(f"Taking the average of both sides")
     for element in elements:
         for side in sides:
+            if element == "collimator" and side == "b":
+                continue
             # Interpolate hi and lo temperatures
             sky_data[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
                 sky_data["midpoint_time_s"]
@@ -157,6 +166,7 @@ for channel, channel_i in g.CHANNELS.items():
             sky_data[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
                 sky_data["midpoint_time_s"]
             )
+
             # Vectorized temperature selection
             # TODO: we probably want to change this
             sky_data[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
@@ -165,11 +175,14 @@ for channel, channel_i in g.CHANNELS.items():
                 element,
                 side,
             )
-
         # Average temperatures from both sides
         # TODO: we probably want to change this
-        sky_data[element] = (sky_data[f"a_{element}"] + sky_data[f"b_{element}"]) / 2.0
-        print(f"{element} temperatures matched for sky data.")
+        if element == "collimator":
+            sky_data[element] = sky_data[f"a_{element}"]
+        else:
+            sky_data[element] = (
+                sky_data[f"a_{element}"] + sky_data[f"b_{element}"]
+            ) / 2.0
 
     earth_limb, wrong_ical_temp, sun_angle, wrong_sci_mode, dihedral_temp = (
         stats.table4_5(
@@ -193,13 +206,55 @@ for channel, channel_i in g.CHANNELS.items():
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
+    bol_volt = group1["bol_volt"][:, channel_i]
+
+    # Find two nearest engineering times for each science time using searchsorted
+    # This assumes eng_time is sorted (which it should be)
+    # Use searchsorted to find insertion indices
+    indices = np.searchsorted(eng_time_gmt, sky_data["midpoint_time_gmt"])
+    # Clip indices to valid range
+    indices = np.clip(indices, 1, len(eng_time_gmt) - 1)
+
+    # Get the two nearest neighbors (before and after)
+    idx_before = indices - 1
+    idx_after = indices
+
+    # Calculate distances to both neighbors
+    dist_before = np.abs(sky_data["midpoint_time_gmt"] - eng_time_gmt[idx_before])
+    dist_after = np.abs(sky_data["midpoint_time_gmt"] - eng_time_gmt[idx_after])
+
+    # Get indices of the two closest points
+    idx0 = np.where(dist_before <= dist_after, idx_before, idx_after)
+    idx1 = np.where(dist_before <= dist_after, idx_after, idx_before)
+
+    # Check if the two closest values match
+    bol_cmd_bias_match = bol_cmd_bias[idx0] == bol_cmd_bias[idx1]
+    # Assign values where they match
+    sky_data["bol_cmd_bias"] = np.where(
+        bol_cmd_bias_match, bol_cmd_bias[idx0], 0.0  # or np.nan if you prefer
+    )
+
+    for key in sky_data:
+        sky_data[key] = sky_data[key][bol_cmd_bias_match == True]
+        # let's also get rid of any bad gains
+        sky_data[key] = sky_data[key][sky_data["gain"] != np.nan]
+
+    sky_data["bol_volt"] = np.interp(sky_data["midpoint_time_s"], eng_time_s, bol_volt)
 
     a_lo_bol_assem = grt["a_lo_bol_assem"][:, channel_i]
     a_hi_bol_assem = grt["a_hi_bol_assem"][:, channel_i]
     b_lo_bol_assem = grt["b_lo_bol_assem"][:, channel_i]
     b_hi_bol_assem = grt["b_hi_bol_assem"][:, channel_i]
-
-    bol_volt = group1["bol_volt"][:, channel_i]
+    a_bol_assem = data_utils.get_temperature_hl_vectorized(
+        a_lo_bol_assem, a_hi_bol_assem, "bol_assem", "a"
+    )
+    b_bol_assem = data_utils.get_temperature_hl_vectorized(
+        b_lo_bol_assem, b_hi_bol_assem, "bol_assem", "b"
+    )
+    bol_assem = (a_bol_assem + b_bol_assem) / 2.0
+    sky_data["bolometer"] = np.interp(
+        sky_data["midpoint_time_s"], eng_time_s, bol_assem
+    )
 
     eng_upmode = chan["up_sci_mode"][:, channel_i]
     eng_fake = chan["fakeit"][:, channel_i]
@@ -208,3 +263,9 @@ for channel, channel_i in g.CHANNELS.items():
     eng_mtm_speed = chan["xmit_mtm_speed"][:, channel_i]
     eng_mtm_length = chan["xmit_mtm_len"][:, channel_i]
     eng_gain = chan["sci_gain"][:, channel_i]
+
+    # save
+    np.savez(
+        f"{g.PREPROCESSED_DATA_PATH}/sky_{channel}.npz",
+        **sky_data,
+    )

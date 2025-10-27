@@ -1,5 +1,6 @@
-import globals as g
 import numpy as np
+
+import globals as g
 from calibration import bolometer, electronics
 from utils import frd, fut
 from utils import my_utils as utils

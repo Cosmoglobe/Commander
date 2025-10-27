@@ -1,4 +1,3 @@
-import math
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -246,6 +245,29 @@ def convert_gain(row, channel):
         return conv[row[f"gain_{channel}"]]
     else:
         return np.nan
+
+
+def convert_gain_array(gain_array):
+    """
+    Convert an array of gain codes to their corresponding gain values.
+
+    Parameters:
+    -----------
+    gain_array : np.ndarray
+        Array of gain codes (integers from 0 to 7)
+
+    Returns:
+    --------
+    np.ndarray
+        Array of gain values corresponding to the input gain codes.
+    """
+    conv = np.array([1, 3, 10, 30, 100, 300, 1000, 3000])
+    gain_values = np.full_like(gain_array, np.nan, dtype=float)
+
+    valid_mask = (gain_array >= 0) & (gain_array <= 7)
+    gain_values[valid_mask] = conv[gain_array[valid_mask]]
+
+    return gain_values
 
 
 def scan_up_down(lat):

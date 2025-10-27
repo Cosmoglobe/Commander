@@ -1,13 +1,12 @@
-import os
-import sys
-
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+import cosmoglobe as cg
 
 import globals as g
 import utils.my_utils as utils
+import astropy.units as u
 
 T_CMB = 2.72548  # Fixsen 2009
 
@@ -29,8 +28,8 @@ for channel in channels.keys():
                 nf[f"{channel}_{mode}"],
             )
 
-for channel in channels.keys():
-    for mode in modes.keys():
+for channel in g.CHANNELS_PLOT:
+    for mode in g.MODES_PLOT:
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
             data = fits.open(
                 data_path
@@ -74,14 +73,24 @@ for channel in channels.keys():
             m[mask] = hp.UNSEEN
 
             for freq in range(len(f_ghz[f"{channel}_{mode}"])):
-                hp.mollview(
+                # hp.mollview(
+                #     m[:, freq],
+                #     title=f"Sky map at frequency {f_ghz[f"{channel}_{mode}"][freq]:.2f} GHz for mode {mode}",
+                #     # min=0,
+                #     # max=200,
+                #     norm="hist",
+                # )
+                cg.plot(
                     m[:, freq],
                     title=f"Sky map at frequency {f_ghz[f"{channel}_{mode}"][freq]:.2f} GHz for mode {mode}",
-                    # min=0,
-                    # max=200,
-                    norm="hist",
+                    unit="MJy/sr",
+                    min=0,
+                    max=200,
+                    comp="freqmap",
+                    freq=int(f_ghz[f"{channel}_{mode}"][freq]) * u.GHz,
+                    cmap='planck'
                 )
                 plt.savefig(
-                    f"{g.SAVE_PATH}maps/lambda_spectra/{channel}{mode}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                    f"{g.SAVE_PATH}maps/lambda_spectra/{channel}{mode}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png", bbox_inches="tight"
                 )
                 plt.close()
