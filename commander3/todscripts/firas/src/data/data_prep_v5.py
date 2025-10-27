@@ -2,13 +2,14 @@
 So for this version we will keep each channel separate and use the midpoint_time to interpolate to get the temperatures.
 """
 
+import astropy.units as u
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 
 import data.utils.my_utils as data_utils
 import globals as g
 from data import stats
+from engineering_timing.get_interpolated_times import get_data, get_interp
 
 # OPENING ORIGINAL DATA FILES
 fdq_sdf = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5")
@@ -34,38 +35,9 @@ stat_word_16 = en_stat["stat_word_16"][:]
 
 en_analog = fdq_eng["en_analog"]
 grt = en_analog["grt"]
-a_lo_xcal_tip = grt["a_lo_xcal_tip"][:]
-a_lo_skyhorn = grt["a_lo_skyhorn"][:]
-a_lo_refhorn = grt["a_lo_refhorn"][:]
-a_lo_ical = grt["a_lo_ical"][:]
-a_lo_dihedral = grt["a_lo_dihedral"][:]
-a_lo_mirror = grt["a_lo_mirror"][:]
-a_lo_xcal_cone = grt["a_lo_xcal_cone"][:]
-a_lo_collimator = grt["a_lo_collimator"][:]
-a_hi_xcal_tip = grt["a_hi_xcal_tip"][:]
-a_hi_skyhorn = grt["a_hi_skyhorn"][:]
-a_hi_refhorn = grt["a_hi_refhorn"][:]
-a_hi_ical = grt["a_hi_ical"][:]
-a_hi_dihedral = grt["a_hi_dihedral"][:]
-a_hi_mirror = grt["a_hi_mirror"][:]
-a_hi_xcal_cone = grt["a_hi_xcal_cone"][:]
-a_hi_collimator = grt["a_hi_collimator"][:]
-b_lo_xcal_tip = grt["b_lo_xcal_tip"][:]
-b_lo_skyhorn = grt["b_lo_skyhorn"][:]
-b_lo_refhorn = grt["b_lo_refhorn"][:]
-b_lo_ical = grt["b_lo_ical"][:]
-b_lo_dihedral = grt["b_lo_dihedral"][:]
-b_lo_mirror = grt["b_lo_mirror"][:]
-b_lo_xcal_cone = grt["b_lo_xcal_cone"][:]
-b_lo_collimator = grt["b_lo_collimator"][:]
-b_hi_xcal_tip = grt["b_hi_xcal_tip"][:]
-b_hi_skyhorn = grt["b_hi_skyhorn"][:]
-b_hi_refhorn = grt["b_hi_refhorn"][:]
-b_hi_ical = grt["b_hi_ical"][:]
-b_hi_dihedral = grt["b_hi_dihedral"][:]
-b_hi_mirror = grt["b_hi_mirror"][:]
-b_hi_xcal_cone = grt["b_hi_xcal_cone"][:]
-b_hi_collimator = grt["b_hi_collimator"][:]
+grts, grt_times = get_data()
+# print(grt_times)
+# quit()
 
 group1 = en_analog["group1"]
 
@@ -96,7 +68,14 @@ for channel, channel_i in g.CHANNELS.items():
     all_data["data_quality"] = dq_data["data_quality"][:]
 
     collect_time = science_data["collect_time"]
-    all_data["midpoint_time"] = data_utils.binary_to_gmt(
+    # all_data["midpoint_time"] = data_utils.binary_to_gmt(
+    #     collect_time["midpoint_time"][:]
+    # )
+    all_data["midpoint_time"] = collect_time["midpoint_time"][:]
+    all_data["midpoint_time_s"] = (collect_time["midpoint_time"][:] * (100 * u.ns)).to(
+        "s"
+    )
+    all_data["midpoint_time_gmt"] = data_utils.binary_to_gmt(
         collect_time["midpoint_time"][:]
     )
 
@@ -133,18 +112,55 @@ for channel, channel_i in g.CHANNELS.items():
         cal_data[key] = all_data[key][all_data["xcal_pos"] == 1]
         sky_data[key] = all_data[key][all_data["xcal_pos"] == 2]
 
-    cal_saturated, sky_saturated = stats.table4_2(
+    (
+        cal_saturated,
+        cal_sw,
+        cal_glitch_rate,
+        sky_saturated,
+        sky_sw,
+        sky_glitch_rate,
+        limb,
+        no_solution,
+    ) = stats.table4_2(
         cal_data["saturated"],
         cal_data["data_quality"],
         sky_data["saturated"],
         sky_data["data_quality"],
-        cal_data["glitch"],
-        sky_data["glitch"],
+        sky_data["solution"],
     )
 
-    # for key in all_data:
-    #     cal_data[key] = cal_data[key][cal_saturated == False]
-    #     sky_data[key] = cal_data[key][sky_saturated == False]
+    for key in all_data:
+        # TODO: unclear what they consider a glitch rate too high, check IFGs marked with that?
+        cal_data[key] = cal_data[key][
+            (cal_saturated == False) & (cal_sw == False) & (cal_glitch_rate == False)
+        ]
+        sky_data[key] = sky_data[key][
+            (sky_saturated == False)
+            & (sky_sw == False)
+            & (sky_glitch_rate == False)
+            & (limb == False)
+            & (no_solution == False)
+        ]
+
+    # the next table to reproduce needs the ICAL temperatures so we need to match them now
+    interpolators = get_interp(grts, grt_times)
+    cal_data["a_hi_ical"] = interpolators["a_hi_ical"](cal_data["midpoint_time_s"])
+    cal_data["a_lo_ical"] = interpolators["a_lo_ical"](cal_data["midpoint_time_s"])
+    # Vectorized temperature selection - much faster than looping
+    # TODO: we probably still want to change this
+    cal_data["a_ical"] = data_utils.get_temperature_hl_vectorized(
+        cal_data["a_lo_ical"], cal_data["a_hi_ical"], "ical", "a"
+    )
+    cal_data["b_hi_ical"] = interpolators["b_hi_ical"](cal_data["midpoint_time_s"])
+    cal_data["b_lo_ical"] = interpolators["b_lo_ical"](cal_data["midpoint_time_s"])
+    cal_data["b_ical"] = data_utils.get_temperature_hl_vectorized(
+        cal_data["b_lo_ical"], cal_data["b_hi_ical"], "ical", "b"
+    )
+    # TODO: we probably want to change this too
+    cal_data["ical"] = (cal_data["a_ical"] + cal_data["b_ical"]) / 2.0
+    print("ICal temperatures matched for calibration data.")
+
+    stats.table4_5(sky_data["earth_limb"])
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]

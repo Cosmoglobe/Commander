@@ -114,6 +114,118 @@ def get_temperature_hl(row, element, side, name_search=None):
     return temp
 
 
+# Cache for transition temperatures to avoid repeated file I/O
+_TRANSITION_TEMPS = None
+
+
+def _load_transition_temperatures():
+    """
+    Load transition temperatures from fex_grttrans.txt once and cache them.
+    Returns a dictionary with keys like ('ical', 'a') -> (trantemp, tranhwid)
+    """
+    global _TRANSITION_TEMPS
+    if _TRANSITION_TEMPS is not None:
+        return _TRANSITION_TEMPS
+
+    _TRANSITION_TEMPS = {}
+
+    with open("../reference/fex_grttrans.txt") as f:
+        lines = f.readlines()
+
+    # Map element names to search strings
+    element_map = {
+        "ical": "ical grt",
+        "dihedral": "dihedral grt",
+        "refhorn": "reference horn grt",
+        "skyhorn": "skyhorn grt",
+        "collimator": "collimator",
+        "xcal_cone": "xcal s",
+        "bol_assem": "bolometer",
+    }
+
+    for line in lines:
+        line_lower = line.lower()
+        for element_key, search_str in element_map.items():
+            if search_str in line_lower:
+                # Determine side
+                if "a side" in line_lower:
+                    side = "a"
+                elif "b side" in line_lower:
+                    side = "b"
+                else:
+                    continue
+
+                # Parse temperature and half-width
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    try:
+                        trantemp = float(parts[0].strip())
+                        tranhwid = float(parts[1].split("!")[0].strip())
+                        _TRANSITION_TEMPS[(element_key, side)] = (trantemp, tranhwid)
+                    except (ValueError, IndexError):
+                        continue
+
+    return _TRANSITION_TEMPS
+
+
+def get_temperature_hl_vectorized(lo_temps, hi_temps, element, side):
+    """
+    Vectorized version of get_temperature_hl for numpy arrays.
+
+    Parameters:
+    -----------
+    lo_temps : np.ndarray
+        Array of low-current temperatures
+    hi_temps : np.ndarray
+        Array of high-current temperatures
+    element : str
+        Element name ('ical', 'dihedral', 'refhorn', 'skyhorn', 'collimator', 'xcal_cone')
+    side : str
+        Side identifier ('a' or 'b')
+
+    Returns:
+    --------
+    np.ndarray
+        Selected temperatures based on transition logic
+    """
+    # Handle special cases first
+    if element == "refhorn" and side == "a":
+        return hi_temps.copy()
+    if (element == "refhorn" or element == "skyhorn") and side == "b":
+        return lo_temps.copy()
+
+    # Load transition temperatures
+    trans_temps = _load_transition_temperatures()
+
+    # Map 'xcal' to 'xcal_cone' if needed
+    element_key = "xcal_cone" if "xcal" in element else element
+
+    # Get transition temperature and half-width
+    if (element_key, side) not in trans_temps:
+        # If no transition data, return mean
+        return (lo_temps + hi_temps) / 2.0
+
+    trantemp, tranhwid = trans_temps[(element_key, side)]
+    tranlo = trantemp - tranhwid
+    tranhi = trantemp + tranhwid
+
+    # Vectorized selection logic using np.select
+    conditions = [
+        (lo_temps < tranlo) & (hi_temps < tranlo),  # Both below transition -> use lo
+        (hi_temps > tranhi) & (lo_temps > tranhi),  # Both above transition -> use hi
+    ]
+
+    choices = [
+        lo_temps,
+        hi_temps,
+    ]
+
+    # Default: within transition range -> use mean
+    default = (lo_temps + hi_temps) / 2.0
+
+    return np.select(conditions, choices, default=default)
+
+
 def convert_gain(row, channel):
     if (
         row[f"gain_{channel}"] == 0
