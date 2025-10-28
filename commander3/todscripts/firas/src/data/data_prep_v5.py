@@ -26,22 +26,19 @@ eng_time_s = (eng_time * (100 * u.ns)).to("s")
 
 en_stat = fdq_eng["en_stat"]
 # side a
-stat_word_1 = en_stat["stat_word_1"][:]
-stat_word_4 = en_stat["stat_word_4"][:]
-stat_word_5 = en_stat["stat_word_5"][:]
-stat_word_8 = en_stat["stat_word_8"][:]
+# stat_word_1 = en_stat["stat_word_1"][:]
+# stat_word_4 = en_stat["stat_word_4"][:]
+# stat_word_5 = en_stat["stat_word_5"][:]
+# stat_word_8 = en_stat["stat_word_8"][:]
 # side b
-stat_word_9 = en_stat["stat_word_9"][:]
-stat_word_12 = en_stat["stat_word_12"][:]
-stat_word_13 = en_stat["stat_word_13"][:]
-stat_word_16 = en_stat["stat_word_16"][:]
+# stat_word_9 = en_stat["stat_word_9"][:]
+# stat_word_12 = en_stat["stat_word_12"][:]
+# stat_word_13 = en_stat["stat_word_13"][:]
+# stat_word_16 = en_stat["stat_word_16"][:]
 
 en_analog = fdq_eng["en_analog"]
 grt = en_analog["grt"]
 grts, grt_times = get_data()
-
-# print(grt_times)
-# quit()
 
 group1 = en_analog["group1"]
 
@@ -60,11 +57,9 @@ for channel, channel_i in g.CHANNELS.items():
     all_data["adds_per_group"] = sci_head["sc_head9"][:]
     all_data["sweeps"] = sci_head["sc_head11"][:]
     all_data["saturated"] = sci_head["sc_head20"][:]
-    all_data["glitch"] = sci_head["sc_head21"][:]
 
     ifg_data = science_data["ifg_data"]
     all_data["ifg"] = ifg_data["ifg"][:]
-    all_data["gltch"] = ifg_data["gltch"][:]
 
     dq_data = science_data["dq_data"]
     all_data["fake"] = dq_data["fake"][:]
@@ -133,18 +128,13 @@ for channel, channel_i in g.CHANNELS.items():
         sky_data["solution"],
     )
 
+    # TODO: unclear what they consider a glitch rate too high, check IFGs marked with that?
+    cal_cuts = cal_saturated | cal_sw | cal_glitch_rate
+    sky_cuts = sky_saturated | sky_sw | sky_glitch_rate | limb | no_solution
+
     for key in all_data:
-        # TODO: unclear what they consider a glitch rate too high, check IFGs marked with that?
-        cal_data[key] = cal_data[key][
-            (cal_saturated == False) & (cal_sw == False) & (cal_glitch_rate == False)
-        ]
-        sky_data[key] = sky_data[key][
-            (sky_saturated == False)
-            & (sky_sw == False)
-            & (sky_glitch_rate == False)
-            & (limb == False)
-            & (no_solution == False)
-        ]
+        cal_data[key] = cal_data[key][cal_cuts == False]
+        sky_data[key] = sky_data[key][sky_cuts == False]
 
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
@@ -155,34 +145,33 @@ for channel, channel_i in g.CHANNELS.items():
     print(f"Using reference file to decide between high and low currents")
     print("Ignoring b side for collimator temperatures")
     print(f"Taking the average of both sides")
+    temps = {}
     for element in elements:
         for side in sides:
             if element == "collimator" and side == "b":
                 continue
             # Interpolate hi and lo temperatures
-            sky_data[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+            temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
                 sky_data["midpoint_time_s"]
             )
-            sky_data[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+            temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
                 sky_data["midpoint_time_s"]
             )
 
             # Vectorized temperature selection
             # TODO: we probably want to change this
-            sky_data[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
-                sky_data[f"{side}_lo_{element}"],
-                sky_data[f"{side}_hi_{element}"],
+            temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
+                temps[f"{side}_lo_{element}"],
+                temps[f"{side}_hi_{element}"],
                 element,
                 side,
             )
         # Average temperatures from both sides
         # TODO: we probably want to change this
         if element == "collimator":
-            sky_data[element] = sky_data[f"a_{element}"]
+            sky_data[element] = temps[f"a_{element}"]
         else:
-            sky_data[element] = (
-                sky_data[f"a_{element}"] + sky_data[f"b_{element}"]
-            ) / 2.0
+            sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
     earth_limb, wrong_ical_temp, sun_angle, wrong_sci_mode, dihedral_temp = (
         stats.table4_5(
@@ -195,14 +184,9 @@ for channel, channel_i in g.CHANNELS.items():
         )
     )
 
+    cuts = earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp
     for key in sky_data:
-        sky_data[key] = sky_data[key][
-            (earth_limb == False)
-            & (wrong_ical_temp == False)
-            & (sun_angle == False)
-            & (wrong_sci_mode == False)
-            & (dihedral_temp == False)
-        ]
+        sky_data[key] = sky_data[key][cuts == False]
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
@@ -227,17 +211,27 @@ for channel, channel_i in g.CHANNELS.items():
     idx0 = np.where(dist_before <= dist_after, idx_before, idx_after)
     idx1 = np.where(dist_before <= dist_after, idx_after, idx_before)
 
+    print("\nOther data cuts")
+
     # Check if the two closest values match
-    bol_cmd_bias_match = bol_cmd_bias[idx0] == bol_cmd_bias[idx1]
+    bol_cmd_bias_mismatch = bol_cmd_bias[idx0] != bol_cmd_bias[idx1]
+    print(f"    bol_cmd_bias mismatch: {(bol_cmd_bias_mismatch).sum()}")
     # Assign values where they match
     sky_data["bol_cmd_bias"] = np.where(
-        bol_cmd_bias_match, bol_cmd_bias[idx0], 0.0  # or np.nan if you prefer
+        ~bol_cmd_bias_mismatch, bol_cmd_bias[idx0], 0.0  # or np.nan if you prefer
     )
 
+    bad_gain = sky_data["gain"] == np.nan
+    print(f"    Bad Gains: {bad_gain.sum()}")
+
+    moon_contamination = sky_data["moon_angle"] <= 22.0
+    print(f"    Moon Angle <= 22.0: {moon_contamination.sum()}")
+
+    other_cuts = bol_cmd_bias_mismatch | bad_gain | moon_contamination
+    print(f"    Total Sky Records Failed Other Cuts: {other_cuts.sum()}")
+    # only the bol_cmd_bias is actually cutting stuff, so i'm guessing these other cuts happen in the data quality flag but i will leave them here anyways
     for key in sky_data:
-        sky_data[key] = sky_data[key][bol_cmd_bias_match == True]
-        # let's also get rid of any bad gains
-        sky_data[key] = sky_data[key][sky_data["gain"] != np.nan]
+        sky_data[key] = sky_data[key][other_cuts == False]
 
     sky_data["bol_volt"] = np.interp(sky_data["midpoint_time_s"], eng_time_s, bol_volt)
 
