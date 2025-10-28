@@ -72,6 +72,8 @@ pix_cel = {}  # celestial coordinates, probably J1950
 fact = 180.0 / np.pi / 1e4
 scan = {}
 
+midpoint_time = {}
+
 for channel in channels:
     eng_time[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/eng_time"][()]
     print(f"eng_time: {eng_time[channel].shape}")
@@ -124,6 +126,10 @@ for channel in channels:
     lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/dec"][()] * fact
     pix_cel[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
+    midpoint_time[channel] = fdq_sdf[f"fdq_sdf_{channel}/collect_time/midpoint_time"][
+        ()
+    ]
+
 print("getting each channel into its own df")
 
 df = {}
@@ -156,6 +162,7 @@ for channel in channels:
             "earth_limb": list(earth_limb[channel]),
             "moon_angle": list(moon_angle[channel]),
             "solution": list(solution[channel]),
+            "midpoint_time": list(midpoint_time[channel]),
         }
     ).sort_values("gmt")
     print(df[channel].columns)
@@ -963,6 +970,10 @@ sky_variables = [
     "sky_hrn_temp_a",
     "sky_hrn_temp_b",
     "index",
+    "midpoint_time_ll",
+    "midpoint_time_lh",
+    "midpoint_time_rl",
+    "midpoint_time_rh",
 ]
 
 # saving to a h5 file

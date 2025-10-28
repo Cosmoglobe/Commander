@@ -261,11 +261,11 @@ def convert_gain_array(gain_array):
     np.ndarray
         Array of gain values corresponding to the input gain codes.
     """
-    conv = np.array([1, 3, 10, 30, 100, 300, 1000, 3000])
+    conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
     gain_values = np.full_like(gain_array, np.nan, dtype=float)
 
     valid_mask = (gain_array >= 0) & (gain_array <= 7)
-    gain_values[valid_mask] = conv[gain_array[valid_mask]]
+    gain_values[valid_mask] = [conv[x] for x in gain_array[valid_mask]]
 
     return gain_values
 

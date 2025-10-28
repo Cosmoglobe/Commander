@@ -4,8 +4,8 @@ So for this version we will keep each channel separate and use the midpoint_time
 
 import astropy.units as u
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interp1d
 
 import data.utils.my_utils as data_utils
 import globals as g
@@ -26,15 +26,17 @@ eng_time_s = (eng_time * (100 * u.ns)).to("s")
 
 en_stat = fdq_eng["en_stat"]
 # side a
-# stat_word_1 = en_stat["stat_word_1"][:]
-# stat_word_4 = en_stat["stat_word_4"][:]
-# stat_word_5 = en_stat["stat_word_5"][:]
-# stat_word_8 = en_stat["stat_word_8"][:]
+stat_word_1 = en_stat["stat_word_1"][:]
+stat_word_4 = en_stat["stat_word_4"][:]
+stat_word_5 = en_stat["stat_word_5"][:]
+stat_word_8 = en_stat["stat_word_8"][:]
+lvdt_stat_a = en_stat["lvdt_stat"][:, 0]
 # side b
-# stat_word_9 = en_stat["stat_word_9"][:]
-# stat_word_12 = en_stat["stat_word_12"][:]
-# stat_word_13 = en_stat["stat_word_13"][:]
-# stat_word_16 = en_stat["stat_word_16"][:]
+stat_word_9 = en_stat["stat_word_9"][:]
+stat_word_12 = en_stat["stat_word_12"][:]
+stat_word_13 = en_stat["stat_word_13"][:]
+stat_word_16 = en_stat["stat_word_16"][:]
+lvdt_stat_b = en_stat["lvdt_stat"][:, 1]
 
 en_analog = fdq_eng["en_analog"]
 grt = en_analog["grt"]
@@ -50,7 +52,7 @@ for channel, channel_i in g.CHANNELS.items():
     all_data = {}
 
     sci_head = science_data["sci_head"]
-    all_data["gain"] = data_utils.convert_gain_array(sci_head["gain"][:])
+    # all_data["gain"] = data_utils.convert_gain_array(sci_head["gain"][:])
     all_data["mtm_speed"] = sci_head["mtm_speed"][:]
     all_data["mtm_length"] = sci_head["mtm_length"][:]
     all_data["upmode"] = sci_head["sc_head1a"][:]
@@ -139,17 +141,14 @@ for channel, channel_i in g.CHANNELS.items():
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
     # Interpolate temperatures for sky data
-    elements = ["ical", "dihedral", "refhorn", "skyhorn", "collimator"]
+    elements = ["ical", "dihedral", "refhorn", "skyhorn"]
     sides = ["a", "b"]
 
     print(f"Using reference file to decide between high and low currents")
-    print("Ignoring b side for collimator temperatures")
     print(f"Taking the average of both sides")
     temps = {}
     for element in elements:
         for side in sides:
-            if element == "collimator" and side == "b":
-                continue
             # Interpolate hi and lo temperatures
             temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
                 sky_data["midpoint_time_s"]
@@ -168,10 +167,11 @@ for channel, channel_i in g.CHANNELS.items():
             )
         # Average temperatures from both sides
         # TODO: we probably want to change this
-        if element == "collimator":
-            sky_data[element] = temps[f"a_{element}"]
-        else:
-            sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+        sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+
+    collimator_hi = interpolators["a_hi_collimator"](sky_data["midpoint_time_s"])
+    collimator_lo = interpolators["a_lo_collimator"](sky_data["midpoint_time_s"])
+    sky_data["collimator"] = (collimator_hi + collimator_lo) / 2.0
 
     earth_limb, wrong_ical_temp, sun_angle, wrong_sci_mode, dihedral_temp = (
         stats.table4_5(
@@ -191,6 +191,13 @@ for channel, channel_i in g.CHANNELS.items():
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
     bol_volt = group1["bol_volt"][:, channel_i]
+    eng_upmode = chan["up_sci_mode"][:, channel_i]
+    eng_fake = chan["fakeit"][:, channel_i]
+    eng_adds_per_group = chan["up_adds_per_group"][:, channel_i]
+    eng_sweeps = chan["up_swps_per_ifg"][:, channel_i]
+    eng_mtm_speed = chan["xmit_mtm_speed"][:, channel_i]
+    eng_mtm_length = chan["xmit_mtm_len"][:, channel_i]
+    eng_gain = chan["sci_gain"][:, channel_i].astype(int)
 
     # Find two nearest engineering times for each science time using searchsorted
     # This assumes eng_time is sorted (which it should be)
@@ -214,49 +221,129 @@ for channel, channel_i in g.CHANNELS.items():
     print("\nOther data cuts")
 
     # Check if the two closest values match
-    bol_cmd_bias_mismatch = bol_cmd_bias[idx0] != bol_cmd_bias[idx1]
+    bol_cmd_bias_mismatch = (bol_cmd_bias[idx0] != bol_cmd_bias[idx1]) | (
+        bol_cmd_bias[idx0] <= 0
+    )
     print(f"    bol_cmd_bias mismatch: {(bol_cmd_bias_mismatch).sum()}")
     # Assign values where they match
     sky_data["bol_cmd_bias"] = np.where(
         ~bol_cmd_bias_mismatch, bol_cmd_bias[idx0], 0.0  # or np.nan if you prefer
     )
 
-    bad_gain = sky_data["gain"] == np.nan
-    print(f"    Bad Gains: {bad_gain.sum()}")
+    # compare between id1 and idx2 but also with the one from the science data
+    upmode_mismatch = (eng_upmode[idx0] != eng_upmode[idx1]) | (
+        eng_upmode[idx0] != sky_data["upmode"]
+    )
+    print(f"    upmode mismatch: {(upmode_mismatch).sum()}")
+
+    fakeit_mismatch = (eng_fake[idx0] != eng_fake[idx1]) | (
+        eng_fake[idx0] != sky_data["fake"]
+    )
+    print(f"    fakeit mismatch: {(fakeit_mismatch).sum()}")
+
+    adds_per_group_mismatch = (eng_adds_per_group[idx0] != eng_adds_per_group[idx1]) | (
+        eng_adds_per_group[idx0] != sky_data["adds_per_group"]
+    )
+    print(f"    adds_per_group mismatch: {(adds_per_group_mismatch).sum()}")
+
+    sweeps_mismatch = (
+        (eng_sweeps[idx0] != eng_sweeps[idx1])
+        | (eng_sweeps[idx0] != sky_data["sweeps"])
+        | (sky_data["sweeps"] == 1)
+    )
+    print(f"    sweeps mismatch: {(sweeps_mismatch).sum()}")
+
+    mtm_length_mismatch = (eng_mtm_length[idx0] != eng_mtm_length[idx1]) | (
+        eng_mtm_length[idx0] != sky_data["mtm_length"]
+    )
+    print(f"    mtm_length mismatch: {(mtm_length_mismatch).sum()}")
+
+    mtm_speed_mismatch = (eng_mtm_speed[idx0] != eng_mtm_speed[idx1]) | (
+        eng_mtm_speed[idx0] != sky_data["mtm_speed"]
+    )
+    print(f"    mtm_speed mismatch: {(mtm_speed_mismatch).sum()}")
+
+    # unique, counts = np.unique(eng_gain, return_counts=True)
+    # print(f"    Engineering Gains Distribution: {dict(zip(unique, counts))}")
+    # unique, counts = np.unique(sky_data["gain"], return_counts=True)
+    # print(f"    Science Gains Distribution: {dict(zip(unique, counts))}")
+    # let's try to simply use the values from engineering for the gain
+    # bad_gain = (sky_data["gain"] == np.nan) != (eng_gain[idx0] == eng_gain[idx1]) | (
+    #     eng_gain[idx0] != sky_data["gain"]
+    # )
+    gain_mismatch = (eng_gain[idx0] != eng_gain[idx1]) | (eng_gain[idx0] == 0)
+    print(f"    Gain Mismatch: {gain_mismatch.sum()}")
+    sky_data["gain"] = np.where(~gain_mismatch, eng_gain[idx0], np.nan)
 
     moon_contamination = sky_data["moon_angle"] <= 22.0
     print(f"    Moon Angle <= 22.0: {moon_contamination.sum()}")
 
-    other_cuts = bol_cmd_bias_mismatch | bad_gain | moon_contamination
+    # also the status words now
+    sw1_mismatch = stat_word_1[idx0] != stat_word_1[idx1]
+    sw4_mismatch = stat_word_4[idx0] != stat_word_4[idx1]
+    sw5_mismatch = stat_word_5[idx0] != stat_word_5[idx1]
+    sw8_mismatch = stat_word_8[idx0] != stat_word_8[idx1]
+    sw9_mismatch = stat_word_9[idx0] != stat_word_9[idx1]
+    sw12_mismatch = stat_word_12[idx0] != stat_word_12[idx1]
+    sw13_mismatch = stat_word_13[idx0] != stat_word_13[idx1]
+    sw16_mismatch = stat_word_16[idx0] != stat_word_16[idx1]
+    lvdt_stat_a_mismatch = lvdt_stat_a[idx0] != lvdt_stat_a[idx1]
+    lvdt_stat_b_mismatch = lvdt_stat_b[idx0] != lvdt_stat_b[idx1]
+    sky_data["stat_word_1"] = np.where(~sw1_mismatch, stat_word_1[idx0], 0)
+    sky_data["stat_word_4"] = np.where(~sw4_mismatch, stat_word_4[idx0], 0)
+    sky_data["stat_word_5"] = np.where(~sw5_mismatch, stat_word_5[idx0], 0)
+    sky_data["stat_word_8"] = np.where(~sw8_mismatch, stat_word_8[idx0], 0)
+    sky_data["stat_word_9"] = np.where(~sw9_mismatch, stat_word_9[idx0], 0)
+    sky_data["stat_word_12"] = np.where(~sw12_mismatch, stat_word_12[idx0], 0)
+    sky_data["stat_word_13"] = np.where(~sw13_mismatch, stat_word_13[idx0], 0)
+    sky_data["stat_word_16"] = np.where(~sw16_mismatch, stat_word_16[idx0], 0)
+    sky_data["lvdt_stat_a"] = np.where(~lvdt_stat_a_mismatch, lvdt_stat_a[idx0], 0)
+    sky_data["lvdt_stat_b"] = np.where(~lvdt_stat_b_mismatch, lvdt_stat_b[idx0], 0)
+    sw_mismatches = (
+        sw1_mismatch
+        | sw4_mismatch
+        | sw5_mismatch
+        | sw8_mismatch
+        | sw9_mismatch
+        | sw12_mismatch
+        | sw13_mismatch
+        | sw16_mismatch
+        | lvdt_stat_a_mismatch
+        | lvdt_stat_b_mismatch
+    )
+    print(f"    Status Word Mismatches: {sw_mismatches.sum()}")
+
+    other_cuts = (
+        bol_cmd_bias_mismatch
+        | upmode_mismatch
+        | fakeit_mismatch
+        | adds_per_group_mismatch
+        | sweeps_mismatch
+        | mtm_length_mismatch
+        | mtm_speed_mismatch
+        | gain_mismatch
+        | moon_contamination
+        | sw_mismatches
+    )
     print(f"    Total Sky Records Failed Other Cuts: {other_cuts.sum()}")
+    print(f"    Remaining Sky Records: {len(sky_data['ifg']) - other_cuts.sum()}")
     # only the bol_cmd_bias is actually cutting stuff, so i'm guessing these other cuts happen in the data quality flag but i will leave them here anyways
     for key in sky_data:
         sky_data[key] = sky_data[key][other_cuts == False]
 
-    sky_data["bol_volt"] = np.interp(sky_data["midpoint_time_s"], eng_time_s, bol_volt)
+    interp_func = interp1d(eng_time_s, bol_volt)
+    sky_data["bol_volt"] = interp_func(sky_data["midpoint_time_s"])
 
+    # no high cuirrent readings for bolometers
     a_lo_bol_assem = grt["a_lo_bol_assem"][:, channel_i]
-    a_hi_bol_assem = grt["a_hi_bol_assem"][:, channel_i]
     b_lo_bol_assem = grt["b_lo_bol_assem"][:, channel_i]
-    b_hi_bol_assem = grt["b_hi_bol_assem"][:, channel_i]
-    a_bol_assem = data_utils.get_temperature_hl_vectorized(
-        a_lo_bol_assem, a_hi_bol_assem, "bol_assem", "a"
-    )
-    b_bol_assem = data_utils.get_temperature_hl_vectorized(
-        b_lo_bol_assem, b_hi_bol_assem, "bol_assem", "b"
-    )
-    bol_assem = (a_bol_assem + b_bol_assem) / 2.0
-    sky_data["bolometer"] = np.interp(
-        sky_data["midpoint_time_s"], eng_time_s, bol_assem
-    )
-
-    eng_upmode = chan["up_sci_mode"][:, channel_i]
-    eng_fake = chan["fakeit"][:, channel_i]
-    eng_adds_per_group = chan["up_adds_per_group"][:, channel_i]
-    eng_sweeps = chan["up_swps_per_ifg"][:, channel_i]
-    eng_mtm_speed = chan["xmit_mtm_speed"][:, channel_i]
-    eng_mtm_length = chan["xmit_mtm_len"][:, channel_i]
-    eng_gain = chan["sci_gain"][:, channel_i]
+    bol_assem = (a_lo_bol_assem + b_lo_bol_assem) / 2.0
+    interp_func = interp1d(eng_time_s, bol_assem)
+    sky_data["bolometer"] = interp_func(sky_data["midpoint_time_s"])
+    bad_bolometer = sky_data["bolometer"] <= 0.0
+    print(f"    Bad Bolometer Temperature Readings: {bad_bolometer.sum()}")
+    for key in sky_data:
+        sky_data[key] = sky_data[key][bad_bolometer == False]
 
     # save
     np.savez(

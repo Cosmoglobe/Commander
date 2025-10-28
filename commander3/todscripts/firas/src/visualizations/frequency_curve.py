@@ -5,12 +5,13 @@ This script is meant to plot a curve of the intensity of the galaxy and outside 
 import os
 import sys
 
-import globals as g
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-import utils.my_utils as utils
 from astropy.io import fits
+
+import globals as g
+import utils.my_utils as utils
 
 # data = np.load(g.PROCESSED_DATA_PATH)
 
@@ -145,6 +146,7 @@ for channel in g.CHANNELS_PLOT:
                     hold=True,
                     min=np.nanmin(high_lat_amp),
                     max=np.nanmax(high_lat_amp),
+                    # cbar=False,
                 )
                 # plt.show()
                 plt.savefig(
@@ -197,6 +199,7 @@ for channel in g.CHANNELS_PLOT:
                     max=np.nanmax(low_lat_amp),
                     cmap="jet",
                     hold=True,
+                    # cbar=False,
                 )
                 # plt.show()
                 plt.savefig(

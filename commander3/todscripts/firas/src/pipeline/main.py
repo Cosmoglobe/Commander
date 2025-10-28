@@ -4,38 +4,18 @@ This script takes the interferograms into spectra.
 
 import time
 
-import h5py
 import numpy as np
 from astropy.io import fits
 
 import globals as g
 import utils.my_utils as utils
 from calibration import bolometer
+from flagging import filter
 from pipeline import ifg_spec
 from utils.config import gen_nyquistl
 
 # Start timing
 script_start_time = time.time()
-
-# filter out bad data (selected "by eye")
-# filter_bad = filter.filter_junk(
-#     variables["stat_word_1"],
-#     variables["stat_word_5"],
-#     variables["stat_word_9"],
-#     variables["stat_word_12"],
-#     variables["stat_word_13"],
-#     variables["stat_word_16"],
-#     variables["lvdt_stat_a"],
-#     variables["lvdt_stat_b"],
-#     variables["a_bol_assem_rh"],
-#     variables["a_bol_assem_rl"],
-#     variables["a_bol_assem_lh"],
-#     variables["b_bol_assem_lh"],
-#     variables["a_bol_assem_ll"],
-#     variables["b_bol_assem_ll"],
-#     variables["bol_cmd_bias_lh"],
-#     variables["bol_cmd_bias_rh"],
-# )
 
 fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
@@ -47,8 +27,6 @@ for channel, channel_value in g.CHANNELS.items():
     )
     for mode, mode_value in g.MODES.items():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            key = f"{channel}_{mode}"
-
             length_filter = sky_data["mtm_length"] == (0 if mode[0] == "s" else 1)
             speed_filter = sky_data["mtm_speed"] == (0 if mode[1] == "s" else 1)
             mode_filter = length_filter & speed_filter
@@ -56,6 +34,21 @@ for channel, channel_value in g.CHANNELS.items():
             mode_data = {}
             for var in sky_data.files:
                 mode_data[var] = sky_data[var][mode_filter]
+
+            # filter out bad data (selected "by eye")
+            filter_bad = filter.filter_junk(
+                mode_data["stat_word_1"],
+                mode_data["stat_word_5"],
+                mode_data["stat_word_9"],
+                mode_data["stat_word_12"],
+                mode_data["stat_word_13"],
+                mode_data["stat_word_16"],
+                mode_data["lvdt_stat_a"],
+                mode_data["lvdt_stat_b"],
+            )
+
+            for var in mode_data:
+                mode_data[var] = mode_data[var][filter_bad]
 
             frec = 4 * (channel_value % 2) + mode_value
 

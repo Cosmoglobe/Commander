@@ -11,65 +11,7 @@ import numpy as np
 
 import globals as g
 import utils.config as config
-
-
-def plot_cov_matrix(cov, channel):
-    plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-    plt.colorbar()
-    plt.title(f"Correlation Coefficient Matrix of IFG {channel.upper()}")
-    plt.xlabel("Sample Index")
-    plt.ylabel("Sample Index")
-    plt.savefig(f"./noise/output/cov_{channel}.png")
-    plt.close()
-
-
-def plot_psd(freqs, psd, channel):
-    plt.plot(freqs, psd.T)
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.title(f"PSD of IFG {channel.upper()}")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Power Spectral Density")
-    plt.savefig(f"./noise/output/psd_{channel}.png")
-    plt.close()
-
-
-def plot_mean_psd(psd, freqs, channel):
-    sd_mean = psd.mean(axis=0)
-    psd_std = psd.std(axis=0)
-    plt.fill_between(
-        freqs,
-        sd_mean - psd_std / (2 * np.sqrt(psd.shape[0])),
-        sd_mean + psd_std / (2 * np.sqrt(psd.shape[0])),
-        alpha=0.2,
-    )
-    plt.plot(freqs, sd_mean, color="orange", label="Mean PSD with Std Dev")
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.title(f"Mean PSD of IFG {channel.upper()} with Std Dev")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Power Spectral Density")
-    plt.legend()
-    plt.savefig(f"./noise/output/psd_{channel}_mean_std.png")
-    plt.close()
-
-def plot_psd_waterfall(freqs):
-    plt.imshow(
-        psd_rh,
-        aspect="auto",
-        extent=[freqs_rh[0], freqs_rh[-1], 0, psd_rh.shape[0]],
-        origin="lower",
-        cmap="viridis",
-    )
-    plt.colorbar(label="Power Spectral Density")
-    plt.xscale("log")
-    plt.yscale("linear")
-    plt.title("Waterfall Plot of PSD of IFG RH")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Sweep Index")
-    plt.savefig("./noise/output/psd_rh_waterfall.png")
-    plt.close()
-
+from noise import plots
 
 if __name__ == "__main__":
     cal_data = h5py.File(
@@ -202,10 +144,10 @@ if __name__ == "__main__":
     cov_rl = np.corrcoef(ifg_low_normr, rowvar=False)
     cov_ll = np.corrcoef(ifg_low_norml, rowvar=False)
 
-    plot_cov_matrix(cov_rh, "rh")
-    plot_cov_matrix(cov_lh, "lh")
-    plot_cov_matrix(cov_rl, "rl")
-    plot_cov_matrix(cov_ll, "ll")
+    plots.plot_cov_matrix(cov_rh, "rh")
+    plots.plot_cov_matrix(cov_lh, "lh")
+    plots.plot_cov_matrix(cov_rl, "rl")
+    plots.plot_cov_matrix(cov_ll, "ll")
 
     # take the psd
     psd_rh = np.abs(np.fft.rfft(ifg_high_normr, axis=1)) ** 2
@@ -230,38 +172,42 @@ if __name__ == "__main__":
     )["hz"][4 * (g.CHANNELS["ll"] % 2) + g.MODES["ss"]]
 
     # get the frequencies
-    freqs_rh = np.fft.rfftfreq(ifg_rh.shape[1], d=2 * fnyq_rh)
-    freqs_rl = np.fft.rfftfreq(ifg_rl.shape[1], d=2 * fnyq_rl)
-    freqs_lh = np.fft.rfftfreq(ifg_lh.shape[1], d=2 * fnyq_lh)
-    freqs_ll = np.fft.rfftfreq(ifg_ll.shape[1], d=2 * fnyq_ll)
+    freqs_rh = np.fft.rfftfreq(ifg_rh.shape[1], d=1 / (2 * fnyq_rh))
+    freqs_rl = np.fft.rfftfreq(ifg_rl.shape[1], d=1 / (2 * fnyq_rl))
+    freqs_lh = np.fft.rfftfreq(ifg_lh.shape[1], d=1 / (2 * fnyq_lh))
+    freqs_ll = np.fft.rfftfreq(ifg_ll.shape[1], d=1 / (2 * fnyq_ll))
 
-    plot_psd(freqs_rh, psd_rh, "rh")
-    plot_psd(freqs_lh, psd_lh, "lh")
-    plot_psd(freqs_rl, psd_rl, "rl")
-    plot_psd(freqs_ll, psd_ll, "ll")
+    plots.plot_psd(freqs_rh, psd_rh, "rh")
+    plots.plot_psd(freqs_lh, psd_lh, "lh")
+    plots.plot_psd(freqs_rl, psd_rl, "rl")
+    plots.plot_psd(freqs_ll, psd_ll, "ll")
 
     # average and put a shadow for the std
-    plot_mean_psd(psd_rh, freqs_rh, "rh")
-    plot_mean_psd(psd_lh, freqs_lh, "lh")
-    plot_mean_psd(psd_rl, freqs_rl, "rl")
-    plot_mean_psd(psd_ll, freqs_ll, "ll")
+    plots.plot_mean_psd(psd_rh, freqs_rh, "rh")
+    plots.plot_mean_psd(psd_lh, freqs_lh, "lh")
+    plots.plot_mean_psd(psd_rl, freqs_rl, "rl")
+    plots.plot_mean_psd(psd_ll, freqs_ll, "ll")
 
     # plot waterfall plot
-    plt.imshow(
-        psd_rh,
-        aspect="auto",
-        extent=[freqs_rh[0], freqs_rh[-1], 0, psd_rh.shape[0]],
-        origin="lower",
-        cmap="viridis",
-    )
-    plt.colorbar(label="Power Spectral Density")
-    plt.xscale("log")
-    plt.yscale("linear")
-    plt.title("Waterfall Plot of PSD of IFG RH")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Sweep Index")
-    plt.savefig("./noise/output/psd_rh_waterfall.png")
-    plt.close()
+    # plt.imshow(
+    #     psd_rh,
+    #     aspect="auto",
+    #     extent=[freqs_rh[0], freqs_rh[-1], 0, psd_rh.shape[0]],
+    #     origin="lower",
+    #     cmap="viridis",
+    # )
+    # plt.colorbar(label="Power Spectral Density")
+    # plt.xscale("log")
+    # plt.yscale("linear")
+    # plt.title("Waterfall Plot of PSD of IFG RH")
+    # plt.xlabel("Frequency (Hz)")
+    # plt.ylabel("Sweep Index")
+    # plt.savefig("./noise/output/psd_rh_waterfall.png")
+    # plt.close()
+    plots.plot_psd_waterfall(psd_rh, freqs_rh, "rh")
+    plots.plot_psd_waterfall(psd_lh, freqs_lh, "lh")
+    plots.plot_psd_waterfall(psd_rl, freqs_rl, "rl")
+    plots.plot_psd_waterfall(psd_ll, freqs_ll, "ll")
 
     plt.plot(freqs_lh, psd_lh.T)
     plt.xscale("log")

@@ -86,8 +86,8 @@
       - `data_qual`: Data quality flags. Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? The telemetry data quality flags consist of packed bits, 4 for each of the telemetry minor frames over which the IFG is trasmitted. The value of each set of four bits is a code which represents the quality of the telemetry as received on the ground from the spacecraft. Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31}.
       - `data_ready`: Data ready flags. The data ready flags at transmit consist of 114 packed bits, one from each of the telemetry minor frames over which the IFG is transmitted. A value of 1 indicates that the corresponding section of the IFG buffer for this channel detector was ready for transmission. a value of 0 indicates the existance of a problem for transmission. Shape: 590937 x 8. Values: ?.
       - `gain`: Gain. The commandable gain for the detector is used in the conversion of the IFG raw counts to volts. Valid commandable gains are 1, 3, 10, 30, 100, 300, 1000, 3000. Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}.
-      - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1} (0 = short, 1 = long?).
-      - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1} (0 = slow, 1 = fast?).
+      - `mtm_length`: Length of the MTM. Shape: 590937. Values: {0, 1} (0 = short, 1 = long?).
+      - `mtm_speed`: Speed of the MTM. Shape: 590937. Values: {0, 1} (0 = slow, 1 = fast?).
       - `sc_head0`: Data block synchronization. Shape: 590937. Values: {-4638, -4634}.
       - `sc_head10`: Data points per mirror sweep. Shape: 590937. Values: {-21846, -1, 0, 512}.
       - `sc_head11`: Number of mirror sweeps. Shape: 590937. Values: {-21845, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2052}.

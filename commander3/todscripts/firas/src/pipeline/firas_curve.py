@@ -21,8 +21,6 @@ mask_alm = hp.sphtfunc.map2alm(mask_gal, pol=False)
 mask_gal = hp.alm2map(mask_alm, g.NSIDE, pol=False)
 mask_gal = np.where(mask_gal < 0.5, 1, 0)
 
-data = np.load(g.PROCESSED_DATA_PATH)
-
 # subtract dust emission
 nu0_dust = 353  # using Planck values
 beta_dust = 1.55
@@ -30,9 +28,19 @@ t_dust = np.array(20.8)  # u.K
 optical_depth_nu0 = 9.6 * 10 ** (-7)
 
 for mode in modes.keys():
-    pix_gal = data[f"pix_gal_{mode}"]
     for channel in channels.keys():
-        sky = np.abs(data[f"{channel}_{mode}"])
+        data = np.load(f"{g.PROCESSED_DATA_PATH}sky_{channel}_{mode}.npz", allow_pickle=True)
+        
+        length_filter = data["mtm_length"] == (0 if mode[0] == "s" else 1)
+        speed_filter = data["mtm_speed"] == (0 if mode[1] == "s" else 1)
+        mode_filter = length_filter & speed_filter
+
+        mode_data = {}
+        for var in data.files:
+            mode_data[var] = data[var][mode_filter]
+
+        sky = np.abs(mode_data["sky"])
+        pix_gal = hp.ang2pix(g.NSIDE, mode_data["gal_lon"], mode_data["gal_lat"], lonlat=True).astype(int)
         f_ghz = utils.generate_frequencies(channel, mode)
 
         print(f"Calculating BB curve for {channel.upper()}{mode.upper()}...")
