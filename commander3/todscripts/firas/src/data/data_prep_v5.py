@@ -67,11 +67,9 @@ for channel, channel_i in g.CHANNELS.items():
     all_data["fake"] = dq_data["fake"][:]
     all_data["xcal_pos"] = dq_data["xcal_pos"][:]
     all_data["data_quality"] = dq_data["data_quality"][:]
+    all_data["eng_time"] = dq_data["eng_time"][:]
 
     collect_time = science_data["collect_time"]
-    # all_data["midpoint_time"] = data_utils.binary_to_gmt(
-    #     collect_time["midpoint_time"][:]
-    # )
     all_data["midpoint_time"] = collect_time["midpoint_time"][:]
     all_data["midpoint_time_s"] = (collect_time["midpoint_time"][:] * (100 * u.ns)).to(
         "s"
@@ -263,10 +261,6 @@ for channel, channel_i in g.CHANNELS.items():
     )
     print(f"    mtm_speed mismatch: {(mtm_speed_mismatch).sum()}")
 
-    # unique, counts = np.unique(eng_gain, return_counts=True)
-    # print(f"    Engineering Gains Distribution: {dict(zip(unique, counts))}")
-    # unique, counts = np.unique(sky_data["gain"], return_counts=True)
-    # print(f"    Science Gains Distribution: {dict(zip(unique, counts))}")
     # let's try to simply use the values from engineering for the gain
     # bad_gain = (sky_data["gain"] == np.nan) != (eng_gain[idx0] == eng_gain[idx1]) | (
     #     eng_gain[idx0] != sky_data["gain"]

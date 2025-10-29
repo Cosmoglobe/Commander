@@ -38,12 +38,14 @@ for channel in g.CHANNELS_PLOT:
             data = np.load(
                 f"{g.PROCESSED_DATA_PATH}sky_{channel}_{mode}.npz", allow_pickle=True
             )
+
             sky = data["sky"]
             # scan = data[f"scan_{mode}"]
             if g.COORDINATES == "G":
-                gal_lat = data["gal_lat"]
-                gal_lon = data["gal_lon"]
+                gal_lat = data[f"gal_lat"]
+                gal_lon = data[f"gal_lon"]
                 pix_gal = hp.ang2pix(g.NSIDE, gal_lon, gal_lat, lonlat=True).astype(int)
+                # pix_gal = data[f"pix_gal_{mode}"].astype(int)
             elif g.COORDINATES == "E":
                 if g.NSIDE == 32:
                     pix_ecl = data[f"pix_ecl"]

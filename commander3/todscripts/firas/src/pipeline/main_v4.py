@@ -4,6 +4,7 @@ This script takes the interferograms into spectra.
 
 import time
 
+import h5py
 import numpy as np
 from astropy.io import fits
 
@@ -21,34 +22,46 @@ fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
 )
 
+data = h5py.File(
+    g.PREPROCESSED_DATA_PATH_SKY,
+    "r+",
+)["df_data"]
+
+short_filter = data["mtm_length"][:] == 0
+long_filter = data["mtm_length"][:] == 1
+slow_filter = data["mtm_speed"][:] == 0
+fast_filter = data["mtm_speed"][:] == 1
+
+filters = {}
+filters["ss"] = short_filter & slow_filter
+filters["lf"] = long_filter & fast_filter
+
+data_mode = {}
+print("Filtering variables by mode...")
+for mode in g.MODES.keys():
+    mode_filter = filters[mode]
+    for variable in data.keys():
+        data_mode[f"{variable}_{mode}"] = data[variable][mode_filter]
+
 for channel, channel_value in g.CHANNELS.items():
-    sky_data = np.load(
-        f"{g.PREPROCESSED_DATA_PATH}/sky_{channel}.npz", allow_pickle=True
-    )
     for mode, mode_value in g.MODES.items():
         if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-            length_filter = sky_data["mtm_length"] == (0 if mode[0] == "s" else 1)
-            speed_filter = sky_data["mtm_speed"] == (0 if mode[1] == "s" else 1)
-            mode_filter = length_filter & speed_filter
-
-            mode_data = {}
-            for var in sky_data.files:
-                mode_data[var] = sky_data[var][mode_filter]
-
             # filter out bad data (selected "by eye")
             filter_bad = filter.filter_junk(
-                mode_data["stat_word_1"],
-                mode_data["stat_word_5"],
-                mode_data["stat_word_9"],
-                mode_data["stat_word_12"],
-                mode_data["stat_word_13"],
-                mode_data["stat_word_16"],
-                mode_data["lvdt_stat_a"],
-                mode_data["lvdt_stat_b"],
+                data_mode[f"stat_word_1_{mode}"],
+                data_mode[f"stat_word_5_{mode}"],
+                data_mode[f"stat_word_9_{mode}"],
+                data_mode[f"stat_word_12_{mode}"],
+                data_mode[f"stat_word_13_{mode}"],
+                data_mode[f"stat_word_16_{mode}"],
+                data_mode[f"lvdt_stat_a_{mode}"],
+                data_mode[f"lvdt_stat_b_{mode}"],
             )
 
-            for var in mode_data:
-                mode_data[var] = mode_data[var][filter_bad]
+            sky_data = {}
+            for var in data_mode.keys():
+                if mode in var:
+                    sky_data[var] = data_mode[var][filter_bad]
 
             frec = 4 * (channel_value % 2) + mode_value
 
@@ -70,19 +83,19 @@ for channel, channel_value in g.CHANNELS.items():
             otf = otf[np.abs(otf) > 0]
             apod = fits_data[1].data["APODIZAT"][0]
 
-            mode_data["spec"] = ifg_spec.ifg_to_spec(
-                ifg=mode_data["ifg"],
+            sky_data["spec"] = ifg_spec.ifg_to_spec(
+                ifg=sky_data[f"ifg_{channel}_{mode}"],
                 channel=channel,
                 mode=mode,
-                adds_per_group=mode_data["adds_per_group"],
-                bol_cmd_bias=mode_data[f"bol_cmd_bias"]
+                adds_per_group=sky_data[f"adds_per_group_{mode}"],
+                bol_cmd_bias=sky_data[f"bol_cmd_bias_{channel}_{mode}"]
                 / 25.5,  # needs this factor to put it into volts (from pipeline)
-                bol_volt=mode_data[f"bol_volt"],
+                bol_volt=sky_data[f"bol_volt_{channel}_{mode}"],
                 fnyq_icm=fnyq["icm"][frec],
                 otf=otf,
-                Tbol=mode_data[f"bolometer"],
-                gain=mode_data[f"gain"],
-                sweeps=mode_data[f"sweeps"],
+                Tbol=sky_data[f"bolometer_{channel}_{mode}"],
+                gain=sky_data[f"gain_{channel}_{mode}"],
+                sweeps=sky_data[f"sweeps_{mode}"],
                 apod=apod,
             )
 
@@ -117,12 +130,12 @@ for channel, channel_value in g.CHANNELS.items():
             bolometer_emiss = emissivities["bolometer"]
 
             # Compute all blackbody spectra at once (vectorized)
-            bb_ical = utils.planck(f_ghz, mode_data["ical"])
-            bb_dihedral = utils.planck(f_ghz, mode_data["dihedral"])
-            bb_refhorn = utils.planck(f_ghz, mode_data["refhorn"])
-            bb_skyhorn = utils.planck(f_ghz, mode_data["skyhorn"])
-            bb_collimator = utils.planck(f_ghz, mode_data["collimator"])
-            bb_bolometer = utils.planck(f_ghz, mode_data["bolometer"])
+            bb_ical = utils.planck(f_ghz, sky_data[f"ical_{mode}"])
+            bb_dihedral = utils.planck(f_ghz, sky_data[f"dihedral_{mode}"])
+            bb_refhorn = utils.planck(f_ghz, sky_data[f"refhorn_{mode}"])
+            bb_skyhorn = utils.planck(f_ghz, sky_data[f"skyhorn_{mode}"])
+            bb_collimator = utils.planck(f_ghz, sky_data[f"collimator_{mode}"])
+            bb_bolometer = utils.planck(f_ghz, sky_data[f"bolometer_{channel}_{mode}"])
             # bb_bolometer_rl = utils.planck(f_ghz, sky_data["bolometer_rl"])
             # bb_bolometer_lh = utils.planck(f_ghz, sky_data["bolometer_lh"])
             # bb_bolometer_ll = utils.planck(f_ghz, sky_data["bolometer_ll"])
@@ -151,15 +164,21 @@ for channel, channel_value in g.CHANNELS.items():
             )
 
             # Single vectorized operation for sky extraction
-            mode_data["sky"] = (
-                mode_data["spec"][:, cutoff : (len(otf) + cutoff)]
+            sky_data["sky"] = (
+                sky_data["spec"][:, cutoff : (len(otf) + cutoff)]
                 - total_emission / otf[np.newaxis, :]
             )
+
+            # check for nans
+            if np.isnan(sky_data["sky"]).any():
+                print(
+                    f"Warning: NaN values found in sky data for {channel.upper()}{mode.upper()}"
+                )
 
             # save
             np.savez(
                 f"{g.PROCESSED_DATA_PATH}sky_{channel}_{mode}.npz",
-                **mode_data,
+                **sky_data,
             )
 
 # Print timing summary

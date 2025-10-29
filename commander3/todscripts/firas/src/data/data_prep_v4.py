@@ -5,12 +5,15 @@ So I am going back to a different way of pre-processing the data to compare and 
 
 import time
 
+import astropy.units as u
 import h5py
 import healpy as hp
 import numpy as np
 import pandas as pd
 import tables as tb
+from scipy.interpolate import interp1d
 
+import data.utils.my_utils as data_utils
 import globals as g
 from data.utils.my_utils import (
     clean_variable,
@@ -19,6 +22,7 @@ from data.utils.my_utils import (
     parse_date_string,
     scan_up_down,
 )
+from engineering_timing.get_interpolated_times import get_data, get_interp
 
 # check how much time the script takes to run
 start_time = time.time()
@@ -716,9 +720,6 @@ df_eng = df_eng.drop(
 df_eng["a_collimator"] = df_eng.apply(
     get_temperature_hl, axis=1, args=("collimator", "a")
 ).astype(np.float64)
-df_eng["b_collimator"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("collimator", "b")
-).astype(np.float64)
 df_eng = df_eng.drop(
     columns=[
         "a_hi_collimator",
@@ -736,11 +737,73 @@ merged_df = merged_df.merge(
     how="inner",
 )
 
+# grts, grt_times = get_data()
+# interpolators = get_interp(grts, grt_times)
+
+elements = [
+    "ical",
+    "dihedral",
+    "refhorn",
+    "skyhorn",
+]
+sides = ["a", "b"]
+
+for element in elements:
+    merged_df[element] = (merged_df[f"a_{element}"] + merged_df[f"b_{element}"]) / 2.0
+merged_df["collimator"] = merged_df["a_collimator"]
+
+# # TODO: this should not be just ll!
+# merged_df["midpoint_time_s"] = (
+#     (merged_df["midpoint_time_ll"].values * (100 * u.ns)).to("s").value
+# )
+
+# temps = {}
+# for element in elements:
+#     for side in sides:
+#         # Interpolate hi and lo temperatures
+#         temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+#             merged_df["midpoint_time_s"]
+#         )
+#         temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+#             merged_df["midpoint_time_s"]
+#         )
+
+#         # Vectorized temperature selection
+#         # TODO: we probably want to change this
+#         temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
+#             temps[f"{side}_lo_{element}"],
+#             temps[f"{side}_hi_{element}"],
+#             element,
+#             side,
+#         )
+#     # Average temperatures from both sides
+#     # TODO: we probably want to change this
+#     merged_df[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+
+# collimator_hi = interpolators["a_hi_collimator"](merged_df["midpoint_time_s"])
+# collimator_lo = interpolators["a_lo_collimator"](merged_df["midpoint_time_s"])
+# merged_df["collimator"] = (collimator_hi + collimator_lo) / 2.0
+
 # REJECTS
 # dihedral temperature must be lower than or equal to 5.5 K
 merged_df = merged_df[
-    (merged_df["a_dihedral"] <= 5.5) | (merged_df["b_dihedral"] <= 5.5)
+    # (merged_df["a_dihedral"] <= 5.5) | (merged_df["b_dihedral"] <= 5.5)
+    merged_df["dihedral"]
+    <= 5.5
 ]
+
+merged_df["bolometer_rh"] = (
+    merged_df["a_bol_assem_rh"] + merged_df["b_bol_assem_rh"]
+) / 2.0
+merged_df["bolometer_rl"] = (
+    merged_df["a_bol_assem_rl"] + merged_df["b_bol_assem_rl"]
+) / 2.0
+merged_df["bolometer_lh"] = (
+    merged_df["a_bol_assem_lh"] + merged_df["b_bol_assem_lh"]
+) / 2.0
+merged_df["bolometer_ll"] = (
+    merged_df["a_bol_assem_ll"] + merged_df["b_bol_assem_ll"]
+) / 2.0
 
 # drop rows without ical data
 merged_df = merged_df[(merged_df["a_ical"].notna()) & (merged_df["b_ical"].notna())]
@@ -870,24 +933,33 @@ for channel in channels:
 
 sky_variables = [
     "id",
-    "a_ical",
-    "b_ical",
-    "a_dihedral",
-    "b_dihedral",
-    "a_refhorn",
-    "b_refhorn",
-    "a_skyhorn",
-    "b_skyhorn",
-    "a_collimator",
-    "b_collimator",
-    "a_bol_assem_rh",
-    "b_bol_assem_rh",
-    "a_bol_assem_rl",
-    "b_bol_assem_rl",
-    "a_bol_assem_lh",
-    "b_bol_assem_lh",
-    "a_bol_assem_ll",
-    "b_bol_assem_ll",
+    # "a_ical",
+    # "b_ical",
+    # "a_dihedral",
+    # "b_dihedral",
+    # "a_refhorn",
+    # "b_refhorn",
+    # "a_skyhorn",
+    # "b_skyhorn",
+    # "a_collimator",
+    # "b_collimator",
+    # "a_bol_assem_rh",
+    # "b_bol_assem_rh",
+    # "a_bol_assem_rl",
+    # "b_bol_assem_rl",
+    # "a_bol_assem_lh",
+    # "b_bol_assem_lh",
+    # "a_bol_assem_ll",
+    # "b_bol_assem_ll",
+    "ical",
+    "dihedral",
+    "refhorn",
+    "skyhorn",
+    "collimator",
+    "bolometer_rh",
+    "bolometer_rl",
+    "bolometer_lh",
+    "bolometer_ll",
     "bol_volt_rh",
     "bol_volt_rl",
     "bol_volt_lh",

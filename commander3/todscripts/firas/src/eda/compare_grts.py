@@ -16,14 +16,20 @@ with h5py.File(f"{g.PREPROCESSED_DATA_PATH_SKY}", "r") as f:
     dataprep4 = f["df_data"]
     # Load only what you need and do it efficiently
     time4 = (dataprep4[f"midpoint_time_{channel}"][:] * (100 * u.ns)).to("s")
-    ical4 = (dataprep4["a_ical"][:] + dataprep4["b_ical"][:]) / 2
-    dihedral4 = (dataprep4["a_dihedral"][:] + dataprep4["b_dihedral"][:]) / 2
-    refhorn4 = (dataprep4["a_refhorn"][:] + dataprep4["b_refhorn"][:]) / 2
-    skyhorn4 = (dataprep4["a_skyhorn"][:] + dataprep4["b_skyhorn"][:]) / 2
-    collimator4 = (dataprep4["a_collimator"][:] + dataprep4["b_collimator"][:]) / 2
-    bolometer4 = (
-        dataprep4[f"a_bol_assem_{channel}"][:] + dataprep4[f"b_bol_assem_{channel}"][:]
-    ) / 2
+    # ical4 = (dataprep4["a_ical"][:] + dataprep4["b_ical"][:]) / 2
+    # dihedral4 = (dataprep4["a_dihedral"][:] + dataprep4["b_dihedral"][:]) / 2
+    # refhorn4 = (dataprep4["a_refhorn"][:] + dataprep4["b_refhorn"][:]) / 2
+    # skyhorn4 = (dataprep4["a_skyhorn"][:] + dataprep4["b_skyhorn"][:]) / 2
+    # collimator4 = (dataprep4["a_collimator"][:] + dataprep4["b_collimator"][:]) / 2
+    # bolometer4 = (
+    #     dataprep4[f"a_bol_assem_{channel}"][:] + dataprep4[f"b_bol_assem_{channel}"][:]
+    # ) / 2
+    ical4 = dataprep4["ical"][:]
+    dihedral4 = dataprep4["dihedral"][:]
+    refhorn4 = dataprep4["refhorn"][:]
+    skyhorn4 = dataprep4["skyhorn"][:]
+    collimator4 = dataprep4["collimator"][:]
+    bolometer4 = dataprep4[f"bol_assem_{channel}"][:]
 
 dataprep5 = np.load(f"{g.PREPROCESSED_DATA_PATH}/sky_{channel}.npz", allow_pickle=True)
 
@@ -76,4 +82,4 @@ ax.flatten()[5].set_ylabel("Bolometer (K)")
 ax.flatten()[5].set_title(f"Bolometer Comparison for Channel {channel.upper()}")
 ax.flatten()[5].grid(alpha=0.3)
 
-plt.show()
+plt.savefig(f"eda/output/compare_grts_channel_{channel}.png", dpi=300)
