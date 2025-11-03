@@ -6,8 +6,10 @@ import os
 import sys
 
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
+
+import utils.config as config
+from noise import plots
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -22,7 +24,7 @@ from utils.config import gen_nyquistl
 #     "r",
 # )
 cal_data = h5py.File(
-    g.PREPROCESSED_DATA_PATH_CAL,
+    g.PREPROCESSED_DATA_PATH,
     "r",
 )
 
@@ -34,61 +36,17 @@ ifgs_rl = cal_data["df_data/ifg_rl"]
 ifgs_ll = ifgs_ll - np.median(ifgs_ll, axis=1, keepdims=True)
 ifgs_rl = ifgs_rl - np.median(ifgs_rl, axis=1, keepdims=True)
 
-# plt.plot(ifgs_ll[0])
-# plt.plot(ifgs_rl[0])
-# plt.title("IFGs LL and RL")
-# plt.xlabel("Sample Index")
-# plt.ylabel("Amplitude")
-# plt.legend(["LL", "RL"])
-# plt.show()
-
 ifgs_sub = ifgs_ll[:-1] - ifgs_ll[1:]
-ifgs_add = ifgs_ll + ifgs_rl
-# TODO: subtract the whole model
-
-cov = np.corrcoef(ifgs_sub, rowvar=False)
-cov_add = np.corrcoef(ifgs_add, rowvar=False)
-
-# fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-# ax[0].imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-# ax[0].set_title("Correlation Coefficient Matrix of Subtracted IFGs")
-# ax[0].set_xlabel("IFG Index")
-# ax[0].set_ylabel("IFG Index")
-# ax[1].imshow(cov_add, cmap="RdBu_r", vmax=1, vmin=-1)
-# ax[1].set_title("Correlation Coefficient Matrix of Added IFGs")
-# ax[1].set_xlabel("IFG Index")
-# ax[1].set_ylabel("IFG Index")
-# plt.colorbar(ax[0].images[0], ax=ax[0])
-# plt.colorbar(ax[1].images[0], ax=ax[1])
-# plt.tight_layout()
-# plt.show()
-
-plt.imshow(cov, cmap="RdBu_r", vmax=1, vmin=-1)
-plt.colorbar()
-plt.title("Correlation Coefficient Matrix of IFGs")
-plt.xlabel("IFG Index")
-plt.ylabel("IFG Index")
-plt.savefig("./noise/output/cov.png")
-plt.clf()
-
-channel_value = 3
-mode_value = 0
-
-frec = 4 * (channel_value % 2) + mode_value
-
-fnyq = gen_nyquistl(
-    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
-)["hz"][frec]
 
 psd = np.abs(np.fft.rfft(ifgs_sub, axis=1)) ** 2
-freqs = np.fft.rfftfreq(ifgs_sub.shape[1], d=2 * fnyq)
 
-print(psd.shape)
+fnyq_ll_hz = config.gen_nyquistl(
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
+)["hz"][4 * (g.CHANNELS["ll"] % 2) + g.MODES["ss"]]
+fnyq_ll_icm = config.gen_nyquistl(
+    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
+)["icm"][4 * (g.CHANNELS["ll"] % 2) + g.MODES["ss"]]
+freqs_ll_hz = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_ll_hz))
+freqs_ll_icm = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_ll_icm))
 
-plt.plot(freqs, psd.T)
-plt.xscale("log")
-plt.yscale("log")
-plt.title("Power Spectral Density of IFGs")
-plt.xlabel("Frequency (Hz)")
-plt.ylabel("Power Spectral Density")
-plt.savefig("./noise/output/psd.png")
+plots.plot_psd(freqs_ll_hz, psd, "ll")

@@ -56,6 +56,6 @@ def plot_psd_waterfall(psd, freqs, channel):
     plt.yscale("linear")
     plt.title(f"Waterfall Plot of PSD of IFG {channel.upper()}")
     plt.xlabel("Frequency (Hz)")
-    plt.show()
+    # plt.show()
     plt.savefig(f"./noise/output/psd_{channel}_waterfall.png")
     plt.close()

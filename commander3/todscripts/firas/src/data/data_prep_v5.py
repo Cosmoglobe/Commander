@@ -139,13 +139,31 @@ for channel, channel_i in g.CHANNELS.items():
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
     # Interpolate temperatures for sky data
-    elements = ["ical", "dihedral", "refhorn", "skyhorn"]
+    elements = ["ical", "dihedral", "refhorn", "skyhorn", "xcal_tip", "xcal_cone"]
     sides = ["a", "b"]
 
     print(f"Using reference file to decide between high and low currents")
     print(f"Taking the average of both sides")
     temps = {}
     for element in elements:
+        for side in sides:
+            # Interpolate hi and lo temperatures for cal data
+            temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+                cal_data["midpoint_time_s"]
+            )
+            temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+                cal_data["midpoint_time_s"]
+            )
+
+            # Vectorized temperature selection
+            temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
+                temps[f"{side}_lo_{element}"],
+                temps[f"{side}_hi_{element}"],
+                element,
+                side,
+            )
+        cal_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+
         for side in sides:
             # Interpolate hi and lo temperatures
             temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
@@ -165,26 +183,48 @@ for channel, channel_i in g.CHANNELS.items():
             )
         # Average temperatures from both sides
         # TODO: we probably want to change this
-        sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+        if "xcal" not in element:
+            sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
+    collimator_hi = interpolators["a_hi_collimator"](cal_data["midpoint_time_s"])
+    collimator_lo = interpolators["a_lo_collimator"](cal_data["midpoint_time_s"])
+    cal_data["collimator"] = (collimator_hi + collimator_lo) / 2.0
     collimator_hi = interpolators["a_hi_collimator"](sky_data["midpoint_time_s"])
     collimator_lo = interpolators["a_lo_collimator"](sky_data["midpoint_time_s"])
     sky_data["collimator"] = (collimator_hi + collimator_lo) / 2.0
 
-    earth_limb, wrong_ical_temp, sun_angle, wrong_sci_mode, dihedral_temp = (
-        stats.table4_5(
-            sky_data["earth_limb"],
-            sky_data["midpoint_time_gmt"],
-            sky_data["ical"],
-            sky_data["sun_angle"],
-            sky_data["upmode"],
-            sky_data["dihedral"],
-        )
+    (
+        earth_limb,
+        wrong_ical_temp_cal,
+        wrong_ical_temp_sky,
+        sun_angle,
+        wrong_sci_mode,
+        dihedral_temp_cal,
+        dihedral_temp_sky,
+    ) = stats.table4_5(
+        sky_data["earth_limb"],
+        cal_data["midpoint_time_gmt"],
+        sky_data["midpoint_time_gmt"],
+        cal_data["ical"],
+        sky_data["ical"],
+        sky_data["sun_angle"],
+        sky_data["upmode"],
+        cal_data["dihedral"],
+        sky_data["dihedral"],
     )
 
-    cuts = earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp
+    cal_cuts = wrong_ical_temp_cal | dihedral_temp_cal
+    for key in cal_data:
+        cal_data[key] = cal_data[key][cal_cuts == False]
+    sky_cuts = (
+        earth_limb
+        | wrong_ical_temp_sky
+        | sun_angle
+        | wrong_sci_mode
+        | dihedral_temp_sky
+    )
     for key in sky_data:
-        sky_data[key] = sky_data[key][cuts == False]
+        sky_data[key] = sky_data[key][sky_cuts == False]
 
     # engineering data based on channels
     bol_cmd_bias = en_stat["bol_cmd_bias"][:, channel_i]
@@ -343,4 +383,8 @@ for channel, channel_i in g.CHANNELS.items():
     np.savez(
         f"{g.PREPROCESSED_DATA_PATH}/sky_{channel}.npz",
         **sky_data,
+    )
+    np.savez(
+        f"{g.PREPROCESSED_DATA_PATH}/cal_{channel}.npz",
+        **cal_data,
     )

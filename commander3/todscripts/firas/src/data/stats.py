@@ -103,7 +103,17 @@ def table4_2(
     )
 
 
-def table4_5(earth_limb, midpoint_time, ical, sun_angle, upmode, dihedral):
+def table4_5(
+    earth_limb,
+    midpoint_time_cal,
+    midpoint_time_sky,
+    ical_cal,
+    ical_sky,
+    sun_angle,
+    upmode,
+    dihedral_cal,
+    dihedral_sky,
+):
     print("\nTable 4.5")
 
     earth_limb = earth_limb < 87
@@ -160,16 +170,26 @@ def table4_5(earth_limb, midpoint_time, ical, sun_angle, upmode, dihedral):
         [2.758, 2.771],
     ]
 
-    wrong_ical_temp = np.zeros(len(midpoint_time), dtype=bool)
+    wrong_ical_temp_cal = np.zeros(len(midpoint_time_cal), dtype=bool)
     for i, (start, end, temps) in enumerate(
         zip(start_times, end_times, allowed_ical_temps)
     ):
-        time_mask = (midpoint_time > start) & (midpoint_time < end)
-        temp_mask = np.ones(len(midpoint_time), dtype=bool)
+        time_mask = (midpoint_time_cal > start) & (midpoint_time_cal < end)
+        temp_mask = np.ones(len(midpoint_time_cal), dtype=bool)
         for temp in temps:
-            temp_mask &= (ical > temp + 0.002) | (ical < temp - 0.002)
-        wrong_ical_temp |= time_mask & temp_mask
-    print(f"    Wrong ICAL Temperature: {sum(wrong_ical_temp)}")
+            temp_mask &= (ical_cal > temp + 0.002) | (ical_cal < temp - 0.002)
+        wrong_ical_temp_cal |= time_mask & temp_mask
+
+    wrong_ical_temp_sky = np.zeros(len(midpoint_time_sky), dtype=bool)
+    for i, (start, end, temps) in enumerate(
+        zip(start_times, end_times, allowed_ical_temps)
+    ):
+        time_mask = (midpoint_time_sky > start) & (midpoint_time_sky < end)
+        temp_mask = np.ones(len(midpoint_time_sky), dtype=bool)
+        for temp in temps:
+            temp_mask &= (ical_sky > temp + 0.002) | (ical_sky < temp - 0.002)
+        wrong_ical_temp_sky |= time_mask & temp_mask
+    print(f"    Wrong ICAL Temperature: {sum(wrong_ical_temp_sky)}")
 
     sun_angle = sun_angle < 91.2
     print(f"    Sun Angle < 91.2: {sun_angle.sum()}")
@@ -177,20 +197,23 @@ def table4_5(earth_limb, midpoint_time, ical, sun_angle, upmode, dihedral):
     wrong_sci_mode = upmode != 4
     print(f"    Wrong Science Mode: {wrong_sci_mode.sum()}")
 
-    dihedral_temp = dihedral > 5.5
-    print(f"    Dihedral Temperature > 5.5: {dihedral_temp.sum()}")
+    dihedral_temp_cal = dihedral_cal > 5.5
+    dihedral_temp_sky = dihedral_sky > 5.5
+    print(f"    Dihedral Temperature > 5.5: {dihedral_temp_sky.sum()}")
 
     print(
-        f"    Sky Records Failed by FSS: {(earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp).sum()}"
+        f"    Sky Records Failed by FSS: {(earth_limb | wrong_ical_temp_sky | sun_angle | wrong_sci_mode | dihedral_temp_sky).sum()}"
     )
     print(
-        f"Sky Records Passed by FSS: {len(midpoint_time) - (earth_limb | wrong_ical_temp | sun_angle | wrong_sci_mode | dihedral_temp).sum()}"
+        f"Sky Records Passed by FSS: {len(midpoint_time_sky) - (earth_limb | wrong_ical_temp_sky | sun_angle | wrong_sci_mode | dihedral_temp_sky).sum()}"
     )
-    
+
     return (
         earth_limb,
-        wrong_ical_temp,
+        wrong_ical_temp_cal,
+        wrong_ical_temp_sky,
         sun_angle,
         wrong_sci_mode,
-        dihedral_temp,
+        dihedral_temp_cal,
+        dihedral_temp_sky,
     )

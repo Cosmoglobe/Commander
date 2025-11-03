@@ -2,9 +2,8 @@
 This script is meant to plot a curve of the intensity of the galaxy and outside the galaxy over the frequencies.
 """
 
-import os
-import sys
-
+import astropy.units as u
+import cosmoglobe as cg
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -61,69 +60,57 @@ for channel in g.CHANNELS_PLOT:
             print(f"Processing {channel} {mode}")
             f_ghz = utils.generate_frequencies(channel, mode)
 
-            # pix_gal = data[f"pix_gal_{mode}"]
-            # sky = np.abs(data[f"{channel}_{mode}"])
             monopole = utils.planck(f_ghz, np.array(g.T_CMB))
             high_lat_amp = np.zeros(len(f_ghz))
             low_lat_amp = np.zeros(len(f_ghz))
-
-            # hpxmap = np.zeros((g.NPIX, len(f_ghz)))
-            # data_density = np.zeros(g.NPIX)
-
-            # for todi in range(len(pix_gal)):
-            #     hpxmap[pix_gal[todi]] += sky[todi]
-            #     data_density[pix_gal[todi]] += 1
-
-            # mask = data_density == 0
-            # high_lat_mask = high_lat_mask | mask
-            # low_lat_mask = low_lat_mask | mask
 
             m = np.zeros((g.NPIX, len(f_ghz)))
             for fi, freq in enumerate(f_ghz):
                 m[:, fi] = fits.open(
                     f"{path}{firas_path}{channel}_{mode}/galactic/{int(freq):04d}_nside32.fits"
                 )[0].data
-            # m[~mask] = (
-            #     hpxmap[~mask] / data_density[~mask][:, np.newaxis]
-            # )  # divide by data density
-            # m[mask] = np.nan
 
             high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
+            print(high_lat_map)
+            # check for nans
+            if np.isnan(high_lat_map).any():
+                print("NaNs found in high latitude map")
             low_lat_map = np.where(low_lat_mask[:, np.newaxis] == 1, np.nan, m)
 
             # get rid of 5sigma outliers
-            std_high = np.nanstd(high_lat_map, axis=0)
-            median_high = np.nanmedian(high_lat_map, axis=0)
-            dist = np.abs(high_lat_map - median_high) / std_high
+            # std_high = np.nanstd(high_lat_map, axis=0)
+            # median_high = np.nanmedian(high_lat_map, axis=0)
+            # dist = np.abs(high_lat_map - median_high) / std_high
 
-            high_lat_map = (
-                np.where(dist > 5, np.nan, high_lat_map) + monopole
-            )  # adding monopole back in since the input maps are monopole subtracted
-            std_high = np.nanstd(high_lat_map, axis=0)
+            # high_lat_map = (
+            #     np.where(dist > 5, np.nan, high_lat_map) + monopole
+            # )  # adding monopole back in since the input maps are monopole subtracted
+            # std_high = np.nanstd(high_lat_map, axis=0)
 
-            std_low = np.nanstd(low_lat_map, axis=0)
-            median_low = np.nanmedian(low_lat_map, axis=0)
-            dist = np.abs(low_lat_map - median_low) / std_low
+            # std_low = np.nanstd(low_lat_map, axis=0)
+            # median_low = np.nanmedian(low_lat_map, axis=0)
+            # dist = np.abs(low_lat_map - median_low) / std_low
 
-            low_lat_map = np.where(dist > 5, np.nan, low_lat_map)  # - monopole
-            std_low = np.nanstd(low_lat_map, axis=0)
+            # low_lat_map = np.where(dist > 5, np.nan, low_lat_map)  # - monopole
+            # std_low = np.nanstd(low_lat_map, axis=0)
 
-            high_lat_amp = np.nanmean(high_lat_map, axis=0)
-            low_lat_amp = np.nanmean(low_lat_map, axis=0)
+            high_lat_amp = np.nanmedian(high_lat_map, axis=0)
+            print(high_lat_amp)
+            low_lat_amp = np.nanmedian(low_lat_map, axis=0)
 
-            for freqi in range(len(f_ghz)):
+            for freqi, freq in enumerate(f_ghz):
                 fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
                 plt.subplots_adjust(wspace=0.3)
                 plt.axes(ax1)
 
-                ax1.fill_between(
-                    f_ghz,
-                    high_lat_amp - std_high,
-                    high_lat_amp + std_high,
-                    alpha=0.2,
-                    color="blue",
-                    label="1sigma",
-                )
+                # ax1.fill_between(
+                #     f_ghz,
+                #     high_lat_amp - std_high,
+                #     high_lat_amp + std_high,
+                #     alpha=0.2,
+                #     color="blue",
+                #     label="1sigma",
+                # )
                 ax1.plot(
                     f_ghz,
                     high_lat_amp,
@@ -142,29 +129,40 @@ for channel in g.CHANNELS_PLOT:
                     high_lat_map[:, freqi],
                     title=f"High Latitude {channel} {mode} Data @ {int(f_ghz[freqi]):04d} GHz",
                     unit="Intensity (MJy/sr)",
-                    cmap="jet",
                     hold=True,
-                    min=np.nanmin(high_lat_amp),
-                    max=np.nanmax(high_lat_amp),
-                    # cbar=False,
+                    min=0,
+                    max=200,
+                    norm="symlog2",
                 )
-                # plt.show()
+                # cg.plot(
+                #     high_lat_map[:, freqi],
+                #     title=f"{int(freq):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                #     unit="MJy/sr",
+                #     min=0,
+                #     max=200,
+                #     comp="freqmap",
+                #     freq=int(freq) * u.GHz,
+                #     cmap="planck",
+                #     hold=True,
+                # )
+                plt.show()
                 plt.savefig(
-                    f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png"
+                    f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png",
+                    bbox_inches="tight",
                 )
                 plt.close(fig)
 
                 fig, (ax1, ax2) = plt.subplots(nrows=2, figsize=(12, 12))
                 plt.subplots_adjust(wspace=0.3)
                 plt.axes(ax1)
-                ax1.fill_between(
-                    f_ghz,
-                    low_lat_amp - std_low,
-                    low_lat_amp + std_low,
-                    alpha=0.2,
-                    color="blue",
-                    label="1sigma",
-                )
+                # ax1.fill_between(
+                #     f_ghz,
+                #     low_lat_amp - std_low,
+                #     low_lat_amp + std_low,
+                #     alpha=0.2,
+                #     color="blue",
+                #     label="1sigma",
+                # )
                 ax1.plot(
                     f_ghz,
                     low_lat_amp,
@@ -199,10 +197,22 @@ for channel in g.CHANNELS_PLOT:
                     max=np.nanmax(low_lat_amp),
                     cmap="jet",
                     hold=True,
-                    # cbar=False,
+                    cbar=False,
                 )
+                # cg.plot(
+                #     low_lat_map[:, freqi],
+                #     title=f"{int(freq):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                #     unit="MJy/sr",
+                #     min=0,
+                #     max=200,
+                #     comp="freqmap",
+                #     freq=int(freq) * u.GHz,
+                #     cmap="planck",
+                #     hold=True,
+                # )
                 # plt.show()
                 plt.savefig(
-                    f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/low_lat/{int(f_ghz[freqi]):04d}.png"
+                    f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/low_lat/{int(f_ghz[freqi]):04d}.png",
+                    bbox_inches="tight",
                 )
                 plt.close(fig)
