@@ -20,7 +20,7 @@ fdq_eng = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h
 fact = 180.0 / np.pi / 1e4
 
 ct_head = fdq_eng["ct_head"]
-eng_time = ct_head["time"][:]
+eng_time = np.sort(ct_head["time"][:])
 eng_time_gmt = data_utils.binary_to_gmt(eng_time)
 eng_time_s = (eng_time * (100 * u.ns)).to("s")
 
@@ -67,10 +67,10 @@ for channel, channel_i in g.CHANNELS.items():
     all_data["fake"] = dq_data["fake"][:]
     all_data["xcal_pos"] = dq_data["xcal_pos"][:]
     all_data["data_quality"] = dq_data["data_quality"][:]
-    all_data["eng_time"] = dq_data["eng_time"][:]
+    all_data["eng_time"] = np.sort(dq_data["eng_time"][:])
 
     collect_time = science_data["collect_time"]
-    all_data["midpoint_time"] = collect_time["midpoint_time"][:]
+    all_data["midpoint_time"] = np.sort(collect_time["midpoint_time"][:])
     all_data["midpoint_time_s"] = (collect_time["midpoint_time"][:] * (100 * u.ns)).to(
         "s"
     )
@@ -240,6 +240,25 @@ for channel, channel_i in g.CHANNELS.items():
     # Find two nearest engineering times for each science time using searchsorted
     # This assumes eng_time is sorted (which it should be)
     # Use searchsorted to find insertion indices
+
+    # cal data
+    indices = np.searchsorted(eng_time_gmt, cal_data["midpoint_time_gmt"])
+    # Clip indices to valid range
+    indices = np.clip(indices, 1, len(eng_time_gmt) - 1)
+
+    # Get the two nearest neighbors (before and after)
+    idx_before = indices - 1
+    idx_after = indices
+
+    # Calculate distances to both neighbors
+    dist_before = np.abs(cal_data["midpoint_time_gmt"] - eng_time_gmt[idx_before])
+    dist_after = np.abs(cal_data["midpoint_time_gmt"] - eng_time_gmt[idx_after])
+
+    # Get indices of the two closest points
+    idx0_cal = np.where(dist_before <= dist_after, idx_before, idx_after)
+    idx1_cal = np.where(dist_before <= dist_after, idx_after, idx_before)
+
+    # sky data
     indices = np.searchsorted(eng_time_gmt, sky_data["midpoint_time_gmt"])
     # Clip indices to valid range
     indices = np.clip(indices, 1, len(eng_time_gmt) - 1)
@@ -253,51 +272,136 @@ for channel, channel_i in g.CHANNELS.items():
     dist_after = np.abs(sky_data["midpoint_time_gmt"] - eng_time_gmt[idx_after])
 
     # Get indices of the two closest points
-    idx0 = np.where(dist_before <= dist_after, idx_before, idx_after)
-    idx1 = np.where(dist_before <= dist_after, idx_after, idx_before)
+    idx0_sky = np.where(dist_before <= dist_after, idx_before, idx_after)
+    idx1_sky = np.where(dist_before <= dist_after, idx_after, idx_before)
 
     print("\nOther data cuts")
 
+    # cal data
+    bol_cmd_bias_mismatch_cal = (bol_cmd_bias[idx0_cal] != bol_cmd_bias[idx1_cal]) | (
+        bol_cmd_bias[idx0_cal] <= 0
+    )
+    cal_data["bol_cmd_bias"] = np.where(
+        ~bol_cmd_bias_mismatch_cal,
+        bol_cmd_bias[idx0_cal],
+        0.0,  # or np.nan if you prefer
+    )
+    upmode_mismatch_cal = (eng_upmode[idx0_cal] != eng_upmode[idx1_cal]) | (
+        eng_upmode[idx0_cal] != cal_data["upmode"]
+    )
+    fakeit_mismatch_cal = (eng_fake[idx0_cal] != eng_fake[idx1_cal]) | (
+        eng_fake[idx0_cal] != cal_data["fake"]
+    )
+    adds_per_group_mismatch_cal = (
+        eng_adds_per_group[idx0_cal] != eng_adds_per_group[idx1_cal]
+    ) | (eng_adds_per_group[idx0_cal] != cal_data["adds_per_group"])
+    sweeps_mismatch_cal = (
+        (eng_sweeps[idx0_cal] != eng_sweeps[idx1_cal])
+        | (eng_sweeps[idx0_cal] != cal_data["sweeps"])
+        | (cal_data["sweeps"] == 1)
+    )
+    mtm_length_mismatch_cal = (eng_mtm_length[idx0_cal] != eng_mtm_length[idx1_cal]) | (
+        eng_mtm_length[idx0_cal] != cal_data["mtm_length"]
+    )
+    mtm_speed_mismatch_cal = (eng_mtm_speed[idx0_cal] != eng_mtm_speed[idx1_cal]) | (
+        eng_mtm_speed[idx0_cal] != cal_data["mtm_speed"]
+    )
+    gain_mismatch_cal = (eng_gain[idx0_cal] != eng_gain[idx1_cal]) | (
+        eng_gain[idx0_cal] == 0
+    )
+    cal_data["gain"] = np.where(~gain_mismatch_cal, eng_gain[idx0_cal], np.nan)
+
+    sw1_mismatch_cal = stat_word_1[idx0_cal] != stat_word_1[idx1_cal]
+    sw4_mismatch_cal = stat_word_4[idx0_cal] != stat_word_4[idx1_cal]
+    sw5_mismatch_cal = stat_word_5[idx0_cal] != stat_word_5[idx1_cal]
+    sw8_mismatch_cal = stat_word_8[idx0_cal] != stat_word_8[idx1_cal]
+    sw9_mismatch_cal = stat_word_9[idx0_cal] != stat_word_9[idx1_cal]
+    sw12_mismatch_cal = stat_word_12[idx0_cal] != stat_word_12[idx1_cal]
+    sw13_mismatch_cal = stat_word_13[idx0_cal] != stat_word_13[idx1_cal]
+    sw16_mismatch_cal = stat_word_16[idx0_cal] != stat_word_16[idx1_cal]
+    lvdt_stat_a_mismatch_cal = lvdt_stat_a[idx0_cal] != lvdt_stat_a[idx1_cal]
+    lvdt_stat_b_mismatch_cal = lvdt_stat_b[idx0_cal] != lvdt_stat_b[idx1_cal]
+    cal_data["stat_word_1"] = np.where(~sw1_mismatch_cal, stat_word_1[idx0_cal], 0)
+    cal_data["stat_word_4"] = np.where(~sw4_mismatch_cal, stat_word_4[idx0_cal], 0)
+    cal_data["stat_word_5"] = np.where(~sw5_mismatch_cal, stat_word_5[idx0_cal], 0)
+    cal_data["stat_word_8"] = np.where(~sw8_mismatch_cal, stat_word_8[idx0_cal], 0)
+    cal_data["stat_word_9"] = np.where(~sw9_mismatch_cal, stat_word_9[idx0_cal], 0)
+    cal_data["stat_word_12"] = np.where(~sw12_mismatch_cal, stat_word_12[idx0_cal], 0)
+    cal_data["stat_word_13"] = np.where(~sw13_mismatch_cal, stat_word_13[idx0_cal], 0)
+    cal_data["stat_word_16"] = np.where(~sw16_mismatch_cal, stat_word_16[idx0_cal], 0)
+    cal_data["lvdt_stat_a"] = np.where(
+        ~lvdt_stat_a_mismatch_cal, lvdt_stat_a[idx0_cal], 0
+    )
+    cal_data["lvdt_stat_b"] = np.where(
+        ~lvdt_stat_b_mismatch_cal, lvdt_stat_b[idx0_cal], 0
+    )
+    sw_mismatches_cal = (
+        sw1_mismatch_cal
+        | sw4_mismatch_cal
+        | sw5_mismatch_cal
+        | sw8_mismatch_cal
+        | sw9_mismatch_cal
+        | sw12_mismatch_cal
+        | sw13_mismatch_cal
+        | sw16_mismatch_cal
+        | lvdt_stat_a_mismatch_cal
+        | lvdt_stat_b_mismatch_cal
+    )
+    other_cuts_cal = (
+        bol_cmd_bias_mismatch_cal
+        | upmode_mismatch_cal
+        | fakeit_mismatch_cal
+        | adds_per_group_mismatch_cal
+        | sweeps_mismatch_cal
+        | mtm_length_mismatch_cal
+        | mtm_speed_mismatch_cal
+        | gain_mismatch_cal
+        | sw_mismatches_cal
+    )
+    for key in cal_data:
+        cal_data[key] = cal_data[key][other_cuts_cal == False]
+
+    # sky data
     # Check if the two closest values match
-    bol_cmd_bias_mismatch = (bol_cmd_bias[idx0] != bol_cmd_bias[idx1]) | (
-        bol_cmd_bias[idx0] <= 0
+    bol_cmd_bias_mismatch = (bol_cmd_bias[idx0_sky] != bol_cmd_bias[idx1_sky]) | (
+        bol_cmd_bias[idx0_sky] <= 0
     )
     print(f"    bol_cmd_bias mismatch: {(bol_cmd_bias_mismatch).sum()}")
     # Assign values where they match
     sky_data["bol_cmd_bias"] = np.where(
-        ~bol_cmd_bias_mismatch, bol_cmd_bias[idx0], 0.0  # or np.nan if you prefer
+        ~bol_cmd_bias_mismatch, bol_cmd_bias[idx0_sky], 0.0  # or np.nan if you prefer
     )
 
     # compare between id1 and idx2 but also with the one from the science data
-    upmode_mismatch = (eng_upmode[idx0] != eng_upmode[idx1]) | (
-        eng_upmode[idx0] != sky_data["upmode"]
+    upmode_mismatch = (eng_upmode[idx0_sky] != eng_upmode[idx1_sky]) | (
+        eng_upmode[idx0_sky] != sky_data["upmode"]
     )
     print(f"    upmode mismatch: {(upmode_mismatch).sum()}")
 
-    fakeit_mismatch = (eng_fake[idx0] != eng_fake[idx1]) | (
-        eng_fake[idx0] != sky_data["fake"]
+    fakeit_mismatch = (eng_fake[idx0_sky] != eng_fake[idx1_sky]) | (
+        eng_fake[idx0_sky] != sky_data["fake"]
     )
     print(f"    fakeit mismatch: {(fakeit_mismatch).sum()}")
 
-    adds_per_group_mismatch = (eng_adds_per_group[idx0] != eng_adds_per_group[idx1]) | (
-        eng_adds_per_group[idx0] != sky_data["adds_per_group"]
-    )
+    adds_per_group_mismatch = (
+        eng_adds_per_group[idx0_sky] != eng_adds_per_group[idx1_sky]
+    ) | (eng_adds_per_group[idx0_sky] != sky_data["adds_per_group"])
     print(f"    adds_per_group mismatch: {(adds_per_group_mismatch).sum()}")
 
     sweeps_mismatch = (
-        (eng_sweeps[idx0] != eng_sweeps[idx1])
-        | (eng_sweeps[idx0] != sky_data["sweeps"])
+        (eng_sweeps[idx0_sky] != eng_sweeps[idx1_sky])
+        | (eng_sweeps[idx0_sky] != sky_data["sweeps"])
         | (sky_data["sweeps"] == 1)
     )
     print(f"    sweeps mismatch: {(sweeps_mismatch).sum()}")
 
-    mtm_length_mismatch = (eng_mtm_length[idx0] != eng_mtm_length[idx1]) | (
-        eng_mtm_length[idx0] != sky_data["mtm_length"]
+    mtm_length_mismatch = (eng_mtm_length[idx0_sky] != eng_mtm_length[idx1_sky]) | (
+        eng_mtm_length[idx0_sky] != sky_data["mtm_length"]
     )
     print(f"    mtm_length mismatch: {(mtm_length_mismatch).sum()}")
 
-    mtm_speed_mismatch = (eng_mtm_speed[idx0] != eng_mtm_speed[idx1]) | (
-        eng_mtm_speed[idx0] != sky_data["mtm_speed"]
+    mtm_speed_mismatch = (eng_mtm_speed[idx0_sky] != eng_mtm_speed[idx1_sky]) | (
+        eng_mtm_speed[idx0_sky] != sky_data["mtm_speed"]
     )
     print(f"    mtm_speed mismatch: {(mtm_speed_mismatch).sum()}")
 
@@ -305,34 +409,36 @@ for channel, channel_i in g.CHANNELS.items():
     # bad_gain = (sky_data["gain"] == np.nan) != (eng_gain[idx0] == eng_gain[idx1]) | (
     #     eng_gain[idx0] != sky_data["gain"]
     # )
-    gain_mismatch = (eng_gain[idx0] != eng_gain[idx1]) | (eng_gain[idx0] == 0)
+    gain_mismatch = (eng_gain[idx0_sky] != eng_gain[idx1_sky]) | (
+        eng_gain[idx0_sky] == 0
+    )
     print(f"    Gain Mismatch: {gain_mismatch.sum()}")
-    sky_data["gain"] = np.where(~gain_mismatch, eng_gain[idx0], np.nan)
+    sky_data["gain"] = np.where(~gain_mismatch, eng_gain[idx0_sky], np.nan)
 
     moon_contamination = sky_data["moon_angle"] <= 22.0
     print(f"    Moon Angle <= 22.0: {moon_contamination.sum()}")
 
     # also the status words now
-    sw1_mismatch = stat_word_1[idx0] != stat_word_1[idx1]
-    sw4_mismatch = stat_word_4[idx0] != stat_word_4[idx1]
-    sw5_mismatch = stat_word_5[idx0] != stat_word_5[idx1]
-    sw8_mismatch = stat_word_8[idx0] != stat_word_8[idx1]
-    sw9_mismatch = stat_word_9[idx0] != stat_word_9[idx1]
-    sw12_mismatch = stat_word_12[idx0] != stat_word_12[idx1]
-    sw13_mismatch = stat_word_13[idx0] != stat_word_13[idx1]
-    sw16_mismatch = stat_word_16[idx0] != stat_word_16[idx1]
-    lvdt_stat_a_mismatch = lvdt_stat_a[idx0] != lvdt_stat_a[idx1]
-    lvdt_stat_b_mismatch = lvdt_stat_b[idx0] != lvdt_stat_b[idx1]
-    sky_data["stat_word_1"] = np.where(~sw1_mismatch, stat_word_1[idx0], 0)
-    sky_data["stat_word_4"] = np.where(~sw4_mismatch, stat_word_4[idx0], 0)
-    sky_data["stat_word_5"] = np.where(~sw5_mismatch, stat_word_5[idx0], 0)
-    sky_data["stat_word_8"] = np.where(~sw8_mismatch, stat_word_8[idx0], 0)
-    sky_data["stat_word_9"] = np.where(~sw9_mismatch, stat_word_9[idx0], 0)
-    sky_data["stat_word_12"] = np.where(~sw12_mismatch, stat_word_12[idx0], 0)
-    sky_data["stat_word_13"] = np.where(~sw13_mismatch, stat_word_13[idx0], 0)
-    sky_data["stat_word_16"] = np.where(~sw16_mismatch, stat_word_16[idx0], 0)
-    sky_data["lvdt_stat_a"] = np.where(~lvdt_stat_a_mismatch, lvdt_stat_a[idx0], 0)
-    sky_data["lvdt_stat_b"] = np.where(~lvdt_stat_b_mismatch, lvdt_stat_b[idx0], 0)
+    sw1_mismatch = stat_word_1[idx0_sky] != stat_word_1[idx1_sky]
+    sw4_mismatch = stat_word_4[idx0_sky] != stat_word_4[idx1_sky]
+    sw5_mismatch = stat_word_5[idx0_sky] != stat_word_5[idx1_sky]
+    sw8_mismatch = stat_word_8[idx0_sky] != stat_word_8[idx1_sky]
+    sw9_mismatch = stat_word_9[idx0_sky] != stat_word_9[idx1_sky]
+    sw12_mismatch = stat_word_12[idx0_sky] != stat_word_12[idx1_sky]
+    sw13_mismatch = stat_word_13[idx0_sky] != stat_word_13[idx1_sky]
+    sw16_mismatch = stat_word_16[idx0_sky] != stat_word_16[idx1_sky]
+    lvdt_stat_a_mismatch = lvdt_stat_a[idx0_sky] != lvdt_stat_a[idx1_sky]
+    lvdt_stat_b_mismatch = lvdt_stat_b[idx0_sky] != lvdt_stat_b[idx1_sky]
+    sky_data["stat_word_1"] = np.where(~sw1_mismatch, stat_word_1[idx0_sky], 0)
+    sky_data["stat_word_4"] = np.where(~sw4_mismatch, stat_word_4[idx0_sky], 0)
+    sky_data["stat_word_5"] = np.where(~sw5_mismatch, stat_word_5[idx0_sky], 0)
+    sky_data["stat_word_8"] = np.where(~sw8_mismatch, stat_word_8[idx0_sky], 0)
+    sky_data["stat_word_9"] = np.where(~sw9_mismatch, stat_word_9[idx0_sky], 0)
+    sky_data["stat_word_12"] = np.where(~sw12_mismatch, stat_word_12[idx0_sky], 0)
+    sky_data["stat_word_13"] = np.where(~sw13_mismatch, stat_word_13[idx0_sky], 0)
+    sky_data["stat_word_16"] = np.where(~sw16_mismatch, stat_word_16[idx0_sky], 0)
+    sky_data["lvdt_stat_a"] = np.where(~lvdt_stat_a_mismatch, lvdt_stat_a[idx0_sky], 0)
+    sky_data["lvdt_stat_b"] = np.where(~lvdt_stat_b_mismatch, lvdt_stat_b[idx0_sky], 0)
     sw_mismatches = (
         sw1_mismatch
         | sw4_mismatch
@@ -366,6 +472,7 @@ for channel, channel_i in g.CHANNELS.items():
         sky_data[key] = sky_data[key][other_cuts == False]
 
     interp_func = interp1d(eng_time_s, bol_volt)
+    cal_data["bol_volt"] = interp_func(cal_data["midpoint_time_s"])
     sky_data["bol_volt"] = interp_func(sky_data["midpoint_time_s"])
 
     # no high cuirrent readings for bolometers
@@ -373,6 +480,10 @@ for channel, channel_i in g.CHANNELS.items():
     b_lo_bol_assem = grt["b_lo_bol_assem"][:, channel_i]
     bol_assem = (a_lo_bol_assem + b_lo_bol_assem) / 2.0
     interp_func = interp1d(eng_time_s, bol_assem)
+    cal_data["bolometer"] = interp_func(cal_data["midpoint_time_s"])
+    bad_bolometer = cal_data["bolometer"] <= 0.0
+    for key in cal_data:
+        cal_data[key] = cal_data[key][bad_bolometer == False]
     sky_data["bolometer"] = interp_func(sky_data["midpoint_time_s"])
     bad_bolometer = sky_data["bolometer"] <= 0.0
     print(f"    Bad Bolometer Temperature Readings: {bad_bolometer.sum()}")
