@@ -5,7 +5,6 @@ Estimates the PSD by subtracting the consecutive IFGs to get rid of the signal.
 import os
 import sys
 
-import h5py
 import numpy as np
 
 import utils.config as config
@@ -23,30 +22,56 @@ from utils.config import gen_nyquistl
 #     g.PREPROCESSED_DATA_PATH_SKY,
 #     "r",
 # )
-cal_data = h5py.File(
-    g.PREPROCESSED_DATA_PATH,
-    "r",
-)
 
-print(cal_data["df_data/ifg_ll"].shape)
+save_path = "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/src/noise/output/sub/"
 
-ifgs_ll = cal_data["df_data/ifg_ll"]
-ifgs_rl = cal_data["df_data/ifg_rl"]
+for channel in g.CHANNELS.keys():
+    cal_data = np.load(
+        f"{g.PREPROCESSED_DATA_PATH}/cal_{channel}.npz",
+    )
 
-ifgs_ll = ifgs_ll - np.median(ifgs_ll, axis=1, keepdims=True)
-ifgs_rl = ifgs_rl - np.median(ifgs_rl, axis=1, keepdims=True)
+    mtm_length = cal_data["mtm_length"]
+    mtm_speed = cal_data["mtm_speed"]
 
-ifgs_sub = ifgs_ll[:-1] - ifgs_ll[1:]
+    for mode in g.MODES.keys():
+        if mode[0] == "s":
+            length_filter = mtm_length == 0
+        else:
+            length_filter = mtm_length == 1
+        if mode[1] == "s":
+            speed_filter = mtm_speed == 0
+        else:
+            speed_filter = mtm_speed == 1
 
-psd = np.abs(np.fft.rfft(ifgs_sub, axis=1)) ** 2
+        mode_filter = length_filter & speed_filter
 
-fnyq_ll_hz = config.gen_nyquistl(
-    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
-)["hz"][4 * (g.CHANNELS["ll"] % 2) + g.MODES["ss"]]
-fnyq_ll_icm = config.gen_nyquistl(
-    "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
-)["icm"][4 * (g.CHANNELS["ll"] % 2) + g.MODES["ss"]]
-freqs_ll_hz = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_ll_hz))
-freqs_ll_icm = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_ll_icm))
+        ifgs = cal_data["ifg"][mode_filter]
 
-plots.plot_psd(freqs_ll_hz, psd, "ll")
+        ifgs = ifgs - np.median(ifgs, axis=1, keepdims=True)
+        ifgs_sub = ifgs[:-1] - ifgs[1:]
+
+        psd = np.abs(np.fft.rfft(ifgs_sub, axis=1)) ** 2
+
+        fnyq_hz = config.gen_nyquistl(
+            "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
+        )["hz"][4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]]
+        fnyq_icm = config.gen_nyquistl(
+            "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
+        )["icm"][4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]]
+        freqs_hz = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_hz))
+        freqs_icm = np.fft.rfftfreq(ifgs_sub.shape[1], d=1 / (2 * fnyq_icm))
+
+        plots.plot_psd(
+            freqs_hz,
+            freqs_icm,
+            psd,
+            channel,
+            path=save_path,
+        )
+        plots.plot_mean_psd(
+            psd,
+            freqs_hz,
+            freqs_icm,
+            channel,
+            path=save_path,
+        )
