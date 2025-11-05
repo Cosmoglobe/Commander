@@ -55,6 +55,7 @@ for channel in g.CHANNELS.keys():
         fnyq_hz = config.gen_nyquistl(
             "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
         )["hz"][4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]]
+        print(f"fnyq_hz for channel {channel}, mode {mode}: {fnyq_hz}")
         fnyq_icm = config.gen_nyquistl(
             "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
         )["icm"][4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]]
@@ -66,6 +67,7 @@ for channel in g.CHANNELS.keys():
             freqs_icm,
             psd,
             channel,
+            mode=mode,
             path=save_path,
         )
         plots.plot_mean_psd(
@@ -73,5 +75,6 @@ for channel in g.CHANNELS.keys():
             freqs_hz,
             freqs_icm,
             channel,
+            mode=mode,
             path=save_path,
         )
