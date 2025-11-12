@@ -115,6 +115,7 @@ plt.close()
 # calculate calibration residuals with both sets of emissivities and compare
 # load ifgs
 data = h5py.File(g.PREPROCESSED_DATA_PATH_CAL, "r")["df_data"]
+print(f"data keys: {list(data.keys())}")
 ifgs = ifg = data[f"ifg_{channel}"][:]
 gain = data[f"gain_{channel}"][:]
 sweeps = data["sweeps"][:]
@@ -122,15 +123,24 @@ bol_cmd_bias = data[f"bol_cmd_bias_{channel}"][:]
 bol_volt = data[f"bol_volt_{channel}"][:]
 
 xcal = (data["a_xcal"][:] + data["b_xcal"][:]) / 2
-ical = (data["a_ical"][:] + data["b_ical"][:]) / 2
-dihedral = (data["a_dihedral"][:] + data["b_dihedral"][:]) / 2
-refhorn = (data["a_refhorn"][:] + data["b_refhorn"][:]) / 2
-skyhorn = (data["a_skyhorn"][:] + data["b_skyhorn"][:]) / 2
-collimator = (data["a_collimator"][:] + data["b_collimator"][:]) / 2
-bolometer_ll = (data["a_bol_assem_ll"][:] + data["b_bol_assem_ll"][:]) / 2
-bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
-bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
-bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
+# ical = (data["a_ical"][:] + data["b_ical"][:]) / 2
+ical = data["ical"][:]
+# dihedral = (data["a_dihedral"][:] + data["b_dihedral"][:]) / 2
+dihedral = data["dihedral"][:]
+# refhorn = (data["a_refhorn"][:] + data["b_refhorn"][:]) / 2
+refhorn = data["refhorn"][:]
+# skyhorn = (data["a_skyhorn"][:] + data["b_skyhorn"][:]) / 2
+skyhorn = data["skyhorn"][:]
+# collimator = (data["a_collimator"][:] + data["b_collimator"][:]) / 2
+collimator = data["collimator"][:]
+# bolometer_ll = (data["a_bol_assem_ll"][:] + data["b_bol_assem_ll"][:]) / 2
+bolometer_ll = data["bolometer_ll"][:]
+# bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
+bolometer_lh = data["bolometer_lh"][:]
+# bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
+bolometer_rl = data["bolometer_rl"][:]
+# bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
+bolometer_rh = data["bolometer_rh"][:]
 temps = np.array(
     [
         xcal,

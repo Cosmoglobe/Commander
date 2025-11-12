@@ -6,6 +6,8 @@ R = 1/OTF * sum over all emitters i (excluding XCAL) of E_i * P(T_i).
 """
 
 import time
+from functools import partial
+from multiprocessing import Pool, cpu_count
 
 import h5py
 import numpy as np
@@ -69,7 +71,7 @@ def D(
         mode,
         bol_cmd_bias / 25.5,
         bol_volt,
-        Tbol=temps[9],  # TODO: generalize for other channels
+        Tbol=temps[6],  # TODO: generalize for other channels
     )
     B = B[:, nui]
 
@@ -169,65 +171,91 @@ def full_function(
 #     return np.concatenate((np.real(z), np.imag(z)))
 
 
-if __name__ == "__main__":
-    data = h5py.File(g.PREPROCESSED_DATA_PATH_CAL, "r")["df_data"]
+def fit_single_frequency(
+    nui,
+    ifg,
+    channel,
+    mode,
+    gain,
+    sweeps,
+    bol_cmd_bias,
+    bol_volt,
+    temps,
+    adds_per_group,
+    fnyq_icm,
+    frequencies,
+):
+    """
+    Fit emissivities for a single frequency index.
+    This function is designed to be called in parallel.
+    """
+    Ei = np.ones(
+        temps.shape[0], dtype=complex
+    )  # First guess for the emissivities of all emitters
 
+    result = minimize(
+        full_function,
+        Ei,
+        args=(
+            nui,
+            ifg,
+            channel,
+            mode,
+            gain,
+            sweeps,
+            bol_cmd_bias,
+            bol_volt,
+            temps,
+            adds_per_group,
+            fnyq_icm,
+            frequencies,
+        ),
+    )
+
+    return nui, result.x
+
+
+if __name__ == "__main__":
     # TODO: generalize
     channel = "ll"
     mode = "ss"
 
-    ifg = data[f"ifg_{channel}"][:]
+    data = np.load(f"{g.PREPROCESSED_DATA_PATH}cal_{channel}.npz", "r")
+
+    ifg = data[f"ifg"][:]
+
+    print(f"Data loaded from {g.PREPROCESSED_DATA_PATH}cal_{channel}.npz")
+    print("Preparing data for fitting...")
+    # print(f"data keys: {list(data.keys())}")
 
     # TODO: fit for temp weight coefficients too
-    xcal = (data["a_xcal"][:] + data["b_xcal"][:]) / 2
-    ical = (data["a_ical"][:] + data["b_ical"][:]) / 2
-    dihedral = (data["a_dihedral"][:] + data["b_dihedral"][:]) / 2
-    refhorn = (data["a_refhorn"][:] + data["b_refhorn"][:]) / 2
-    skyhorn = (data["a_skyhorn"][:] + data["b_skyhorn"][:]) / 2
-    collimator = (data["a_collimator"][:] + data["b_collimator"][:]) / 2
-    bolometer_ll = (data["a_bol_assem_ll"][:] + data["b_bol_assem_ll"][:]) / 2
-    bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
-    bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
-    bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
+    # xcal = (data["a_xcal"][:] + data["b_xcal"][:]) / 2
+    # ical = (data["a_ical"][:] + data["b_ical"][:]) / 2
+    # dihedral = (data["a_dihedral"][:] + data["b_dihedral"][:]) / 2
+    # refhorn = (data["a_refhorn"][:] + data["b_refhorn"][:]) / 2
+    # skyhorn = (data["a_skyhorn"][:] + data["b_skyhorn"][:]) / 2
+    # collimator = (data["a_collimator"][:] + data["b_collimator"][:]) / 2
+    # bolometer_ll = (data["a_bol_assem_ll"][:] + data["b_bol_assem_ll"][:]) / 2
+    # bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
+    # bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
+    # bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
+    xcal = data["xcal_cone"][:]  # TODO: update this
+    ical = data["ical"][:]
+    dihedral = data["dihedral"][:]
+    refhorn = data["refhorn"][:]
+    skyhorn = data["skyhorn"][:]
+    collimator = data["collimator"][:]
+    # TODO: fit for all bolometers
+    bol = data["bolometer"][:]
 
     adds_per_group = data["adds_per_group"][:]
     sweeps = data["sweeps"][:]
 
-    bol_cmd_bias = data[f"bol_cmd_bias_{channel}"][:]
-    bol_volt = data[f"bol_volt_{channel}"][:]
-    gain = data[f"gain_{channel}"][:]
+    bol_cmd_bias = data[f"bol_cmd_bias"][:]
+    bol_volt = data[f"bol_volt"][:]
+    gain = data[f"gain"][:]
 
-    # we don't want the records where the bol_cmd_bias is lower than 0
-    valid = bol_cmd_bias > 0
-    ifg = ifg[valid]
-    xcal = xcal[valid]
-    ical = ical[valid]
-    dihedral = dihedral[valid]
-    refhorn = refhorn[valid]
-    skyhorn = skyhorn[valid]
-    collimator = collimator[valid]
-    bolometer_rh = bolometer_rh[valid]
-    bolometer_rl = bolometer_rl[valid]
-    bolometer_lh = bolometer_lh[valid]
-    bolometer_ll = bolometer_ll[valid]
-    adds_per_group = adds_per_group[valid]
-    sweeps = sweeps[valid]
-    bol_cmd_bias = bol_cmd_bias[valid]
-    bol_volt = bol_volt[valid]
-    gain = gain[valid]
-
-    temps = [
-        xcal,
-        ical,
-        dihedral,
-        refhorn,
-        skyhorn,
-        collimator,
-        bolometer_rh,
-        bolometer_rl,
-        bolometer_lh,
-        bolometer_ll,
-    ]
+    temps = np.array([xcal, ical, dihedral, refhorn, skyhorn, collimator, bol])
 
     frequencies = utils.generate_frequencies(channel, mode, 257)
 
@@ -237,43 +265,40 @@ if __name__ == "__main__":
     frec = 4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]
     fnyq_icm = fnyq["icm"][frec]
 
-    solution = np.zeros((g.SPEC_SIZE, 10), dtype=complex)  # 10 emissivities to fit
-    start0 = time.time()
-    for nui in range(0, g.SPEC_SIZE):
-        print(f"Fitting frequency {nui+1}/{g.SPEC_SIZE}...")
+    solution = np.zeros(
+        (g.SPEC_SIZE, temps.shape[0]), dtype=complex
+    )  # 10 emissivities to fit
 
-        start = time.time()
-        Ei = np.ones(
-            10, dtype=complex
-        )  # First guess for the emissivities of all emitters
-        solution[nui] = minimize(
-            full_function,
-            Ei,
-            args=(
-                nui,
-                ifg,
-                channel,
-                mode,
-                gain,
-                sweeps,
-                bol_cmd_bias,
-                bol_volt,
-                temps,
-                adds_per_group,
-                fnyq_icm,
-                frequencies,
-            ),
-            # jac="cs",
-        ).x
-        # solution[nui] = minimize(
-        #     lambda z, nui: full_function(real_to_complex(z), nui),
-        #     x0=complex_to_real(Ei),
-        #     args=(nui,),
-        # ).x
-        # solution[nui] = newton(full_function, Ei, args=(nui, ifg))
-        # solution[nui] = dual_annealing(full_function, bounds=[(0, 2)] * 10, args=(nui,))
-        print(f"Solution is {solution[nui]}")
-        print(f"Time taken: {time.time() - start:.2f} seconds")
+    # Determine number of processes to use
+    n_processes = cpu_count()
+    print(f"Using {n_processes} CPU cores for parallel processing")
+
+    # Create partial function with fixed arguments
+    fit_func = partial(
+        fit_single_frequency,
+        ifg=ifg,
+        channel=channel,
+        mode=mode,
+        gain=gain,
+        sweeps=sweeps,
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        temps=temps,
+        adds_per_group=adds_per_group,
+        fnyq_icm=fnyq_icm,
+        frequencies=frequencies,
+    )
+
+    start0 = time.time()
+
+    # Parallel processing
+    with Pool(processes=n_processes) as pool:
+        results = pool.map(fit_func, range(g.SPEC_SIZE))
+
+    # Collect results
+    for nui, emissivities in results:
+        solution[nui] = emissivities
+        print(f"Frequency {nui+1}/{g.SPEC_SIZE} - Solution: {emissivities}")
 
     print(f"Total time taken: {time.time() - start0:.2f} seconds")
     # save solution
