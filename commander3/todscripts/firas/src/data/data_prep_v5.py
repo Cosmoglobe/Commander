@@ -41,6 +41,10 @@ lvdt_stat_b = en_stat["lvdt_stat"][:, 1]
 en_analog = fdq_eng["en_analog"]
 grt = en_analog["grt"]
 grts, grt_times = get_data()
+# remove nans from grts and corresponding times
+# valid_indices = ~np.isnan(grts).any(axis=1)
+# grts = grts[valid_indices]
+# grt_times = grt_times[valid_indices]
 
 group1 = en_analog["group1"]
 
@@ -139,7 +143,7 @@ for channel, channel_i in g.CHANNELS.items():
     # the next table to reproduce needs the ICAL temperatures so we need to match them now
     interpolators = get_interp(grts, grt_times)
     # Interpolate temperatures for sky data
-    elements = ["ical", "dihedral", "refhorn", "skyhorn", "xcal_tip", "xcal_cone"]
+    elements = ["ical", "dihedral", "refhorn", "skyhorn", "xcal_cone"]
     sides = ["a", "b"]
 
     print(f"Using reference file to decide between high and low currents")
@@ -189,6 +193,7 @@ for channel, channel_i in g.CHANNELS.items():
     collimator_hi = interpolators["a_hi_collimator"](cal_data["midpoint_time_s"])
     collimator_lo = interpolators["a_lo_collimator"](cal_data["midpoint_time_s"])
     cal_data["collimator"] = (collimator_hi + collimator_lo) / 2.0
+
     collimator_hi = interpolators["a_hi_collimator"](sky_data["midpoint_time_s"])
     collimator_lo = interpolators["a_lo_collimator"](sky_data["midpoint_time_s"])
     sky_data["collimator"] = (collimator_hi + collimator_lo) / 2.0

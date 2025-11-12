@@ -148,6 +148,8 @@ def get_data():
     ifg_time_offset = 36 * u.s
     for side in ["a", "b"]:
         for i, grt in enumerate(grt_names):
+            if (grt == "xcal_tip" or grt == "collimator") and side == "b":
+                continue
             not_ok = grts[f"{side}_lo_{grt}"] == -9999
             grts[f"{side}_lo_{grt}"][not_ok] = np.nan
             grts[f"{side}_hi_{grt}"][not_ok] = np.nan
@@ -168,6 +170,22 @@ def get_data():
 
             grt_times[f"{side}_lo_{grt}"] += offset_ind[i] * u.s
             grt_times[f"{side}_hi_{grt}"] += offset_ind[i] * u.s
+
+            # remove grts with nans
+            grt_times[f"{side}_lo_{grt}"] = grt_times[f"{side}_lo_{grt}"][
+                ~np.isnan(grts[f"{side}_lo_{grt}"])
+            ]
+            grt_times[f"{side}_hi_{grt}"] = grt_times[f"{side}_hi_{grt}"][
+                ~np.isnan(grts[f"{side}_hi_{grt}"])
+            ]
+
+            grts[f"{side}_lo_{grt}"] = grts[f"{side}_lo_{grt}"][
+                ~np.isnan(grts[f"{side}_lo_{grt}"])
+            ]
+            grts[f"{side}_hi_{grt}"] = grts[f"{side}_hi_{grt}"][
+                ~np.isnan(grts[f"{side}_hi_{grt}"])
+            ]
+
     return grts, grt_times
 
 

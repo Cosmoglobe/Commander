@@ -7,6 +7,7 @@ R = 1/OTF * sum over all emitters i (excluding XCAL) of E_i * P(T_i).
 
 import time
 from functools import partial
+from math import isnan
 from multiprocessing import Pool, cpu_count
 
 import h5py
@@ -193,6 +194,30 @@ def fit_single_frequency(
         temps.shape[0], dtype=complex
     )  # First guess for the emissivities of all emitters
 
+    # check for nans
+    if np.isnan(Ei).any():
+        raise ValueError("Initial emissivities contain NaNs")
+    if np.isnan(ifg).any():
+        raise ValueError("Input interferogram contains NaNs")
+    if np.isnan(nui):
+        raise ValueError("Frequency index is NaN")
+    if np.isnan(gain).any():
+        raise ValueError("Gain array contains NaNs")
+    if np.isnan(sweeps).any():
+        raise ValueError("Sweeps array contains NaNs")
+    if np.isnan(bol_cmd_bias).any():
+        raise ValueError("Bolometer command bias array contains NaNs")
+    if np.isnan(bol_volt).any():
+        raise ValueError("Bolometer voltage array contains NaNs")
+    if np.isnan(temps).any():
+        raise ValueError("Temperatures array contains NaNs")
+    if np.isnan(adds_per_group).any():
+        raise ValueError("Adds per group array contains NaNs")
+    if np.isnan(fnyq_icm).any():
+        raise ValueError("Nyquist frequency array contains NaNs")
+    if np.isnan(frequencies).any():
+        raise ValueError("Frequencies array contains NaNs")
+
     result = minimize(
         full_function,
         Ei,
@@ -211,6 +236,10 @@ def fit_single_frequency(
             frequencies,
         ),
     )
+    # print output message
+    print(f"Message for frequency {nui}")
+    print(f"Success: {result.success}")
+    print(f"Result message: {result.message}")
 
     return nui, result.x
 
@@ -254,6 +283,34 @@ if __name__ == "__main__":
     bol_cmd_bias = data[f"bol_cmd_bias"][:]
     bol_volt = data[f"bol_volt"][:]
     gain = data[f"gain"][:]
+
+    # check where nans in temperature come from
+    nan_temps_indices = np.unique(
+        np.where(
+            np.isnan(xcal)
+            | np.isnan(ical)
+            | np.isnan(dihedral)
+            | np.isnan(refhorn)
+            | np.isnan(skyhorn)
+            | np.isnan(collimator)
+            | np.isnan(bol)
+        )[0]
+    )
+    if len(nan_temps_indices) > 0:
+        print(f"Found NaNs in temperature arrays at indices: {nan_temps_indices}")
+
+    # does it correspond to bol_cmd_bias <0?
+    nan_temps_bol_cmd_bias = bol_cmd_bias[nan_temps_indices]
+    if np.all(nan_temps_bol_cmd_bias < 0):
+        print(
+            "All NaNs in temperature arrays correspond to bol_cmd_bias < 0, filtering them out."
+        )
+
+    # is it nans in all of the temps or just one object?
+    for idx in nan_temps_indices:
+        print(
+            f"Index {idx}: xcal={xcal[idx]}, ical={ical[idx]}, dihedral={dihedral[idx]}, refhorn={refhorn[idx]}, skyhorn={skyhorn[idx]}, collimator={collimator[idx]}, bolometer={bol[idx]}"
+        )
 
     temps = np.array([xcal, ical, dihedral, refhorn, skyhorn, collimator, bol])
 
