@@ -1,8 +1,10 @@
+from cProfile import label
+
+import matplotlib.pyplot as plt
 import numpy as np
 
 import globals as g
 from calibration import bolometer, electronics
-from utils import frd, fut
 from utils import my_utils as utils
 
 
@@ -49,11 +51,16 @@ def unclean_ifg(
     peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
 
     # leaving this here for now because
-    if mode == "ss" and channel[1] == "l":
-        peak_pos = peak_pos + 1
-    elif mode == "lf":
-        peak_pos = peak_pos - 1
-    ifg = np.roll(ifg, peak_pos, axis=1)
+    # if mode == "ss" and channel[1] == "l":
+    #     peak_pos = peak_pos + 5
+    # elif mode == "lf":
+    #     peak_pos = peak_pos - 10
+    # TODO: check if we want to keep this
+    max_ind = np.argmax(np.abs(ifg), axis=1)
+    max_ind[max_ind > peak_pos] = g.IFG_SIZE - max_ind[max_ind > peak_pos]
+
+    peak_pos = peak_pos + max_ind
+    ifg = np.array([np.roll(ifg[i], peak_pos[i]) for i in range(len(ifg))])
 
     ifg = ifg / apod
     ifg[:, apod < 0.3] = np.nan
@@ -257,11 +264,17 @@ def spec_to_ifg(
         cutoff = 7
 
     spec_r = np.zeros((len(spec), 257))
-    if spec.shape[1] == 257:
-        spec_r = spec
+    # check if there are multiple spectra or just one
+    if len(spec.shape) > 1:
+        if spec.shape[1] == 257:
+            spec_r = spec
+        else:
+            spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
     else:
-        spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
-
+        if len(spec) == 257:
+            spec_r = spec
+        else:
+            spec_r[:, cutoff : (len(spec) + cutoff)] = spec
     spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
 
     # S0 = bolometer.calculate_dc_response(

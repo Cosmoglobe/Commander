@@ -20,18 +20,27 @@ modes = {"ss": 0, "lf": 3}
 channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 # channels = {"ll": 3}
 
-temps = {
-    "xcal": np.array([2.70413828]),
-    "ical": np.array([2.71052694]),
-    "dihedral": np.array([5.0066607]),
-    "refhorn": np.array([2.6955471]),
-    "skyhorn": np.array([2.69618714]),
-    "collimator": np.array([2.69618714]),
-    "bolometer_ll": np.array([1.55804986]),
-    "bolometer_lh": np.array([1.55815428]),
-    "bolometer_rl": np.array([1.54744506]),
-    "bolometer_rh": np.array([1.54760718]),
-}
+# temps = {
+#     "xcal": np.array([2.70413828]),
+#     "ical": np.array([2.71052694]),
+#     "dihedral": np.array([5.0066607]),
+#     "refhorn": np.array([2.6955471]),
+#     "skyhorn": np.array([2.69618714]),
+#     "collimator": np.array([2.69618714]),
+#     "bolometer_ll": np.array([1.55804986]),
+#     "bolometer_lh": np.array([1.55815428]),
+#     "bolometer_rl": np.array([1.54744506]),
+#     "bolometer_rh": np.array([1.54760718]),
+# }
+temps = [
+    2.70413828,
+    2.71052694,
+    5.0066607,
+    2.6955471,
+    2.69618714,
+    2.69618714,
+    1.55804986,
+]
 
 
 def generate_ifg(
@@ -46,17 +55,16 @@ def generate_ifg(
 ):
     frequency = utils.generate_frequencies(channel, mode, 257)
 
-    bb_xcal = utils.planck(frequency, np.array(temps["xcal"]))
-    bb_ical = utils.planck(frequency, np.array(temps["ical"]))
-    bb_dihedral = utils.planck(frequency, np.array(temps["dihedral"]))
-    bb_refhorn = utils.planck(frequency, np.array(temps["refhorn"]))
-    bb_skyhorn = utils.planck(frequency, np.array(temps["skyhorn"]))
-    bb_collimator = utils.planck(frequency, np.array(temps["collimator"]))
-    bb_bolometer_ll = utils.planck(frequency, np.array(temps["bolometer_ll"]))
-    bb_bolometer_lh = utils.planck(frequency, np.array(temps["bolometer_lh"]))
-    bb_bolometer_rl = utils.planck(frequency, np.array(temps["bolometer_rl"]))
-    bb_bolometer_rh = utils.planck(frequency, np.array(temps["bolometer_rh"]))
-
+    bb_xcal = utils.planck(frequency, np.array(temps[0]))
+    bb_ical = utils.planck(frequency, np.array(temps[1]))
+    bb_dihedral = utils.planck(frequency, np.array(temps[2]))
+    bb_refhorn = utils.planck(frequency, np.array(temps[3]))
+    bb_skyhorn = utils.planck(frequency, np.array(temps[4]))
+    bb_collimator = utils.planck(frequency, np.array(temps[5]))
+    bb_bolometer = utils.planck(frequency, np.array(temps[6]))
+    # bb_bolometer_lh = utils.planck(frequency, np.array(temps[7]))
+    # bb_bolometer_rl = utils.planck(frequency, np.array(temps[8]))
+    # bb_bolometer_rh = utils.planck(frequency, np.array(temps[9]))
     fits_data = fits.open(
         f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
     )
@@ -101,17 +109,17 @@ def generate_ifg(
     )
 
     total_spectra = np.nan_to_num(
-        (
-            bb_xcal * emiss_xcal
-            + bb_ical * emiss_ical
+        bb_xcal
+        + (
+            bb_ical * emiss_ical
             + bb_dihedral * emiss_dihedral
             + bb_refhorn * emiss_refhorn
             + bb_skyhorn * emiss_skyhorn
             + bb_collimator * emiss_collimator
-            + bb_bolometer_ll * emiss_bolometer
-            + bb_bolometer_lh * emiss_bolometer
-            + bb_bolometer_rl * emiss_bolometer
-            + bb_bolometer_rh * emiss_bolometer
+            + bb_bolometer * emiss_bolometer
+            # + bb_bolometer_lh * emiss_bolometer
+            # + bb_bolometer_rl * emiss_bolometer
+            # + bb_bolometer_rh * emiss_bolometer
         )
         / emiss_xcal,
         nan=0,
@@ -124,9 +132,6 @@ def generate_ifg(
 
     # apod = fits_data[1].data["APODIZAT"][0]
     apod = np.ones(512, dtype=np.float64)  # No apodization for now
-    R0, T0, G1, beta, rho, C1, C3, Jo, Jg = bolometer.get_bolometer_parameters(
-        channel, mode
-    )
 
     ifg = ifg_spec.spec_to_ifg(
         spec=total_spectra,
@@ -135,7 +140,7 @@ def generate_ifg(
         adds_per_group=adds_per_group,
         bol_cmd_bias=bol_cmd_bias / 25.5,  # convert to volts
         bol_volt=bol_volt,
-        Tbol=temps[f"bolometer_{channel}"],
+        Tbol=temps[6],
         gain=gain,
         sweeps=sweeps,
         apod=apod,
@@ -144,14 +149,14 @@ def generate_ifg(
     )
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
 
-    return ifg, total_spectra
+    return ifg, total_spectra, bb_xcal
 
 
 if __name__ == "__main__":
     for channel in channels.keys():
         for mode in modes.keys():
             if not (mode == "lf" and (channel == "lh" or channel == "rh")):
-                ifg, total_spectra = generate_ifg(channel, mode, temps)
+                ifg, total_spectra, xcal_spec = generate_ifg(channel, mode, temps)
 
                 # save this ifg to a file
                 np.save("./ifgsim.npy", ifg)
