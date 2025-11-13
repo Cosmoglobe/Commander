@@ -256,6 +256,8 @@ def spec_to_ifg(
     Tbol=1.5309418
     """
 
+    spec = spec / g.FAC_ERG_TO_MJY
+
     mtm_speed = 0 if mode[1] == "s" else 1
 
     if mtm_speed == 0:
@@ -267,60 +269,25 @@ def spec_to_ifg(
     # check if there are multiple spectra or just one
     if len(spec.shape) > 1:
         if spec.shape[1] == 257:
-            spec_r = spec
+            spec_r = spec * otf
         else:
-            spec_r[:, cutoff : (len(spec[0]) + cutoff)] = spec
+            spec_r[:, cutoff : (spec.shape[1] + cutoff)] = spec * otf
     else:
         if len(spec) == 257:
             spec_r = spec
+            spec_r[cutoff : (len(spec) + cutoff)] = spec * otf
         else:
-            spec_r[:, cutoff : (len(spec) + cutoff)] = spec
-    spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
+            spec_r[:, cutoff : (len(spec) + cutoff)] = spec * otf
 
-    # S0 = bolometer.calculate_dc_response(
-    #     bol_cmd_bias=bol_cmd_bias,
-    #     bol_volt=bol_volt,
-    #     Tbol=Tbol,
-    #     R0=R0,
-    #     T0=T0,
-    #     G1=G1,
-    #     beta=beta,
-    #     rho=rho,
-    #     Jo=Jo,
-    #     Jg=Jg,
-    # )
-
-    # tau = bolometer.calculate_time_constant(
-    #     C3=C3,
-    #     Tbol=Tbol,
-    #     C1=C1,
-    #     G1=G1,
-    #     beta=beta,
-    #     bol_volt=bol_volt,
-    #     Jo=Jo,
-    #     Jg=Jg,
-    #     bol_cmd_bias=bol_cmd_bias,
-    #     rho=rho,
-    #     T0=T0,
-    # )
-    # etfl_all = frd.elex_transfcnl(samprate=681.43, nfreq=257)
-    # erecno = fut.get_recnum(mtm_speed, utils.channels[channel], adds_per_group).astype(
-    #     np.int32
-    # )
-    # etf = etfl_all[erecno, :]
-    etf = electronics.etfunction(channel, adds_per_group, samprate=681.43)
-
-    afreq = utils.get_afreq(mtm_speed, utils.channels[channel], 257)
-    # B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
     B = bolometer.get_bolometer_response_function(
         channel, mode, bol_cmd_bias, bol_volt, Tbol
     )
+    spec_r = spec_r * B
 
-    spec_r = spec_r / g.FAC_ERG_TO_MJY
-    spec_r = spec_r * otf
-    # spec_r = S0[:, np.newaxis] * spec_r / B
-    spec_r = spec_r / B
+    spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
     spec_r = spec_r * spec_norm
+
+    etf = electronics.etfunction(channel, adds_per_group, samprate=681.43)
     spec_r = spec_r * etf
 
     ifg = np.fft.irfft(

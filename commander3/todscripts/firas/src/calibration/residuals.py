@@ -83,8 +83,8 @@ for channel in g.CHANNELS:
             # simulated_ifgs = simulated_ifgs/3
 
         # n = np.random.randint(0, simulated_spectra.shape[0])
-        # n = 2091
-        n = 1704
+        n = 2091
+        # n = 1704
         print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
 
         # np.save(
