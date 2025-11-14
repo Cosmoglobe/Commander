@@ -88,7 +88,7 @@ labels = [
     "Bolometer_LH",
     "Bolometer_LL",
 ]
-for i in range(10):
+for i in range(fitted_emissivities.shape[1]):
     ax[i].plot(frequencies, fitted_emissivities[:, i].real, label="Fitted", color="red")
     ax[i].plot(
         frequencies, fitted_emissivities[:, i].imag, color="red", linestyle="dashed"

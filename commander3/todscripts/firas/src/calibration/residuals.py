@@ -10,38 +10,13 @@ from calibration import bolometer
 from pipeline import ifg_spec
 from simulations.main import generate_ifg
 from utils.config import gen_nyquistl
+from utils.fut import temp_list
 
 # get temperatures
 
 print("Loading calibration data...")
 for channel in g.CHANNELS:
     data = np.load(f"{g.PREPROCESSED_DATA_PATH}cal_{channel}.npz")
-
-    xcal = data[f"xcal_cone"][:]  # TODO: update this
-    ical = data[f"ical"][:]
-    dihedral = data[f"dihedral"][:]
-    refhorn = data[f"refhorn"][:]
-    skyhorn = data[f"skyhorn"][:]
-    collimator = data[f"collimator"][:]
-    bolometer = data[f"bolometer"][:]
-
-    # temps = {
-    #     "xcal": xcal,
-    #     "ical": ical,
-    #     "dihedral": dihedral,
-    #     "refhorn": refhorn,
-    #     "skyhorn": skyhorn,
-    #     "collimator": collimator,
-    #     "bolometer": bolometer,
-    # }
-    # 0: xcal, 1: ical, 2: dihedral, 3: refhorn, 4: skyhorn, 5: collimator, 6: bolometer
-    temps = np.array([xcal, ical, dihedral, refhorn, skyhorn, collimator, bolometer])
-
-    adds_per_group = data[f"adds_per_group"][:]
-    sweeps = data[f"sweeps"][:]
-    bol_cmd_bias = data[f"bol_cmd_bias"][:]
-    bol_volt = data[f"bol_volt"][:]
-    gain = data[f"gain"][:]
 
     mtm_length = data["mtm_length"][:]
     mtm_speed = data["mtm_speed"][:]
@@ -53,8 +28,8 @@ for channel in g.CHANNELS:
         fits_data = fits.open(
             f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
         )
-        # apod = fits_data[1].data["APODIZAT"][0]
-        apod = np.ones(512, dtype=np.float64)  # No apodization for now
+        apod = fits_data[1].data["APODIZAT"][0]
+        # apod = np.ones(512, dtype=np.float64)  # No apodization for now
 
         if mode[0] == "s":
             length_filter = mtm_length == 0
@@ -67,15 +42,32 @@ for channel in g.CHANNELS:
 
         mode_filter = length_filter & speed_filter
 
+        xcal = data["xcal_cone"][mode_filter]  # TODO: update this
+        ical = data["ical"][mode_filter]
+        dihedral = data["dihedral"][mode_filter]
+        refhorn = data["refhorn"][mode_filter]
+        skyhorn = data["skyhorn"][mode_filter]
+        collimator = data["collimator"][mode_filter]
+        bolometer = data["bolometer"][mode_filter]
+        temps = np.vstack(
+            [xcal, ical, dihedral, refhorn, skyhorn, collimator, bolometer]
+        )
+
+        adds_per_group = data["adds_per_group"][mode_filter]
+        sweeps = data["sweeps"][mode_filter]
+        bol_cmd_bias = data["bol_cmd_bias"][mode_filter]
+        bol_volt = data["bol_volt"][mode_filter]
+        gain = data["gain"][mode_filter]
+
         simulated_ifgs, simulated_spectra, xcal_spectra = generate_ifg(
             channel=channel,
             mode=mode,
-            temps=temps[:, mode_filter],
-            adds_per_group=adds_per_group[mode_filter],
-            sweeps=sweeps[mode_filter],
-            bol_cmd_bias=bol_cmd_bias[mode_filter],
-            bol_volt=bol_volt[mode_filter],
-            gain=gain[mode_filter],
+            temps=temps,
+            adds_per_group=adds_per_group,
+            sweeps=sweeps,
+            bol_cmd_bias=bol_cmd_bias,
+            bol_volt=bol_volt,
+            gain=gain,
         )
 
         if channel[0] == "r":
@@ -83,8 +75,9 @@ for channel in g.CHANNELS:
             # simulated_ifgs = simulated_ifgs/3
 
         # n = np.random.randint(0, simulated_spectra.shape[0])
-        n = 2091
+        # n = 1663
         # n = 1704
+        n = 2091
         print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
 
         # np.save(
@@ -111,14 +104,14 @@ for channel in g.CHANNELS:
             original_ifgs,
             channel=channel,
             mode=mode,
-            adds_per_group=adds_per_group[mode_filter],
-            sweeps=sweeps[mode_filter],
-            bol_cmd_bias=bol_cmd_bias[mode_filter] / 25.5,
-            bol_volt=bol_volt[mode_filter],
-            gain=gain[mode_filter],
+            adds_per_group=adds_per_group,
+            sweeps=sweeps,
+            bol_cmd_bias=bol_cmd_bias / 25.5,
+            bol_volt=bol_volt,
+            gain=gain,
             fnyq_icm=fnyq["icm"][frec],
             otf=otf,
-            Tbol=temps[6][mode_filter],
+            Tbol=temps[6],
             apod=apod,
         )
 
@@ -126,13 +119,12 @@ for channel in g.CHANNELS:
 
         f_ghz = utils.generate_frequencies(channel, mode, 257)
 
-        bb_ical = utils.planck(f_ghz, ical[mode_filter])
-        bb_dihedral = utils.planck(f_ghz, dihedral[mode_filter])
-        bb_refhorn = utils.planck(f_ghz, refhorn[mode_filter])
-        bb_skyhorn = utils.planck(f_ghz, skyhorn[mode_filter])
-        bb_collimator = utils.planck(f_ghz, collimator[mode_filter])
-        bb_bolometer = utils.planck(f_ghz, bolometer[mode_filter])
-
+        bb_ical = utils.planck(f_ghz, ical)
+        bb_dihedral = utils.planck(f_ghz, dihedral)
+        bb_refhorn = utils.planck(f_ghz, refhorn)
+        bb_skyhorn = utils.planck(f_ghz, skyhorn)
+        bb_collimator = utils.planck(f_ghz, collimator)
+        bb_bolometer = utils.planck(f_ghz, bolometer)
         length = len(otf)
         (
             emiss_xcal,

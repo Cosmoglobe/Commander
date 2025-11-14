@@ -130,8 +130,8 @@ def generate_ifg(
     )
     frec = 4 * (channels[channel] % 2) + modes[mode]
 
-    # apod = fits_data[1].data["APODIZAT"][0]
-    apod = np.ones(512, dtype=np.float64)  # No apodization for now
+    apod = fits_data[1].data["APODIZAT"][0]
+    # apod = np.ones(512, dtype=np.float64)  # No apodization for now
 
     ifg = ifg_spec.spec_to_ifg(
         spec=total_spectra,
@@ -159,7 +159,7 @@ if __name__ == "__main__":
                 ifg, total_spectra, xcal_spec = generate_ifg(channel, mode, temps)
 
                 # save this ifg to a file
-                np.save("./ifgsim.npy", ifg)
+                np.save("/simulations/output/ifgsim.npy", ifg)
 
                 plt.plot((ifg[0]), label=f"{channel.upper()}{mode.upper()} IFG")
                 plt.title(f"{channel.upper()}{mode.upper()} IFG")

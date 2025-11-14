@@ -2,6 +2,7 @@ from cProfile import label
 
 import matplotlib.pyplot as plt
 import numpy as np
+from pandas import cut
 
 import globals as g
 from calibration import bolometer, electronics
@@ -43,26 +44,18 @@ def unclean_ifg(
     sweeps,
     apod,
 ):
-    gain = np.expand_dims(gain, axis=-1)
-    sweeps = np.expand_dims(sweeps, axis=-1)
-
-    ifg = ifg * gain * sweeps
-
     peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
-
-    # leaving this here for now because
-    # if mode == "ss" and channel[1] == "l":
-    #     peak_pos = peak_pos + 5
-    # elif mode == "lf":
-    #     peak_pos = peak_pos - 10
     # TODO: check if we want to keep this
     max_ind = np.argmax(np.abs(ifg), axis=1)
     max_ind[max_ind > peak_pos] = g.IFG_SIZE - max_ind[max_ind > peak_pos]
 
-    peak_pos = peak_pos + max_ind
-    ifg = np.array([np.roll(ifg[i], peak_pos[i]) for i in range(len(ifg))])
+    # peak_pos = peak_pos + max_ind
+    # ifg = np.array([np.roll(ifg[i], peak_pos[i]) for i in range(len(ifg))])
+    ifg = np.roll(ifg, peak_pos, axis=1)
 
     ifg = ifg / apod
+
+    ifg = ifg * gain[:, np.newaxis] * sweeps[:, np.newaxis]
     ifg[:, apod < 0.3] = np.nan
 
     return ifg
@@ -265,11 +258,16 @@ def spec_to_ifg(
     else:
         cutoff = 7
 
-    spec_r = np.zeros((len(spec), 257))
+    spec_r = np.zeros((len(spec), 257), dtype=complex)
     # check if there are multiple spectra or just one
     if len(spec.shape) > 1:
         if spec.shape[1] == 257:
-            spec_r = spec * otf
+            if otf.shape[0] == 257:
+                spec_r = spec * otf
+            else:
+                otf_r = np.zeros(257, dtype=complex)
+                otf_r[cutoff : (len(otf) + cutoff)] = otf
+                spec_r = spec * otf_r
         else:
             spec_r[:, cutoff : (spec.shape[1] + cutoff)] = spec * otf
     else:
@@ -290,9 +288,7 @@ def spec_to_ifg(
     etf = electronics.etfunction(channel, adds_per_group, samprate=681.43)
     spec_r = spec_r * etf
 
-    ifg = np.fft.irfft(
-        spec_r,
-    )
+    ifg = np.fft.irfft(spec_r, n=g.IFG_SIZE, axis=1)
     ifg = unclean_ifg(
         ifg=ifg, channel=channel, mode=mode, gain=gain, sweeps=sweeps, apod=apod
     )
