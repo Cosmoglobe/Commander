@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_mod) comm_tod_pixcache_mod
+submodule (comm_tod_mod) comm_tod_pixcache_smod
 contains
 
   module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
@@ -171,6 +171,9 @@ contains
        else
           ind1 = self%pix2ind(pix1, flag_missing=.false.)
           ind2 = self%pix2ind(pix2, flag_missing=.false.)
+          if (ind1 == -1) ind1 = 1
+          if (self%ind2pix(ind1) < pix1) ind1 = ind1+1
+          if (ind2 == -1) ind2 = self%nobs
        end if
     end if
   end subroutine get_ind_range
@@ -302,4 +305,4 @@ contains
     
   end subroutine init_map_mask
   
-end submodule comm_tod_pixcache_mod
+end submodule comm_tod_pixcache_smod

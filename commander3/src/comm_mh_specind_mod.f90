@@ -362,10 +362,12 @@ contains
 
     if (cpar%myid == 0) then
        write(*,fmt='(a,i3,a,a)') ' | MH MBBtab sampling group ', l, ', active CG sampling groups = ', trim(cpar%mcmc_update_cg_groups(l))
-       if (mh_accept_stat(l,1) > 30 .and. real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1) < 0.1d0) then
-          write(*,*) 'MH MBBtab ADJUSTING STEP LENGTH for group', l
-          mh_scale(l)         = mh_scale(l) / 2.
-          mh_accept_stat(l,:) = 0
+       if (mh_accept_stat(l,1) > 30) then
+          if (real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1) < 0.1d0) then
+              write(*,*) 'MH MBBtab ADJUSTING STEP LENGTH for group', l
+              mh_scale(l)         = mh_scale(l) / 2.
+              mh_accept_stat(l,:) = 0
+          end if
        end if
        write(*,fmt='(a,f10.5)') ' |    Step length modifier = ', mh_scale(l)
        if (mh_accept_stat(l,1) > 0) then

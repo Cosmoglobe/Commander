@@ -974,7 +974,7 @@ contains
       real(dp),  allocatable, dimension(:, :)      :: m_buf
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       type(hdf_file) :: precond_file
-      class(comm_scandata), allocatable :: sd
+      type(comm_scandata) :: sd
 
 
       call update_status(status, "M_lowres")

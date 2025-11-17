@@ -196,7 +196,8 @@ module comm_tod_mod
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
-     logical(lgt) :: symm_flags               
+     logical(lgt) :: symm_flags
+     character(len=16), allocatable, dimension(:) :: incl_objctr
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -336,6 +337,7 @@ module comm_tod_mod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
      procedure                           :: apply_nonlin_corr_inst
+     procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
@@ -1218,10 +1220,6 @@ contains
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
     ! HKE: Hack to make HFI zodi run. Must be removed after HFI files are fixed:
-    self%t0(1) = scan/24.
-    self%t1(1) = (scan+0.99999)/24.
-    self%x1_obs = self%x0_obs
-    self%x1_earth = self%x0_earth
     !write(*,*) "scan", scan, self%t0(1), self%t1(1)
 
     
@@ -1232,7 +1230,7 @@ contains
         allocate(self%xarr_moon(3,self%n_interp), self%xarr_obs(3,self%n_interp), self%xarr_earth(3,self%n_interp))
         allocate(self%time_arr(self%n_interp))
         call read_hdf(file, slabel // "/common/time_arr",  self%time_arr)
-        !call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
+        call read_hdf(file, slabel // "/common/moonpos_arr",  self%xarr_moon)
         call read_hdf(file, slabel // "/common/earthpos_arr",  self%xarr_obs)
         call read_hdf(file, slabel // "/common/satpos_arr",  self%xarr_earth)
     end if
@@ -2235,7 +2233,20 @@ contains
     type(planck_rng),                      intent(inout), optional :: handle
     integer(i4b),                          intent(in),    optional :: det
   end subroutine apply_nonlin_corr_inst
-  
+
+  subroutine apply_fast_flags_inst(self, sd)
+    !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+    !  Expensive operations should instead be added to the dynamic mask
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(inout)    :: self
+    class(comm_scandata),                  intent(inout)    :: sd
+  end subroutine apply_fast_flags_inst
+
   
   subroutine construct_orbital_dipole(self, sd, det, factor)
     ! construct a CMB orbital dipole template in the time domain 
@@ -2889,7 +2900,9 @@ contains
        alpha   = (t-tod%scans(scan)%time_arr(b))/(tod%scans(scan)%time_arr(b+1)-tod%scans(scan)%time_arr(b))
        x_obs   = (1.d0-alpha) * tod%scans(scan)%xarr_obs(:,b)  + alpha * tod%scans(scan)%xarr_obs(:,b+1)    ! Observatory position at time t in heliocentric/Ecliptic coordinates
        x_moon  = (1.d0-alpha) * tod%scans(scan)%xarr_moon(:,b) + alpha * tod%scans(scan)%xarr_moon(:,b+1)   ! Moon position at time t in heliocentric/Ecliptic coordinates
-       
+
+!!$       write(*,*) tod%scanid(scan), det, 'moon', x_moon
+!!$       write(*,*) tod%scanid(scan), det, 'obs ', x_obs
        x_obs2moon = x_moon - x_obs ! Earth position relative to observatory in Ecliptic coordinates
        x_obs2moon = x_obs2moon / sqrt(sum(x_obs2moon**2)) ! Unit vector
        x_obs2moon = matmul(M_ecl2gal, x_obs2moon)         ! Moon position in Galactic coordinates
@@ -2899,6 +2912,7 @@ contains
        call pix2ang_ring(tod%nside, pix(j), theta0, phi0) ! Galactic coordinates
        call compute_euler_matrix_zyz(-psi0, -theta0, -phi0, M)
        vec = matmul(M, x_obs2moon)
+       !write(*,*) tod%scanid(scan), det, j, vec
        call vec2pix_ring(tod%nside, vec, pix_moon(j))
     end do
     
@@ -3188,7 +3202,7 @@ contains
       class(comm_tod),   intent(inout) :: self
       type(comm_params),       intent(in) :: cpar
 
-      integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres
+      integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres, n_good, n
       real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
       real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
       real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
@@ -3263,13 +3277,28 @@ contains
          x_earth(:, i + 1) = x1_earth_packed(:, j)
       end do
 
-      do i = 2, size(time)
+      ! Remove duplicates
+      n = size(time)
+      i = 2
+      do while (i <= n)
+         if (time(i) <= time(i-1)) then
+            time(i:n-1)      = time(i+1:n)
+            x_obs(:,i:n-1)   = x_obs(:,i+1:n)
+            x_earth(:,i:n-1) = x_earth(:,i+1:n)
+            n                = n-1
+         else
+            i = i+1
+         end if
+      end do
+      
+      
+      do i = 2, n
          if (.not. time(i) > time(i - 1)) stop "precomputed MJD time array must be strictly increasing"
       end do
 
       do i = 1, 3
-         call spline_simple(self%x_obs_spline(i), time, x_obs(i, :))
-         call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
+         call spline_simple(self%x_obs_spline(i), time(1:n), x_obs(i, 1:n))
+         call spline_simple(self%x_earth_spline(i), time(1:n), x_earth(i, 1:n))
       end do
 
       !allocate spectral quantities

@@ -60,6 +60,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pixhist_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_pixcache_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
@@ -107,7 +108,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_dust_extinction_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_samp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefree_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefreeEM_comp_mod.f90

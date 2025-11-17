@@ -10,6 +10,7 @@ module comm_tod_driver_mod
   use comm_tod_jump_mod
   use comm_tod_adc_mod
   use comm_zodi_mod
+  use comm_tod_objctr_mod
   use comm_tod_cray_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
@@ -112,6 +113,7 @@ contains
     if (btest(oper,SD_BASE)) then
        call tod%decompress_pointing(sd, det)
        call tod%decompress_flags(sd, det)
+       call tod%apply_fast_flags_inst(sd)
        if (sd%ndet > 1 .and. tod%symm_flags) call tod%symmetrize_flags(sd%flag)
     end if
        
@@ -330,7 +332,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: pix
     real(dp),     allocatable, dimension(:) :: mjd
 
-    q = abs(tod%info%nside/nside_pix)**2
+    q = (tod%info%nside/nside_pix)**2
     
     ! Find maximum number of samples
     ntod = 0
@@ -394,6 +396,7 @@ contains
     if (nside_pix /= 0) then
        allocate(dd%pix(dd%ntod))
        dd%pix = pix(1:k)
+       !if (tod%myid == 0 .and. det == 2) write(*,*) 'd', dd%pix(1:5)
        deallocate(pix)
     end if
     

@@ -50,7 +50,7 @@ contains
        call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd)
        call timer%start(TOD_PIXHIST, tod%band)
        
-!!$       if (tod%myid == 0 .and. det == 1) then
+!!$       if (tod%myid == 0 .and. det == 2) then
 !!$          open(58,file='detdata.dat', recl=1024)
 !!$          do j = 1, dd%ntod
 !!$             write(58,*) j, dd%tod(j), dd%pix(j)
@@ -214,13 +214,15 @@ contains
     type(comm_scandata) :: sd
     character(len=6) :: pix_text
     integer(i4b), allocatable, dimension(:,:,:) :: hist
-    real(sp),     allocatable, dimension(:,:) :: delta
-    real(sp),                  dimension(NBIN_HIST) :: x, P
+    real(sp), allocatable, dimension(:,:) :: delta, buff
+    real(sp),              dimension(NBIN_HIST) :: x, P
     
     if (tod%nhorn /= 1) then
        write(*,*) 'compute_tod_pixhist does not support multi-horn data'
        stop
     end if
+
+    if (tod%myid == 0) write(*,fmt='(a,a)') '    --> Pixhist, band = ', trim(tod%freq)
 
     ndet      = tod%ndet
     npix_hist = 12*tod%nside_pixhist**2
@@ -270,9 +272,14 @@ contains
        call dealloc_scan_data(sd)
        call timer%stop(TOD_PIXHIST, tod%band)
     end do
-    call timer%start(TOD_PIXHIST, tod%band)
-    call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(4,:,:),  size(tod%pixhist(4,:,:)),  MPI_REAL, MPI_MIN, tod%comm, ierr)
-    call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(5,:,:),  size(tod%pixhist(5,:,:)),  MPI_REAL, MPI_MAX, tod%comm, ierr)
+    allocate(buff(0:npix_hist-1, ndet))
+    buff = tod%pixhist(4,:,:)
+    call mpi_allreduce(MPI_IN_PLACE, buff,  size(buff),  MPI_REAL, MPI_MIN, tod%comm, ierr)
+    tod%pixhist(4,:,:) = buff
+    buff = tod%pixhist(5,:,:)
+    call mpi_allreduce(MPI_IN_PLACE, buff,  size(buff),  MPI_REAL, MPI_MAX, tod%comm, ierr)
+    tod%pixhist(5,:,:) = buff
+    deallocate(buff)
     delta = (tod%pixhist(5,:,:)-tod%pixhist(4,:,:))/NBIN_HIST
     call timer%stop(TOD_PIXHIST, tod%band)
 

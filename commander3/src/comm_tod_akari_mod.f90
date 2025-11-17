@@ -32,6 +32,7 @@ module comm_tod_akari_mod
    !
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
+  use comm_tod_mapmaking_mod
    implicit none
 
    private
@@ -39,7 +40,8 @@ module comm_tod_akari_mod
 
    type, extends(comm_tod) :: comm_akari_tod
    contains
-      procedure     :: process_tod          => process_akari_tod
+     procedure     :: process_tod            => process_akari_tod
+     procedure     :: apply_fast_flags_inst  => apply_fast_flags_akari
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -128,9 +130,22 @@ interface
       real(dp),            dimension(:,:,:),    intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(:),        intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
    end subroutine process_akari_tod   
-
+   
+   module subroutine apply_fast_flags_akari(self, sd)
+     !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+     !  Expensive operations should instead be added to the dynamic mask
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     implicit none
+     class(comm_akari_tod),                 intent(inout)    :: self
+     class(comm_scandata),                  intent(inout)    :: sd
+   end subroutine apply_fast_flags_akari
+   
 end interface
    
 end module comm_tod_akari_mod
