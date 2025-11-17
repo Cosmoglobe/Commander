@@ -70,37 +70,28 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-xHost" 
 		"-fpe0"
 		"-fPIC"
-		#"-fp-model=strict"
 		"-traceback" 
 		"-qopenmp" #<= we are not using it at all, it is redundant 
 		"-assume" "byterecl" # for I/O operations 
-		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
-		#"-DNDEBUG"
-		#"-ipo" #  
-		#"-parallel" 
 		"-heap-arrays" "16384"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
 		"-O0"  
-		"-g" 
+    "-g" 
 		"-xHost" 
-		"-debug" "all"
-		"-check" "all,noarg_temp_created"
-		"-warn" "all,nounused,noexternal"
-		"-fp-stack-check"
-		"-fstack-protector-all"
+    "-debug" "all"
+    "-check" "all,nouninit,noarg_temp_created"
+    "-warn" "all,nounused,noexternal"
+    "-fp-stack-check"
+    "-fstack-protector-all"
 		"-traceback" 
-		"-parallel" 
 		"-qopenmp"
-		"-C" 
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
-    #"-ftrapuv"
-    #"-init=snan,arrays"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
@@ -110,24 +101,10 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-g" 
 		"-fpe0"
 		"-fPIC"
-		#"-fp-model=strict"
 		"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
-		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		"-traceback" 
 		"-heap-arrays" "16384"
-		#
-		#"-O2"  
-		#"-g" 
-		#"-traceback" 
-		#"-DNDEBUG" 
-		#"-parallel" 
-		#"-qopenmp"
-		#"-qopt-matmul"
-		#"-C"
-		#"-assume" "byterecl" 
-		#"-fpe0"
-		#"-fPIC"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
@@ -135,9 +112,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
 		"-Os"
 		"-traceback" 
 		"-DNDEBUG" 
-		"-parallel" 
 		"-qopenmp" 
-		"-C"
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"
 		"-fpe0"

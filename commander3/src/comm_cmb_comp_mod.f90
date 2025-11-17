@@ -58,6 +58,8 @@ contains
     allocate(c)
     c%npar         = 0
     call c%initDiffuse(cpar, id, id_abs)
+    call c%initLmaxSpecind(cpar, id, id_abs)
+
 
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
@@ -109,7 +111,7 @@ contains
                    cycle
                 end if
              end if
-             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
+             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%bp(j)%p%RJ2data
              !if (.not. associated(self%F_int(k,i,j)%p)) then
                 self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
              !else

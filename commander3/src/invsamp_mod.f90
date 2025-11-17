@@ -38,20 +38,22 @@ contains
 
     type(planck_rng)                               :: handle
     real(dp), dimension(1:), intent(in)            :: x_in
+    procedure(lnL_int), pointer, intent(in)        :: lnL
     real(dp)                                       :: sample_InvSamp
     real(dp), dimension(2),               optional :: prior
     integer(i4b),            intent(out), optional :: status, n_eval
     logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
     real(dp), dimension(1:), intent(in),  optional :: lnL_in
     real(dp),                intent(in),  optional :: tolerance_
-    interface
-       function lnL(x)
+    abstract interface
+      function lnL_int(x)
          use healpix_types
          implicit none
          real(dp), intent(in) :: x
-         real(dp)             :: lnL
-       end function lnL
+         real(dp)             :: lnL_int
+      end function lnL_int
     end interface
+
 
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
     logical(lgt) :: optimize_, use_precomputed_grid_
@@ -112,7 +114,6 @@ contains
        if (lnL0 > y_new) then
           call update_InvSamp_sample_set(prior_(2), lnL0, x_n, S_n, n, stat)
        end if
-
 
        ! Check that peak is bounded; if not do a golden ratio search
        if (x_n(1) /= prior_(1)) then
@@ -225,6 +226,7 @@ contains
        stop
     end if
 
+
     ! Spline probability function
     if (stat == 0) then
        call spline(x_n(1:n), S_n(1:n), 1.d30, 1.d30, S_n2(1:n))
@@ -312,7 +314,6 @@ contains
     if (present(n_eval)) n_eval = n
     if (present(status)) status = stat
     
-
   end function sample_InvSamp
 
 

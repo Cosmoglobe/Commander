@@ -276,6 +276,26 @@ contains
       postfix_atlas = '.fits'
 
       ! Distribute maps
+      ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
+            ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793   
+      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+      call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! in K_cmb
+      call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! already in K_cmb
+      
+      ! Distribute processing masks
+      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
+      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
+      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
+      if (self%sample_zodi .and. self%subtract_zodi) then
+         allocate(procmask_zodi(0:npix-1))
+         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
+      end if
+      deallocate(m_buf)
+      
+      call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+
+      ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
       ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793
@@ -324,13 +344,15 @@ contains
          call update_status(status, "baseline")
          do i = 1, self%nscan
             if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi)
+            
             call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2)
             !call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
             call timer%start(TOD_BASELINE, self%band)
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
             !if (self%myid == 0) write(*,*) '    size(sd%mask):', size(sd%mask)
             !if (self%myid == 0) write(*,*) '    sd%mask(1,1):', sd%mask(1,1)
-            call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline done'
             call timer%stop(TOD_BASELINE, self%band)
             call sd%dealloc
@@ -565,7 +587,7 @@ contains
    end subroutine process_chipass_tod
 
 
-   subroutine sample_baseline(tod, scan, raw, s_tot, mask, handle)
+   subroutine sample_chipass_baseline(tod, scan, raw, s_tot, mask, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -620,7 +642,7 @@ contains
 
     deallocate(x, y)
 
-  end subroutine sample_baseline
+  end subroutine sample_chipass_baseline
 
 
 end module comm_tod_chipass_mod

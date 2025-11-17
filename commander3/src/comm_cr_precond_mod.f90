@@ -20,6 +20,7 @@
 !================================================================================
 module comm_cr_precond_mod
   use comm_utils
+  use comm_sparse_mod
   implicit none
 
   type invM
@@ -28,10 +29,16 @@ module comm_cr_precond_mod
      real(dp),     allocatable, dimension(:,:) :: M0, M
   end type invM
 
+  type invM_sparse
+     integer(i4b)                                  :: n
+     integer(i4b),     allocatable, dimension(:)   :: ind, comp2ind
+     class(sparse_system),          pointer        :: M
+  end type invM_sparse
+
   type precond
-     type(invM), allocatable, dimension(:,:)      :: invM_diff ! (0:nalm-1,nmaps)
-     type(invM), allocatable, dimension(:,:)      :: invM_src  ! (1,nmaps)
-     type(invM), allocatable, dimension(:,:)      :: invM_temp ! (1,1)
+     type(invM),        allocatable, dimension(:,:)      :: invM_diff ! (0:nalm-1,nmaps)
+     type(invM_sparse), allocatable, dimension(:,:)      :: invM_src  ! (1,nmaps)
+     type(invM),        allocatable, dimension(:,:)      :: invM_temp ! (1,1)
   end type precond
 
   type(precond), allocatable, dimension(:) :: P_cr   ! (n_sampgroup)

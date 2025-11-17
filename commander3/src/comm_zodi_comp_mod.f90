@@ -231,7 +231,8 @@ contains
       scale(start_ind+1,:) = [1.d0, 0.03d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2,:) = [1.d0, 0.3d0]
-      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
+      !prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.04d0, 0.04d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3,:) = [1.d0, 1d-3]
       prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4,:) = [1.d0, 0.8d-3]
@@ -273,9 +274,11 @@ contains
       scale(start_ind+6,:) = [1.d0, 0.14d0]
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
       scale(start_ind+7,:) = [1.d0, 0.005d0]
-      prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
+      !prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
+      prior(:,start_ind+8) = [0.01d0, 3.d0, 0.942d0, -1.d0] ! v
       scale(start_ind+8,:) = [1.d0, 0.1d0]      
-      prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
+      !prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
+      prior(:,start_ind+9) = [2.d0, 6.d0, 0.189d0, -1.d0] ! p
       scale(start_ind+9,:) = [1.d0, 1d-6]      
     end subroutine init_band_priors_and_scales
 
@@ -767,15 +770,16 @@ contains
       self%p5    = x(10)
       self%p6    = x(11)
       self%p7    = x(12)
-      self%p9    = x(13)
-      self%p10   = x(14)
-      self%p13   = x(15)
-      self%p14   = x(16)
-      self%p15   = x(17)
-      self%p16   = x(18)
-      self%p17   = x(19)
-      self%p18   = x(20)
-      self%p19   = x(21)
+      self%p8    = x(13)
+      self%p9    = x(14)
+      self%p10   = x(15)
+      self%p13   = x(16)
+      self%p14   = x(17)
+      self%p15   = x(18)
+      self%p16   = x(19)
+      self%p17   = x(20)
+      self%p18   = x(21)
+      self%p19   = x(22)
     end subroutine param2model_WrightCloudRing
 
     subroutine model2param_WrightCloudRing(self, x)
@@ -794,15 +798,16 @@ contains
       x(10) = self%p5
       x(11) = self%p6
       x(12) = self%p7
-      x(13) = self%p9
-      x(14) = self%p10
-      x(15) = self%p13
-      x(16) = self%p14
-      x(17) = self%p15
-      x(18) = self%p16
-      x(19) = self%p17
-      x(20) = self%p18
-      x(21) = self%p19
+      x(13) = self%p8
+      x(14) = self%p9
+      x(15) = self%p10
+      x(16) = self%p13
+      x(17) = self%p14
+      x(18) = self%p15
+      x(19) = self%p16
+      x(20) = self%p17
+      x(21) = self%p18
+      x(22) = self%p19
     end subroutine model2param_WrightCloudRing
 
     subroutine param2model_WrightBand(self, x)
@@ -1062,6 +1067,22 @@ contains
       real(dp) :: x_D, y_D, z_D, L_D, A, D
 
       ! X_vec = r = position to evaluate model in heliocentric coordinates
+!!$      open(58,file='n.dat', recl=1024)
+!!$      write(*,*) 'p3', self%p3
+!!$      write(*,*) 'p4', self%p4
+!!$      write(*,*) 'p5', self%p5
+!!$      write(*,*) 'p6', self%p6
+!!$      write(*,*) 'p7', self%p7
+!!$      write(*,*) 'p8', self%p8
+!!$      write(*,*) 'p9', self%p9
+!!$      write(*,*) 'p10', self%p10
+!!$      write(*,*) 'p13', self%p13
+!!$      write(*,*) 'p14', self%p14
+!!$      write(*,*) 'p15', self%p15
+!!$      write(*,*) 'p16', self%p16
+!!$      write(*,*) 'p17', self%p17
+!!$      write(*,*) 'p18', self%p18
+!!$      write(*,*) 'p19', self%p19
       do i = 1, size(n_out)
          R     = sqrt(sum(X_vec(:,i)**2))
          z_c   = [self%p6, self%p7, 10.d0] / sqrt(100.d0 + self%p6**2 + self%p7**2)
@@ -1097,7 +1118,10 @@ contains
          
          ! Total density
          n_out(i) = self%n_0 * R/R_c * f * R_c**(-self%p1) * (1.d0 + 0.1d0 * self%p10 * D*(1.d0+A))
+         !write(58,*) R, n_out(i), X_vec(:,i), sin_i, Z, f, self%n_0, R_c, self%p1, self%p10, D, A
       end do
+!      close(58)
+!      stop
     end subroutine get_density_WrightCloudRing
 
     subroutine get_density_WrightBand(self, X_vec, theta, n_out)
@@ -1116,7 +1140,8 @@ contains
          R_b   = R + sum(o_b * X_vec(:,i))
 
          if (abs(sin_i) < 0.1d0*self%q1 .and. R_b < self%R_1) then
-            n_out(i) = self%n_0 * R/R_b**2 * cosh(1.72d0*abs(sin_i)/(0.1d0*self%q1))
+            !n_out(i) = self%n_0 * R/R_b**2 * cosh(1.72d0*abs(sin_i)/(0.1d0*self%q1))
+            n_out(i) = self%n_0 * R/R_b**2 * cosh(1.72d0*abs(sin_i)/self%q1) / pi
          else
             n_out(i) = 0.d0
          end if

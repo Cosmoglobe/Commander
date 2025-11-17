@@ -18,7 +18,6 @@ from astropy.coordinates import (
     get_body,
     HeliocentricMeanEcliptic,
 )
-from astroquery.mpc import MPC
 
 DIRBE_SKYMAP_INFO = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/DIRBE_SKYMAP_INFO.FITS"
 DIRBE_BANDPASSES = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/bandpass/DIRBE_SYSTEM_SPECTRAL_RESPONSE_TABLE.ASC"
@@ -27,7 +26,7 @@ DIRBE_BEAM = (
 )
 DIRBE_POS_PATH = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/position/"
 BEAM_FILE = "/mn/stornext/d16/cmbco/ola/dirbe/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
-BANDPASS_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
+BANDPASS_PATH = ""
 
 DIRBE_POS_FILES = [
     "dmr_anc_spcl_89328_89356.txt",
@@ -46,41 +45,16 @@ DIRBE_POS_FILES = [
     "dmr_anc_90326_90356.txt",
 ]
 
-BANDS = range(1, 11)
+BANDS = ['N60', 'WIDE-S', 'WIDE-L', 'N160']
+NDETS = [40, 60, 45, 30]
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
-WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
-DETECTORS = [
-    "1A",
-    "1B",
-    "1C",
-    "2A",
-    "2B",
-    "2C",
-    "3A",
-    "3B",
-    "3C",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-]
+WAVELENGTHS = (65, 90, 140, 160)
+DETECTORS = []
+for i in range(len(BANDS)):
+    for j in range(NDETS[i]):
+        DETECTORS.append(f'{BANDS[i]}_{j+1:02}')
 
-BAND_TO_WAVELENGTH: dict[int, float] = {
-    1: 1.25,
-    2: 2.2,
-    3: 3.5,
-    4: 4.9,
-    5: 12,
-    6: 25,
-    7: 60,
-    8: 100,
-    9: 140,
-    10: 240,
-}
 
 ROWS_IN_BEAM_FILE_TO_SKIP = 19
 
@@ -95,47 +69,20 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
-# Note that Ceres, Pallas, and Vesta were flagged in the original analysis, all
-# other asteroids were discovered later on. All comets except C/1989 T1 were
-# discovered by Lisse
-COMET_RADII = {
-        '73P/Schwassmann–Wachmann 3':2,
-        'C/1989 Q1':2,
-        'C/1989 T1':2,
-        'C/1989 X1':15,
-        'C/1990 K1':2
-        }
-ASTEROID_RADII = {
-        '1 Ceres':1,
-        '2 Pallas':1,
-        '4 Vesta':1,
-        '15 Eunomia':1,
-        '31 Euphrosyne':1,
-        '41 Daphne':1,
-        '42 Isis':1,
-        '85 Io':1,
-        '185 Eunike':1,
-        '194 Prokne':1,
-        '372 Palma':1,
-        '405 Thia':1,
-        '511 Davida':1,
-        '704 Interamnia':1,
-        '747 Winchester':1,
-        '1021 Flammario':1,
-        }
 
-SIGMA_0 = {
-    1: 0.1820848274487808,
-    2: 0.1785923183102134,
-    3: 0.12869298902093768,
-    4: 0.09362580480386565,
-    5: 0.14110078941487805,
-    6: 0.19622963644711278,
-    7: 0.358702745030365,
-    8: 0.4273920139329039,
-    9: 1.9890065503932703,
-    10: 2.012305834012275,
-}
+for b, ndet in zip(BANDS, NDETS):
+    for i in range(ndet):
+        DETECTORS.append(f'{b}_{i+1:02}')
+
+
+BAND_TO_WAVELENGTH: dict[str, float] = {}
+
+for BAND, WAVE in zip(BANDS, WAVELENGTHS):
+    BAND_TO_WAVELENGTH[BAND] = WAVE
+
+SIGMA_0 = {}
+for band in BANDS:
+    SIGMA_0[band] = 1
 
 
 def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
@@ -157,55 +104,6 @@ def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
 
     return interpolaters
 
-def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
-    times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
-        datetime
-    )
-
-    astropy_times = Time(times, format="datetime", scale="utc")
-    interpolaters_comet = {}
-    interpolaters_asteroids = {}
-    rotator = hp.Rotator(coord=["C", "G"])
-    with solar_system_ephemeris.set('de432s'):
-        for ci, c in enumerate(COMET_RADII):
-            interpolaters_comet[c] = {}
-            lons = []
-            lats = []
-            dists = []
-            for i in range(len(astropy_times)//1441+1):
-                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
-                eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
-                        number=len(astropy_times_i), step='1h')
-                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
-                dist = eph['r']
-                lons += lon.tolist()
-                lats += lat.tolist()
-                dists += dist.tolist()
-            lons = np.array(lons)
-            lats = np.array(lats)
-            dists = np.array(dists)
-            locs = np.array([lons, lats])
-            np.save(f'comet_{ci}', locs)
-            interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
-            interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
-            interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
-
-        for a in ASTEROID_RADII:
-            interpolaters_asteroids[a] = {}
-            lons = []
-            lats = []
-            for i in range(len(astropy_times)//1441+1):
-                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
-                eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
-                        number=len(astropy_times_i), step='1h')
-                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
-                lons += lon.tolist()
-                lats += lat.tolist()
-            lons = np.array(lons)
-            latss = np.array(lats)
-            interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
-            interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
-    return interpolaters_comet, interpolaters_asteroids
 
 @cache
 def band_to_bit(band: int) -> int:
@@ -240,69 +138,58 @@ def pix_to_lonlat(
 
 
 @cache
-def get_dirbe_fwhm() -> dict[str, float]:
+def get_akari_fwhm() -> dict[str, float]:
     """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
 
-    ROWS_TO_SKIP = 19
-    FWHM_COL = 4
-
     fwhms: dict[str, float] = {}
-    with open(DIRBE_BEAM, "r") as file:
-        for line in file.readlines()[ROWS_TO_SKIP:]:
-            cols = line.split()
-            detector, band = re.match(r"(\d+)([A-C]?)", cols[0], re.I).groups()
-            band_label = (
-                f"{int(detector):02}_{band}" if band else f"{int(detector):02}_A"
-            )
-            if len(cols) > FWHM_COL:
-                fwhm = np.sqrt(float(cols[FWHM_COL])) * u.rad
-                fwhm_arcmin = fwhm.to(u.arcmin).value
-                fwhms[band_label] = np.round(fwhm_arcmin, 2)
+
+    for detector in DETECTORS:
+        if 'N60' in detector:
+            fwhms[detector] = 37
+        elif 'WIDE-S' in detector:
+            fwhms[detector] = 39
+        elif 'WIDE-L' in detector:
+            fwhms[detector] = 58
+        elif 'N160' in detector:
+            fwhms[detector] = 61
+        else:
+            print('Weird things happening', detector)
 
     return fwhms
 
 
 @cache
-def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
+def get_akari_beams(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
     """
-    NSIDE = 128
-    LMAX = 3 * NSIDE
+    #NSIDE = 128
+    #LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
 
     beams: dict[str, NDArray[np.floating]] = {}
-    for detector in range(1, 11):
-        if detector <= 3:
-            for band in DETECTOR_LABELS:
-                beams[f"{detector:02}_{band}"] = DEFAULT_BEAM
-        else:
-            beams[f"{detector:02}_A"] = DEFAULT_BEAM
+    for band in DETECTORS:
+        beams[f'{band}'] = DEFAULT_BEAM
 
     return beams
 
 
 @cache
-def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
+def get_akari_sidelobes(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
     """
-    NSIDE = 128
-    LMAX = 3 * NSIDE
+    #NSIDE = 128
+    #LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_SIDELOBES = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
 
     sidelobes: dict[str, NDArray[np.floating]] = {}
-    for detector in range(1, 11):
-        if detector <= 3:
-            for band in DETECTOR_LABELS:
-                sidelobes[f"{detector:02}_{band}"] = DEFAULT_SIDELOBES
-        else:
-            sidelobes[f"{detector:02}_A"] = DEFAULT_SIDELOBES
-
+    for band in DETECTORS:
+        sidelobes[band] = DEFAULT_SIDELOBES
     return sidelobes
 
 
@@ -359,7 +246,7 @@ def test_naming() -> None:
 
     with h5py.File("test.h5", "w") as file:
         for detector in BANDS:
-            file.create_group(f"{detector:02}_{WAVELENGHTS[detector - 1]}um")
+            file.create_group(f"{detector:02}_{WAVELENGTHS[detector - 1]}um")
             for band in DETECTOR_LABELS:
                 file.create_group(f"{detector:02}_{band}")
                 if detector > 3:
@@ -485,19 +372,32 @@ def get_const_scalars(band: int) -> NDArray[np.floating]:
 
 @cache
 def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
-    bandpass_file = BANDPASS_PATH + f"/DIRBE_{band:02}_bandpass.dat"
-    bandpass = np.loadtxt(bandpass_file, unpack=True)
+    '''
+    Reported value is given nu I_nu units.
+    '''
+    bandpass_file = BANDPASS_PATH + f"FIS_RSRF_070122.txt"
+    bandpass = np.loadtxt(bandpass_file, skiprows=1)
 
-    non_zero = np.nonzero(bandpass[1])
-    bandpass = bandpass[:, non_zero[0]]
-    freqs, weights = bandpass
-    freqs *= u.micron
+    if 'N60' in band:
+        freqs = bandpass[:,0]*u.micron
+        weights = bandpass[:,2]
+    elif 'WIDE-S' in band:
+        freqs = bandpass[:,0]*u.micron
+        weights = bandpass[:,3]
+    elif 'WIDE-L' in band:
+        freqs = bandpass[:,4]*u.micron
+        weights = bandpass[:,5]
+    elif 'N160' in band:
+        freqs = bandpass[:,4]*u.micron
+        weights = bandpass[:,6]
+    else:
+        print('Unexpected bandpass label', band)
 
     return freqs, weights
 
 
 @cache
-def get_iras_factor(band: int) -> float:
+def get_iras_factor(band: str) -> float:
     freqs, weights = get_bandpass(band)
     freq_ref = BAND_TO_WAVELENGTH[band]
     freqs = freqs.to(u.Hz, u.spectral())
@@ -511,5 +411,5 @@ def get_iras_factor(band: int) -> float:
 
 
 if __name__ == "__main__":
-    print([get_iras_factor(i) for i in range(1,11)])
+    print(get_iras_factor('N60'))
 

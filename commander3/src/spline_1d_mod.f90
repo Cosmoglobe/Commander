@@ -495,10 +495,10 @@ contains
   end subroutine trapzd
 
 
-  function zriddr(x_0, y_0, y2_0, x1, x2, zeropt, xacc)
+  function zriddr(s0, x1, x2, zeropt, xacc)
     implicit none
 
-    real(dp), dimension(1:), intent(in) :: x_0, y_0, y2_0
+    type(spline_type),       intent(in) :: s0
     real(dp),                intent(in) :: x1, x2, xacc, zeropt
     real(dp)                            :: zriddr
 
@@ -508,22 +508,31 @@ contains
     integer(i4b) :: j
     real(dp)     :: fh, fl, fm, fnew, s, xh, xl, xm, xnew
 
-    fl = splint(x_0, y_0, y2_0, x1)-zeropt
-    fh = splint(x_0, y_0, y2_0, x2)-zeropt
+    fl = splint(s0, x1)-zeropt
+    fh = splint(s0, x2)-zeropt
 
+    if (fl == 0.d0) then
+       zriddr = x1
+       return
+    else if (fh == 0.d0) then
+       zriddr = x2
+       return
+    end if
+
+    
     if (((fl > 0.d0) .and. (fh < 0.d0)) .or. ((fl < 0.d0) .and. (fh > 0.d0))) then
        xl = x1
        xh = x2
        zriddr = UNUSED
        do j = 1, MAXIT
           xm = 0.5d0*(xl+xh)
-          fm = splint(x_0, y_0, y2_0, xm)-zeropt
+          fm = splint(s0, xm)-zeropt
           s  = sqrt(fm**2 - fl*fh)
           if (s == 0.d0) return
           xnew = xm+(xm-xl)*(sign(1.d0,fl-fh)*fm/s)
           if (abs(xnew-zriddr) < xacc) return
           zriddr = xnew
-          fnew   = splint(x_0, y_0, y2_0, zriddr)-zeropt
+          fnew   = splint(s0, zriddr)-zeropt
           if (fnew == 0.d0) return
           if (sign(fm,fnew) /= fm) then
              xl = xm
@@ -544,14 +553,16 @@ contains
     else
 
        open(68,file='func.dat')
-       do j = 1, size(y_0)
-          write(68,*) x_0(j), y_0(j)
+       do j = 1, size(s0%y)
+          write(68,*) s0%x(j), s0%y(j)
        end do
        close(68)
 
        write(*,*) 'Root not bracketed in zriddr'
-       write(*,*) 'xlow   = ', x1
-       write(*,*) 'xhigh  = ', x2
+       write(*,*) 'x1     = ', x1
+       write(*,*) 'x1     = ', x2
+       write(*,*) 'y1     = ', fl
+       write(*,*) 'y2     = ', fh
        write(*,*) 'zeropt = ', zeropt
        stop
 

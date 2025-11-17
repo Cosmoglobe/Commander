@@ -22,6 +22,7 @@ module sort_utils
   use healpix_types
   implicit none
 
+
 contains
 
 !********************
@@ -602,17 +603,24 @@ contains
 
     integer(i4b), dimension(:)  :: numbers
 
-    call quick_sort_int(numbers, 1, size(numbers))
+    call quick_sort_int(numbers, 1, size(numbers), 0)
     call insertion_sort_int(numbers)
   end subroutine QuickSort_int
 
-  recursive subroutine quick_sort_int(numbers, left, right)
+  recursive subroutine quick_sort_int(numbers, left, right, depth)
     implicit none
     
     integer(i4b), dimension(:)   :: numbers
-    integer(i4b)                 :: left, right
+    integer(i4b)                 :: left, right, depth
 
+    integer(i4b), parameter      :: max_depth = 1000
     integer(i4b)  :: i,j, itemp, pivot
+
+    if (depth > max_depth) then
+      ! Returns after max_depth recursive calls
+      return
+    end if
+
 
     if (left+10 < right) then
 
@@ -660,8 +668,8 @@ contains
        numbers(i) = numbers(right-1)
        numbers(right-1) = itemp
           
-       call quick_sort_int(numbers, left, i-1)
-       call quick_sort_int(numbers, i+1, right)
+       call quick_sort_int(numbers, left, i-1, depth+1)
+       call quick_sort_int(numbers, i+1, right, depth+1)
     end if
   end subroutine quick_sort_int
 
@@ -716,7 +724,7 @@ contains
 
        itemp = numbers(i)
 
-       do while (itemp < numbers(j-1)) 
+       do while (itemp < numbers(j-1))
           numbers(j) = numbers(j-1)
           j = j-1
 

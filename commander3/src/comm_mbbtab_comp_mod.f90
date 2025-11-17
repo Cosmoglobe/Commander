@@ -75,7 +75,7 @@ contains
     call c%initLmaxSpecind(cpar, id, id_abs)
 
     call c%initDiffuse(cpar, id, id_abs)
-
+    
     ! Set up MBBtab type
     c%mbbtab_type  = cpar%cs_mbbtab_type(id_abs)
     if (trim(c%mbbtab_type) == 'binned') then
@@ -140,16 +140,16 @@ contains
     call c%initPixregSampling(cpar, id, id_abs)
     ! Init alm 
     if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
-
+    
     ! Read SED table
     call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
-
+    
     allocate(c%theta_steplen(2+c%ntab, cpar%mcmc_num_samp_groups))
     c%theta_steplen = 0d0
 
     ! Initialize SED priors
     c%SEDtab_prior = cpar%cs_SED_prior(id_abs)
-
+    
     ! Initialize mixing matrix
     call c%updateMixmat
 

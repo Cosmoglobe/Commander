@@ -72,12 +72,6 @@ contains
     self%nu_min        = cpar%cs_nu_min(id_abs)
     self%nu_max        = cpar%cs_nu_max(id_abs)
 
-    if(self%npar == 0) then
-       self%lmax_ind = 0 !default
-       allocate(self%lmax_ind_mix(3,1))
-       self%lmax_ind_mix = 0
-    end if
-
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
@@ -129,7 +123,7 @@ contains
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
        call self%x%YtW
-
+       
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
@@ -141,6 +135,21 @@ contains
     self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
          & init_realspace=.false.)
 
+    ! Deconvolve the existing beam if initialized from an input map
+    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          where (self%B_out%b_l(l,:) > 1d-6)
+             self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+          elsewhere
+             self%x%alm(i,:) = 0.d0
+          end where
+!!$          if (l > 500) then
+!!$             self%x%alm(i,:) = self%x%alm(i,:) * real(500.d0/l,dp)**20
+!!$          end if
+       end do
+    end if
+    
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
@@ -225,15 +234,18 @@ contains
             self%F(i,j)%p    => comm_map(info)
             self%F_null(i,j) =  .false.
           else
-            do k=1, j
-               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+            do k=1, j-1
+             if(size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0)) then
+              if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
                   self%F(i,j)%p => self%F(i,k)%p
                   self%F_null(i,j) =  .false.
                   exit
-               else if (k==j-1) then
-                  self%F(i,j)%p    => comm_map(info)
-                  self%F_null(i,j) =  .false.
-               end if
+              end if
+             end if
+             if (k==j-1) then !if we got through the whole loop above
+               self%F(i,j)%p    => comm_map(info)
+               self%F_null(i,j) =  .false.
+             end if
             end do
           end if
           if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
@@ -258,7 +270,8 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
-       if(temp2(1:1) /= '/') then
+       !!raelyn changed temp2 (never initialized) to temp_filename, needed to add the data directroy to the file names
+       if(temp_filename(1:1) /= '/') then
           if(trim(self%mono_prior_type) /= 'bandmono') then
             temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
           end if
@@ -316,7 +329,7 @@ contains
           filename = get_token(temp_filename, ",", 1)
           info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
           self%mono_prior_map => comm_map(info_tempfit, trim(filename))
-       else          
+       else 
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
@@ -340,7 +353,12 @@ contains
     nmaps = 1
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
-    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+    if (self%npar==0) then
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind     = 0
+       self%lmax_ind_mix = 0
+       return !do not go further, lmax_ind is set in initDiffuse
+    end if
 
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
 
@@ -351,7 +369,7 @@ contains
     do i = 1,self%npar
        do p = 1, self%poltype(i)
           l = cpar%cs_lmax_ind_pol(p,i,id_abs)
-
+          
           !assign lmax per spec ind per polarization (poltype)
           if (self%poltype(i)==1) then !all polarizations have the same lmax
              self%lmax_ind_pol(:,i) = l 
@@ -487,6 +505,7 @@ contains
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
+
 
     call update_status(status, "initPixreg_specind_pixreg_type")
     
@@ -641,7 +660,7 @@ contains
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
-                stop
+                !stop
              end if
           end do !npar
        end if
@@ -1045,7 +1064,7 @@ contains
 !                if (self%myid == 0) write(*,*) 'd1', self%theta(i)%p%map(0,1:self%nmaps)
                 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
 
                    !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
@@ -1136,7 +1155,9 @@ contains
           if (self%lmax_ind_pol(j,i) >= 0) then
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
-             self%lmax_ind_mix(p_min:p_max,i) = 0
+             do k = p_min, p_max
+                self%lmax_ind_mix(k,i) = min(self%lmax_ind_pol(k,i), 0)
+             end do
           else
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i)
           end if
@@ -1291,6 +1312,8 @@ contains
     implicit none
     integer(i4b),                intent(in) :: comm, samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call initDiffPrecond_diagonal(comm, samp_group)
@@ -1316,7 +1339,8 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr(samp_group)%invM_diff)) return
+    !if (allocated(P_cr(samp_group)%invM_diff)) return
+    !RS commented out to allow the preconditioner to be recalculated after MCMC sampling
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1337,7 +1361,9 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    if (.not. allocated(P_cr(samp_group)%invM_diff)) then
+      allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    end if
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1369,7 +1395,9 @@ contains
           end do
 
           n = 0
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%comp2ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          end if
           P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
@@ -1379,8 +1407,12 @@ contains
              end if
           end do
           P_cr(samp_group)%invM_diff(i1,j)%n = n
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          end if
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%M0)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          end if 
           P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
           P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
@@ -1441,10 +1473,17 @@ contains
     integer(i4b), intent(in) :: samp_group
     logical(lgt), intent(in) :: force_update
 
+    if (npre == 0) return
     select case (trim(precond_type))
     case ("diagonal")
+       if (force_update) then
+         call initDiffPrecond_diagonal(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
+       if (force_update) then
+         call initDiffPrecond_pseudoinv(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
@@ -1468,6 +1507,10 @@ contains
     if (npre == 0) return
     if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
+   !  if (force_update) then
+
+   !  end if 
+
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
@@ -1758,7 +1801,7 @@ contains
     integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
     integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
-    real(dp)     :: lat, lon, t1, t2
+    real(dp)     :: lat, lon, t1, t2, A_ext
     logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
@@ -1786,7 +1829,7 @@ contains
        if (present(band)) then
           if (i /= band) cycle
        end if
-
+       
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
@@ -1796,8 +1839,8 @@ contains
           do j = 1,self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-             td => comm_map(info)
-             
+             td => comm_map(info) !empty array, commander type map
+             ! if self%theta(j)%p%info%lmax=0 constant on the sky
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
              if (any(self%lmax_ind_pol(1:self%poltype(j),j) >= 0)) then
                 t => comm_map(info)
@@ -1886,7 +1929,6 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             !if (info%myid == 0) write(*,*) 'q1, j=',j,  minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1898,7 +1940,6 @@ contains
              if (present(df)) df(i)%p%map = 0.d0
              cycle
           end if
-          
           
           ! Loop over all pixels, computing mixing matrix for each
           !allocate(theta_p(self%npar,self%nmaps))
@@ -1913,6 +1954,14 @@ contains
                 end if
              end if
 
+             ! Initialize dust extinction
+             if (associated(data(i)%A_ext)) then
+                A_ext = data(i)%A_ext%map(j,1)
+             else
+                A_ext = 1.d0
+             end if
+
+             
 !          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
@@ -1920,7 +1969,7 @@ contains
              ! NEW ! Check band sensitivity before mixing matrix update
              ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
              if (data(i)%comp_sens == "broadband") then
-                ! If broadband, calculate mixing matrix
+               ! If broadband, calculate mixing matrix
                 mixmatnull = .false.
              else
                 ! If component sensitivity, only calculate mixmat on that component.
@@ -1941,13 +1990,14 @@ contains
                          write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                          stop !debug, replace by proper stop and error message
                       end if
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1) * A_ext
+                      !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
                       self%F(i,l)%p%map(j,1) = 0.0
                    else
-                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1) * A_ext
                    end if
                 end if
              end if
@@ -1964,9 +2014,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
                    end if
                 end if
                 
@@ -1980,9 +2030,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
                    end if
                 end if
              end if
@@ -1992,7 +2042,7 @@ contains
                 if (self%npar > 0) then
                    do k = 1, nmaps
                       if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k)
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
                       end if
                    end do
                 else
@@ -2001,8 +2051,6 @@ contains
              end if
 
           end do
-
-          call wall_time(t2)
           !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
                 
           ! Compute mixing matrix average; for preconditioning only
@@ -2071,23 +2119,28 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
 
+    !call m%Y()
+    !call m%writeFITS("test1.fits")
+    
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
-          write(*,*) "skal ikke vaere her, eval", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
           call m%Y()
           m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
           call m%YtW()
        end if
     end if
+    !call m%Y()
+    !call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
+    !call m%Y()
+    !call m%writeFITS("test3.fits")
        
     ! Return correct data product
     if (alm_out_) then
@@ -2152,7 +2205,6 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       write(*,*) "skal ikke vaere her, proj", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
        if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
@@ -2173,6 +2225,8 @@ contains
     real(dp),           dimension(:), intent(inout) :: x
     integer(i4b),                     intent(in)    :: samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call applyDiffPrecond_diagonal(x, samp_group)
@@ -2617,62 +2671,64 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
-               & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_proplen_'  // trim(postfix) // '.fits'
-             call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          if (self%output_localsamp_maps) then
+             if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+                  & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_proplen_'  // trim(postfix) // '.fits'
+                call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+                
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_nprop_'  // trim(postfix) // '.fits'
+                call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             end if
 
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_nprop_'  // trim(postfix) // '.fits'
-             call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-
-          end if
-
-          !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             
-             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-             tp => comm_map(info)
-             tp%map = self%theta(i)%p%map
-             do p = 1,self%poltype(i)
-                if (self%pol_pixreg_type(p,i) /=3) cycle
-                if (self%poltype(i) == 1) then
-                   p_min=1
-                   p_max=info%nmaps
-                   if (only_pol) p_min = 2
-                else if (self%poltype(i)==2) then
-                   if (p == 1) then
-                      p_min = 1
-                      p_max = 1
+             if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%map = self%theta(i)%p%map
+                do p = 1,self%poltype(i)
+                   if (self%pol_pixreg_type(p,i) /=3) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
                    else
-                      p_min = 2
-                      p_max = info%nmaps
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
                    end if
-                else if (self%poltype(i)==3) then
-                   p_min = p
-                   p_max = p
-                else
-                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                   stop
-                end if
-
-                do j = 0,info%np-1
-                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   
+                   do j = 0,info%np-1
+                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   end do
                 end do
-             end do
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_noSmooth_'  // trim(postfix) // '.fits'
-             call tp%writeFITS(trim(dir)//'/'//trim(filename))
-             call tp%dealloc(); deallocate(tp)
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_noSmooth_'  // trim(postfix) // '.fits'
+                call tp%writeFITS(trim(dir)//'/'//trim(filename))
+                call tp%dealloc(); deallocate(tp)
+             end if
 
           end if
 
           !output theta, proposal length and number of proposals per pixel region to HDF
           if (output_hdf) then
              npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             if (.not. allocated(self%pol_pixreg_type)) then
+                continue
+             else if (any(self%pol_pixreg_type(:npol,i) > 0)) then
                 npr=0
                 do j = 1,npol
                    if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -2700,6 +2756,8 @@ contains
 
                    deallocate(dp_pixreg,int_pixreg)
                 end if
+             else
+               continue
              end if
 
           end if
@@ -2950,17 +3008,27 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
     integer(i4b),             intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k
+    integer(i4b) :: i, j, k, nmaps
+
+    ! only do the computation for the I,Q,U maps, not for the individual det maps
+    ! that info is instead stored in the j index in this structure
 
     if (present(band)) then
-       do i = 1, data(band)%info%nmaps
+       ! only do the computation for the I,Q,U maps, not for the individual det maps
+       ! that info is instead stored in the j index in this structure
+       nmaps = data(band)%info%nmaps
+       if (nmaps > 3) nmaps = 3
+
+       do i = 1, nmaps
           do j = 0, data(band)%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
     else
        do k = 1, numband
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(k)%info%nmaps
+          if (nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
@@ -3474,12 +3542,13 @@ contains
 
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in),   optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, ierr, pix
+    integer(i4b) :: i, j, k, l, m, ierr, pix, verbosity_
     real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
     class(comm_map), pointer :: map, lr_map 
     class(comm_mapinfo), pointer :: info => null()
@@ -3492,6 +3561,8 @@ contains
        return
     end if
 
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
     ! Compute monopole offset given the specified prior
     mu = 0.d0
 
@@ -3517,7 +3588,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
              write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
              write(*,fmt='(a)') ' | '
@@ -3547,7 +3618,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
              write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
@@ -3562,7 +3633,7 @@ contains
              call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
              self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
           end do
-          if (self%x%info%myid == 0) then
+          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
              write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
              write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
@@ -3682,7 +3753,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' |  Cross-correlation prior correction for component: '//trim(self%label)
           write(*,fmt='(a,i2)') ' |    Number of linear fits (thresholds): ',&
                & self%mono_prior_Nthresh
@@ -3765,7 +3836,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a)') ' Lowest value prior correction for component: '//trim(self%label)
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
@@ -3875,7 +3946,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) then 
+       if (self%x%info%myid == 0 .and. verbosity_ > 0) then 
           write(*,fmt='(a)') ' |  Band monopole prior correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
           write(*,fmt='(a,f14.3,f14.3)') ' |  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
           write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)

@@ -26,14 +26,13 @@ import numpy as np
 import healpy as hp
 import random
 import math
-
 class hfi(object):   
  
     freqs = [100, 143, 217, 353, 545, 857]
     dets = {100:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b'], 143:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5', '6', '7'], 217:['1', '2', '3', '4', '5a', '5b', '6a', '6b', '7a', '7b', '8a', '8b'], 353:['1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', '7', '8'], 545:['1', '2', '4'], 857:['1', '2', '3', '4']}
     npsi = 4096
     ntodsigma = 100
-    nsides = {100:1024, 143:1024, 217:1024, 353:1024, 545:2048, 857:2048}
+    nsides = {100:1024, 143:2048, 217:2048, 353:2048, 545:2048, 857:2048}
     #compression arrays 
     huffman = ['huffman', {'dictNum':1}]
     huffTod = ['huffman', {'dictNum':2}]
@@ -58,6 +57,16 @@ class hfi(object):
 
     #psi_uv from https://www.aanda.org/articles/aa/full_html/2016/10/aa25818-15/T5.html
     #mbangs = 
+
+
+    #polarization efficiencies from https://www.aanda.org/articles/aa/pdf/2010/12/aa13054-09.pdf appendix B
+
+    pol_effs = {'100-1a': 94.7, '100-1b':94.3, '100-2a':96.2, '100-2b':90.2, '100-3a':90.1, '100-3b':93.4, '100-4a':95.7, '100-4b':92.3,
+                    '143-1a':83.3, '143-1b':84.6, '143-2a':87.5, '143-2b':89.3, '143-3a':83.9, '143-3b':89.9, '143-4a':93.1, '143-4b':92.8, '143-5':6.6, '143-6':4.4, '143-7':1.7, '143-8':1.6,
+                    '217-1':4.0, '217-2':2.1, '217-3':4.1, '217-4':3.8, '217-5a':95.0, '217-5b':95.2, '217-6a':94.9, '217-6b':95.4, '217-7a':94.0, '217-7b':93.7, '217-8a':94.2, '217-8b':94.1,
+                    '353-1':3.4, '353-2':4.8, '353-3a':88.7, '353-3b':92.0, '353-4a':87.0, '353-4b':91.4, '353-5a':84.4, '353-5b':87.4, '353-6a':87.3, '353-6b':88.5, '353-7':8.1, '353-8':7.9,
+                    '545-1':4.7, '545-2':5.7, '545-3':5.3, '545-4':5.9,
+                    '857-1':7.8, '857-2':6.3, '857-3':8.6, '857-4':6.3}
 
     
     def __init__():
@@ -100,6 +109,56 @@ class hfi(object):
                 outFlags[np.logical_and(times > entry[0],times < entry[1])] = 128
         return outFlags
 
+    #computes the pre-differencing gains from the insturment calibration params
+    #at a given time
+    #heavily based on https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
+
+    def compute_l1_gain(detector, time, hsk):
+        if(type(time) == np.int64):
+            time = np.array([time])
+        params = hsk[detector.encode()]  # python 3
+
+        # Fixed IMO params
+        GC_bc = params[b'GC_bc']
+        F1_bc = params[b'F1_bc']
+        HFI_REU_ETAL = params[b'HFI_REU_ETAL']
+        REU_bc_offset = params[b'REU_bc_offset'] 
+        
+        gamp = hfi.expand_hsk(hsk, params[b'gamp'], time)
+        nsamp = hfi.expand_hsk(hsk, params[b'nsamp'], time)
+        nblanck = hfi.expand_hsk(hsk, params[b'nblanck'], time)
+
+        nsamp[nsamp == 0] = 45
+        nsamp[nsamp == 1] = 40
+        nsamp[nsamp == 2] = 36
+        nsamp[nsamp == 3] = 45
+
+        #print(GC_bc, F1_bc, HFI_REU_ETAL, REU_bc_offset)
+        #print(gamp, nsamp, nblanck)
+
+        return F1_bc * GC_bc[gamp] * (nsamp - nblanck).astype(np.float64)/GC_bc[HFI_REU_ETAL], (nsamp - nblanck).astype(np.float64) * REU_bc_offset
+
+    #produces a housekeeping estimate at time(s) t
+    def expand_hsk(hsk, field, time):
+        grp, obj = field.split(b'/')
+        t, x = hsk[grp][obj]
+
+        i0 = len(time) // 2
+
+        if time[i0] < 1e10:
+            # from nanoseconds to seconds
+            tt = t.astype(np.float64) * 1e-9
+        elif time[i0] < 1e18:
+            # from nanoseconds to OBT ticks
+            tt = t.astype(np.float64) * 1e-9 * 2.**16.
+        else:
+            tt = t
+
+        # interpolate
+
+        ind = np.searchsorted(tt, time)
+        return x[ind - 1]
+
     @staticmethod
     def instrument_filename(version):
         return 'HFI_instrument_v' + str(version) + '.h5'
@@ -137,5 +196,19 @@ class hfi(object):
         if version == 1:
             print("Should check the version here")
 
-        if version > 1:
+        if version == 2:
+            print("I don't know how this is supposed to be different than 1")
+
+        if version == 3:
+            if f.h5file['545-1/sllmax'] != 0:
+                print("HFI instrument file doesn't contain sidelobes for 545")
+
+        if version == 4:
+            try:
+                if f.h5file['143-2a/polEff'] != 87.5:
+                    print('HFI instrument file has wrong polarization efficiencies')
+            except (IOError):
+                print('HFI instrument file is missing polarization efficiencies')
+
+        if version > 4:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")

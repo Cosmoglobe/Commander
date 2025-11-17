@@ -111,6 +111,8 @@ all : commander
 commander :
 	@cd commander3/src; $(MAKE)
 
+sharp_test:
+	@cd commander3/src; $(MAKE) sharp_test
+
 clean :
 	@cd commander3/src; $(MAKE) clean
-

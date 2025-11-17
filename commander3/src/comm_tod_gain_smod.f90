@@ -107,9 +107,11 @@ contains
              tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
              tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
           end if
-          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
-             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
-          end if
+!!$          tod%scans(scan_id)%d(j)%dgain         = sum(r_fill(:)  * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_tot(:,j) * s_tot(:,j) * mask(:,j)) / tod%scans(scan_id)%d(j)%N_psd%sigma0**2
+!!$          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
+!!$             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
+!!$          end if
        end if
     end do
 !    tod%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
@@ -126,23 +128,28 @@ contains
     if (.false.) then
        call int2string(tod%scanid(scan_id), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
-       open(58,file='gain_delta_'//itext//'.dat')
-       do i = ext(1), ext(2)
-          write(58,*) i, residual(i,1)
+       open(58,file='gain_delta_'//itext//'.dat', recl=1024)
+       write(58,*) "#", tod%scans(scan_id)%ntod, size(tod_arr), tod%gain0(0), tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
+       do i = 1, size(tod_arr)
+          write(58,*) i, r_fill(i), tod_arr(i,1), s_tot(i,1), mask(i,1)
        end do
-       write(58,*)
-       write(58,*)
-       do i = 1, size(s_invsqrtN,1)
-          write(58,*) i, s_invsqrtN(i,1)
-       end do
-       write(58,*)
-       do i = 1, size(s_tot,1)
-          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-       end do
-       write(58,*)
-       do i = 1, size(s_tot,1)
-          write(58,*) i, tod_arr(i, 1)
-       end do
+       
+!!$       do i = ext(1), ext(2)
+!!$          write(58,*) i, residual(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       write(58,*)
+!!$       do i = 1, size(s_invsqrtN,1)
+!!$          write(58,*) i, s_invsqrtN(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1)
+!!$       end do
        close(58)
     end if
 
@@ -179,7 +186,7 @@ contains
     if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
@@ -210,7 +217,7 @@ contains
        end do
 
        ! Perform poly-fit
-       allocate(xx(tod%nscan_tot), yy(tod%nscan_tot))
+       allocate(xx(tod%last_scan), yy(tod%last_scan))
        allocate(a(0:16))
        do j = 1, tod%ndet
           xx = 0.d0
@@ -255,14 +262,14 @@ contains
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          !if (j == 1) then
-          !   open(58,file='gain_in.dat')
-          !   do k = 1, size(g,1)
-          !      if (g(k,j,2) > 0) then
-          !         write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-          !      end if
-          !   end do
-          !   close(58)
+          if (j == 1) then
+!!$             open(58,file='gain_in.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
              !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
           !   open(68,file='g.unf', form='unformatted')
@@ -273,7 +280,7 @@ contains
           !   write(68) tod%gain_alpha(j)
           !   write(68) tod%gain_fknee(j)
           !   close(68)
-          !end if
+          end if
 
           sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
@@ -288,11 +295,12 @@ contains
              call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), &
                   & tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           else
-             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), &
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, 1000*tod%gain_sigma_0(j), tod%gain_alpha(j), &
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
 
-         ! Force flat average to zero
+          ! Force flat average to zero
+          !write(*,*) 'disabling gain mean subtraction'
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
@@ -301,21 +309,25 @@ contains
                denom = denom + 1.d0
             end if
          end do
+         if (denom .eq. 0.d0) then
+            write(*,*) 'Warning: No valid gain estimates for detector ', j
+            cycle
+         end if
          mu = mu / denom
          !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          !if (j == 1) then
-          !   open(58,file='gain_out.dat')
-          !   do k = 1, size(g,1)
-          !      if (g(k,j,2) > 0) then
-          !         write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-          !      end if
-          !   end do
-          !   close(58)
-          !end if
+          if (j == 1) then
+!!$             open(58,file='gain_out.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
+          end if
        end do
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -398,7 +410,7 @@ contains
     call tod%downsample_tod(s_sub(:,1), ext)    
     allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
     do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) then
+      if (.not. tod%scans(scan)%d(j)%accept) then
           residual(:,j) = 0.
           cycle
        end if
@@ -461,15 +473,25 @@ contains
     call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & tod%info%comm, ierr)
 
-    ! Compute gain update and distribute to all cores
-    if (tod%myid == 0) then
-       tod%gain0(0) = sum(b)/sum(A)
-       if (trim(tod%operation) == 'sample') then
-          ! Add fluctuation term if requested
-          tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
-       end if
+         ! Compute gain update and distribute to all cores
+      if (tod%myid == 0) then
+       ! write(*,*) 'ierr = ', ierr
+       ! write(*,*) "tod%ndet", tod%ndet
+       ! write(*,*) "tod%info%comm", tod%info%comm
+      
+      if (sum(A) .ne. 0) then
+         tod%gain0(0) = sum(b)/sum(A)
+         
+         if (trim(tod%operation) == 'sample') then
+            ! Add fluctuation term if requested
+            tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
+         end if
+      else 
+         write(*,*) 'Warning: No valid gain estimates for absolute gain. sum(b)/sum(A) gives 0 / 0'
+      end if
+
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
+         write(*,*) '|      abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -478,7 +500,7 @@ contains
 
     do j = 1, tod%nscan
        do i = 1, tod%ndet
-          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
+          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain
        end do
     end do
 
@@ -769,7 +791,6 @@ contains
      !write(*, *) 'Sigma_0: ', sigma_0
      !write(*, *) 'alpha: ', alpha
      !write(*, *) 'fknee: ', fknee
-
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
      if (sample) then
         fourier_fluctuations = 0.d0
@@ -788,7 +809,13 @@ contains
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 0, n-1
-         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         if (inv_N_corr(i) + maxval(inv_N_wn2) .eq. 0.d0) then
+            write(*,*) 'Warning: inv_N_corr(i) + maxval(inv_N_wn2) = 0'
+            precond(i) = 1.d0
+         else
+            precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
+         end if
+         
          !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)
       end do
@@ -1190,7 +1217,7 @@ contains
       do i = 1, size(freqs) -1
          apod = (1 + freqs(i)/target_apod_freq)**5
          invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
-!        else
+         !        else
 !           invcov(i) = 1.d12
 !        end if
      end do
@@ -1275,7 +1302,7 @@ contains
     integer*8       :: plan_fwd, plan_back
 
     ndet       = tod%ndet
-    nscan_tot  = tod%nscan_tot
+    nscan_tot  = tod%last_scan
     ! Collect gains on all processors
     allocate(g(nscan_tot,ndet))
     g = 0.d0
@@ -1550,14 +1577,21 @@ contains
      real(dp) :: lambda
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
 
+     integer(i4b) :: minfreq, maxfreq
+     minfreq = 2
+     maxfreq = 2000
+     if(size(gain_ps)-1 < maxfreq) maxfreq = size(gain_ps)-1
+
      if (sigma_0 <= 0.d0 .or. fknee <= 0.d0 .or. alpha < -3.d0) then
         psd_loglike = -1d30
         return
      end if
      !lambda = 1e8
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
-     
-     psd_loglike = -sum(gain_ps(1:2000) * inv_N_corr(1:2000) - log(inv_N_corr(1:2000))) !- lambda*sigma_0
+   
+
+     !TODO: fix this hardcoding issue here 
+     psd_loglike = -sum(gain_ps(minfreq:maxfreq) * inv_N_corr(minfreq:maxfreq) - log(inv_N_corr(minfreq:maxfreq))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike

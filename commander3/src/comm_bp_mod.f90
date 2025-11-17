@@ -30,6 +30,7 @@ module comm_bp_mod
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
      real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
+     real(dp)           :: RJ2data
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
      ! Data procedures
@@ -105,9 +106,9 @@ contains
     character(len=512) :: label
     character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-    
+ 
     label = cpar%ds_label(id_abs)
-    
+
     ! General parameters
     allocate(c)
     
@@ -122,6 +123,8 @@ contains
     case ('WMAP') 
        c%threshold = 0.d0
     case ('DIRBE') 
+       c%threshold = 0.d0
+    case ('AKARI') 
        c%threshold = 0.d0
     case ('HFI_cmb') 
        c%threshold = 1.d-7
@@ -164,8 +167,8 @@ contains
                & c%n, c%nu0, c%tau0)
        else 
           if (index(subdets, '.txt') /=0) then
-               ndet = count_detectors(subdets)
-               call get_detectors(subdets, dets, ndet)
+               ndet = count_detectors(trim(subdets))
+               call get_detectors(trim(subdets), dets, ndet)
           else
                ndet = num_tokens(subdets, ",")
                call get_tokens(subdets, ",", dets, ndet)
@@ -182,15 +185,13 @@ contains
                end do
                c%tau0 = c%tau0 / ndet
           else
-               print *, "got to nonzero threshold, aborting"
-               stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & c%threshold, &
                     & c%n, c%nu0, c%tau0)
           end if
        end if
        allocate(c%nu(c%n), c%tau(c%n))
-       if (trim(c%type) == 'DIRBE') then
+       if (trim(c%type) == 'DIRBE' .or. trim(c%type) == 'AKARI') then
           allocate(c%a2f_arr(c%n))
        end if
     end if
@@ -217,6 +218,27 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     c%nu_eff = sum(c%tau*c%nu)/sum(c%tau)
+
+    ! Initialize conversion from RJ to data units
+    select case (trim(cpar%ds_unit(id_abs)))
+    case ('uK_cmb') 
+       c%RJ2data = c%a2t
+    case ('mK_cmb') 
+       c%RJ2data = c%a2t * 1d-3
+    case ('K_cmb') 
+       c%RJ2data = c%a2t * 1d-6
+    case ('MJy/sr') 
+       c%RJ2data = c%a2f
+    case ('y_SZ') 
+       c%RJ2data = c%a2sz
+    case ('uK_RJ') 
+       c%RJ2data = 1.d0
+    case ('K km/s')
+       write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
+       c%RJ2data = 1.d0
+    case default
+       c%RJ2data = 1.d0
+    end select
     
   end function constructor_bp
   
@@ -259,7 +281,7 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       if (trim(self%type) == 'DIRBE') then
+       if (trim(self%type) == 'DIRBE' .or. trim(self%type) == 'AKARI') then
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
           ! These overflow in exp(x) due to large x
           bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
@@ -331,7 +353,7 @@ contains
        self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
  
-    case ('DIRBE') 
+    case ('DIRBE', 'AKARI') 
       ! a = brightness temperature (antenenna temperature) [K_RJ]
       ! t = thermodynamic temperature [K_CMB]
       ! f = flux intensity [MJy/sr]
@@ -408,7 +430,7 @@ contains
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
-    case ('DIRBE') 
+    case ('DIRBE', 'AKARI') 
        !SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f) !* 1d14
        i     = locate(self%nu, self%nu_c)
        Inu0  = (self%a2f_arr(i)*f(i) + (self%a2f_arr(i+1)*f(i+1)-self%a2f_arr(i)*f(i))*(self%nu_c-self%nu(i))/(self%nu(i+1)-self%nu(i)))
@@ -486,7 +508,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'HFI_submm', 'PSM_LFI', 'SPIDER', 'DIRBE', 'FIRAS', 'CHIPASS') 
+    case ('HFI_cmb', 'HFI_submm', 'PSM_LFI', 'SPIDER', 'DIRBE', 'AKARI', 'FIRAS', 'CHIPASS') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)

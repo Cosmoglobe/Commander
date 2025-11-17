@@ -20,6 +20,7 @@
 !================================================================================
 module comm_ptsrc_comp_mod
   use comm_F_mod
+  use comm_dust_extinction_mod
   implicit none
 
   private
@@ -30,6 +31,7 @@ module comm_ptsrc_comp_mod
   !**************************************************
   type Tnu
      integer(i4b) :: nside, nside_febecop, np, nmaps
+     real(dp)     :: A_ext ! Dust extinction, absolute attenuation
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
      real(dp),     allocatable, dimension(:,:) :: F       ! Mixing matrix (nmaps,ndet)
@@ -51,8 +53,8 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
-     integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
-     logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps
+     integer(i4b)       :: nside, nside_febecop, nsrc, ndet, nactive
+     logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps, recompute_ptsrc_precond
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (nsrc,nmaps)
      real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (nsrc,nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
@@ -82,13 +84,10 @@ module comm_ptsrc_comp_mod
      class(comm_ptsrc_comp), pointer :: p => null()
   end type ptsrc_ptr
   
-  integer(i4b) :: ncomp_pre               =   0
-  integer(i4b) :: npre                    =   0
-  integer(i4b) :: nmaps_pre               =  -1
+  integer(i4b), allocatable, dimension(:) :: npre, nmaps_pre
   integer(i4b) :: comm_pre                =  -1
   integer(i4b) :: myid_pre                =  -1
   integer(i4b) :: numprocs_pre            =  -1
-  logical(lgt) :: recompute_ptsrc_precond = .false.
   logical(lgt) :: apply_ptsrc_precond     = .false.
 
   character(len=24), private :: operation
@@ -113,6 +112,7 @@ contains
     call update_status(status, "init_ptsrc1")
     
     ! General parameters
+    apply_ptsrc_precond     = .true.
     allocate(c)
 
     ! Initialize general parameters
@@ -137,14 +137,12 @@ contains
     c%comm            = cpar%comm_chain
     c%numprocs        = cpar%numprocs_chain
     c%init_from_HDF   = cpar%cs_initHDF(id_abs)
-    ncomp_pre                   = ncomp_pre + 1
     operation                   = cpar%operation
     c%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
     c%burn_in         = cpar%cs_burn_in(id_abs)
     c%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
     c%precomputed_amps= .false.
-
-    if (.not. c%apply_pos_prior) recompute_ptsrc_precond = .true.
+    c%recompute_ptsrc_precond = .not. c%apply_pos_prior
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)
     c%output = .false.
@@ -254,19 +252,6 @@ contains
        call report_error("Unknown point source model: " // trim(c%type))
     end select
 
-    ! Read and allocate source structures
-    call update_status(status, "init_ptsrc2")
-    if( trim(c%type) == 'stars') then
-      ! stars uses an hdf catalogue instead of a txt file
-      call read_star_catalogue(c, cpar, id, id_abs)
-    else 
-      call read_sources(c, cpar, id, id_abs)
-    end if 
-
-    ! Update mixing matrix
-    call update_status(status, "init_ptsrc3")
-    call c%updateMixmat
-
     ! Set up CG sampling groups
     allocate(c%active_samp_group(cpar%cg_num_samp_groups))
     c%active_samp_group = .false.
@@ -282,7 +267,29 @@ contains
     end do
 
     ! Disable CG search when asking for positivity prior
-    if (c%apply_pos_prior)  c%active_samp_group = .false.
+    !if (c%apply_pos_prior)  c%active_samp_group = .false.
+    
+    ! Read and allocate source structures
+    call update_status(status, "init_ptsrc2")
+    if( trim(c%type) == 'stars') then
+      ! stars uses an hdf catalogue instead of a txt file
+      call read_star_catalogue(c, cpar, id, id_abs)
+    else 
+      call read_sources(c, cpar, id, id_abs)
+    end if 
+
+    ! Initialize dust extinction correction
+    do j = 1, c%nsrc
+       do i = 1, numband
+          if (c%F_null(i)) cycle
+          ia = c%b2a(i)
+          call get_dust_attenuation_pos(c%src(j)%vec, data(i)%bp(0)%p%nu_c, c%src(j)%T(ia)%A_ext)
+       end do
+    end do
+    
+    ! Update mixing matrix
+    call update_status(status, "init_ptsrc3")
+    call c%updateMixmat
 
     call update_status(status, "init_ptsrc4")
     
@@ -302,7 +309,7 @@ contains
     integer(i4b) :: i, ia, j, k
 
     ! if we have fixed precomputed amps, we don't change mixing matrix
-    if(self%precomputed_amps) return
+    !if(self%precomputed_amps) return
 
 
     do j = 1, self%nsrc
@@ -323,25 +330,29 @@ contains
 
           do k = 0, data(i)%ndet
              ! Temperature
-             self%src(j)%T(ia)%F(1,k) = &
-                  & self%F_int(1,ia,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
+             if(self%precomputed_amps) then
+                self%src(j)%T(ia)%F(1,k) = self%src(j)%amp_precomp(ia) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
+             else
+                self%src(j)%T(ia)%F(1,k) = &
+                     & self%F_int(1,ia,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
+             end if
              
              ! Polarization
              if (self%nmaps == 3) then
                 ! Stokes Q
-                if (self%poltype(1) < 2) then
+                if (self%poltype(1) < 2 .or. self%precomputed_amps) then
                    self%src(j)%T(ia)%F(2,k) = self%src(j)%T(ia)%F(1,k)
                 else
                    self%src(j)%T(ia)%F(2,k) = &
-                        & self%F_int(2,ia,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
+                        & self%F_int(2,ia,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext
                 end if
                 
                 ! Stokes U
-                if (self%poltype(1) < 3) then
+                if (self%poltype(1) < 3 .or. self%precomputed_amps) then
                    self%src(j)%T(ia)%F(3,k) = self%src(j)%T(ia)%F(2,k)
                 else
                    self%src(j)%T(ia)%F(3,k) = &
-                        & self%F_int(3,ia,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
+                        & self%F_int(3,ia,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale * self%src(j)%T(ia)%A_ext 
                 end if
              end if
           end do
@@ -455,12 +466,12 @@ contains
     evalPtsrcBand = 0.d0
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band_active)%nmaps
-          if(self%precomputed_amps) then
-            ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) * amp(i,j)
-          else
+!          if(self%precomputed_amps) then
+!            ! so far just used for stars
+!            m = self%src(i)%amp_precomp(band_active) * amp(i,j) * data(band)%gain
+!          else
             m = self%src(i)%T(band_active)%F(j,d) * amp(i,j)
-          end if
+!          end if
           ! Scale to correct frequency through multiplication with mixing matrix
           a = self%getScale(band,i,j) * m
 
@@ -512,12 +523,12 @@ contains
              val = val + self%src(i)%T(band_active)%map(q,j) * map%map(p,j)
           end do
 
-          if(self%precomputed_amps) then
-            ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active) *self%x(i,j)
-          else
+!          if(self%precomputed_amps) then
+!            ! so far just used for stars
+!            m = self%src(i)%amp_precomp(band_active) * data(band)%gain
+!          else
             m = self%src(i)%T(band_active)%F(j,d)
-          end if
+!          end if
 
           ! Scale to correct frequency through multiplication with mixing matrix
           val = self%getScale(band,i,j) * m * val
@@ -667,7 +678,7 @@ contains
 
     path = trim(adjustl(hdfpath))//trim(adjustl(self%label)) // '/'
     if (self%myid == 0) then
-       call read_hdf(hdffile, trim(adjustl(path))//'amp', self%x)
+       call read_hdf(hdffile, trim(adjustl(path))//'amp', self%x(1:self%nsrc,:))
        self%x = self%x/self%cg_scale
     end if
        
@@ -729,7 +740,12 @@ contains
     open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     self%nsrc    = 0
     self%ncr     = 0
-    self%ncr_tot = 0
+    if (.not. allocated(npre)) then
+       allocate(npre(cpar%cg_num_samp_groups))
+       allocate(nmaps_pre(cpar%cg_num_samp_groups))
+       npre      = 0
+       nmaps_pre = 1
+    end if
     do while (.true.)
        read(unit,'(a)',end=1) line
        line = trim(adjustl(line))
@@ -737,10 +753,13 @@ contains
           cycle
        else
           self%nsrc    = self%nsrc + 1
-          npre         = npre + 1
-          nmaps_pre    = max(nmaps_pre, nmaps)
-          self%ncr_tot = self%ncr_tot  + nmaps
           if (cpar%myid_chain == 0) self%ncr  = self%ncr  + nmaps
+          do i = 1, cpar%cg_num_samp_groups
+             if (self%active_samp_group(i)) then
+                npre(i)      = npre(i) + 1
+                nmaps_pre(i) = max(nmaps_pre(i), nmaps)
+             end if
+          end do
        end if
     end do 
 1   close(unit)
@@ -777,14 +796,20 @@ contains
           end do
        end if
        if (skip_src) then
-          self%nsrc = self%nsrc-1
+          self%nsrc    = self%nsrc-1
+          if (cpar%myid_chain == 0) self%ncr  = self%ncr  - nmaps
+          do j = 1, cpar%cg_num_samp_groups
+             if (self%active_samp_group(j)) then
+                npre(j)         = npre(j) - 1
+             end if
+          end do
        else
           i                    = i+1
           allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(nactive))
           allocate(self%src(i)%theta_rms(self%npar,self%nmaps))
           allocate(self%src(i)%amp_rms(self%nmaps))
           allocate(self%src(i)%P_theta(self%npar,self%nmaps,2))
-          allocate(self%src(i)%P_x(self%nmaps,2))
+!          allocate(self%src(i)%P_x(self%nmaps,2))
           self%src(i)%id             = id_ptsrc
           self%src(i)%glon           = glon * DEG2RAD
           self%src(i)%glat           = glat * DEG2RAD
@@ -792,8 +817,8 @@ contains
           self%x(i,:)                = amp / self%cg_scale
           !if (self%myid == 0) write(*,*) 'amp', self%x(i,:)
           self%src(i)%vec            = vec
-          self%src(i)%P_x(:,1)       = amp     / self%cg_scale
-          self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
+!          self%src(i)%P_x(:,1)       = amp     / self%cg_scale
+ !         self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
           self%src(i)%P_theta(:,:,1) = beta
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
@@ -871,7 +896,6 @@ contains
 
     call init_beam_templates(self, cpar, id, id_abs)
 
-    
   end subroutine read_sources
 
 
@@ -897,7 +921,7 @@ contains
             & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
           ! Read from precomputed file
           !if (self%myid == 0) write(*,*) 'a1'
-          call self%read_febecop_beam(cpar, tempfile, data(i)%instlabel, i)
+          call self%read_febecop_beam(cpar, tempfile, data(i)%label, i)
        else if (filename(n-2:n) == '.h5') then
           ! Read precomputed Febecop beam from HDF file
           !if (self%myid == 0) write(*,*) 'a2'
@@ -906,8 +930,8 @@ contains
           !if (self%myid == 0) write(*,*) 'a3'
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
-             if (mod(j,1000) == 0 .and. self%myid == 0) &
-                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc
+             if (mod(j,10000) == 0 .and. self%myid == 0) &
+                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc, 'for band', i
              self%src(j)%T(ia)%nside   = data(i)%info%nside
              self%src(j)%T(ia)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
              allocate(self%src(j)%T(ia)%F(self%src(j)%T(ia)%nmaps,0:data(i)%ndet))
@@ -915,6 +939,8 @@ contains
     
              if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
                 ! Build template internally from b_l
+                !write(*,*) "building template for source", j, "for band", i, self%src(j)%glon, self%src(j)%glat
+                
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(ia), bl=data(i)%B(0)%p%b_l)
              else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
@@ -954,9 +980,10 @@ contains
 
    
     type(hdf_file)                      :: stars_file
-    integer(i4b)                        :: i, j, ja
+    integer(i4b)                        :: i, j, k, ja, ii, ierr
+    real(dp)                            :: vec(3), dist
     character(len=512), dimension(:), allocatable    :: band_list
-    logical(lgt)                        :: found
+    logical(lgt)                        :: found, skip_src
     real(dp), dimension(:,:), allocatable :: catalog, star_catalog, coords
  
     call open_hdf_file(trim(adjustl(cpar%cs_catalog(id_abs))), stars_file, 'r')
@@ -964,15 +991,23 @@ contains
 
     call read_alloc_hdf(stars_file, '/reported_values', catalog) !nstars, nbands        
     call read_alloc_hdf(stars_file, '/band_column_mapping', band_list)
-     ! trim unused bands from star catalog
+
+    if (.not. allocated(npre)) then
+       allocate(npre(cpar%cg_num_samp_groups))
+       allocate(nmaps_pre(cpar%cg_num_samp_groups))
+       npre      = 0
+       nmaps_pre = 1
+    end if
+    
+    ! trim unused bands from star catalog
     allocate(star_catalog(self%nactive, size(catalog(1,:))))
 
     do i=1, numband
         if (.not. self%F_null(i)) then !band is included in ptsrcs
           found = .false.
           do j=1, size(band_list)
-            if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
-              star_catalog(self%b2a(i),:) = catalog(j,:)
+            if(trim(data(i)%label) == trim(band_list(j))) then ! band is in catalog
+              star_catalog(self%b2a(i),:) = catalog(j,:)/ catalog(1,:)
               found = .true.
               !write(*,*) "Found band ", trim(data(i)%label), " at position ", j
               exit
@@ -989,53 +1024,69 @@ contains
     self%nsrc = size(star_catalog(1, :))
 
     call read_alloc_hdf(stars_file, 'coordinates', coords)
+    !coords = coords * DEG2RAD  ! Convention now in degrees
 
     allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
 
-    self%x = 0.d0
-    self%x(1,1) = 1.d0
+    self%x = 1.d0
+!    self%x(1,1) = 1.d0
 
     !store each pointsource in a source object
+    self%ncr     = 0
+    ii           = 0
     do i=1, self%nsrc
-      allocate(self%src(i)%amp_precomp(self%nactive))
-      allocate(self%src(i)%T(self%nactive)) 
-      !self%src(i)%glon = coords(1,i) * DEG2RAD
-      !self%src(i)%glat = coords(2,i) * DEG2RAD
-      self%src(i)%glon = coords(1,i)
-      self%src(i)%glat = coords(2,i)
-!!$      write(*,*) i, coords(:,i)
-!!$      write(*,*) i, self%src(i)%glon, self%src(i)%glat
-!!$      write(*,*)
+       if (myid_pre == 0) then
+          if (mod(ii,100000) == 0) then
+             write(*,fmt='(a,i6,a,i6,a,a)') ' |    Reading src ', ii, ' of ', self%nsrc
+          end if
+       end if
 
-      ! Normalize to first frequency
-      self%src(i)%amp_precomp = star_catalog(:,i)/star_catalog(1,i)
+       ii = ii+1
+       self%src(ii)%glon = coords(1,i)
+       self%src(ii)%glat = coords(2,i) 
+       call ang2vec(0.5d0*pi-coords(2,i), coords(1,i), self%src(ii)%vec)
+       ! Check for too close neighbours
+       skip_src = .false.
+       if (cpar%cs_min_src_dist(id_abs) > 0.d0) then
+          do j = 1+self%myid, ii-1, self%numprocs
+             call angdist(self%src(ii)%vec, self%src(j)%vec, dist)
+             if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
+                skip_src = .true.
+                exit
+             end if
+          end do
+       end if
+       call mpi_allreduce(MPI_IN_PLACE, skip_src, 1, MPI_LOGICAL, &
+            & MPI_LOR, self%comm, ierr)
+       if (skip_src) then
+          ii = ii-1
+          cycle
+       end if
 
-      do j=1, numband !self%nactive
-         ja = self%b2a(j)
-         if (ja == -1) cycle
-        self%src(i)%T(ja)%nside = data(j)%info%nside 
-        self%src(i)%T(ja)%nside_febecop = self%nside_febecop
-        !self%src(i)%T(j)%np = 
-        self%src(i)%T(ja)%nmaps = self%nmaps
-      end do
+       allocate(self%src(ii)%amp_precomp(self%nactive))
+       allocate(self%src(ii)%T(self%nactive))
+       do j = 1, cpar%cg_num_samp_groups
+          if (self%active_samp_group(j)) then
+             npre(j)      = npre(j) + 1
+             nmaps_pre(j) = max(nmaps_pre(j), self%nmaps)
+          end if
+       end do
+       if (cpar%myid_chain == 0) self%ncr  = self%ncr  + self%nmaps
 
-      ! Check for processing mask; disable source if within mask
-!      call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
-!      p = locate(data(1)%info%pix, pix)
-!      if (associated(data(1)%procmask)) then
-!        if (p > 0) then
-!          if (data(1)%info%pix(p) == pix) then
-!            do j = 1, self%nmaps
-!              if (data(1)%procmask%map(p,j) < 0.5d0) then
-!                mask(i,j) = 0
-!              end if
-!            end do
-!          end if
-!        end if
-!      end if
+       ! Normalize to first frequency
+       self%src(ii)%amp_precomp = star_catalog(:,i)!/star_catalog(1,i)
+
+       do j=1, numband !self%nactive
+          ja = self%b2a(j)
+          if (ja == -1) cycle
+          self%src(ii)%T(ja)%nside = data(j)%info%nside 
+          self%src(ii)%T(ja)%nside_febecop = self%nside_febecop
+          self%src(ii)%T(ja)%nmaps = self%nmaps
+       end do
 
     end do
-
+    self%nsrc = ii
+    
     self%cg_scale=1
 
     deallocate(star_catalog, coords)   
@@ -1044,6 +1095,18 @@ contains
 
     !load in the beam information
     call init_beam_templates(self, cpar, id, id_abs)
+
+    ! Update mixing matrix --  HKE: GAIN IS MISSING
+!!$    do i=1, self%nsrc
+!!$      do j=1, numband !self%nactive
+!!$         ja = self%b2a(j)
+!!$         if (ja == -1) cycle
+!!$          do k = 0, data(j)%ndet ! Only T for now
+!!$            self%src(i)%T(ja)%F(1,k) = self%src(i)%amp_precomp(self%b2a(j))
+!!$         end do
+!!$      end do
+!!$   end do
+
 
   end subroutine read_star_catalogue
 
@@ -1091,7 +1154,7 @@ contains
 
           ! Find number of pixels in beam
           write(itext,*) pix
-          if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
+          if (trim(label) /= 'none') itext = '/'//trim(label)//'/'//trim(adjustl(itext))
           call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
           m = ext(1)
           
@@ -1246,11 +1309,11 @@ contains
           if (self%F_null(i)) cycle
           ia = self%b2a(i)
           if (myid_pre == 0 .and. k == 1) &
-               & call create_hdf_group(file, trim(adjustl(data(i)%instlabel)))
+               & call create_hdf_group(file, trim(adjustl(data(i)%label)))
           nmaps = self%src(k)%T(ia)%nmaps
           call ang2pix_ring(data(i)%info%nside, 0.5d0*pi-self%src(k)%glat, self%src(k)%glon, p)
           write(itext,*) p
-          itext = trim(adjustl(data(i)%instlabel))//'/'//trim(adjustl(itext))
+          itext = trim(adjustl(data(i)%label))//'/'//trim(adjustl(itext))
           if (myid_pre == 0) then
              call h5eset_auto_f(0, hdferr)
              call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
@@ -1497,182 +1560,286 @@ contains
     
   end subroutine compute_symmetric_beam
 
-  subroutine initPtsrcPrecond(comm, samp_group)
+  subroutine initPtsrcPrecond(comm, samp_group, verbosity)
     implicit none
     integer(i4b),                intent(in) :: comm, samp_group
+    integer(i4b),                intent(in), optional :: verbosity
 
-    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
-    real(dp)     :: t1, t2, t3, t4
+    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2, verbosity_
+    real(dp)     :: t1, t2, t3, t4, dist, tot, tot2
     logical(lgt) :: skip
-    class(comm_comp),         pointer :: c => null(), c1 => null(), c2 => null()
+    real(dp), allocatable, dimension(:) :: buff
+    class(comm_comp),         pointer :: c => null()
     class(comm_ptsrc_comp),   pointer :: pt1 => null(), pt2 => null()
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
-
-    if (ncomp_pre == 0) return
-    if (.not. recompute_ptsrc_precond) return
+    type(ptsrc_ptr), dimension(5) :: pc
+    
     if (.not. apply_ptsrc_precond) return
-    if (allocated(P_cr(samp_group)%invM_src)) deallocate(P_cr(samp_group)%invM_src)
+    if (npre(samp_group) == 0) return
+    verbosity_ = 10; if (present(verbosity)) verbosity_ = verbosity
+    
+    ! Make a list of active components, and check that at least one wants update
+    nactive = 0
+    skip    = .true.
+    c       => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_ptsrc_comp)
+          if (c%active_samp_group(samp_group)) then
+             nactive = nactive+1
+             pc(nactive)%p => c
+             if (c%recompute_ptsrc_precond) skip = .false.
+          end if
+       end select
+       c => c%nextComp()
+    end do
+    if (nactive == 0 .or. skip) return
 
     call mpi_comm_rank(comm, myid, ierr)
-        
+    
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr(samp_group)%invM_src(1,nmaps_pre))
-    allocate(mat(npre,npre), mat2(npre,npre))
-    do j = 1, nmaps_pre
+    if (.not. allocated(P_cr(samp_group)%invM_src)) then
+       allocate(P_cr(samp_group)%invM_src(1,nmaps_pre(samp_group)))
+    end if
+    !allocate(mat(npre,npre), mat2(npre,npre))
+    do j = 1, nmaps_pre(samp_group)
 
-       mat = 0.d0
-       i1  = 0
-       c1 => compList
-       do while (associated(c1))
-          skip = .true.
-          select type (c1)
-          class is (comm_ptsrc_comp)
-             pt1  => c1
-             skip = .false.
-          end select
-          if (skip .or. j > pt1%nmaps) then
-             c1 => c1%nextComp()
-             cycle
-          end if
-          do k1 = 1, pt1%nsrc
-             !write(*,*) k1, pt1%nsrc             
-             i1 = i1+1
-
-             i2 = 0
-             c2 => compList
-             do while (associated(c2))
-                !do j2 = 1, ncomp_pre
-                skip = .true.
-                select type (c2)
-                class is (comm_ptsrc_comp)
-                   pt2 => c2
-                   skip = .false.
-                end select
-                if (skip .or. j > pt2%nmaps) then
-                   c2 => c2%nextComp()
-                   cycle
-                end if
-                do k2 = 1, pt2%nsrc
-                   !write(*,*) k2, pt2%nsrc
-                   i2 = i2+1
-                   if (i2 < i1) cycle
-
-                   do l = 1, numband
-                      if (pt1%F_null(l)) cycle
-                      la = pt1%b2a(l)
-                      n1 = pt1%src(k1)%T(la)%np
-                      n2 = pt2%src(k2)%T(la)%np
-
-                      ! Search for common pixels; skip if no pixel overlap
-                      if (n1 == 0 .or. n2 == 0) cycle
-                      if (pt1%src(k1)%T(la)%pix(1,1)  > pt2%src(k2)%T(la)%pix(n2,1)) cycle
-                      if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(1,1))  cycle
-                      if (j == 1 .and. data(l)%pol_only) cycle
-                      !if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-
-
-                      p1 = 1
-                      p2 = 1
-                      do while (.true.)
-                         if (pt1%src(k1)%T(la)%pix(p1,1) == pt2%src(k2)%T(la)%pix(p2,1)) then
-                            p  = pt1%src(k1)%T(la)%pix(p1,1)
-!!$                            write(*,*) 'a', data(l)%N%invN_diag%map(p,j) 
-!!$                            write(*,*) 'b', pt1%src(k1)%T(l)%map(p1,j), pt2%src(k2)%T(l)%map(p2,j)  
-!!$                            write(*,*) 'c', pt1%src(k1)%T(l)%F(j,0), pt2%src(k2)%T(l)%F(j,0)
-!!$                            write(*,*) 'd', pt1%getScale(l,k1,j), pt2%getScale(l,k2,j)     
-                            mat(i1,i2) = mat(i1,i2) + &
-                                 & 1.d0/data(l)%N%rms_pix(p,j)**2 * &          ! invN_{p,p}
-                                 & pt1%src(k1)%T(la)%map(p1,j) * & ! B_1
-                                 & pt2%src(k2)%T(la)%map(p2,j) * & ! B_2
-                                 & pt1%src(k1)%T(la)%F(j,0)    * & ! F_1
-                                 & pt2%src(k2)%T(la)%F(j,0)    * & ! F_2
-                                 & pt1%getScale(l,k1,j)       * & ! Unit 1
-                                 & pt2%getScale(l,k2,j)           ! Unit 2
-                            p1 = p1+1
-                            p2 = p2+1
-                         else if (pt1%src(k1)%T(la)%pix(p1,1) < pt2%src(k2)%T(la)%pix(p2,1)) then
-                            p1 = p1+1
-                         else
-                            p2 = p2+1
-                         end if
-                         if (p1 > n1 .or. p2 > n2) exit
-                         if (pt1%src(k1)%T(la)%pix(p1,1) > pt2%src(k2)%T(la)%pix(n2,1)) exit
-                         if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(p2,1)) exit
-                      end do
+       ! Find number of matrix elements
+       if (.not. associated(P_cr(samp_group)%invM_src(1,j)%M)) then
+          n = 0
+          i1  = 0
+          do c1 = 1, nactive
+             pt1 => pc(c1)%p
+             if (j > pt1%nmaps) cycle
+             do k1 = 1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
+                i1 = i1+1   
+                i2 = pt1%myid
+                do c2 = 1, nactive
+                   pt2 => pc(c2)%p
+                   if (j > pt2%nmaps) cycle
+                   do k2 = 1+pt1%myid, pt2%nsrc, pt1%numprocs
+                      i2 = i2+pt1%numprocs
+                      if (i2 < i1) cycle
+                      dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
+                      if (dist <= 3.d0*pi/180.d0) n = n+1
                    end do
-                   mat(i2,i1) = mat(i1,i2)
                 end do
-                c2 => c2%nextComp()
              end do
           end do
-          c1 => c1%nextComp()
-       end do
+          call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'Number of matrix elements = ', n
+          ! Allocate sparse matrix
+          P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre(samp_group), n)
+       end if
 
-       ! Collect contributions from all cores
-       call mpi_reduce(mat, mat2, size(mat2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
-
-       if (myid == 0) then
-          ! Multiply with sqrtS from left side
+       if (P_cr(samp_group)%invM_src(1,j)%M%ni == 0) then
+          ! Construct matrix with sparsity pattern
           i1  = 0
-          c1 => compList
-          do while (associated(c1))
-             skip = .true.
-             select type (c1)
-             class is (comm_ptsrc_comp)
-                pt1  => c1
-                skip = .false.
-             end select
-             if (skip .or. j > pt1%nmaps) then
-                c1 => c1%nextComp()
+          do c1 = 1, nactive
+             pt1  => pc(c1)%p
+             if (j > pt1%nmaps) cycle
+             do k1 = 1, pt1%nsrc
+                if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Computing A =', k1, pt1%nsrc
+                i1 = i1+1
+
+                i2 = 0
+                do c2 = 1, nactive
+                   pt2 => pc(c2)%p
+                   if (j > pt2%nmaps) cycle
+                   do k2 = 1, pt2%nsrc
+                      i2 = i2+1
+                      if (i2 < i1) cycle
+                      dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
+                      if (dist > 3.d0*pi/180.d0) cycle ! Cutoff should be user defined
+
+                      tot = 0.d0
+                      do l = 1, numband
+                         if (pt1%F_null(l)) cycle
+                         if (.not. data(l)%cr_active) cycle
+                         if (j == 1 .and. data(l)%pol_only) cycle
+                         la = pt1%b2a(l)
+                         n1 = pt1%src(k1)%T(la)%np
+                         n2 = pt2%src(k2)%T(la)%np
+
+                         ! Search for common pixels; skip if no pixel overlap
+                         if (n1 == 0 .or. n2 == 0) cycle
+                         if (pt1%src(k1)%T(la)%pix(1,1)  > pt2%src(k2)%T(la)%pix(n2,1)) cycle
+                         if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(1,1))  cycle
+
+                         p1 = 1
+                         p2 = 1
+                         do while (.true.)
+                            if (pt1%src(k1)%T(la)%pix(p1,1) == pt2%src(k2)%T(la)%pix(p2,1)) then
+                               p  = pt1%src(k1)%T(la)%pix(p1,1)
+                               tot = tot + &
+                                    & 1.d0/data(l)%N%rms_pix(p,j)**2 * &          ! invN_{p,p}
+                                    & pt1%src(k1)%T(la)%map(p1,j) * & ! B_1
+                                    & pt2%src(k2)%T(la)%map(p2,j) * & ! B_2
+                                    & pt1%src(k1)%T(la)%F(j,0)    * & ! F_1
+                                    & pt2%src(k2)%T(la)%F(j,0)    * & ! F_2
+                                    & pt1%getScale(l,k1,j)       * & ! Unit 1
+                                    & pt2%getScale(l,k2,j)           ! Unit 2
+                               p1 = p1+1
+                               p2 = p2+1
+                            else if (pt1%src(k1)%T(la)%pix(p1,1) < pt2%src(k2)%T(la)%pix(p2,1)) then
+                               p1 = p1+1
+                            else
+                               p2 = p2+1
+                            end if
+                            if (p1 > n1 .or. p2 > n2) exit
+                            if (pt1%src(k1)%T(la)%pix(p1,1) > pt2%src(k2)%T(la)%pix(n2,1)) exit
+                            if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(p2,1)) exit
+                         end do
+                      end do
+                      ! Update sparse matrix
+                      call P_cr(samp_group)%invM_src(1,j)%M%set_A(i1,i2, tot)
+                   end do
+                end do
+             end do
+          end do
+
+          ! Collect contributions from all cores
+          allocate(buff(size(P_cr(samp_group)%invM_src(1,j)%M%a)))
+          call mpi_reduce(P_cr(samp_group)%invM_src(1,j)%M%a, buff, size(P_cr(samp_group)%invM_src(1,j)%M%a), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+          P_cr(samp_group)%invM_src(1,j)%M%a = buff
+          deallocate(buff)
+
+       else
+
+          ! Construct matrix with sparsity pattern
+          do i1 = 1, P_cr(samp_group)%invM_src(1,j)%M%ni
+             if (myid_pre == 0 .and. mod(i1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
+             c1 = 1
+             k1 = i1
+             do while (k1 > pc(c1)%p%nsrc)
+                k1 = k1 - pc(c1)%p%nsrc
+                c1 = c1 + 1
+             end do
+             pt1 => pc(c1)%p
+             if (j > pt1%nmaps) cycle
+             do j2 = P_cr(samp_group)%invM_src(1,j)%M%ia(i1), &
+                  & P_cr(samp_group)%invM_src(1,j)%M%ia(i1+1)-1
+                i2 = P_cr(samp_group)%invM_src(1,j)%M%ja(j2)
+                if (i2 < i1) cycle
+                c2 = 1
+                k2 = i2
+                do while (k2 > pc(c2)%p%nsrc)
+                   k2 = k2 - pc(c2)%p%nsrc
+                   c2 = c2 + 1
+                end do
+                pt2 => pc(c2)%p
+                if (j > pt2%nmaps) cycle
+
+                if (.not. pt1%recompute_ptsrc_precond .and. &
+                  & .not. pt2%recompute_ptsrc_precond) cycle
+
+                dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
+                if (dist > 3.d0*pi/180.d0) cycle ! Cutoff should be user defined
+
+                tot = 0.d0
+                do l = 1, numband
+                   if (pt1%F_null(l)) cycle
+                   if (.not. data(l)%cr_active) cycle
+                   if (j == 1 .and. data(l)%pol_only) cycle
+                   la = pt1%b2a(l)
+                   n1 = pt1%src(k1)%T(la)%np
+                   n2 = pt2%src(k2)%T(la)%np
+
+                   ! Search for common pixels; skip if no pixel overlap
+                   if (n1 == 0 .or. n2 == 0) cycle
+                   if (pt1%src(k1)%T(la)%pix(1,1)  > pt2%src(k2)%T(la)%pix(n2,1)) cycle
+                   if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(1,1))  cycle
+
+                   p1 = 1
+                   p2 = 1
+                   do while (.true.)
+                      if (pt1%src(k1)%T(la)%pix(p1,1) == pt2%src(k2)%T(la)%pix(p2,1)) then
+                         p  = pt1%src(k1)%T(la)%pix(p1,1)
+                         tot = tot + &
+                              & 1.d0/data(l)%N%rms_pix(p,j)**2 * &          ! invN_{p,p}
+                              & pt1%src(k1)%T(la)%map(p1,j) * & ! B_1
+                              & pt2%src(k2)%T(la)%map(p2,j) * & ! B_2
+                              & pt1%src(k1)%T(la)%F(j,0)    * & ! F_1
+                              & pt2%src(k2)%T(la)%F(j,0)    * & ! F_2
+                              & pt1%getScale(l,k1,j)       * & ! Unit 1
+                              & pt2%getScale(l,k2,j)           ! Unit 2
+                         p1 = p1+1
+                         p2 = p2+1
+                      else if (pt1%src(k1)%T(la)%pix(p1,1) < pt2%src(k2)%T(la)%pix(p2,1)) then
+                         p1 = p1+1
+                      else
+                         p2 = p2+1
+                      end if
+                      if (p1 > n1 .or. p2 > n2) exit
+                      if (pt1%src(k1)%T(la)%pix(p1,1) > pt2%src(k2)%T(la)%pix(n2,1)) exit
+                      if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(p2,1)) exit
+                   end do
+                end do
+                ! Update sparse matrix
+                call mpi_reduce(tot, tot2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+                if (myid_pre == 0) P_cr(samp_group)%invM_src(1,j)%M%a(j2) = tot2
+             end do
+          end do
+       end if
+       
+       if (myid == 0) then          
+          ! Multiply with sqrtS from left side
+          i1 = 0
+          do c1 = 1, nactive
+             pt1  => pc(c1)%p
+             if (.not. pt1%recompute_ptsrc_precond) then
+                i1 = i1 + pt1%nsrc
                 cycle
              end if
+             if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
                 i1         = i1+1
-                mat2(i1,:) = mat2(i1,:) * pt1%src(k1)%P_x(j,2)
+                if (allocated(pt1%src(k1)%P_x)) call P_cr(samp_group)%invM_src(1,j)%M%scale_row(i1, pt1%src(k1)%P_x(j,2))
              end do
-             c1 => c1%nextComp()
           end do
           ! Multiply with sqrtS from right side
           i1  = 0
-          c1 => compList
-          do while (associated(c1))
-             skip = .true.
-             select type (c1)
-             class is (comm_ptsrc_comp)
-                pt1  => c1
-                skip = .false.
-             end select
-             if (skip .or. j > pt1%nmaps) then
-                c1 => c1%nextComp()
+          do c1 = 1, nactive
+             pt1  => pc(c1)%p
+             if (.not. pt1%recompute_ptsrc_precond) then
+                i1 = i1 + pt1%nsrc
                 cycle
              end if
+             if (j > pt1%nmaps) cycle
              do k1 = 1, pt1%nsrc
                 i1         = i1+1
-                mat2(:,i1) = mat2(:,i1) * pt1%src(k1)%P_x(j,2)
+                if (allocated(pt1%src(k1)%P_x)) call P_cr(samp_group)%invM_src(1,j)%M%scale_col(i1, pt1%src(k1)%P_x(j,2))
              end do
-             c1 => c1%nextComp()
           end do
           ! Add unity
-          do i1 = 1, npre
-             mat2(i1,i1) = mat2(i1,i1) + 1.d0
+          i1  = 0
+          do c1 = 1, nactive
+             pt1  => pc(c1)%p
+             if (.not. pt1%recompute_ptsrc_precond) then
+                i1 = i1 + pt1%nsrc
+                cycle
+             end if
+             if (j > pt1%nmaps) cycle
+             do k1 = 1, pt1%nsrc
+                i1         = i1+1
+                call P_cr(samp_group)%invM_src(1,j)%M%add_diag(0.0d0, i1)
+             end do
           end do
           ! Invert matrix to finalize preconditioner
           call wall_time(t3)
-          call invert_matrix_with_mask(mat2)
+          call P_cr(samp_group)%invM_src(1,j)%M%decomp(verbosity)
           call wall_time(t4)
- if (myid_pre == 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
-          allocate(P_cr(samp_group)%invM_src(1,j)%M(npre,npre))
-          P_cr(samp_group)%invM_src(1,j)%M = mat2
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
        end if
     end do
     call wall_time(t2)
-    if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
-
-    deallocate(mat,mat2)
-
-    recompute_ptsrc_precond = .false.
-    apply_ptsrc_precond     = .false.
+    if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
+    
+    do i = 1, nactive
+       pc(i)%p%recompute_ptsrc_precond = .false.
+    end do
     
   end subroutine initPtsrcPrecond
 
@@ -1697,10 +1864,11 @@ contains
     class(comm_comp),       pointer :: c => null()
     class(comm_ptsrc_comp), pointer :: pt => null()
 
-    if (npre == 0 .or. myid_pre /= 0 .or. .not. apply_ptsrc_precond) return
+    if (.not. apply_ptsrc_precond) return
+    if (npre(samp_group) == 0 .or. myid_pre /= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
-    allocate(y(npre,nmaps_pre))
+    allocate(y(npre(samp_group),nmaps_pre(samp_group)))
     y = 0.d0
     l = 1
     c => compList
@@ -1708,8 +1876,10 @@ contains
        skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
-          pt => c
-          skip = .false.
+          if (c%active_samp_group(samp_group)) then
+             pt => c
+             skip = .false.
+          end if
        end select
        if (skip) then
           c => c%nextComp()
@@ -1725,8 +1895,10 @@ contains
     end do
 
     ! Multiply with preconditioner
-    do j = 1, nmaps_pre
-       y(:,j) = matmul(P_cr(samp_group)%invM_src(1,j)%M, y(:,j))
+    do j = 1, nmaps_pre(samp_group)
+       !y(:,j) = matmul(P_cr(samp_group)%invM_src(1,j)%M, y(:,j))
+       call P_cr(samp_group)%invM_src(1,j)%M%set_rhs(y(:,j))
+       call P_cr(samp_group)%invM_src(1,j)%M%solve(y(:,j))
     end do
 
     ! Reformat y(npre,nmaps) structure back into linear array
@@ -1736,8 +1908,10 @@ contains
        skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
-          pt => c
-          skip = .false.
+          if (c%active_samp_group(samp_group)) then
+             pt => c
+             skip = .false.
+          end if
        end select
        if (skip) then
           c => c%nextComp()
@@ -1752,7 +1926,7 @@ contains
        c => c%nextComp()
        deallocate(amp)
     end do
-        
+
     deallocate(y)
 
   end subroutine applyPtsrcPrecond
@@ -1893,7 +2067,7 @@ contains
           if (p == 1 .and. data(l)%pol_only) cycle
           la = self%b2a(l)
           do q = 1, self%src(i)%T(la)%np
-            src_amp = self%src(i)%amp_precomp(la)
+            src_amp = self%src(i)%amp_precomp(la) * data(l)%gain
             beam    = self%src(i)%T(la)%map(q,p)
             pix     = self%src(i)%T(la)%pix(q,1)
             noise   = data(l)%N%rms_pix(pix, p)
@@ -1934,8 +2108,9 @@ contains
            else
               x_tot = 0.d0
            end if
+           if (self%apply_pos_prior) x_tot = max(x_tot, 0.d0)
           if (mod(i,10000) == 0) then
-             write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
+             write(*,fmt='(a,i8,a,f8.3,a,f8.3,a,f16.8)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot, ', sigma = ', 1.d0/sqrt(A_tot)
           end if
           self%x(i,p) = x_tot
         end if
@@ -1999,7 +2174,7 @@ contains
 !      return
     end if
     
-    if (trim(operation) == 'optimize') then
+    if (.true. .or. trim(operation) == 'optimize') then
        !if (self%myid == 0) write(*,*) 'opimize ptsrc spectral parameters'
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
@@ -2032,7 +2207,7 @@ contains
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    do q = 1, self%src(k)%T(la)%np
                       pix = self%src(k)%T(la)%pix(q,1)
                       data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(la)%map(q,p) * a
@@ -2045,7 +2220,7 @@ contains
                    x(1)                   = self%x(k,p)
                    if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
                    x(2:1+self%npar)       = self%src(k)%theta(:,p)
-                   call powell(x, lnL_ptsrc_multi, ierr) !!!!!
+                   call powell(x, lnL_ptsrc_multi, ierr, tolerance=1d-5) !!!!!
                    a                      = x(1)
                    theta                  = x(2:1+self%npar)
                    do l = 1, c_lnL%npar
@@ -2092,7 +2267,7 @@ contains
                    la = self%b2a(l)
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    do q = 1, self%src(k)%T(la)%np
                       pix = self%src(k)%T(la)%pix(q,1)
                       data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(la)%map(q,p)
@@ -2119,7 +2294,7 @@ contains
        call self%updateMixmat
        
        ! Ask for CG preconditioner update
-       if (any(self%active_samp_group)) recompute_ptsrc_precond = .true.
+       if (any(self%active_samp_group)) self%recompute_ptsrc_precond = .true.
        return
     end if
 
@@ -2217,7 +2392,7 @@ n_gibbs=1
                    la = self%b2a(l)
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                   s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
 !if (self%myid == 0) write(*,*) 'l numband', l, numband
                 end do
@@ -2246,7 +2421,7 @@ n_gibbs=1
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
-                         s        = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                         s        = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                          
                          ! Compute predicted source amplitude for current band
                          a = self%getScale(l,k,p) * s * amp(k,p)
@@ -2335,7 +2510,7 @@ n_gibbs=1
                    if (self%F_null(l)) cycle
                    la = self%b2a(l)
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    
                    ! Compute likelihood by summing over pixels
                    do q = 1, self%src(k)%T(la)%np
@@ -2371,7 +2546,7 @@ n_gibbs=1
                 if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(la)%np
@@ -2433,7 +2608,7 @@ n_gibbs=1
                 if (p == 1 .and. data(l)%pol_only) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(la)%np
@@ -2476,7 +2651,7 @@ n_gibbs=1
     call self%updateMixmat
 
     ! Ask for CG preconditioner update
-    if (any(self%active_samp_group)) recompute_ptsrc_precond = .true.
+    if (any(self%active_samp_group)) self%recompute_ptsrc_precond = .true.
 
     deallocate(x, P_tot, F, lnL, amp, theta, a_curr)
 
@@ -2510,7 +2685,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2550,7 +2725,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2619,7 +2794,7 @@ n_gibbs=1
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,la,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
@@ -2641,9 +2816,11 @@ n_gibbs=1
     
     if (c_lnL%myid == 0) then
        ! Apply amplitude prior
-       if (c_lnL%src(k_lnL)%P_x(p_lnL,2) > 0.d0) then
-!          lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (amp-c_lnL%src(k_lnL)%P_x(p_lnL,1))**2 / &
-!               & c_lnL%src(k_lnL)%P_x(p_lnL,2)**2
+       if (allocated(c_lnL%src(k_lnL)%P_x)) then
+          if (c_lnL%src(k_lnL)%P_x(p_lnL,2) > 0.d0) then
+             !          lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (amp-c_lnL%src(k_lnL)%P_x(p_lnL,1))**2 / &
+             !               & c_lnL%src(k_lnL)%P_x(p_lnL,2)**2
+          end if
        end if
 
        ! Apply index priors
@@ -2715,9 +2892,10 @@ n_gibbs=1
           if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
              
           ! Compute mixing matrix
-          s = c_lnL%F_int(1,la,0)%p%eval(theta)    * data(l)%gain * c_lnL%cg_scale
+          s = c_lnL%F_int(1,la,0)%p%eval(theta)    * data(l)%gain * c_lnL%cg_scale * c_lnL%src(k_lnL)%T(la)%A_ext 
              
           ! Compute predicted source amplitude for current band
+          ! HKE: Fix extinction correction below?
           a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
           if (j .eq. 1) then
               a_grad = c_lnL%getScale(l,k_lnL,p_lnL) * s
@@ -2754,13 +2932,16 @@ n_gibbs=1
     class(comm_ptsrc_comp), intent(inout)          :: self
     integer(i4b),           intent(in),   optional :: band
 
-    integer(i4b) :: i, j, k, ka
+    integer(i4b) :: i, j, k, ka, nmaps
 
     if(self%precomputed_amps) return
 
     if (present(band)) then
+       nmaps = data(band)%info%nmaps
+       if(nmaps > 3) nmaps = 3
+
        if (self%F_null(band)) return
-       do i = 1, data(band)%info%nmaps
+       do i = 1, nmaps
           do j = 0, data(band)%tod%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
@@ -2769,7 +2950,9 @@ n_gibbs=1
        do k = 1, numband
           if (self%F_null(k)) cycle
           ka = self%b2a(k)
-          do i = 1, data(k)%info%nmaps
+          nmaps = data(k)%info%nmaps
+          if(nmaps > 3) nmaps = 3
+          do i = 1, nmaps
              do j = 0, data(k)%ndet
                 call self%F_int(i,ka,j)%p%update(pol=i)
              end do
