@@ -306,6 +306,7 @@ contains
     if (nonzero) call res%Y()
 
     ! Compute residual map
+
     res%map = data(band)%map%map - res%map - ptsrc%map
 
     ! Clean up

@@ -81,7 +81,7 @@ interface
 
    !**************************************************
    !             Driver routine
-   !**************************************************
+    !**************************************************
    module subroutine process_akari_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
       ! 
       ! Routine that processes the akari Calibrated Individual Observations. 
@@ -124,11 +124,11 @@ interface
       character(len=*),                         intent(in)    :: chaindir
       integer(i4b),                             intent(in)    :: chain, iter
       type(planck_rng),                         intent(inout) :: handle
-      type(map_ptr),       dimension(1:,1:),    intent(inout) :: map_in       ! (ndet,ndelta)
-      real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
+      type(map_ptr),       dimension(:,:),      intent(inout) :: map_in       ! (ndet,ndelta)
+      real(dp),            dimension(:,:,:),    intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(:),        intent(inout), optional :: map_gain       ! (ndet,1)
    end subroutine process_akari_tod   
 
 end interface

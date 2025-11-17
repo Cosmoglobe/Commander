@@ -30,7 +30,8 @@ module comm_tod_chipass_mod
    !   process_chipass_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-   use comm_tod_driver_mod
+  use comm_tod_mapmaking_mod
+  use comm_tod_driver_mod
    implicit none
 
    private
@@ -154,7 +155,7 @@ contains
       !end do
 
       ! Allocate sidelobe convolution data structures
-      allocate(c%slconv(c%ndet), c%orb_dp)
+      allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
 
       c%orb_dp => comm_orbdipole(comm=c%comm)
 
@@ -216,9 +217,9 @@ contains
       real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
@@ -275,45 +276,16 @@ contains
       prefix_atlas = trim(chaindir) // '/atlas_' // trim(self%freq) // '_' // trim(zodi_param_text) // '_' // trim(up_down_text) // '_'
       postfix_atlas = '.fits'
 
-      ! Distribute maps
+      ! Define useful sd operation codes
+      oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+           & SD_SKY,SD_BP,SD_INST])
+
+      ! Initialize index-based sky map and mask
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
             ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793   
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! in K_cmb
-      call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! already in K_cmb
-      
-      ! Distribute processing masks
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-      if (self%sample_zodi .and. self%subtract_zodi) then
-         allocate(procmask_zodi(0:npix-1))
-         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
-      end if
-      deallocate(m_buf)
-      
+      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain, scale=1e-6)
+      call timer%stop(TOD_ALLOC, self%band)
       call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
-
-      ! Distribute maps
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
-      ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793
-      call distribute_sky_maps(self, map_in, 0.057793, map_sky) ! 1.e-3 ! uK to K
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 0.057793, m_gain) ! 1.e-3 ! uK to K
-      call map_in(1,1)%p%writeFITS(trim(chaindir)//'/map_in.fits')
-
-      
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-      if (self%sample_zodi .and. self%subtract_zodi) then
-         allocate(procmask_zodi(0:npix-1))
-         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
-       end if
-      deallocate(m_buf)
-
       call update_status(status, "tod_init")
 
       ! Write mask for debugging
@@ -326,7 +298,6 @@ contains
          call close_hdf_file(tod_file)
          stop
       end if
-
 
 
       !------------------------------------
@@ -344,18 +315,17 @@ contains
          call update_status(status, "baseline")
          do i = 1, self%nscan
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi)
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
             
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2)
             !call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
             call timer%start(TOD_BASELINE, self%band)
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
             !if (self%myid == 0) write(*,*) '    size(sd%mask):', size(sd%mask)
             !if (self%myid == 0) write(*,*) '    sd%mask(1,1):', sd%mask(1,1)
-            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot(:,:,1,1), sd%mask, handle)
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline done'
             call timer%stop(TOD_BASELINE, self%band)
-            call sd%dealloc
+            call dealloc_scan_data(sd)
          end do
          !self%apply_inst_corr = .true.
 
@@ -370,10 +340,10 @@ contains
          ! 'abscal': the global constant gain factor
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] handle:', handle
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration'
-         call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'abscal', oper_default, handle)
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'relcal', oper_default, handle)         
          ! 'deltaG': the time-variable and detector-variable gain
          !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
@@ -400,28 +370,25 @@ contains
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] skip?', (.not. any(self%scans(i)%d%accept))
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
-
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
          sd%n_corr = 0d0
 
-         if (.false. .and. self%myid == 0 .and. i == 1) then
-            open(58,file='tod.dat', recl=1024)
-            do j = 1, sd%ntod
-               write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1), sd%n_corr(j,1), sd%s_tot(j,1), sd%s_sky(j,1), sd%s_bp(j,1)
-            end do
-            close(58)
-         end if
+!!$         if (.false. .and. self%myid == 0 .and. i == 1) then
+!!$            open(58,file='tod.dat', recl=1024)
+!!$            do j = 1, sd%ntod
+!!$               write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1), sd%n_corr(j,1), sd%s_tot(j,1), sd%s_sky(j,1), sd%s_bp(j,1)
+!!$            end do
+!!$            close(58)
+!!$         end if
 
          ! Sample correlated noise
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_ncorr?', sample_ncorr
          if (sample_ncorr) then
-            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.)
-           ! Compute noise spectrum parameters
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+            call sample_n_corr(self, sd, handle)
+            call sample_noise_psd(self, sd, handle)
          else
             sd%n_corr = 0.d0
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
+            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
          end if
          
 
@@ -459,10 +426,10 @@ contains
                !call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
-               do k = 1, size(sd%s_zodi_therm, dim=2)
-                  call int2string(k, scantext)
-                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
-               end do
+!!$               do k = 1, size(sd%s_zodi_therm, dim=2)
+!!$                  call int2string(k, scantext)
+!!$                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
+!!$               end do
                call close_hdf_file(tod_file)
             end if
          end if
@@ -498,7 +465,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scan_data(sd)
          deallocate(d_calib)
       end do
 
@@ -532,7 +499,7 @@ contains
       !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample bp?', (sample_rel_bandpass .or. sample_abs_bandpass)
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_bp'
-         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+         call sample_bp(self, handle, chisq_S, delta)
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_bp done'
          self%bp_delta = delta(:,:,1)
       end if
