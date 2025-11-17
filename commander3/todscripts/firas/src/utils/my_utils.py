@@ -68,7 +68,7 @@ def generate_frequencies(channel, mode, nfreq=None):
     return f_ghz
 
 
-def get_afreq(mtm_speed, channel, nfreq=None):
+def get_afreq(mtm_speed, channel, nfreq=None, nui=None):
     """
     Returns the afreq for the given channel and mode.
 
@@ -96,6 +96,8 @@ def get_afreq(mtm_speed, channel, nfreq=None):
 
     mode_str = "ss" if mtm_speed == 0 else "lf"
     f_ghz = generate_frequencies(channel_str, mode_str, nfreq)
+    if nui is not None:
+        f_ghz = f_ghz[nui]
     f_icm = ghz_to_icm(f_ghz)
 
     afreq = speed * f_icm

@@ -47,6 +47,8 @@ def generate_ifg(
     channel,
     mode,
     temps,
+    real_xcal_spec,
+    apod,
     adds_per_group=np.array([3]),
     sweeps=np.array([16]),
     bol_cmd_bias=np.array([35]),
@@ -125,16 +127,24 @@ def generate_ifg(
         nan=0,
     )
 
+    # noised_spec = total_spectra + (real_xcal_spec - bb_xcal)
+    # plt.plot(noised_spec[0], label="Noised Spectrum")
+    # plt.plot(total_spectra[0], label="Total Spectrum")
+    # plt.legend()
+    # plt.title(f"{channel.upper()}{mode.upper()} Spectra Comparison")
+    # plt.xlabel("Frequency (GHz)")
+    # plt.ylabel("Brightness Temperature (K)")
+    # plt.grid()
+    # plt.show()
+
     fnyq = gen_nyquistl(
         "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
     )
     frec = 4 * (channels[channel] % 2) + modes[mode]
 
-    apod = fits_data[1].data["APODIZAT"][0]
-    # apod = np.ones(512, dtype=np.float64)  # No apodization for now
-
     ifg = ifg_spec.spec_to_ifg(
         spec=total_spectra,
+        # spec=noised_spec,
         channel=channel,
         mode=mode,
         adds_per_group=adds_per_group,
@@ -147,9 +157,18 @@ def generate_ifg(
         otf=emiss_xcal,
         fnyq_icm=fnyq["icm"][frec],
     )
+
+    # plt.plot(ifg[0], label=f"{channel.upper()}{mode.upper()} IFG")
+    # plt.title(f"{channel.upper()}{mode.upper()} IFG")
+    # plt.xlabel("Sample")
+    # plt.ylabel("Amplitude")
+    # plt.legend()
+    # plt.grid()
+    # plt.show()
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
 
     return ifg, total_spectra, bb_xcal
+    # return ifg, noised_spec, bb_xcal
 
 
 if __name__ == "__main__":

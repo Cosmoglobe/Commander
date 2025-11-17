@@ -88,7 +88,9 @@ def calculate_time_constant(
     return tau
 
 
-def get_bolometer_response_function(channel, mode, bol_cmd_bias, bol_volt, Tbol):
+def get_bolometer_response_function(
+    channel, mode, bol_cmd_bias, bol_volt, Tbol, nui=None
+):
     R0, T0, G1, beta, rho, C1, C3, Jo, Jg = get_bolometer_parameters(channel, mode)
 
     # bolometer response function
@@ -119,10 +121,13 @@ def get_bolometer_response_function(channel, mode, bol_cmd_bias, bol_volt, Tbol)
         T0=T0,
     )
 
-    omega = utils.get_afreq(0 if mode[1] == "s" else 1, channel, 257)
+    omega = utils.get_afreq(0 if mode[1] == "s" else 1, channel, 257, nui=nui)
 
     if S0.ndim == 1:
         S0 = S0[:, np.newaxis]
         tau = tau[:, np.newaxis]
-    B = S0 / (1 + 1j * omega[np.newaxis, :] * tau)
+
+    if nui is None:
+        omega = omega[np.newaxis, :]
+    B = S0 / (1 + 1j * omega * tau)
     return B

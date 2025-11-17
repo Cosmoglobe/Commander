@@ -1,5 +1,3 @@
-from cProfile import label
-
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
@@ -10,9 +8,12 @@ from calibration import bolometer
 from pipeline import ifg_spec
 from simulations.main import generate_ifg
 from utils.config import gen_nyquistl
-from utils.fut import temp_list
 
-# get temperatures
+fnyq = gen_nyquistl(
+    "../reference/fex_samprate.txt",
+    "../reference/fex_nyquist.txt",
+    "int",
+)
 
 print("Loading calibration data...")
 for channel in g.CHANNELS:
@@ -25,11 +26,12 @@ for channel in g.CHANNELS:
         if channel[1] == "h" and mode == "lf":
             continue
         print(f"Simulating IFGs for {channel.upper()} {mode.upper()}...")
+
         fits_data = fits.open(
             f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
         )
-        apod = fits_data[1].data["APODIZAT"][0]
-        # apod = np.ones(512, dtype=np.float64)  # No apodization for now
+        # apod = fits_data[1].data["APODIZAT"][0]
+        apod = np.ones(512, dtype=np.float64)  # No apodization for now
 
         if mode[0] == "s":
             length_filter = mtm_length == 0
@@ -59,41 +61,9 @@ for channel in g.CHANNELS:
         bol_volt = data["bol_volt"][mode_filter]
         gain = data["gain"][mode_filter]
 
-        simulated_ifgs, simulated_spectra, xcal_spectra = generate_ifg(
-            channel=channel,
-            mode=mode,
-            temps=temps,
-            adds_per_group=adds_per_group,
-            sweeps=sweeps,
-            bol_cmd_bias=bol_cmd_bias,
-            bol_volt=bol_volt,
-            gain=gain,
-        )
-
-        if channel[0] == "r":
-            simulated_ifgs = -simulated_ifgs
-            # simulated_ifgs = simulated_ifgs/3
-
-        # n = np.random.randint(0, simulated_spectra.shape[0])
-        # n = 1663
-        # n = 1704
-        n = 2091
-        print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
-
-        # np.save(
-        #     f"calibration/output/ifgdata_{channel}_{mode}_{n}.npy", simulated_ifgs[n]
-        # )
-
-        print(f"Simulated IFGs for {channel.upper()} {mode.upper()}")
-
         original_ifgs = data[f"ifg"][mode_filter]
 
         # stuff to process the original IFGs into spectra
-        fnyq = gen_nyquistl(
-            "../reference/fex_samprate.txt",
-            "../reference/fex_nyquist.txt",
-            "int",
-        )
         frec = 4 * (g.CHANNELS[channel] % 2) + g.MODES[mode]
 
         otf = fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
@@ -163,11 +133,41 @@ for channel in g.CHANNELS:
             + bb_collimator * emiss_collimator
             + bb_bolometer * emiss_bolometer
         )
-        xcal_spectra_processed = np.zeros_like(xcal_spectra)
+        xcal_spectra_processed = np.zeros_like(bb_ical)
         xcal_spectra_processed[:, cutoff : (len(otf) + cutoff)] = (
             processed_spectra[:, cutoff : (len(otf) + cutoff)]
             - total_emission[:, cutoff : (len(otf) + cutoff)] / otf
         )
+
+        simulated_ifgs, simulated_spectra, xcal_spectra = generate_ifg(
+            channel=channel,
+            mode=mode,
+            temps=temps,
+            real_xcal_spec=xcal_spectra_processed,
+            apod=apod,
+            adds_per_group=adds_per_group,
+            sweeps=sweeps,
+            bol_cmd_bias=bol_cmd_bias,
+            bol_volt=bol_volt,
+            gain=gain,
+        )
+
+        if channel[0] == "r":
+            simulated_ifgs = -simulated_ifgs
+            # simulated_ifgs = simulated_ifgs/3
+
+        # n = np.random.randint(0, simulated_spectra.shape[0])
+        # n = 1663
+        # n = 1704
+        n = 2091
+        print(f"peak of simulated spectra: {np.max(np.abs(simulated_spectra[n]))}")
+
+        # np.save(
+        #     f"calibration/output/ifgdata_{channel}_{mode}_{n}.npy", simulated_ifgs[n]
+        # )
+
+        print(f"Simulated IFGs for {channel.upper()} {mode.upper()}")
+
         # processed_spectra = data[f"spec_{channel}_{mode}"][:]
 
         plt.plot(
@@ -242,12 +242,12 @@ for channel in g.CHANNELS:
             print(f"Plotting IFG {ifg+1} for {channel.upper()} {mode.upper()}...")
 
             # plot both and residuals
-            plt.subplots(3, 1, figsize=(10, 15), sharex=True, sharey=True)
+            plt.subplots(4, 1, figsize=(10, 15), sharex=True, sharey=True)
             plt.suptitle(
                 f"{channel.upper()} {mode.upper()} IFG {ifg}\nTemps: XCAL={xcal[ifg]:.2f}, ICAL={ical[ifg]:.2f}, dihed={dihedral[ifg]:.2f}, refhorn={refhorn[ifg]:.2f}, skyhorn={skyhorn[ifg]:.2f}, collimator={collimator[ifg]:.2f}, bolometer={bolometer[ifg]:.2f}"
             )
 
-            plt.subplot(3, 1, 1)
+            plt.subplot(4, 1, 1)
             plt.plot(original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]))
             plt.axvline(
                 x=g.PEAK_POSITIONS[f"{channel}_{mode}"],
@@ -257,7 +257,7 @@ for channel in g.CHANNELS:
             )
             plt.title("Original IFG")
 
-            plt.subplot(3, 1, 2)
+            plt.subplot(4, 1, 2)
             plt.plot(simulated_ifgs[ifg, :])
             plt.axvline(
                 x=g.PEAK_POSITIONS[f"{channel}_{mode}"],
@@ -267,7 +267,22 @@ for channel in g.CHANNELS:
             )
             plt.title("Simulated IFG")
 
-            plt.subplot(3, 1, 3)
+            plt.subplot(4, 1, 3)
+            plt.plot(
+                original_ifgs[ifg, :] - np.median(original_ifgs[ifg, :]),
+                label="Original IFG",
+            )
+            plt.plot(simulated_ifgs[ifg, :], label="Simulated IFG")
+            plt.axvline(
+                x=g.PEAK_POSITIONS[f"{channel}_{mode}"],
+                color="red",
+                linestyle="--",
+                label="Peak",
+            )
+            plt.title("Original vs Simulated IFG")
+            plt.legend()
+
+            plt.subplot(4, 1, 4)
             plt.plot(
                 original_ifgs[ifg, :]
                 - np.median(original_ifgs[ifg, :])

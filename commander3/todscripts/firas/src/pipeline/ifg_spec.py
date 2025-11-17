@@ -17,21 +17,29 @@ def clean_ifg(
     sweeps,
     apod,
 ):
-    median_ifg = np.expand_dims(np.median(ifg, axis=1), axis=-1)
+    if len(ifg.shape) == 2:
+        median_ifg = np.median(ifg, axis=1)
+        median_ifg = median_ifg[:, np.newaxis]
+
+        gain = gain[:, np.newaxis]
+        sweeps = sweeps[:, np.newaxis]
+    elif len(ifg.shape) == 1:
+        median_ifg = np.median(ifg, axis=0)
+    else:
+        raise ValueError("ifg has invalid shape")
 
     # subtract dither
     ifg = ifg - median_ifg
-
-    # Ensure gain and sweeps are reshaped for broadcasting
-    gain = np.expand_dims(gain, axis=-1)
-    sweeps = np.expand_dims(sweeps, axis=-1)
 
     ifg = ifg / gain / sweeps
     ifg = ifg * apod
 
     # roll
     peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
-    ifg = np.roll(ifg, -peak_pos, axis=1)
+    if len(ifg.shape) == 2:
+        ifg = np.roll(ifg, -peak_pos, axis=1)
+    else:
+        ifg = np.roll(ifg, -peak_pos, axis=0)
 
     return ifg
 
@@ -46,8 +54,8 @@ def unclean_ifg(
 ):
     peak_pos = g.PEAK_POSITIONS[f"{channel}_{mode}"]
     # TODO: check if we want to keep this
-    max_ind = np.argmax(np.abs(ifg), axis=1)
-    max_ind[max_ind > peak_pos] = g.IFG_SIZE - max_ind[max_ind > peak_pos]
+    # max_ind = np.argmax(np.abs(ifg), axis=1)
+    # max_ind[max_ind > peak_pos] = g.IFG_SIZE - max_ind[max_ind > peak_pos]
 
     # peak_pos = peak_pos + max_ind
     # ifg = np.array([np.roll(ifg[i], peak_pos[i]) for i in range(len(ifg))])
@@ -74,6 +82,7 @@ def ifg_to_spec(
     apod,
     gain=1,
     sweeps=1,
+    nui=None,
 ):
     """
     Inputs are the same as spec_to_ifg, except for the ifg argument, which is the interferogram to be converted.
@@ -123,6 +132,13 @@ def ifg_to_spec(
     ifg = clean_ifg(ifg, channel, mode, gain, sweeps, apod)
 
     spec = np.fft.rfft(ifg)
+    if nui is not None:
+        if spec.ndim == 2:
+            spec = spec[:, nui]
+        elif spec.ndim == 1:
+            spec = spec[nui]
+        else:
+            raise ValueError("spec has invalid shape")
     # freqs = np.fft.rfftfreq(constants.ifg_size, 1 / (fnyq_hz * 2)) TODO: find out why this doesn't work
 
     mtm_speed = 0 if mode[1] == "s" else 1
@@ -133,58 +149,30 @@ def ifg_to_spec(
     #     np.int32
     # )
     # etf = etfl_all[erecno, :]
-    etf = electronics.etfunction(channel, adds_per_group, samprate=681.43)
+    etf = electronics.etfunction(channel, adds_per_group, samprate=681.43, nui=nui)
 
     spec_norm = fnyq_icm * g.FAC_ETENDU * g.FAC_ADC_SCALE
 
     spec = spec / etf
     spec = spec / spec_norm
 
-    # afreq = utils.get_afreq(mtm_speed, utils.channels[channel], 257)
-
-    # S0 = bolometer.calculate_dc_response(
-    #     bol_cmd_bias=bol_cmd_bias,
-    #     bol_volt=bol_volt,
-    #     Jo=Jo,
-    #     Jg=Jg,
-    #     Tbol=Tbol,
-    #     rho=rho,
-    #     R0=R0,
-    #     T0=T0,
-    #     beta=beta,
-    #     G1=G1,
-    # )
-
-    # tau = bolometer.calculate_time_constant(
-    #     C3=C3,
-    #     Tbol=Tbol,
-    #     C1=C1,
-    #     G1=G1,
-    #     beta=beta,
-    #     bol_volt=bol_volt,
-    #     Jo=Jo,
-    #     Jg=Jg,
-    #     bol_cmd_bias=bol_cmd_bias,
-    #     rho=rho,
-    #     T0=T0,
-    # )
-
-    # B = 1.0 + 1j * tau[:, np.newaxis] * afreq[np.newaxis, :]
-    # spec = spec / S0[:, np.newaxis] * B
-
     B = bolometer.get_bolometer_response_function(
-        channel, mode, bol_cmd_bias, bol_volt, Tbol
+        channel, mode, bol_cmd_bias, bol_volt, Tbol, nui=nui
     )
     spec = spec / B
 
-    if mtm_speed == 0:
-        cutoff = 5
+    if nui is None:
+        if mtm_speed == 0:
+            cutoff = 5
+        else:
+            cutoff = 7
+        spec[:, cutoff : (len(otf) + cutoff)] = (
+            spec[:, cutoff : (len(otf) + cutoff)] / otf
+        )
+        spec[:, :cutoff] = 0
+        spec[:, (len(otf) + cutoff) :] = 0
     else:
-        cutoff = 7
-
-    spec[:, cutoff : (len(otf) + cutoff)] = spec[:, cutoff : (len(otf) + cutoff)] / otf
-    spec[:, :cutoff] = 0
-    spec[:, (len(otf) + cutoff) :] = 0
+        spec = spec / otf
 
     spec = spec * g.FAC_ERG_TO_MJY
 

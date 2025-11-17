@@ -24,11 +24,13 @@ import globals as g
 import utils.my_utils as utils
 from utils.config import gen_nyquistl
 
-channel = "ll"
+channel = "rh"
 mode = "ss"
 
 # open fitted_emissivities.npy and plot the results
-fitted_emissivities = np.load("./calibration/output/fitted_emissivities.npy")
+fitted_emissivities = np.load(
+    f"./calibration/output/fitted_emissivities_{channel}_{mode}.npy"
+)
 frequencies = utils.generate_frequencies(channel, mode, 257)
 
 plt.figure(figsize=(10, 6))
@@ -62,7 +64,7 @@ bolometer = fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"
 bolometer = bolometer[np.abs(bolometer) > 0]
 
 
-emissivities = np.zeros((len(frequencies_pub), 10), dtype=complex)
+emissivities = np.zeros((len(frequencies_pub), 7), dtype=complex)
 emissivities[:, 0] = otf
 emissivities[:, 1] = ical
 emissivities[:, 2] = dihedral
@@ -70,9 +72,6 @@ emissivities[:, 3] = refhorn
 emissivities[:, 4] = skyhorn
 emissivities[:, 5] = collimator
 emissivities[:, 6] = bolometer
-emissivities[:, 7] = bolometer
-emissivities[:, 8] = bolometer
-emissivities[:, 9] = bolometer
 
 fig, ax = plt.subplots(5, 2, figsize=(15, 20))
 ax = ax.flatten()
@@ -83,10 +82,7 @@ labels = [
     "Refhorn",
     "Skyhorn",
     "Collimator",
-    "Bolometer_RH",
-    "Bolometer_RL",
-    "Bolometer_LH",
-    "Bolometer_LL",
+    "Bolometer",
 ]
 for i in range(fitted_emissivities.shape[1]):
     ax[i].plot(frequencies, fitted_emissivities[:, i].real, label="Fitted", color="red")
@@ -115,7 +111,7 @@ plt.close()
 # calculate calibration residuals with both sets of emissivities and compare
 # load ifgs
 data = h5py.File(g.PREPROCESSED_DATA_PATH_CAL, "r")["df_data"]
-print(f"data keys: {list(data.keys())}")
+# print(f"data keys: {list(data.keys())}")
 ifgs = ifg = data[f"ifg_{channel}"][:]
 gain = data[f"gain_{channel}"][:]
 sweeps = data["sweeps"][:]
@@ -134,13 +130,7 @@ skyhorn = data["skyhorn"][:]
 # collimator = (data["a_collimator"][:] + data["b_collimator"][:]) / 2
 collimator = data["collimator"][:]
 # bolometer_ll = (data["a_bol_assem_ll"][:] + data["b_bol_assem_ll"][:]) / 2
-bolometer_ll = data["bolometer_ll"][:]
-# bolometer_lh = (data["a_bol_assem_lh"][:] + data["b_bol_assem_lh"][:]) / 2
-bolometer_lh = data["bolometer_lh"][:]
-# bolometer_rl = (data["a_bol_assem_rl"][:] + data["b_bol_assem_rl"][:]) / 2
-bolometer_rl = data["bolometer_rl"][:]
-# bolometer_rh = (data["a_bol_assem_rh"][:] + data["b_bol_assem_rh"][:]) / 2
-bolometer_rh = data["bolometer_rh"][:]
+bolometer = data[f"bolometer_{channel}"][:]
 temps = np.array(
     [
         xcal,
@@ -149,10 +139,7 @@ temps = np.array(
         refhorn,
         skyhorn,
         collimator,
-        bolometer_rh,
-        bolometer_rl,
-        bolometer_lh,
-        bolometer_ll,
+        bolometer,
     ]
 )
 # print(f"temps shape: {np.array(temps).shape}")
@@ -188,7 +175,7 @@ for freqi, freq in enumerate(frequencies):
     # print(f"D, R, S: {D}, {R}, {S}")
 residuals_fitted = D - R - S
 
-residuals_pub = np.zeros(43, dtype=complex)
+residuals_pub = np.zeros(frequencies_pub.shape[0], dtype=complex)
 for freqi, freq in enumerate(frequencies_pub):
     D_pub = fit_otf.D(
         emissivities[freqi, :],
@@ -245,4 +232,5 @@ plt.ylabel("Signal")
 plt.title(f"IFG {n+1} Residual Components")
 plt.legend()
 plt.grid()
-plt.show()
+plt.savefig("./calibration/output/residual_components.png")
+plt.close()

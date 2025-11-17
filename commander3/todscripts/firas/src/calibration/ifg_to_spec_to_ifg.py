@@ -24,8 +24,8 @@ for channel in g.CHANNELS:
         fits_data = fits.open(
             f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
         )
-        apod = fits_data[1].data["APODIZAT"][0]
-        # apod = np.ones(512, dtype=np.float64)  # No apodization for now
+        # apod = fits_data[1].data["APODIZAT"][0]
+        apod = np.ones(512, dtype=np.float64)  # No apodization for now
 
         if mode[0] == "s":
             length_filter = mtm_length == 0
