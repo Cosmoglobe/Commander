@@ -144,6 +144,7 @@ contains
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
+      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
       call c%precompute_lookups()
 
       ! Load the instrument file
@@ -229,9 +230,9 @@ contains
       character(len=6)    :: samptext, scantext
       character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
-      real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
+      !real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
-      real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
+      !real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
       real(dp), allocatable, dimension(:)       :: AY, AY_reduced, X
@@ -256,7 +257,7 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .false.                         ! Gain sampling
+      sample_gain           = .true.                         ! Gain sampling
       sample_ncorr = .false.
          
       ! Initialize local variables
@@ -283,21 +284,21 @@ contains
       ! Initialize index-based sky map and mask
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
             ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793   
-      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain, scale=1e-6)
+      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
       call timer%stop(TOD_ALLOC, self%band)
       call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
       call update_status(status, "tod_init")
 
       ! Write mask for debugging
-      if (.false. .and. self%myid == 0) then
-         print *, "writing masks"
-         call open_hdf_file(trim(chaindir)//'/mask.h5', tod_file, 'w')
-         call write_hdf(tod_file, '/procmask', procmask)
-         call write_hdf(tod_file, '/procmask2', procmask2)
-         call write_hdf(tod_file, '/procmask_zodi', procmask_zodi)
-         call close_hdf_file(tod_file)
-         stop
-      end if
+!!$      if (.false. .and. self%myid == 0) then
+!!$         print *, "writing masks"
+!!$         call open_hdf_file(trim(chaindir)//'/mask.h5', tod_file, 'w')
+!!$         call write_hdf(tod_file, '/procmask', procmask)
+!!$         call write_hdf(tod_file, '/procmask2', procmask2)
+!!$         call write_hdf(tod_file, '/procmask_zodi', procmask_zodi)
+!!$         call close_hdf_file(tod_file)
+!!$         stop
+!!$      end if
 
 
       !------------------------------------
@@ -306,7 +307,7 @@ contains
 
       ! sample baseline
       ! Sample baseline for current scan
-      if (.true.) then
+      if (.false.) then
          if (self%myid == 0) then
             write(*,*) '|    --> Sampling baseline'
          end if
@@ -343,7 +344,7 @@ contains
          call sample_calibration(self, 'abscal', oper_default, handle)
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         call sample_calibration(self, 'relcal', oper_default, handle)         
+         !call sample_calibration(self, 'relcal', oper_default, handle)         
          ! 'deltaG': the time-variable and detector-variable gain
          !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
@@ -478,21 +479,21 @@ contains
       !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] synchronize_binmap'
       call synchronize_binmap(binmap, self)
       !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] synchronize_binmap done'
-      if (sample_rel_bandpass) then
-         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_rel_bandpass = T; self%nmaps:', self%nmaps
-         if (self%nmaps > 1) then
-            call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
-         else
-            call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
-         end if
-      else
+!!$      if (sample_rel_bandpass) then
+!!$         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_rel_bandpass = T; self%nmaps:', self%nmaps
+!!$         if (self%nmaps > 1) then
+!!$            call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+!!$         else
+!!$            call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
+!!$         end if
+!!$      else
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_rel_bandpass = F; self%nmaps:', self%nmaps
          if(self%nmaps > 1) then
             call finalize_binned_map(self, binmap, rms_out, 1.d0)
          else 
             call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
          end if
-      end if
+!!$      end if
       map_out%map = binmap%outmaps(1)%p%map
 
       ! Sample bandpass parameters
@@ -538,7 +539,7 @@ contains
       ! Clean up
       call binmap%dealloc()
       if (allocated(slist)) deallocate(slist)
-      deallocate(map_sky, procmask, procmask2)
+      !deallocate(map_sky, procmask, procmask2)
       !  if (self%correct_sl) then
       !     do i = 1, self%ndet
       !        call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
