@@ -167,7 +167,7 @@ contains
           deallocate(bin_spec)
 
           sigma_0 = abs(sqrt(N_wn))
-          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0
+          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
        end if
 
        !if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0

@@ -13,12 +13,13 @@ module comm_tod_pixhist_mod
 
 contains
 
-  subroutine compute_tod_pixhist(tod, map_sky, map_gain, procmask, procmask2)
+  subroutine compute_tod_pixhist(tod, map_sky, map_gain, procmask, procmask2, handle)
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    type(planck_rng),                   optional, intent(inout) :: handle
 
     integer(i4b) :: i, j, k, ierr, pix, npix_hist, q, bin(1), iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det
     real(sp)     :: val, center, mu, sigma, x0, x1, delta0, f_threshold
@@ -42,7 +43,7 @@ contains
 !!$       open(58,file='tod.dat')
 !!$       do i = 1, tod%nscan
 !!$          if (.not. any(tod%scans(i)%d%accept)) cycle
-!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.,handle_=handle)
 !!$          do j = 1, tod%ndet
 !!$             if (.not. tod%scans(i)%d(j)%accept) cycle
 !!$             do k = 1, sd%ntod
@@ -66,7 +67,13 @@ contains
     tod%pixhist(5,:,:)  = -1e30
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
-       call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+       if (present(handle)) then ! HFI only
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.,&
+                                      & handle_=handle,skip_nonlin=2) ! skip operations on noise spectrum
+       else
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+       end if
+
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
           do k = 1, sd%ntod
@@ -102,7 +109,13 @@ contains
        hist = 0.
        do i = 1, tod%nscan
           if (.not. any(tod%scans(i)%d%accept)) cycle
-          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+          if (present(handle)) then ! HFI only
+             call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.,&
+                                         & handle_=handle,skip_nonlin=2)
+          else
+             call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+          end if
+
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              do k = 1, sd%ntod
