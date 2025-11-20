@@ -24,6 +24,7 @@ PUB_MODEL = "/mn/stornext/d16/cmbco/ola/firas/pub_calibration_model/"
 
 # constants
 T_CMB = 2.72548  # Fixsen 2009
+C = 299_792_458  # m/s
 
 FAC_ICM_GHZ = 29.9792458
 FAC_ERG_TO_MJY = 1.0e8 / FAC_ICM_GHZ

@@ -329,6 +329,8 @@ if __name__ == "__main__":
         mtm_speed = data["mtm_speed"]
 
         for mode in g.MODES.keys():
+            if mode == "lf" and (channel[1] == "h"):
+                continue
             if mode[0] == "s":
                 length_filter = mtm_length == 0
             else:

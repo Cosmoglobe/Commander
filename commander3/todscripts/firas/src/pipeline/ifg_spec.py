@@ -260,10 +260,27 @@ def spec_to_ifg(
             spec_r[:, cutoff : (spec.shape[1] + cutoff)] = spec * otf
     else:
         if len(spec) == 257:
-            spec_r = spec
-            spec_r[cutoff : (len(spec) + cutoff)] = spec * otf
+            if otf.shape[0] == 257:
+                # check for nans in otf
+                printed_nans_otf = np.isnan(otf).sum()
+                if printed_nans_otf > 0:
+                    print(f"spec_to_ifg: Warning, {printed_nans_otf} NaNs in otf")
+                # check for nans in spec
+                printed_nans_spec = np.isnan(spec).sum()
+                if printed_nans_spec > 0:
+                    print(f"spec_to_ifg: Warning, {printed_nans_spec} NaNs in spec")
+                spec_r = spec * otf
+            else:
+                otf_r = np.zeros(257, dtype=complex)
+                otf_r[cutoff : (len(otf) + cutoff)] = otf
+                spec_r = spec * otf_r
         else:
             spec_r[:, cutoff : (len(spec) + cutoff)] = spec * otf
+
+    # check for nans
+    printed_nans = np.isnan(spec_r).sum()
+    if printed_nans > 0:
+        print(f"spec_to_ifg: Warning, {printed_nans} NaNs in spec_r")
 
     B = bolometer.get_bolometer_response_function(
         channel, mode, bol_cmd_bias, bol_volt, Tbol

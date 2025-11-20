@@ -47,40 +47,17 @@ def generate_ifg(
     channel,
     mode,
     temps,
-    real_xcal_spec,
     apod,
     adds_per_group=np.array([3]),
     sweeps=np.array([16]),
     bol_cmd_bias=np.array([35]),
     bol_volt=np.array([2.048020362854004]),
     gain=np.array([300]),
+    total_spectra=None,
 ):
-    frequency = utils.generate_frequencies(channel, mode, 257)
-
-    bb_xcal = utils.planck(frequency, np.array(temps[0]))
-    bb_ical = utils.planck(frequency, np.array(temps[1]))
-    bb_dihedral = utils.planck(frequency, np.array(temps[2]))
-    bb_refhorn = utils.planck(frequency, np.array(temps[3]))
-    bb_skyhorn = utils.planck(frequency, np.array(temps[4]))
-    bb_collimator = utils.planck(frequency, np.array(temps[5]))
-    bb_bolometer = utils.planck(frequency, np.array(temps[6]))
-    # bb_bolometer_lh = utils.planck(frequency, np.array(temps[7]))
-    # bb_bolometer_rl = utils.planck(frequency, np.array(temps[8]))
-    # bb_bolometer_rh = utils.planck(frequency, np.array(temps[9]))
     fits_data = fits.open(
         f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
     )
-
-    (
-        emiss_xcal,
-        emiss_ical,
-        emiss_dihedral,
-        emiss_refhorn,
-        emiss_skyhorn,
-        emiss_bolometer,
-        emiss_collimator,
-    ) = np.zeros((7, 257), dtype=np.complex128)
-    print(f"Processing {channel.upper()}{mode.upper()}...")
 
     mtm_speed = 0 if mode[1] == "s" else 1
     if mtm_speed == 0:
@@ -88,44 +65,70 @@ def generate_ifg(
     else:
         cutoff = 7
     length = len(fits_data[1].data["RTRANSFE"][0])
+
+    emiss_xcal = np.zeros(257, dtype=np.complex128)
     emiss_xcal[cutoff : cutoff + length] = (
         fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
     )
-    emiss_ical[cutoff : cutoff + length] = (
-        fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
-    )
-    emiss_dihedral[cutoff : cutoff + length] = (
-        fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
-    )
-    emiss_refhorn[cutoff : cutoff + length] = (
-        fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
-    )
-    emiss_skyhorn[cutoff : cutoff + length] = (
-        fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
-    )
-    emiss_collimator[cutoff : cutoff + length] = (
-        fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
-    )
-    emiss_bolometer[cutoff : cutoff + length] = (
-        fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
-    )
+    if total_spectra is None:
+        frequency = utils.generate_frequencies(channel, mode, 257)
 
-    total_spectra = np.nan_to_num(
-        bb_xcal
-        + (
-            bb_ical * emiss_ical
-            + bb_dihedral * emiss_dihedral
-            + bb_refhorn * emiss_refhorn
-            + bb_skyhorn * emiss_skyhorn
-            + bb_collimator * emiss_collimator
-            + bb_bolometer * emiss_bolometer
-            # + bb_bolometer_lh * emiss_bolometer
-            # + bb_bolometer_rl * emiss_bolometer
-            # + bb_bolometer_rh * emiss_bolometer
+        bb_xcal = utils.planck(frequency, np.array(temps[0]))
+        bb_ical = utils.planck(frequency, np.array(temps[1]))
+        bb_dihedral = utils.planck(frequency, np.array(temps[2]))
+        bb_refhorn = utils.planck(frequency, np.array(temps[3]))
+        bb_skyhorn = utils.planck(frequency, np.array(temps[4]))
+        bb_collimator = utils.planck(frequency, np.array(temps[5]))
+        bb_bolometer = utils.planck(frequency, np.array(temps[6]))
+        # bb_bolometer_lh = utils.planck(frequency, np.array(temps[7]))
+        # bb_bolometer_rl = utils.planck(frequency, np.array(temps[8]))
+        # bb_bolometer_rh = utils.planck(frequency, np.array(temps[9]))
+
+        (
+            emiss_ical,
+            emiss_dihedral,
+            emiss_refhorn,
+            emiss_skyhorn,
+            emiss_bolometer,
+            emiss_collimator,
+        ) = np.zeros((6, 257), dtype=np.complex128)
+        print(f"Processing {channel.upper()}{mode.upper()}...")
+
+        emiss_ical[cutoff : cutoff + length] = (
+            fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
         )
-        / emiss_xcal,
-        nan=0,
-    )
+        emiss_dihedral[cutoff : cutoff + length] = (
+            fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
+        )
+        emiss_refhorn[cutoff : cutoff + length] = (
+            fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
+        )
+        emiss_skyhorn[cutoff : cutoff + length] = (
+            fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
+        )
+        emiss_collimator[cutoff : cutoff + length] = (
+            fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
+        )
+        emiss_bolometer[cutoff : cutoff + length] = (
+            fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
+        )
+
+        total_spectra = np.nan_to_num(
+            bb_xcal
+            + (
+                bb_ical * emiss_ical
+                + bb_dihedral * emiss_dihedral
+                + bb_refhorn * emiss_refhorn
+                + bb_skyhorn * emiss_skyhorn
+                + bb_collimator * emiss_collimator
+                + bb_bolometer * emiss_bolometer
+                # + bb_bolometer_lh * emiss_bolometer
+                # + bb_bolometer_rl * emiss_bolometer
+                # + bb_bolometer_rh * emiss_bolometer
+            )
+            / emiss_xcal,
+            nan=0,
+        )
 
     # noised_spec = total_spectra + (real_xcal_spec - bb_xcal)
     # plt.plot(noised_spec[0], label="Noised Spectrum")
@@ -141,6 +144,11 @@ def generate_ifg(
         "../reference/fex_samprate.txt", "../reference/fex_nyquist.txt", "int"
     )
     frec = 4 * (channels[channel] % 2) + modes[mode]
+
+    # check for nans in total_spectra
+    printed_nans_totalspec = np.isnan(total_spectra).sum()
+    if printed_nans_totalspec > 0:
+        print(f"main: Warning, {printed_nans_totalspec} NaNs in total_spectra")
 
     ifg = ifg_spec.spec_to_ifg(
         spec=total_spectra,
@@ -167,7 +175,7 @@ def generate_ifg(
     # plt.show()
     print(f"IFG for {channel.upper()}{mode.upper()} generated.")
 
-    return ifg, total_spectra, bb_xcal
+    return ifg, total_spectra
     # return ifg, noised_spec, bb_xcal
 
 
