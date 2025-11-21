@@ -697,6 +697,13 @@ contains
        if (trim(cpar%ds_tod_type(i)) /= 'none') then
           call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
                & par_string=cpar%ds_tod_dets(i), path=.false.)
+          !Handles file vs explicit list
+          if(index(cpar%ds_tod_dets(i), '.txt') /= 0) then
+            call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
+               & par_string=cpar%ds_tod_dets(i), path=.true.)
+          end if
+
+
        end if
 
        if (cpar%enable_TOD_analysis) then
