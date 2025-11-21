@@ -567,8 +567,8 @@ contains
 !!$!       call compList%x%writeFITS("sig.fits")
 !!$       call s_sky(1,1)%p%writeFITS('sky.fits')
 !!$       call mpi_finalize(ierr)
-!!$       stop
-       
+!!$       stop      
+ 
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 

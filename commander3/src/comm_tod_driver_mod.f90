@@ -121,6 +121,7 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, sd%pix(:,j,:), &
             & sd%psi(:,j,:), sd%flag(:,j))
+    
     end do
 
 !!$    open(58,file='decomp.dat', recl=1024)

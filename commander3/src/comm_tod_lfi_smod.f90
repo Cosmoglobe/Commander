@@ -694,8 +694,7 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
-    !self%output_n_maps = 1
-
+    self%output_n_maps = 1
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -806,11 +805,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true., handle_=handle)
        else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true., handle_=handle)
        else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., handle_=handle)
        end if
 
        ! Make simulations, or draw correlated noise
@@ -902,7 +901,7 @@ contains
        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
        map_out%map = binmap%outmaps(1)%p%map
     else if(self%map_type == 'nplus2') then
-       call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d6)
+       call finalize_binned_map_nplus2_depol(self, binmap, rms_out, 1.d6)
        !Q+U maps
        map_out%map(:,2:3) = binmap%outmaps(1)%p%map(:,2:3)
        do i = 1, self%ndet
@@ -937,11 +936,16 @@ contains
     else if(self%map_type == 'nplus2') then
       do i = 1, self%ndet
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_map"//trim(postfix))
+        
         ! copy rms map for each detector into outmaps(0)
-        binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i)
-        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,self%ndet+1:self%ndet+2)
+        if(i == 1) then
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,1)
+        else
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i+2)
+        end if
+        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,2:3)
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_rms"//trim(postfix))
-        !call rms_out%writeFITS 
+
         if(self%output_n_maps > 1) call binmap%outmaps(i+self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_res"//trim(postfix))
         if(self%output_n_maps > 2) call binmap%outmaps(i+2*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_ncorr"//trim(postfix))
         if(self%output_n_maps > 3) call binmap%outmaps(i+3*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_bpcorr"//trim(postfix))
@@ -1679,7 +1683,7 @@ contains
 
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
+       call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2, handle_=handle)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)

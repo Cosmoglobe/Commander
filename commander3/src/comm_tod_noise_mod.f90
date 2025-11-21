@@ -632,7 +632,7 @@ contains
           end do
        end do
 
-       if (mod(self%scanid(scan),1000) == 0) then
+       if (mod(self%scanid(scan),1000) == 0 .and. .false.) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file='noise_psd_'//stext//'_'//dtext//'.dat', recl=1024)
