@@ -20,10 +20,10 @@
 !================================================================================
 module comm_mpi_mod
   use healpix_types
-  !use mpi
+  use mpi
   implicit none
 
-  include "mpif.h"
+  !include "mpif.h"
 
   integer(i4b), parameter :: MPI_BUF_SIZE = 10000
 

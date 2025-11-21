@@ -249,6 +249,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)     :: cs_mask
      character(len=2048), allocatable, dimension(:)     :: cs_mono_prior
      real(dp),           allocatable, dimension(:)     :: cs_latmask
+     logical(lgt),       allocatable, dimension(:)     :: cs_apply_dust_ext
      character(len=2048), allocatable, dimension(:)     :: cs_indmask
      character(len=2048), allocatable, dimension(:)     :: cs_defmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
@@ -556,6 +557,12 @@ contains
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_INITMAP',  par_string=cpar%zodi_solar_initmap)
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
+       else
+         cpar%sample_zodi = .false.
+         cpar%sample_solar_maps = .false.
+         cpar%sample_moon_maps = .false.
+         cpar%sample_earth_maps = .false.
+         cpar%incl_zodi_solar_comp = .false.
        end if
     else
       cpar%tod_freq = cpar%num_gibbs_iter + 1
@@ -847,6 +854,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
+    allocate(cpar%cs_apply_dust_ext(n))
     allocate(cpar%cs_pixreg_init_theta(MAXPAR,n))
     allocate(cpar%cs_almsamp_init(MAXPAR,n),cpar%cs_theta_prior(2,3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
@@ -883,6 +891,7 @@ contains
     
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
+    cpar%cs_apply_dust_ext=.false.
 
     do i = 1, n
        call int2string(i, itext)
@@ -910,6 +919,7 @@ contains
        ! Break up the diffuse parameter reading into something a bit more legible
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call read_diffuse_gen_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+          call get_parameter_hashtable(htbl, 'COMP_APPLY_DUST_EXTINCTION'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_dust_ext(i))
           select case (trim(cpar%cs_type(i)))
           case ('cmb')
              call read_cmb_params_hash(htbl,cpar)
@@ -3121,6 +3131,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_REFERENCE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_zodi_reference_band(i))
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)), 'BAND_TOD_ZODI_MASK'//itext)
+               write(*,*) cpar%ds_tod_procmask_zodi(i)
           end if
      end do
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)

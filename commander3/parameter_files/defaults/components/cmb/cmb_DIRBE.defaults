@@ -10,6 +10,7 @@ COMP_NSIDE&&                  = 2048
 COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n2048_TQU.fits
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 4000
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 4000
@@ -38,3 +39,4 @@ COMP_MASK&&                   = fullsky
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

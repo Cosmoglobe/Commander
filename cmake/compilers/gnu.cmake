@@ -43,21 +43,21 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-		"-O0"
+		"-O1"
 		"-g" 
 		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
 		"-fPIC"
+    #"-Wall" 
+    #"-Wextra" 
+    "-Wmaybe-uninitialized"
 		#"-C" 
 		#"-fno-strict-aliasing"
-		#"-Wall" 
-		#"-Wextra" 
 		#"-Warray-temporaries"
 		#"-Wconversion-extra" 
 		#"-pedantic" 
-		#"-fcheck=all" 
 		#"-ffpe-trap=invalid,zero,overflow,underflow" 
 		#"-ffunction-sections" 
 		#"-pipe"

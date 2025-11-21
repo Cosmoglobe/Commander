@@ -37,3 +37,4 @@ COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sa
 COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .true.
 COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

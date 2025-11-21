@@ -19,14 +19,15 @@
 !
 !================================================================================
 module comm_shared_arr_mod
+  use iso_c_binding, only: c_ptr, c_f_pointer
   use comm_utils
   implicit none
 
   type shared_2d_dp
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(dp),     pointer,     dimension(:,:) :: a => null()
@@ -36,8 +37,8 @@ module comm_shared_arr_mod
   type shared_3d_dp
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(dp),     pointer,     dimension(:,:,:) :: a => null()
@@ -46,8 +47,8 @@ module comm_shared_arr_mod
   type shared_2d_sp
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(sp),     pointer,     dimension(:,:) :: a => null()
@@ -56,8 +57,8 @@ module comm_shared_arr_mod
   type shared_2d_spc
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      complex(spc), pointer,     dimension(:,:) :: a => null()
@@ -67,8 +68,8 @@ module comm_shared_arr_mod
   type shared_1d_int
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      integer(i4b), pointer,     dimension(:)   :: a => null()
@@ -77,8 +78,8 @@ module comm_shared_arr_mod
   type shared_2d_int
      logical(lgt) :: init = .false.
      integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: win, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND)  :: wsize
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      integer(i4b), pointer,     dimension(:,:)  :: a => null()

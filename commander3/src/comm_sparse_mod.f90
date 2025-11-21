@@ -204,6 +204,7 @@ contains
     class(sparse_system),     intent(inout) :: self
 
     integer(i4b) :: phase, error
+
     
     ! Clean up pardiso
     phase     = -1   ! deallocate pardiso memory

@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_hfi_mod) comm_tod_hfi_mod
+submodule (comm_tod_hfi_mod) comm_tod_hfi_smod
 contains
 
   !**************************************************
@@ -977,4 +977,4 @@ contains
   end subroutine estimate_hfi_4k_lines
 
 
-end submodule comm_tod_hfi_mod
+end submodule comm_tod_hfi_smod

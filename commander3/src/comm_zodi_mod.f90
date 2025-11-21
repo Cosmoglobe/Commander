@@ -322,7 +322,7 @@ contains
       real(dp), dimension(1:,1:), intent(inout) :: prior
       real(dp), dimension(1:,1:), intent(inout) :: scale
 
-      prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
+      prior(:,1) = [250.d0, 330.d0, 286.d0, 5.d0] ! T_0
       scale(1,:) = [286.d0, 3.d0]
       prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
       scale(2,:) = [0.4d0, 0.01d0]

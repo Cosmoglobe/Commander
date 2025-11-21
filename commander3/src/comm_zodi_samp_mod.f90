@@ -34,7 +34,7 @@ contains
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "mh"]
+      implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
             print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
@@ -48,7 +48,7 @@ contains
          n_samp_bands = n_samp_bands + 1
       end do
       ref_band = cpar%ds_zodi_reference_band
-      ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
+      ref_band_count = count(cpar%ds_zodi_reference_band .eqv. .true.)
       if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
@@ -557,7 +557,7 @@ contains
          
       if (cpar%myid == cpar%root) then
          ! Perform search
-         call powell(theta, lnL_zodi, ierr, tolerance=1d-5)
+         call powell(theta, lnL_zodi, ierr, tolerance=1d-4)
          if (ierr /= 0) write(*,*) 'powell failed, ierr =', ierr
          chisq_new = lnL_zodi(theta)
          flag = 0

@@ -22,6 +22,7 @@
 ! by using the handy tempita template language. All the machinery for
 ! doing this is included in the repository, so this should just work.
 module comm_hdf_mod
+  use iso_c_binding, only: c_ptr, c_f_pointer
   use comm_utils
   use hdf5
   implicit none
@@ -286,7 +287,7 @@ contains
     type(hdf_file) :: file
     call close_hdf_set(file)
     call h5fclose_f(file%filehandle, file%status)
-    call assert(file%status>=0, 'comm_hdf_mod: Could not close file')
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close file: '//trim(file%filename))
   end subroutine close_hdf_file
 
   subroutine open_hdf_set(file, setname)
@@ -339,7 +340,7 @@ contains
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
     if (file%status == -1) then
-       write(*,*) 'Error reading file ', trim(file%filename), trim(setname)
+       write(*,*) 'Error reading file ', trim(file%filename), '/', trim(setname)
        stop
     end if 
     n = min(size(ext),rank)
@@ -2581,7 +2582,9 @@ contains
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
+
     allocate(val(numint))
+
     f_ptr = c_loc(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
     call h5tclose_f(dtype, file%status)

@@ -40,7 +40,7 @@ program commander
   !----------------------------------------------------------------------------------
   ! Command line arguments
   character(len=*), parameter :: version = '1.0.0'
-  character(len=32)           :: arg
+  character(len=512)          :: arg
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)
@@ -276,11 +276,14 @@ program commander
 
      !----------------------------------------------------------------------------------
      ! Process TOD structures
-     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-     !if (mod(iter,10) == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis) then
+       if (mod(iter,cpar%tod_freq) == 0) then
+        ! First iteration should just be component separation, in case sky model
+        ! is off
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
+      end if
      end if
 
      ! Skip other steps if TOD simulations
@@ -377,7 +380,8 @@ program commander
             end if
         end do
      end if
-
+     ! Do CG group sampling
+     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk

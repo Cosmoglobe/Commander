@@ -354,7 +354,6 @@ contains
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
       integer(i4b) :: ierr, ndelta, t_mid=53765
-      real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
@@ -444,7 +443,11 @@ contains
       ! Distribute maps
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(map_full(nmaps, 0:npix-1))
+      if (self%comp_S) then
+         allocate(map_full(nmaps+1, 0:npix-1))
+      else
+         allocate(map_full(nmaps, 0:npix-1))
+      end if
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
@@ -468,11 +471,12 @@ contains
          slist   = ''
       end if
 
-      allocate (M_diag(0:npix-1, nmaps+1))
       if (self%comp_S) then
          allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
+         allocate (M_diag(0:npix-1, nmaps+2))
       else
          allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
+         allocate (M_diag(0:npix-1, nmaps+1))
       end if
       M_diag = 0d0
       b_map = 0d0
@@ -632,6 +636,14 @@ contains
               & init_s_bp=.true.)
          end if
 
+         ! Make simulations or Sample correlated noise
+         if (self%enable_tod_simulations) then
+            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+         else
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+         end if
+
+
 
          ! Compute noise spectrum parameters
          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -740,7 +752,7 @@ contains
          ! Clean up
          call dealloc_scan_data(sd)
          call timer%start(TOD_ALLOC, self%band)
-         deallocate(s_buf, d_calib)
+         deallocate(d_calib)
          call timer%stop(TOD_ALLOC, self%band)
 
       end do
@@ -1007,6 +1019,8 @@ contains
       !dx = 0
       !xbar = 0
 
+      if (self%comp_S) return
+
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
       q = (self%info%nside / self%nside_M_lowres)**2
@@ -1162,7 +1176,8 @@ contains
     !   m_lin - a linearized map, length nmaps * npix
 
     if (self%comp_S) then
-       map_out =  map/self%M_diag
+       map_out(:,1:3) =  map(:,1:3)/self%M_diag(:,1:3)
+       map_out(:,4) =  map(:,4)/self%M_diag(:,5)
     else
 
        map_out = 0d0

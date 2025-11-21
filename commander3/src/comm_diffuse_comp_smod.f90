@@ -63,14 +63,15 @@ contains
     call update_status(status, "init_diffuse_start")
 
     ! Initialize variables specific to diffuse source type
-    self%pol           = cpar%cs_polarization(id_abs)
-    self%nside         = cpar%cs_nside(id_abs)
-    self%lmin_amp      = cpar%cs_lmin_amp(id_abs)
-    self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
-    self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
-    self%l_apod        = cpar%cs_l_apod(id_abs)
-    self%nu_min        = cpar%cs_nu_min(id_abs)
-    self%nu_max        = cpar%cs_nu_max(id_abs)
+    self%pol            = cpar%cs_polarization(id_abs)
+    self%nside          = cpar%cs_nside(id_abs)
+    self%lmin_amp       = cpar%cs_lmin_amp(id_abs)
+    self%lmax_amp       = cpar%cs_lmax_amp(id_abs)
+    self%lmax_prior     = cpar%cs_lmax_amp_prior(id_abs)
+    self%l_apod         = cpar%cs_l_apod(id_abs)
+    self%nu_min         = cpar%cs_nu_min(id_abs)
+    self%nu_max         = cpar%cs_nu_max(id_abs)
+    self%apply_dust_ext = cpar%cs_apply_dust_ext(id_abs)
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
@@ -1339,7 +1340,8 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr(samp_group)%invM_diff)) return
+    !if (allocated(P_cr(samp_group)%invM_diff)) return
+    !RS commented out to allow the preconditioner to be recalculated after MCMC sampling
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1360,7 +1362,9 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    if (.not. allocated(P_cr(samp_group)%invM_diff)) then
+      allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    end if
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1392,7 +1396,9 @@ contains
           end do
 
           n = 0
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%comp2ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          end if
           P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
@@ -1402,8 +1408,12 @@ contains
              end if
           end do
           P_cr(samp_group)%invM_diff(i1,j)%n = n
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
-          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%ind)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          end if
+          if (.not. allocated(P_cr(samp_group)%invM_diff(i1,j)%M0)) then
+            allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          end if 
           P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
           P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
@@ -1465,11 +1475,16 @@ contains
     logical(lgt), intent(in) :: force_update
 
     if (npre == 0) return
-    
     select case (trim(precond_type))
     case ("diagonal")
+       if (force_update) then
+         call initDiffPrecond_diagonal(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
+       if (force_update) then
+         call initDiffPrecond_pseudoinv(info_pre%comm, samp_group)
+       endif 
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
@@ -1493,6 +1508,10 @@ contains
     if (npre == 0) return
     if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
+   !  if (force_update) then
+
+   !  end if 
+
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
@@ -1937,7 +1956,7 @@ contains
              end if
 
              ! Initialize dust extinction
-             if (associated(data(i)%A_ext)) then
+             if (self%apply_dust_ext .and. associated(data(i)%A_ext)) then
                 A_ext = data(i)%A_ext%map(j,1)
              else
                 A_ext = 1.d0
@@ -2103,7 +2122,7 @@ contains
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
 
-       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -2175,7 +2194,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
