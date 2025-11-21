@@ -250,7 +250,7 @@ def spec_to_ifg(
     # check if there are multiple spectra or just one
     if len(spec.shape) > 1:
         if spec.shape[1] == 257:
-            if otf.shape[0] == 257:
+            if (otf.ndim > 0 and otf.shape[0] == 257) or (otf.ndim == 0):
                 spec_r = spec * otf
             else:
                 otf_r = np.zeros(257, dtype=complex)

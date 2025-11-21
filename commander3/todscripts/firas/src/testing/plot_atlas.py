@@ -255,14 +255,6 @@ for param in change_parameters:
         stat_word_16,
         lvdt_stat_a,
         lvdt_stat_b,
-        a_bol_assem_rh,
-        a_bol_assem_rl,
-        a_bol_assem_lh,
-        b_bol_assem_lh,
-        a_bol_assem_ll,
-        b_bol_assem_ll,
-        bol_cmd_bias_lh,
-        bol_cmd_bias_ll,
     )
     filter_bad = np.logical_and(filter_bad, (xcals[:, 0] < 3))
     filter_bad = np.logical_and(filter_bad, (icals[:, 0] < 3))

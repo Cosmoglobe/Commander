@@ -1,4 +1,5 @@
-import astropy.units as u
+import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
@@ -9,6 +10,20 @@ from calibration import bolometer
 from pipeline import ifg_spec
 from simulations.main import generate_ifg
 from utils.config import gen_nyquistl
+
+# argparse add-on to filenames and titles
+parser = argparse.ArgumentParser(description="Process some calibration data.")
+parser.add_argument(
+    "--suffix", type=str, default="", help="Suffix to add to filenames and titles"
+)
+args = parser.parse_args()
+
+if args.suffix != "":
+    suffix = f"_{args.suffix}"
+else:
+    suffix = ""
+
+suffix = "_otf_3rddeg_ical_2nddeg"
 
 fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt",
@@ -59,7 +74,7 @@ for channel in g.CHANNELS:
         mode_filter = length_filter & speed_filter
 
         xcal = data["xcal_cone"][mode_filter]  # TODO: update this
-        ical = data["ical"][mode_filter]
+        ical = data["ical"][mode_filter]  # - 1.5e-1  # applying -150 mK offset
         dihedral = data["dihedral"][mode_filter]
         refhorn = data["refhorn"][mode_filter]
         skyhorn = data["skyhorn"][mode_filter]
@@ -126,24 +141,64 @@ for channel in g.CHANNELS:
         otf = np.zeros(257, dtype=np.complex128)
         otf[cutoff : cutoff + length] = otf_save
 
+        # fit 1st degree polynomial to otf
+        otf_fit = np.polyfit(f_ghz, otf, 3)
+        otf = np.polyval(otf_fit, f_ghz)
+        # otf = np.mean(otf[otf != 0])
+
+        # # otf = np.ones(257, dtype=np.complex128) * 0.01
+
         emiss_ical[cutoff : cutoff + length] = (
             fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
         )
+        # fit 1st degree polynomial to emiss_ical
+        emiss_ical_fit = np.polyfit(f_ghz, emiss_ical, 2)
+        emiss_ical = np.polyval(emiss_ical_fit, f_ghz)
+        # # emiss_ical = np.mean(emiss_ical[emiss_ical != 0])
+        # # emiss_ical = np.ones(257, dtype=np.complex128) * -0.0096
         emiss_dihedral[cutoff : cutoff + length] = (
             fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
+        )
+        emiss_dihedral = np.mean(emiss_dihedral[emiss_dihedral != 0]) * np.zeros(
+            257, dtype=np.complex128
         )
         emiss_refhorn[cutoff : cutoff + length] = (
             fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
         )
+        emiss_refhorn = np.mean(emiss_refhorn[emiss_refhorn != 0]) * np.zeros(
+            257, dtype=np.complex128
+        )
         emiss_skyhorn[cutoff : cutoff + length] = (
             fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
+        )
+        emiss_skyhorn = np.mean(emiss_skyhorn[emiss_skyhorn != 0]) * np.zeros(
+            257, dtype=np.complex128
         )
         emiss_collimator[cutoff : cutoff + length] = (
             fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
         )
+        emiss_collimator = np.mean(emiss_collimator[emiss_collimator != 0]) * np.zeros(
+            257, dtype=np.complex128
+        )
         emiss_bolometer[cutoff : cutoff + length] = (
             fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
         )
+        emiss_bolometer = np.mean(emiss_bolometer[emiss_bolometer != 0]) * np.zeros(
+            257, dtype=np.complex128
+        )
+
+        # open our generated emissivities
+        # data = np.load(f"calibration/output/fitted_emissivities_{channel}_{mode}.npy")
+
+        print(data)
+
+        # print(f"OTF mean: {otf:.6f}")
+        # print(f"Emiss ICAL mean: {emiss_ical:.6f}")
+        # print(f"Emiss Dihedral mean: {emiss_dihedral:.6f}")
+        # print(f"Emiss Refhorn mean: {emiss_refhorn:.6f}")
+        # print(f"Emiss Skyhorn mean: {emiss_skyhorn:.6f}")
+        # print(f"Emiss Collimator mean: {emiss_collimator:.6f}")
+        # print(f"Emiss Bolometer mean: {emiss_bolometer:.6f}")
 
         # plot emissivities
         fig, ax = plt.subplots(4, 2, figsize=(15, 20), sharex=True, sharey=True)
@@ -350,12 +405,19 @@ for channel in g.CHANNELS:
             bol_cmd_bias=bol_cmd_bias,
             bol_volt=bol_volt,
             gain=gain,
+            emiss_xcal=otf,
+            emiss_ical=emiss_ical,
+            emiss_dihedral=emiss_dihedral,
+            emiss_refhorn=emiss_refhorn,
+            emiss_skyhorn=emiss_skyhorn,
+            emiss_collimator=emiss_collimator,
+            emiss_bolometer=emiss_bolometer,
         )
 
         # n = np.random.randint(0, simulated_spectra.shape[0])
         # n = 1663
-        n = 1704
-        # n = 2091
+        # n = 1704
+        n = 2091
 
         fig, ax = plt.subplots(4, 2, figsize=(15, 20), sharex=True, sharey=False)
         fig.suptitle(
@@ -472,7 +534,7 @@ for channel in g.CHANNELS:
         fig.tight_layout()
 
         fig.savefig(
-            f"calibration/output/checks/{channel}_{mode}/{n}_01_bb_spectra.png",
+            f"calibration/output/checks/{channel}_{mode}/{n}_01_bb_spectra{suffix}.png",
             bbox_inches="tight",
         )
         plt.close()
@@ -604,7 +666,7 @@ for channel in g.CHANNELS:
         ax.flatten()[7].legend()
         fig.tight_layout()
         plt.savefig(
-            f"calibration/output/checks/{channel}_{mode}/{n}_01b_bb_spectra_emissivities.png",
+            f"calibration/output/checks/{channel}_{mode}/{n}_01b_bb_spectra_emissivities{suffix}.png",
             bbox_inches="tight",
         )
         plt.close()
@@ -681,7 +743,7 @@ for channel in g.CHANNELS:
         fig.tight_layout()
 
         plt.savefig(
-            f"calibration/output/checks/{channel}_{mode}/{n}_02_residuals.png",
+            f"calibration/output/checks/{channel}_{mode}/{n}_02_residuals{suffix}.png",
             bbox_inches="tight",
         )
         plt.close()
@@ -737,7 +799,7 @@ for channel in g.CHANNELS:
         fig.tight_layout()
 
         plt.savefig(
-            f"calibration/output/checks/{channel}_{mode}/{n}_03_spectra_comparison.png",
+            f"calibration/output/checks/{channel}_{mode}/{n}_03_spectra_comparison{suffix}.png",
             bbox_inches="tight",
         )
         plt.close()
@@ -840,7 +902,7 @@ for channel in g.CHANNELS:
             fig.tight_layout()
 
             plt.savefig(
-                f"calibration/output/checks/{channel}_{mode}/{ifg}_04_ifg_residuals.png",
+                f"calibration/output/checks/{channel}_{mode}/{ifg}_04_ifg_residuals{suffix}.png",
                 bbox_inches="tight",
             )
             plt.close()
@@ -919,7 +981,7 @@ for channel in g.CHANNELS:
             fig.tight_layout()
 
             plt.savefig(
-                f"calibration/output/checks/{channel}_{mode}/{ifg}_05_ifg_residuals_corrected.png",
+                f"calibration/output/checks/{channel}_{mode}/{ifg}_05_ifg_residuals_corrected{suffix}.png",
                 bbox_inches="tight",
             )
             plt.close()

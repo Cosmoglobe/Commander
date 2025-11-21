@@ -54,7 +54,15 @@ def generate_ifg(
     bol_volt=np.array([2.048020362854004]),
     gain=np.array([300]),
     total_spectra=None,
+    emiss_xcal=None,
+    emiss_ical=None,
+    emiss_dihedral=None,
+    emiss_refhorn=None,
+    emiss_skyhorn=None,
+    emiss_collimator=None,
+    emiss_bolometer=None,
 ):
+
     fits_data = fits.open(
         f"{g.PUB_MODEL}FIRAS_CALIBRATION_MODEL_{channel.upper()}{mode.upper()}.FITS"
     )
@@ -66,10 +74,11 @@ def generate_ifg(
         cutoff = 7
     length = len(fits_data[1].data["RTRANSFE"][0])
 
-    emiss_xcal = np.zeros(257, dtype=np.complex128)
-    emiss_xcal[cutoff : cutoff + length] = (
-        fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
-    )
+    if emiss_xcal is None:
+        emiss_xcal = np.zeros(257, dtype=np.complex128)
+        emiss_xcal[cutoff : cutoff + length] = (
+            fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
+        )
     if total_spectra is None:
         frequency = utils.generate_frequencies(channel, mode, 257)
 
@@ -84,34 +93,38 @@ def generate_ifg(
         # bb_bolometer_rl = utils.planck(frequency, np.array(temps[8]))
         # bb_bolometer_rh = utils.planck(frequency, np.array(temps[9]))
 
-        (
-            emiss_ical,
-            emiss_dihedral,
-            emiss_refhorn,
-            emiss_skyhorn,
-            emiss_bolometer,
-            emiss_collimator,
-        ) = np.zeros((6, 257), dtype=np.complex128)
         print(f"Processing {channel.upper()}{mode.upper()}...")
 
-        emiss_ical[cutoff : cutoff + length] = (
-            fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
-        )
-        emiss_dihedral[cutoff : cutoff + length] = (
-            fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
-        )
-        emiss_refhorn[cutoff : cutoff + length] = (
-            fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
-        )
-        emiss_skyhorn[cutoff : cutoff + length] = (
-            fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
-        )
-        emiss_collimator[cutoff : cutoff + length] = (
-            fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
-        )
-        emiss_bolometer[cutoff : cutoff + length] = (
-            fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
-        )
+        if emiss_ical is None:
+            emiss_ical = np.zeros(257, dtype=np.complex128)
+            emiss_ical[cutoff : cutoff + length] = (
+                fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
+            )
+        if emiss_dihedral is None:
+            emiss_dihedral = np.zeros(257, dtype=np.complex128)
+            emiss_dihedral[cutoff : cutoff + length] = (
+                fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
+            )
+        if emiss_refhorn is None:
+            emiss_refhorn = np.zeros(257, dtype=np.complex128)
+            emiss_refhorn[cutoff : cutoff + length] = (
+                fits_data[1].data["RREFHORN"][0] + 1j * fits_data[1].data["IREFHORN"][0]
+            )
+        if emiss_skyhorn is None:
+            emiss_skyhorn = np.zeros(257, dtype=np.complex128)
+            emiss_skyhorn[cutoff : cutoff + length] = (
+                fits_data[1].data["RSKYHORN"][0] + 1j * fits_data[1].data["ISKYHORN"][0]
+            )
+        if emiss_collimator is None:
+            emiss_collimator = np.zeros(257, dtype=np.complex128)
+            emiss_collimator[cutoff : cutoff + length] = (
+                fits_data[1].data["RSTRUCTU"][0] + 1j * fits_data[1].data["ISTRUCTU"][0]
+            )
+        if emiss_bolometer is None:
+            emiss_bolometer = np.zeros(257, dtype=np.complex128)
+            emiss_bolometer[cutoff : cutoff + length] = (
+                fits_data[1].data["RBOLOMET"][0] + 1j * fits_data[1].data["IBOLOMET"][0]
+            )
 
         total_spectra = np.nan_to_num(
             bb_xcal
