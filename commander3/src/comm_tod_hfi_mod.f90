@@ -73,7 +73,6 @@ module comm_tod_hfi_mod
      procedure, private     :: fill_gaps
      procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
-     procedure, private     :: print_powspec
   end type comm_hfi_tod
 
   interface comm_hfi_tod
@@ -619,27 +618,6 @@ interface
     class(comm_hfi_tod),                  intent(inout) :: self
   end subroutine compute_adu_range
 
-  module subroutine print_powspec(self, tod, scan, ps_output)
-     ! Prints the power spectrum of the given timestream of data
-    !
-    ! Arguments:
-    ! ----------
-    ! self: comm_tod object
-    !
-    ! tod: real(sp) array
-    !      tod of the scan
-    ! scan: int
-    !       scan number
-    ! ps_output: string
-    !            output filename
-    implicit none
-    class(comm_hfi_tod),                       intent(inout) :: self
-    real(sp),                   dimension(1:), intent(in)    :: tod
-    integer(i4b),                              intent(in)    :: scan
-    character(len=*),                          intent(in)    :: ps_output 
-  end subroutine print_powspec
-  ! ===========
-  
 end interface
 
 end module comm_tod_hfi_mod
