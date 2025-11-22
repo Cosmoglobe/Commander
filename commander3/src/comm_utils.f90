@@ -283,7 +283,7 @@ contains
 
     allocate(pixwin(0:4*nside,nmaps))
     
-    if (nmaps == 3) then
+    if (nmaps >= 3) then
        nc = 2
     else
        nc = 1
@@ -295,7 +295,7 @@ contains
     if (exist) then
        nullval = 0.d0
        call read_dbintab(pixwin_file, pixwin(0:4*nside,1:nc), 4*nside+1, nc, nullval, anynull)
-       if (nmaps == 3) pixwin(:,3) = pixwin(:,2)
+       if (nmaps >= 3) pixwin(:,3) = pixwin(:,2)
     else
        pixwin = 1.d0
        write(*,*) ''
@@ -323,7 +323,7 @@ contains
        matrix_is_positive_definite = (cl(1,1) > 0.d0)
        return
 
-    else if (nmaps == 3) then
+    else if (nmaps >= 3) then
 
        matrix_is_positive_definite = .true.
        do i = 1, nmaps
@@ -901,7 +901,7 @@ contains
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
-    polarization = (nmaps == 3)
+    polarization = (nmaps >= 3)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 

@@ -79,7 +79,7 @@ contains
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps
-    constructor%pol               = info%nmaps == 3
+    constructor%pol               = info%pol
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
@@ -237,7 +237,7 @@ contains
        else
           self%alpha_nu(1) = 0.d0
        end if
-       if (self%nmaps == 3) then
+       if (self%pol) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
