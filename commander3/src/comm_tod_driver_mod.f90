@@ -1106,7 +1106,7 @@ contains
     label = ['chisq ', 'sigma0', 'fknee ', 'alpha ', 'base  ', 'base1 ', 'base2 ']
     
     ! Collect test statistics from all cores 
-    allocate(stat(tod%nscan_tot,tod%ndet,-1:nstat), accept(tod%nscan_tot,tod%ndet))
+    allocate(stat(tod%last_scan,tod%ndet,-1:nstat), accept(tod%last_scan,tod%ndet))
     stat = 0.
     do i = 1, tod%nscan
        scan = tod%scanid(i)
