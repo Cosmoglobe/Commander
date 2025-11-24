@@ -277,11 +277,9 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
-      ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793
-      call distribute_sky_maps(self, map_in, 0.057793, map_sky) ! 1.e-3 ! uK to K
+      call distribute_sky_maps(self, map_in, 1.0, map_sky)
       allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 0.057793, m_gain) ! 1.e-3 ! uK to K
+      call distribute_sky_maps(self, map_gain, 1.0, m_gain)
       call map_in(1,1)%p%writeFITS(trim(chaindir)//'/map_in.fits')
 
       
