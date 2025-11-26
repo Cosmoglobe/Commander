@@ -221,20 +221,20 @@ contains
           tod%pixhist(4,i,det) = mu - 4.0*sigma
           tod%pixhist(5,i,det) = mu + 4.0*sigma
           
-          if (tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
-             call int2string(i,pix_text)
-             open(58,file='pixhist'//pix_text//'.dat', recl=1024)
-             write(58,*) '# pixhist =', tod%pixhist(:,i,det)
-             do j = 1, NBIN_HIST
-                write(58,*) x(j), P(j)
-             end do
-             write(58,*)
-             write(58,*) tod%pixhist(4,i,det), 0.
-             write(58,*) tod%pixhist(4,i,det), 2.*maxval(P)
-             write(58,*)
-             write(58,*) tod%pixhist(5,i,det), 0.
-             write(58,*) tod%pixhist(5,i,det), 2.*maxval(P)
-          end if
+         !  if (tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
+         !     call int2string(i,pix_text)
+         !     open(58,file='pixhist'//pix_text//'.dat', recl=1024)
+         !     write(58,*) '# pixhist =', tod%pixhist(:,i,det)
+         !     do j = 1, NBIN_HIST
+         !        write(58,*) x(j), P(j)
+         !     end do
+         !     write(58,*)
+         !     write(58,*) tod%pixhist(4,i,det), 0.
+         !     write(58,*) tod%pixhist(4,i,det), 2.*maxval(P)
+         !     write(58,*)
+         !     write(58,*) tod%pixhist(5,i,det), 0.
+         !     write(58,*) tod%pixhist(5,i,det), 2.*maxval(P)
+         !  end if
        end do
     end do
     

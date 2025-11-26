@@ -3285,13 +3285,13 @@ contains
      allocate(mask_dyn(ntod))
      mask_dyn = 1.0
 
-     if (output_scan == self%scanid(scan)) then
-        open(58, file='flag_stage0.dat')
-        do i = 1, ntod
-           if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i)
-        end do
-        close(58)
-     end if
+   !   if (output_scan == self%scanid(scan)) then
+   !      open(58, file='flag_stage0.dat')
+   !      do i = 1, ntod
+   !         if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i)
+   !      end do
+   !      close(58)
+   !   end if
 
      if (threshold(1) > 0) then
         ! Pixel histogram outliers
@@ -3332,7 +3332,7 @@ contains
      if (threshold(3) > 0.) then
         allocate(cut(ntod))
         ncut = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
+      !   if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
         do iter = 1, 1
 !!$           ! Compute full-scan, masked rms0
 !!$           rms0 = 0.d0
@@ -3387,7 +3387,7 @@ contains
         var_window = sqrt(var_window)
         var0       = sqrt(var0)     
         ncut       = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage3.dat')
+      !   if (output_scan == self%scanid(scan)) open(58, file='flag_stage3.dat')
         do i = 1, ntod
            if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold(4)*var0), threshold(4)*var0
            if (mask(i) == 1. .and. var_window(i) > threshold(4)*var0) then
@@ -3414,7 +3414,7 @@ contains
         call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
         var_window = sqrt(var_window)
         ncut       = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage4.dat')
+      !   if (output_scan == self%scanid(scan)) open(58, file='flag_stage4.dat')
         do i = 1, ntod
            if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold(5)*var0)
            if (mask(i) == 1. .and. var_window(i) > threshold(5)*var0) then
@@ -3448,7 +3448,7 @@ contains
         call compute_running_variance(res, mask, window, var_window, var_mean=var0, mean_full=.true.)
         var_window = sqrt(var_window)
         ncut       = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage5.dat')
+      !   if (output_scan == self%scanid(scan)) open(58, file='flag_stage5.dat')
         do i = 1, ntod
            if (output_scan == self%scanid(scan) .and. mask(i) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold(6)*var0)
            if (mask(i) == 1. .and. var_window(i) > threshold(6)*var0) then
@@ -3500,7 +3500,7 @@ contains
         ! Remove consecutive chunks with many flagged samples
         window = 2000
         ncut       = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage7.dat')
+      !   if (output_scan == self%scanid(scan)) open(58, file='flag_stage7.dat')
         do i = 1, ntod
            if (output_scan == self%scanid(scan)) write(58,*) i, res(i), iand(flag(k),self%flag0) .eq. 0
            j = max(i-window,1)
@@ -3522,7 +3522,7 @@ contains
      end if
 
      if (output_scan == self%scanid(scan)) then
-        open(58, file='flag_stage7.dat')
+      !   open(58, file='flag_stage7.dat')
         do i = 1, ntod
            if (present(s_tot)) then
               if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), s_tot(i)
@@ -3576,7 +3576,7 @@ contains
      end if
 
      if (output_scan == self%scanid(scan)) then
-        open(58, file='flag_stage8.dat')
+      !   open(58, file='flag_stage8.dat')
         do i = 1, ntod
            if (present(s_tot)) then
               if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), s_tot(i)
