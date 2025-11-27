@@ -1726,5 +1726,169 @@ contains
     
   end subroutine compute_running_variance_dp
 
-   
+  function bin_spec_lin(x, ps, dx) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with uniform bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! dx: bin width
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the binned power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:), intent(in) :: ps, x
+    real(sp),                   intent(in) :: dx
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, n, nbin
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    nbin = (x(n) - x(1))/dx
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       j = (x(i) - x(1))/dx + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = x(1) + (j-0.5d0)*dx
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count)
+  end function bin_spec_lin
+
+  function bin_spec_log(x, ps, nbin) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin: number of bins
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:), intent(in) :: ps, x
+    integer(i4b),               intent(in) :: nbin
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, n
+    real(sp)     :: log_min, log_max, dx
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum, edges
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    log_min = log10(x(1))
+    log_max = log10(x(n))
+    dx = (log_max - log_min) / nbin
+    allocate(bin_sum(nbin), bin_count(nbin), edges(nbin+1))
+    allocate(bin_spec(nbin,2))
+
+    edges = 0.d0
+    do j = 1, nbin+1
+       edges(j) = 10.0**(log_min + (j-1)*dx)
+    end do
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       do j = 1, nbin
+          if (x(i) >= edges(j) .and. x(i) < edges(j+1)) then
+             bin_sum(j)   = bin_sum(j) + ps(i)
+             bin_count(j) = bin_count(j) + 1
+          end if
+       end do
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = sqrt(edges(j) * edges(j+1))
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count,edges)
+  end function bin_spec_log
+
+  function bin_spec_loglin(x, ps, nbin_log, dx_lin, threshold) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins up to a threshold
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin_log: Number of logarithmic bins
+    !
+    ! dx_lin:   Width of linear bins
+    !
+    ! threshold: Threshold from logarithmic to linear
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),     dimension(:), intent(in) :: ps, x
+    integer(i4b),               intent(in) :: nbin_log
+    real(sp),                   intent(in) :: dx_lin, threshold
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: n, nbin, thr_ind
+    real(sp),  allocatable, dimension(:,:) :: log_bin_spec, lin_bin_spec
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    thr_ind = locate(real(x,dp),dble(threshold))
+    log_bin_spec = bin_spec_log(x(:thr_ind),ps(:thr_ind),nbin_log)
+    lin_bin_spec = bin_spec_lin(x(thr_ind:),ps(thr_ind:),dx_lin)
+
+    nbin = nbin_log + size(lin_bin_spec(:,1))
+    allocate(bin_spec(nbin,2))
+    bin_spec(:nbin_log,:) = log_bin_spec
+    bin_spec(nbin_log+1:,:) = lin_bin_spec
+
+    deallocate(log_bin_spec,lin_bin_spec)
+  end function bin_spec_loglin
+
 end module comm_utils
