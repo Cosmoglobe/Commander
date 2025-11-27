@@ -51,9 +51,10 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
     type(planck_rng),                          intent(inout),optional :: handle_
     integer(i4b),                              intent(in),   optional :: skip_nonlin ! (0) = skip
-                                                                                     ! (1) = demodulate
-                                                                                     ! (2) = (1) + adc corrections
-                                                                                     ! (3) = (2) + fill gaps + rolloff deconvolution
+                                                                                     ! (1) = adc corrections
+                                                                                     ! (2) = (1) + demodulate
+                                                                                     ! (3) = (2) + rolloff deconvolution
+                                                                                     ! (4) = (3) + 4K lines correction
     logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
@@ -70,7 +71,7 @@ contains
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
-    skip_nonlin_ = 3; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_nonlin_ = 10; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
     skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
     darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
  
@@ -307,10 +308,10 @@ contains
     real(sp),          dimension(0:),          intent(in)             :: procmask
     type(planck_rng),                          intent(inout),optional :: handle_
     integer(i4b),                              intent(in),   optional :: skip_nonlin ! (0) = skip
-                                                                                     ! (1) = demodulate
-                                                                                     ! (2) = (1) + adc corrections
-                                                                                     ! (3) = (2) + fill gaps +
-                                                                                     !           + rolloff deconvolution
+                                                                                     ! (1) = adc corrections
+                                                                                     ! (2) = (1) + demodulate
+                                                                                     ! (3) = (2) + rolloff deconvolution
+                                                                                     ! (4) = (3) + 4K lines corrections
     logical(lgt),                              intent(in),   optional :: skip_zodi
     logical(lgt),                              intent(in),   optional :: darkdata
 
@@ -326,7 +327,7 @@ contains
     end if
         !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
-    skip_nonlin_ = .false.; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
+    skip_nonlin_ = 10; if (present(skip_nonlin)) skip_nonlin_ = skip_nonlin
     skip_zodi_ = .false.; if (present(skip_zodi)) skip_zodi_ = skip_zodi
     darkdata_ = .false.; if (present(darkdata)) darkdata_ = darkdata
  
@@ -786,7 +787,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, map_gain, procmask, procmask2, &
-      & polang, smooth, mask_threshold)
+      & polang, smooth, mask_threshold, skip_nonlin)
     !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
@@ -817,8 +818,9 @@ contains
     real(dp),                                  intent(in),   optional :: polang
     logical(lgt),                              intent(in),   optional :: smooth
     real(dp),                                  intent(in),   optional :: mask_threshold
+    integer(i4b),                              intent(in),   optional :: skip_nonlin
 
-    integer(i4b) :: i, j, ext(2), ierr, timer_id
+    integer(i4b) :: i, j, ext(2), ierr, timer_id, skip_nonlin_
     real(sp)     :: threshold
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
@@ -831,6 +833,7 @@ contains
     smooth_ = .true.
     threshold = 0.9; if (present(mask_threshold)) threshold=mask_threshold
     if (present(smooth))  smooth_=smooth
+    skip_nonlin_ = 10; if (present(skip_nonlin))  skip_nonlin_=skip_nonlin
 
     if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
@@ -870,7 +873,7 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
        if (tod%nhorn == 1) then
-          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2,handle_=handle,skip_nonlin=skip_nonlin_)
        else
          if (present(polang)) then
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2, polang_=polang)
@@ -991,19 +994,21 @@ contains
 
 
   ! Sample baseline
-  subroutine sample_baseline(tod, handle, map_sky, map_gain, procmask, procmask2)
+  subroutine sample_baseline(tod, handle, map_sky, map_gain, procmask, procmask2, skip_nonlin)
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    integer(i4b),                                 intent(in), optional :: skip_nonlin
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, skip_nonlin_
     real(dp)     :: t1, t2
     type(comm_scandata) :: sd
 
     if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
+    skip_nonlin_ = 10; if (present(skip_nonlin)) skip_nonlin_=skip_nonlin
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -1011,7 +1016,7 @@ contains
 
        ! Prepare data
        if (tod%nhorn == 1) then
-          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2)
+          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2,handle_=handle,skip_nonlin=skip_nonlin_)
        else
           call init_scan_data_differential(sd, tod, i, map_sky, map_gain, procmask, procmask2)
        end if
@@ -1151,7 +1156,7 @@ contains
                 if (threshold(l) <= 0.) cycle
                 do i = 1, tod%nscan_tot
                    if (stat(i,j,0) <= 0. .or. .not. accept(i,j)) cycle
-                   mu = 0.0; n = 0
+                   mu = 0.0; n = 0; sigma = 0.0
                    do k = max(i-iter*window,1), max(i-(iter-1)*window-1,1)
                       if (stat(k,j,0) == 0.) cycle
                       mu    = mu    + stat(k,j,l)
@@ -1164,7 +1169,7 @@ contains
                       sigma = sigma + real(stat(k,j,l),dp)**2
                       n     = n     + 1
                    end do
-                   if (n > window/2) then
+                   if (n > window/2 .and. n > 1) then
                       mu    = mu / n
                       sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
                       if (sigma > 0.) then

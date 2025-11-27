@@ -59,7 +59,7 @@ contains
     !          TOD-domain correlated noise realization
     ! 
     implicit none
-    class(comm_tod),                    intent(in)     :: self
+    class(comm_tod),                    intent(inout)  :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
     type(planck_rng),                   intent(inout)  :: handle
     integer(i4b),                       intent(in)     :: scan
@@ -72,15 +72,23 @@ contains
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof
+    integer(i4b) :: nbin
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
+    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu
     real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
     character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum
+    real(sp),     allocatable, dimension(:,:) :: bin_spec 
+    
+    ! Splined PSD params
+    ! real(sp)     :: threshold
+    ! real(sp), allocatable, dimension(:,:) :: psd, binned_psd
 
     call timer%start(TOD_NCORR, self%band)
 
@@ -102,7 +110,7 @@ contains
     call timer%stop(TOT_FFT)
 
     call timer%start(TOT_FFT)
-    allocate(dt(nfft), dv(0:n-1), ps(0:n-1), d_prime(ntod), ncorr2(ntod))
+    allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
@@ -110,11 +118,60 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain     = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
-       N_wn     = sigma_0**2  ! white noise power spectrum
 
        ! Prepare TOD residual
        d_prime = tod(:,i) - gain * s_sub(:,i)
+
+       ! Setting new white noise level from powspec
+       if (self%first_call) then
+          sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
+          N_wn     = sigma_0**2
+       else
+          allocate(ps(0:n-1))
+          dt(1:ntod)           = d_prime(:)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
+          do l = 1, n-1
+             ps(l) = abs(dv(l)) ** 2 / ntod
+          end do
+
+          ! Binning
+          dnu = 5.d-1 ! Hz
+          nbin = (samprate/2) * (n-2)/(n-1) / dnu
+          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin,2))
+
+          bin_sum = 0.d0; bin_count = 0; bin_spec = 0.d0
+          do l = 1, n-1
+             j = (samprate/2) * (l-1)/(n-1) /dnu + 1
+             if (j >= 1 .and. j <= nbin) then
+                bin_sum(j)   = bin_sum(j) + ps(l)
+                bin_count(j) = bin_count(j) + 1
+             end if
+          end do
+
+          do j = 1, nbin
+             bin_spec(j,1) = (samprate/2)/(n-1) + (j-0.5d0)*dnu
+             if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+          end do
+          deallocate(ps,bin_sum,bin_count)
+
+          N_wn = 1.d30
+          !open(58,file='testdir/binned_psd.dat', recl=1024)
+          do j = 1, nbin
+             !write(58,*) bin_spec(j,1), bin_spec(j,2)
+             if (bin_spec(j,2) < N_wn) N_wn = bin_spec(j,2)
+          end do
+          !close(58)
+          deallocate(bin_spec)
+
+          sigma_0 = abs(sqrt(N_wn))
+          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
+       end if
+
+       !if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
+
 
        ! Fill gaps in data 
        init_masked_region = .true.
@@ -186,7 +243,46 @@ contains
 !!$          end do
 !!$          close(58)
 !!$       end if
-       
+      
+
+!       ! Splined PSD evaluation
+!       if (self%noise_psd_model == 'spline') then
+!          if (self%myid == 0) write(*,*) 'Splined PSD evaluation'
+!          dt(1:ntod)           = d_prime(:)
+!          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!          call timer%start(TOT_FFT)
+!          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!          call timer%stop(TOT_FFT)
+!          allocate(psd(n-1,2))
+!          do l = 1, n-1
+!             psd(l,1) = real(l*(samprate/2)/(n-1))
+!             psd(l,2) = abs(dv(l)) ** 2 / ntod
+!          end do
+!
+!          threshold = 5.d0 ! Hz
+!          nbin = 10; dnu = 5.d0
+!          binned_psd = bin_spec_loglin(psd(:,1),psd(:,2),nbin,dnu,threshold)
+!
+!          deallocate(psd)
+!          call dfftw_destroy_plan(plan_fwd)
+!          call dfftw_destroy_plan(plan_back)
+!
+!          select type(N_psd => self%scans(scan)%d(i)%N_psd)
+!             type is (comm_noise_psd_spline)
+!                call N_psd%update_spline(binned_psd(:,2),binned_psd(:,1))
+!          end select
+!  
+!          if (self%scanid(scan) == 5000 .and. .not. self%first_call) then
+!             open(58,file='testdir/splined_noise_psd.dat', recl=1024)
+!             write(58,*) self%scans(scan)%d(i)%N_psd%sigma0
+!             do l = 2, self%scans(scan)%d(i)%N_psd%npar
+!                nu = self%scans(scan)%d(i)%N_psd%xi_n(l)
+!                write(58,*) nu, self%scans(scan)%d(i)%N_psd%eval_full(nu)
+!             end do
+!             close(58)
+!          end if
+!       end if
+
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)
@@ -260,7 +356,7 @@ contains
        end if
 
     end do
-    deallocate(dt, dv, ps)
+    deallocate(dt, dv)
     deallocate(d_prime)
     deallocate(ncorr2)
 

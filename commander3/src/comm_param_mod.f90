@@ -189,6 +189,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_model
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_mask
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_4k_lines
 
      ! Component parameters
      character(len=2048) :: cs_inst_parfile
@@ -283,7 +284,7 @@ module comm_param_mod
 
      ! Exctinction parameters
      character(len=2048) :: EBVmap
-     
+
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
      character(len=24)                       :: zs_phasefunc, zs_bandpass
@@ -635,6 +636,7 @@ contains
     allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
     allocate(cpar%ds_tod_moon_model(n), cpar%ds_tod_moon_mask(n), cpar%ds_tod_moon_init(n))
     allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_mask(n), cpar%ds_tod_earth_init(n))
+    allocate(cpar%ds_tod_4k_lines(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -738,6 +740,12 @@ contains
                   & par_int=cpar%ds_tod_scanrange(i,2))
              call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_tot_numscan(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_4K_LINES'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_4k_lines(i), path=.false.)
+             if (index(cpar%ds_tod_4k_lines(i), '.txt') /= 0) then
+             call get_parameter_hashtable(htbl, 'BAND_TOD_4K_LINES'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_4k_lines(i), path=.true.)
+             end if
              call get_parameter_hashtable(htbl, 'BAND_TOD_MAPMAKE_TYPE'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_map_type(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &

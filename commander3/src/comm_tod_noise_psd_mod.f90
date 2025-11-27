@@ -829,7 +829,7 @@ contains
        ! spline nodes
        self%xi_n(2:)       = x
        self%P_active(2:,1) = x
-       self%P_active(i,1)  = old_P_rms
+       self%P_active(2:,1)  = old_P_rms
        self%P_lognorm      = old_P_lognorm
        do i = 2, self%npar
           self%P_uni(i,:)    = self%P_uni(1,:)
