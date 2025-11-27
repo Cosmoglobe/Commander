@@ -626,20 +626,20 @@ contains
 
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-      !  if (scanid(i) == 500) then
-      !    call int2string(self%scanid(i), scantext)
+       if (self%scanid(i) .eq. 500) then
+         call int2string(self%scanid(i), scantext)
 
-      !    write(*,*) '| Writing tod to hdf'
-      !    call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
-      !    call write_hdf(tod_file, '/tod',      sd%tod)
-      !    call write_hdf(tod_file, '/todz',     d_calib(1,:,:))
-      !    call write_hdf(tod_file, '/res',      d_calib(2,:,:))
-      !    call write_hdf(tod_file, '/flag',     sd%flag)
-      !    call write_hdf(tod_file, '/s_tot',    sd%s_tot)
-      !    call write_hdf(tod_file, '/mask',     sd%mask)
+         write(*,*) '| Writing tod to hdf'
+         call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+         call write_hdf(tod_file, '/tod',      sd%tod)
+         call write_hdf(tod_file, '/todz',     d_calib(1,:,:))
+         call write_hdf(tod_file, '/res',      d_calib(2,:,:))
+         call write_hdf(tod_file, '/flag',     sd%flag)
+         call write_hdf(tod_file, '/s_tot',    sd%s_tot)
+         call write_hdf(tod_file, '/mask',     sd%mask)
 
-      !    call close_hdf_file(tod_file)
-      !  end if
+         call close_hdf_file(tod_file)
+       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap, pol_eff=self%pol_eff)
