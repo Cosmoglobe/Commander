@@ -1111,7 +1111,7 @@ contains
     label = ['chisq ', 'sigma0', 'fknee ', 'alpha ', 'base  ', 'base1 ', 'base2 ']
     
     ! Collect test statistics from all cores 
-    allocate(stat(tod%nscan_tot,tod%ndet,-1:nstat), accept(tod%nscan_tot,tod%ndet))
+    allocate(stat(tod%last_scan,tod%ndet,-1:nstat), accept(tod%last_scan,tod%ndet))
     stat = 0.
     do i = 1, tod%nscan
        scan = tod%scanid(i)
@@ -1183,18 +1183,18 @@ contains
           end do
        end do
 
-       open(58,file='stat.dat', recl=1024)
-       do i = 1, tod%nscan_tot
-          write(58,*) i, accept(i,1) .and. stat(i,1,0)==1., accept(i,1), stat(i,1,:)
-       end do
-       close(58)
-       open(58,file='stat2.dat', recl=1024)
-       do i = 1, tod%nscan_tot
-          if (accept(i,1) .and. stat(i,1,0) == 1.) then
-             write(58,*) i, accept(i,1), stat(i,1,:)
-          end if
-       end do
-       close(58)
+      !  open(58,file='stat.dat', recl=1024)
+      !  do i = 1, tod%nscan_tot
+      !     write(58,*) i, accept(i,1) .and. stat(i,1,0)==1., accept(i,1), stat(i,1,:)
+      !  end do
+      !  close(58)
+      !  open(58,file='stat2.dat', recl=1024)
+      !  do i = 1, tod%nscan_tot
+      !     if (accept(i,1) .and. stat(i,1,0) == 1.) then
+      !        write(58,*) i, accept(i,1), stat(i,1,:)
+      !     end if
+      !  end do
+      !  close(58)
 
     else
        call mpi_reduce(stat, stat, size(stat), &

@@ -291,6 +291,8 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
+    ! file for saving tods
+    type(hdf_file) :: tod_file
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -300,14 +302,14 @@ contains
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     if (.false.) then ! Debug
        ! Do data selection, then start sampling
-       sample_gain           = iter  > 0 !.true.                 
+       sample_gain           = .false. !iter  > 0 !.true.                 
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter  > 4 !.true.
        select_data           = iter == 1
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = iter < 3 !iter  > 0 !.true.
+       sample_gain           = .false.! iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
        sample_ncorr          = .false. !iter  > 1 !.true.
        select_data           = iter == 3 ! self%first_call  
@@ -651,6 +653,23 @@ contains
 !!$          end do
 !!$          close(58)
 !!$       end if
+
+      ! output tod for debugging
+       ! for some reason the first iteration is outputing as "tod_"
+      !  if (scanid(i) == 500) then
+      !    call int2string(self%scanid(i), scantext)
+
+      !    write(*,*) '| Writing tod to hdf'
+      !    call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+      !    call write_hdf(tod_file, '/tod',      sd%tod)
+      !    call write_hdf(tod_file, '/todz',     d_calib(1,:,:))
+      !    call write_hdf(tod_file, '/res',      d_calib(2,:,:))
+      !    call write_hdf(tod_file, '/flag',     sd%flag)
+      !    call write_hdf(tod_file, '/s_tot',    sd%s_tot)
+      !    call write_hdf(tod_file, '/mask',     sd%mask)
+
+      !    call close_hdf_file(tod_file)
+      !  end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap, pol_eff=self%pol_eff)
