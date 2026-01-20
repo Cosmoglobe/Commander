@@ -22,6 +22,7 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_tod_objctr_samp_mod
   use comm_sparse_mod
   use comm_dust_extinction_mod
   implicit none
@@ -100,24 +101,6 @@ program commander
   status%active = cpar%myid_chain == 1 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
-!!$  call initialize_dust_extinction_mod(cpar)
-!!$  do i = 1, 1000
-!!$     lambda = 0.09 + (i-1)/(1000-1.d0)*33.d0
-!!$     call get_dust_attenuation_pos([0.d0,1.d0,0.d0], [c/(lambda*1d-6)], A_ext)
-!!$  end do
-!!$  call mpi_finalize(ierr)
-!!$  stop
-  
-!!!  if (cpar%myid == cpar%root) then
-!!!      allocate(param_test(200))
-!!!      param_test = 0.5d0
-!!!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
-!!!      write(*,*) "first", param_test(1)
-!!!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      write(*,*) "last", param_test(1)
-!!!  end if
-
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call MPI_Finalize(ierr)
@@ -156,6 +139,7 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
+  call initialize_objctr_mod(cpar);          call update_status(status, "init_objctr")
   call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
   call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
   call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
@@ -276,7 +260,6 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-     !if (mod(iter,10) == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
@@ -285,12 +268,11 @@ program commander
      ! Skip other steps if TOD simulations
      if (cpar%enable_tod_simulations) exit
 
-
      ! Sample stationary components
      !if (first_zodi) then
-        if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-        if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-        if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
+        if (cpar%sample_earth_maps) call sample_objctr_map(cpar, handle, 'earth')
+        if (cpar%sample_solar_maps) call sample_objctr_map(cpar, handle, 'solar')
+        if (cpar%sample_moon_maps)  call sample_objctr_map(cpar, handle, 'moon')
      !end if
 
      ! Sample zodi parameters
@@ -299,8 +281,6 @@ program commander
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
            call downsamp_invariant_structs(cpar)
-           !call precompute_lowres_zodi_lookups(cpar)
-           !call compute_downsamp_zodi(cpar, zodi_model)      
            call create_zodi_sampgroup_mask(cpar, handle)
            first_zodi = .false.
         end if

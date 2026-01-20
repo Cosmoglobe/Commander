@@ -7,7 +7,7 @@ module comm_zodi_samp_mod
    private
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky
    public minimize_zodi_with_powell, get_chisq_priors, create_zodi_sampgroup_mask
-   public apply_zodi_sampgroup_mask, sample_static_zodi_map!, sample_static_zodi_amps
+   public apply_zodi_sampgroup_mask
    
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
@@ -112,7 +112,7 @@ contains
       implicit none
       type(comm_params), intent(in) :: cpar
 
-      integer(i4b) :: i, j, h, k, kp, l, g, scan, nside, npix, nmaps, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth, thin, ntod_lowres, oper
+      integer(i4b) :: i, j, h, k, kp, l, g, scan, nside, npix, nmaps, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth, thin, ntod_lowres, oper, nmask
       real(dp) :: dt_tod, theta, phi, vec0(3), vec1(3), M_ecl2gal(3,3), day, lambda_solar, lat, lon
       real(sp), allocatable :: tod(:), downsamp_vec(:, :), s_static(:)
       real(dp), allocatable, dimension(:, :) :: vec
@@ -191,8 +191,8 @@ contains
                call dealloc_scan_data(sd)
 
                ! Remove masked samples
-               ntod_lowres = count(mask)
-               allocate(downsamp_pix(ntod_lowres,nhorn))
+               nmask = count(mask)
+               allocate(downsamp_pix(nmask,nhorn))
                do h = 1, nhorn
                   downsamp_pix(:,h) = pack(d%downsamp_pix_full(:,h), mask)
                end do
@@ -202,8 +202,8 @@ contains
                deallocate(mask, downsamp_pix)
 
                ! Allocate other downsampled quantities with same shape
-               allocate(d%downsamp_point_full(ntod_lowres,nhorn,5))
-               do k = 1, ntod_lowres
+               allocate(d%downsamp_point_full(nmask,nhorn,5))
+               do k = 1, nmask
                   if (any(d%downsamp_pix_full(k,:)<0) .or. any(d%downsamp_pix_full(k,:)> 12*nside**2-1)) then
                      write(*,*) 'a', data(i)%tod%scanid(scan), j, nside, k, ntod_lowres, d%downsamp_pix_full(k,:), d%downsamp_tod_full(k), d%downsamp_obs_time_full(k)
                   end if
@@ -425,7 +425,11 @@ contains
 
                   ! Apply thinning factor, adjusted for already masked samples
                   ngood    = count(data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,l))
-                  thinstep = max(nint(real(ngood,sp)/real(ntod,sp) / cpar%zs_tod_thin_factor),1)
+                  if (ntod > 0) then
+                     thinstep = max(nint(real(ngood,sp)/real(ntod,sp) / cpar%zs_tod_thin_factor),1)
+                  else
+                     thinstep = 1
+                  end if
                   k        = 1
                   ngood    = 0
                   do while (k <= ntod)
@@ -645,7 +649,7 @@ contains
       
       ndof = 0
       do i = 1, numband
-         if (data(i)%tod_type == "none") cycle
+         if (trim(data(i)%tod_type) == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
          if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
          ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
@@ -663,13 +667,14 @@ contains
             ! Skip scan if no accepted data
             do j = 1, ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 4) cycle ! No meaningful data; typically the whole scan is flagged
 
                allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod),nhorn))
                
                call wall_time(t3)
                do h = 1, nhorn
                   call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
-                       & scan, j, zodi_model, s_zodi(:,h), use_lowres_pointing=.true.)
+                       & scan, j, zodi_model, s_zodi(:,h))
                end do
                call wall_time(t4)
 
@@ -828,211 +833,4 @@ contains
 
    end subroutine randomize_zodi_init
    
-   subroutine sample_static_zodi_map(cpar, handle, map_id)
-     implicit none
-      type(comm_params), intent(inout) :: cpar
-      type(planck_rng),  intent(inout) :: handle
-      character(len=*),  intent(in)    :: map_id
-
-      integer(i4b) :: band, i, j, k, ndet, scan, nscan, npix, nmaps, p, ierr, ntod, nhorn, npix_band, ncomp, nactive, oper
-      real(dp)     :: res, w, vec(3), elon, amp
-      character(len=512) :: model
-      type(comm_scandata) :: sd
-      real(dp),      allocatable, dimension(:)       :: A, b
-      character(len=128), dimension(100)             :: active_bands
-      logical(lgt), allocatable, dimension(:)        :: active
-
-      if (cpar%myid == 0) then
-         if (trim(map_id) == 'solar') then
-            write(*,*) '   Sampling solar centric model maps'
-         else if (trim(map_id) == 'moon') then
-            write(*,*) '   Sampling Moon centric model maps'
-         else if (trim(map_id) == 'earth') then
-            write(*,*) '   Sampling Earth centric model maps'
-         else
-            write(*,*) '   Unknown static map type = ', trim(map_id)
-            stop
-         end if
-      end if
-
-      ncomp = zodi_model%n_comps
-      nmaps = 1
-
-      oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-           & SD_SKY,SD_INST,SD_ZODI,SD_SPUR])
-      
-      do band = 1, numband
-         if (trim(data(band)%tod_type) == 'none') cycle
-         if (trim(map_id) == 'solar') then
-            model = cpar%ds_tod_solar_model(data(band)%tod%band)
-         else if (trim(map_id) == 'moon') then
-            model = cpar%ds_tod_moon_model(data(band)%tod%band)
-         else if (trim(map_id) == 'earth') then
-            model = cpar%ds_tod_earth_model(data(band)%tod%band)
-         end if
-         if (trim(model) == 'none') cycle
-         if (model(1:1) == '>') then
-            do i = 1, numband
-               if (trim(data(i)%label) == trim(model(2:))) then
-                  if (trim(map_id) == 'solar') then
-                     data(band)%tod%map_solar => data(i)%tod%map_solar
-                  else if (trim(map_id) == 'moon') then
-                     data(band)%tod%map_moon => data(i)%tod%map_moon
-                  else if (trim(map_id) == 'earth') then
-                     data(band)%tod%map_earth => data(i)%tod%map_earth
-                  end if
-                  exit
-               end if
-            end do
-            cycle
-         end if
-
-         if (trim(map_id) == 'earth') then
-            npix  = NBIN_EARTH_ELON
-         else
-            npix  = 12*data(band)%info%nside**2
-         end if
-
-         ! Allocate temporary map structures
-         allocate(A(0:npix-1), b(0:npix-1))
-         A = 0.d0; b = 0.d0
-
-         ! Find active bands
-         allocate(active(numband))
-         call get_tokens(model, ',', active_bands, nactive)
-         active = .false.
-         do j = 1, nactive
-            do i = 1, numband
-               if (trim(active_bands(j)) == trim(data(i)%label)) then
-                  active(i) = .true.
-                  exit
-               end if
-            end do
-         end do
-      
-         ! Add up contributions from all active bands
-         do i = 1, numband
-            if (data(i)%tod_type == "none") cycle
-            if (.not. data(i)%tod%sample_zodi) cycle
-            if (.not. active(i)) cycle
-            ndet      = data(i)%tod%ndet
-            nscan     = data(i)%tod%nscan
-            nhorn     = data(i)%tod%nhorn
-            npix_band = 12*data(i)%map%info%nside**2
-
-!!$            ! Get and distribute sky signal
-!!$            allocate(sky_signal(data(i)%tod%ndet,1))
-!!$            do j = 1, data(i)%tod%ndet
-!!$               call get_sky_signal(i, j, sky_signal(j,1)%p, mono=.true.)
-!!$            end do
-!!$            allocate (map_sky(nmaps, data(i)%tod%pixcache%nobs, 0:data(i)%tod%ndet, 1))
-!!$            call distribute_sky_maps(data(i)%tod, sky_signal, 1.e0, map_sky)
-!!$            
-!!$            ! Initialize frequency-specific mask
-!!$            allocate(m_buf(0:npix_band-1, nmaps), procmask(0:npix_band-1))
-!!$            !call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:, 1)
-!!$            call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask = m_buf(:, 1)
-!!$            deallocate(m_buf)
-         
-            do scan = 1, nscan
-               ntod = data(i)%tod%scans(scan)%ntod
-               !allocate(s_scat(ntod,ncomp), s_therm(ntod,ncomp), s_zodi(ntod), s_sky(ntod))
-               call init_scan_data(data(i)%tod, scan, oper, TODMASK_ZODI, sd)
-               
-               do j = 1, ndet
-                  if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-
-                  ! Get data and pointing
-!!$                  allocate(pix(ntod, nhorn), psi(ntod, nhorn), flag(ntod), tod(ntod), mask(ntod))
-!!$                  if (data(i)%tod%compressed_tod) then
-!!$                     call data(i)%tod%decompress_tod(scan, j, tod)
-!!$                  else
-!!$                     tod = data(i)%tod%scans(scan)%d(j)%tod
-!!$                  end if
-!!$                  
-!!$                  ! Set up mask; remove flagged samples and foreground contaminated regions
-!!$                  call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
-!!$                  do k = 1, data(i)%tod%scans(scan)%ntod
-!!$                     mask(k) = procmask(pix(k, 1))
-!!$                     if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
-!!$                  end do
-!!$                  where (mask > 0.5) 
-!!$                     mask = 1.
-!!$                  elsewhere
-!!$                     mask = 0.
-!!$                  end where
-!!$
-!!$                  ! Compute non-stationary zodi TOD; exclude current static component
-!!$                  call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_zodi, pix_dynamic=pix, exclude_static=map_id)
-                  
-                  ! Add residual to mapmaking equation in solar centric coordinates
-                  w  = 1.d0/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0**2
-                  amp = 1.d0 !zodi_model%amp_static(i)
-                  do k = 1, ntod
-                     if (sd%mask(k,j) == 0) cycle
-                     if (trim(map_id) == 'solar') then
-                        p = data(i)%tod%scans(scan)%d(j)%pix_sol(k,1)
-                     else if (trim(map_id) == 'moon') then
-                        p = data(i)%tod%scans(scan)%d(j)%pix_moon(k,1)
-                     else if (trim(map_id) == 'earth') then
-                        p = max(min(int(data(i)%tod%scans(scan)%d(j)%earth_elon(k,1) / (pi/NBIN_EARTH_ELON)), NBIN_EARTH_ELON),1)
-                     end if
-
-                     !call pix2vec_ring(data(i)%tod%nside, p, vec)
-                     !elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
-                     res      = (sd%tod(k,j)-sd%s_spur(k,j)) / data(i)%tod%scans(scan)%d(j)%gain - sd%s_tot(k,j,0,1)
-                     A(p)     = A(p) + w * amp * amp
-                     b(p)     = b(p) + w * amp * res
-                  end do
-               end do
-               call dealloc_scan_data(sd)
-            end do
-         end do
-         
-         ! Gather information across cores
-         call mpi_allreduce(MPI_IN_PLACE, A, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, cpar%comm_chain, ierr)
-         call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, cpar%comm_chain, ierr)
-         
-         ! Solve for best-fit map
-         if (trim(map_id) == 'solar' .and. .not. associated(data(band)%tod%map_solar)) allocate(data(band)%tod%map_solar(0:12*data(band)%info%nside**2-1,1))
-         if (trim(map_id) == 'moon'  .and. .not. associated(data(band)%tod%map_moon))  allocate(data(band)%tod%map_moon(0:12*data(band)%info%nside**2-1,1))
-         if (trim(map_id) == 'earth' .and. .not. associated(data(band)%tod%map_earth)) allocate(data(band)%tod%map_earth(NBIN_EARTH_ELON))
-
-         if (trim(map_id) == 'solar') then
-            where (A > 0.d0)
-               data(band)%tod%map_solar(:,1) = b/A
-            elsewhere
-               data(band)%tod%map_solar(:,1) = -1.6375d30
-            end where
-         end if
-
-         if (trim(map_id) == 'moon') then
-            where (A > 0.d0)
-               data(band)%tod%map_moon(:,1) = b/A
-            elsewhere
-               data(band)%tod%map_moon(:,1) = -1.6375d30
-            end where
-         end if
-         
-         if (trim(map_id) == 'earth') then
-            where (A > 0.d0)
-               data(band)%tod%map_earth = b/A
-            elsewhere
-               data(band)%tod%map_earth = -1.6375d30
-            end where
-         end if
-
-!!$         if (cpar%myid_chain == 0) then
-!!$            call write_map2('static_'//trim(data(band)%label)//'.fits', real(data(band)%tod%map_solar,dp))
-!!$         end if
-         
-         ! Clean up
-         deallocate(A, b, active)
-      end do
-
-!!$      call mpi_finalize(ierr)
-!!$      stop
-      
-    end subroutine sample_static_zodi_map
-
   end module comm_zodi_samp_mod

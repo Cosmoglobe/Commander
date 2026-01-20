@@ -67,14 +67,24 @@ contains
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
 
-      c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
-      ! [sigma0, fknee, alpha]; sigma0 is not used
-      do i = 1, c%n_xi 
-         c%xi_n_nu_fit(i,:) = [0.d0, 0.01d0] 
-      end do
-      c%xi_n_P_uni(1,:) = [0.d0, 0.d0]
-      c%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
-      c%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
+      if (.true.) then
+         ! Correlated noise parameters
+         c%xi_n_nu_fit(1,:) = [0.d0, 1.0d0] ! Freq range for sigma0
+         c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0] ! Freq range for fknee
+         c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0] ! Freq range for alpha
+         c%xi_n_P_rms       = [-100.d0, -0.01d0, 0.05d0] ! Prior rms [sigma0, fknee, alpha]
+         c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
+         c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
+         c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+
+         ! Data selection parameters
+         c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
+         c%sigma0_threshold = 1.d0        ! Cut scans with higher sigma0
+      else if (trim(c%freq) == 'AKARI_N160') then
+      else if (trim(c%freq) == 'AKARI_WIDE-L') then
+      else if (trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_N60') then
+      end if
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -98,8 +108,7 @@ contains
       c%use_earth_elon  = cpar%sample_earth_maps
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       ! c%chisq_threshold = 50000.
-      c%chisq_threshold = huge(0.0d0)
-      c%nside_pixhist   = 64
+      c%nside_pixhist    = 64
 
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -243,22 +252,30 @@ contains
       use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
-      select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
-      flag_threshold        = [1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
-!!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
-!!$        & trim(self%freq) == '03' .or. &
-!!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      ! if (trim(self%freq(1:2)) == '10') then
-      !    sample_ncorr = .true.
-      ! else
-      !    sample_ncorr = .false.
-      ! end if
-      sample_ncorr = .false. !iter > 2
-      sample_xi_n  = .false.
+
+      if (trim(self%init_from_HDF) == 'none') then
+         select_data     = iter == 5
+         sample_ncorr    = iter > 2
+         sample_xi_n     = iter > 2
+      else
+         select_data     = iter == 3 
+         sample_ncorr    = iter > 1
+         sample_xi_n     = iter > 1
+      end if
+
+      !                       Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
+      if (trim(self%freq) == 'AKARI_N160') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
+      else if (trim(self%freq) == 'AKARI_WIDE-L') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      else if (trim(self%freq) == 'AKARI_WIDE-S') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      else if (trim(self%freq) == 'AKARI_N60') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      end if
 
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
            & SD_SKY,SD_INST,SD_NCORR,SD_BP,SD_ORB,SD_ZODI])
@@ -310,9 +327,9 @@ contains
          ! 'abscal': the global constant gain factor
          call sample_calibration(self, 'abscal', oper_default, handle)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-          call sample_calibration(self, 'relcal', oper_default, handle)
+         call sample_calibration(self, 'relcal', oper_default, handle)
          ! 'deltaG': the time-variable and detector-variable gain
-         !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
       ! Prepare intermediate data structures
@@ -349,18 +366,19 @@ contains
          call update_status(status, "quick_tod_flag_"//ctext)
          
          ! Create dynamic mask
-         if (self%first_call) then
+         !if (self%first_call) then
+         if (select_data) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               if (self%scans(i)%d(j)%N_psd%sigma0 .eq. 0.d0) write(*,*) 'debug sigma0 = 0.0'
                call self%create_dynamic_mask(sd, j, flag_threshold)
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
             call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
          end if
-
+         
          ! Sample correlated noise
+         !call project_mask(self, TODMASK_ZODI, sd)
          if (sample_ncorr) then
             call sample_n_corr(self, sd, handle)
             if (sample_xi_n) then
@@ -369,6 +387,7 @@ contains
                call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
             end if
          else
+            call sample_n_corr(self, sd, handle, onlymono=.true.)
             call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
          end if
 
@@ -379,7 +398,7 @@ contains
          end do
 
          ! Select data
-!!$         if (select_data) call remove_bad_data(self, i, sd%flag)
+         if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -394,11 +413,10 @@ contains
          ! For debugging: write TOD to hdf
          if (.false.) then
             ! scan id appears to be the worst chi2
-            write(*,*) "DEBUG Writing scan ", self%scanid(i)
-            if (self%scanid(i) > 1075 .and. self%scanid(i) < 1085) then 
+            if (self%scanid(i) == 5020) then 
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
-               call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
+               call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
                call write_hdf(tod_file, '/flag', sd%flag)
@@ -437,7 +455,7 @@ contains
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Synchronize and output flagging statistics in first iteration
-      if (self%first_call) call self%report_dynamic_mask_stats
+      if (select_data) call self%report_dynamic_mask_stats
       
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)

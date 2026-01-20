@@ -196,7 +196,8 @@ module comm_tod_mod
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
-     logical(lgt) :: symm_flags               
+     logical(lgt) :: symm_flags
+     character(len=16), allocatable, dimension(:) :: incl_objctr
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -394,6 +395,7 @@ module comm_tod_mod
      integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
      integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
      real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + bitmask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2          ! TOD mask (flags + bitmask)
      real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
      real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
      real(sp),     allocatable, dimension(:,:,:)   :: s_sl          ! Sidelobe correction
@@ -1251,7 +1253,8 @@ contains
        self%d(i)%gain       = scalars(1)
        xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
        if (tod%n_xi >= 3) then
-          xi_n(2:3)         = scalars(3:4)
+          xi_n(2) = min(max(scalars(3), tod%xi_n_P_uni(2,1)), tod%xi_n_P_uni(2,2))
+          xi_n(3) = min(max(scalars(4), tod%xi_n_P_uni(3,1)), tod%xi_n_P_uni(3,2))
        end if
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
@@ -1264,7 +1267,10 @@ contains
        if (trim(tod%noise_psd_model) == 'white') then
           self%d(i)%N_psd => comm_noise_psd_white(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof') then
-         self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          xi_n(1) =  0.1 ! AKARI
+          xi_n(2) =  0.02 ! AKARI
+          xi_n(3) = -2.00 ! AKARI
+          self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
           xi_n(2) =  0.2  ! fknee2 (Hz); arbitrary value
           xi_n(3) = -2.000 ! alpha2; arbitrary value
@@ -2581,7 +2587,7 @@ contains
        chisq = chisq + d0**2
     end do
 
-    if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
+    if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0 .or. n == 0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else
@@ -3354,7 +3360,7 @@ contains
      call timer%start(TOD_DYNMASK, self%band)
      
      scan        = sd%scan
-     output_scan = -1 !116 
+     output_scan = -1 !704
      flag_dyn    = 2**30
      ntod        = sd%ntod
      ntot        = count(iand(sd%flag(:,det),self%flag0) .eq. 0)
@@ -3524,7 +3530,7 @@ contains
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, broad window -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
         self%mask_dyn_stats(5) = self%mask_dyn_stats(5) + ncut
      end if
-
+     
 !!$     open(58, file='var4.dat')
 !!$     do i = 1, ntod
 !!$        if (iand(flag(i),self%flag0) .eq. 0) write(58,*) i, res(i), flag(i)
@@ -3590,9 +3596,9 @@ contains
         ! Remove consecutive chunks with many flagged samples
         window = 2000
         ncut       = 0
-        if (output_scan == self%scanid(scan)) open(58, file='flag_stage7.dat')
+        !if (output_scan == self%scanid(scan)) open(58, file='flag_stage7.dat')
         do i = 1, ntod
-           if (output_scan == self%scanid(scan)) write(58,*) i, res(i), iand(sd%flag(k,det),self%flag0) .eq. 0
+           !if (output_scan == self%scanid(scan)) write(58,*) i, res(i), iand(sd%flag(k,det),self%flag0) .eq. 0
            j = max(i-window,1)
            k = min(i+window,ntod)
            if (count(sd%flag(j:k,det) == flag_dyn)/real(k-j+1,sp) > threshold(8)) then
@@ -3606,7 +3612,7 @@ contains
               end do
            end if
         end do
-        if (output_scan == self%scanid(scan)) close(58)
+        !if (output_scan == self%scanid(scan)) close(58)
         !write(*,fmt='(a,a,i6,i4,a,f8.5,i8,i8)') ' Dynamic mask, consecutive  -- ', trim(self%freq), self%scanid(scan), det, ' = ', real(ncut,sp) / ntod, ncut
         self%mask_dyn_stats(8) = self%mask_dyn_stats(8) + ncut
      end if

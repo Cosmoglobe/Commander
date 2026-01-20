@@ -86,6 +86,12 @@ module comm_defs
   integer(i4b), parameter :: SD_JUMP     = 22
 
   !**************************************************
+  !           Ephemeris definitions
+  !**************************************************
+  integer(i4b), parameter :: EPH_NUM_OBJECTS = 2
+  integer(i4b), parameter :: EPH_JUPITER     = 1
+  integer(i4b), parameter :: EPH_VENUS       = 2
+    
   !           TOD data bit definitions
   !**************************************************
   integer(i4b), parameter :: TOD_RAMP_RESET      =  5
