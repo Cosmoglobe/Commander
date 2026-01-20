@@ -174,11 +174,11 @@ contains
        call timer%stop(TOD_PROJECT, tod%band)
 
        ! Disable broken detector-scans
-       do j = 1, ndet
-          d = sd%det(j)
-          if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(d)%accept = .false.
-       end do
+!!$       do j = 1, ndet
+!!$          d = sd%det(j)
+!!$          if (.not. tod%scans(scan)%d(d)%accept) cycle
+!!$          if (all(sd%mask(:,j) == 0)) tod%scans(scan)%d(d)%accept = .false.
+!!$       end do
     end if
     
     ! Construct sky signal template
@@ -668,15 +668,15 @@ contains
           write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
-!!$       else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
-!!$            & isNaN(tod%scans(scan)%d(j)%chisq)) then
-!!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-!!$               & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
-!!$          tod%scans(scan)%d(j)%accept = .false.
-!!$       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
-!!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-!!$               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
-!!$          tod%scans(scan)%d(j)%accept = .false.
+       else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
+            & isNaN(tod%scans(scan)%d(j)%chisq)) then
+          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+               & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
+          tod%scans(scan)%d(j)%accept = .false.
+       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
+          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
+          tod%scans(scan)%d(j)%accept = .false.
 !!$       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then
 !!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
 !!$               & tod%scanid(scan), j, ', fknee = ', tod%scans(scan)%d(j)%N_psd%xi_n(2)
@@ -882,13 +882,15 @@ contains
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
-       d_calib(1,:,j) = (sd%tod(:,j)) &
+       !d_calib(1,:,j) = (sd%tod(:,j)) &
+       !     & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
+       d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
             & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
-!       d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
-!            & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
+       !d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
+       !     & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j,0,1) + sd%s_bp(:,j,0,1)              ! residual
-       !if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
-       if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
+       if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
+       !if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j,0,1)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j,0)                                              ! orbital dipole
        if (tod%output_n_maps > 5 .and. allocated(sd%s_sl))   d_calib(6,:,j) = sd%s_sl(:,j,0)          

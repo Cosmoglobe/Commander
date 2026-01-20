@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono)
+  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -60,16 +60,17 @@ contains
     ! 
     implicit none
     class(comm_tod),                    intent(in)     :: self
-    class(comm_scandata),               intent(inout)  :: sd    
+    class(comm_scandata),               intent(inout)  :: sd
     type(planck_rng),                   intent(inout)  :: handle
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
+    logical(lgt),                       intent(in), optional :: onlymono
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
     real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
     character(len=6) :: stext
@@ -81,6 +82,7 @@ contains
     call timer%start(TOD_NCORR, self%band)
 
     nomono_ = .false.; if (present(nomono)) nomono_ = nomono
+    onlymono_ = .false.; if (present(onlymono)) onlymono_ = onlymono
 
     scan     = sd%scan
     ntod     = sd%ntod
@@ -106,6 +108,7 @@ contains
 
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
+       if (sum(sd%mask(:,i)) == 0) cycle
        gain     = self%scans(scan)%d(i)%gain  ! Gain in V / K
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2  ! white noise power spectrum
@@ -114,6 +117,12 @@ contains
        d_prime = sd%tod(:,i)
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
+
+       ! Only estimate monopole
+       if (onlymono_) then
+          sd%n_corr(:,i) = sum(d_prime*sd%mask(:,i)) / sum(sd%mask(:,i))
+          cycle
+       end if
        
        ! Fill gaps in data 
        init_masked_region = .true.
@@ -520,7 +529,7 @@ contains
     samprate = self%samprate
     n_gibbs  = 3
     threshold = 5.d0 ! Remove outliers
-    outscan   = 482 !92
+    outscan   = 5020 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
 
@@ -559,14 +568,14 @@ contains
           ! Remove outliers
           s0 = 1d30
           do k = 1, 3
-             !if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+             if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
              s    = 0.d0
              nval = 0
              do j = 1, ntod0-1, 2
                 if (mask0(j) < 0.5 .or. mask0(j+1) < 0.5) cycle
                 res = (res0(j)-res0(j+1))/sqrt(2.)
                 if (abs(res) > s0) cycle
-                !if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
+                if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
                 s    = s    + res**2
                 nval = nval + 1
              end do
@@ -581,7 +590,7 @@ contains
              else
                 exit
              end if
-          !if (self%scanid(scan) == outscan) close(58)
+             if (self%scanid(scan) == outscan) close(58)
           end do
        end do
        deallocate(res0, mask0)
@@ -615,12 +624,13 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),1000) == 0) then
+       !if (mod(self%scanid(scan),1000) == 0) then
+       if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file='noise_tod_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file='noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
-             write(58,*) j, dt(j), sd%n_corr(j,i)
+             write(58,*) j, dt(j)*sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)
           end do
           close(58)
        end if
@@ -655,10 +665,11 @@ contains
           end do
        end do
 
-       if (mod(self%scanid(scan),1000) == 0) then
+       !if (mod(self%scanid(scan),1000) == 0) then
+       if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file='noise_psd_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file='noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
           j1     = 1

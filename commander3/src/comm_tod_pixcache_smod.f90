@@ -297,11 +297,16 @@ contains
     ! Distribute bitmask
     allocate(buffer(bitmask%info%nmaps,self%nobs))
     call bitmask%map2pix(self%ind2pix, buffer)
-    self%bitmask = 0
-    do i = 0, 6
-       self%bitmask = self%bitmask + nint(1.0-buffer(1,:)) * 2**i
-    end do
+    self%bitmask = buffer(1,:)
     deallocate(buffer)
+    
+!    allocate(buffer(bitmask%info%nmaps,self%nobs))
+!    call bitmask%map2pix(self%ind2pix, buffer)
+!    self%bitmask = 0
+!    do i = 0, 6
+!       self%bitmask = self%bitmask + nint(1.0-buffer(1,:)) * 2**i
+!    end do
+!    deallocate(buffer)
     
   end subroutine init_map_mask
   
