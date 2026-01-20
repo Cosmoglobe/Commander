@@ -1933,7 +1933,7 @@ contains
              if (c_lnL%fix_pixreg(pr,p,id)) cycle
           end if
           if (myid_pix == 0) then
-             new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
+             new_theta = c_lnL%pixreg_priors(pr,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
              new_theta = min(theta_max,max(theta_min,new_theta))
           end if
           
@@ -1942,7 +1942,7 @@ contains
           if (myid_pix == 0) then
              write(*,*) '| Sampled new value using Gaussian prior'
              write(*,fmt='(a,i6)') ' |  Pixel region = ',pr
-             write(*,fmt='(a,f7.3)') ' |  Prior mean = ',c_lnL%theta_prior(1,p,id)
+             write(*,fmt='(a,f7.3)') ' |  Prior mean = ',c_lnL%pixreg_priors(pr,p,id)
              write(*,fmt='(a,f10.6)') ' |  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
              write(*,fmt='(a,f10.6)') ' |  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
              write(*,fmt='(a,f10.6)') ' |  New value  = ',new_theta

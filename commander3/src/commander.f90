@@ -442,6 +442,10 @@ contains
              call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
           end if
 
+          if (data(i)%info%myid == 0) then
+            write(*,*) 'My delta is ', delta
+          end if
+
           do j = 0, ndet
              data(i)%bp(j)%p%delta = delta(j,:,k)
              call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)

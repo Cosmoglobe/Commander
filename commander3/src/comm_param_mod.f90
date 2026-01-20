@@ -2812,26 +2812,84 @@ contains
     res = string(ext(1):ext(2))
   end function get_token
 
-  ! Fill all tokens into toks, and the num filled into num
-  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
-    implicit none
-    character(len=*) :: string, sep
-    character(len=*) :: toks(:)
-    character(len=*), optional :: group
-    integer(i4b),     optional :: num, maxnum
-    logical(lgt),     optional :: allow_empty
-    integer(i4b) :: n, ext(2), nmax
-    ext = -1
-    n = 0
-    nmax = size(toks); if(present(maxnum)) nmax = maxnum
-    call tokenize(string, sep, ext, group, allow_empty)
-    do while(ext(1) > 0 .and. n < nmax)
-       n = n+1
-       toks(n) = string(ext(1):ext(2))
-       call tokenize(string, sep, ext, group, allow_empty)
-    end do
-    if(present(num)) num = n
-  end subroutine get_tokens
+!!!  ! Fill all tokens into toks, and the num filled into num
+!!!  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
+!!!    implicit none
+!!!    character(len=*) :: string, sep
+!!!    character(len=*) :: toks(:)
+!!!    character(len=*), optional :: group
+!!!    integer(i4b),     optional :: num, maxnum
+!!!    logical(lgt),     optional :: allow_empty
+!!!    integer(i4b) :: n, ext(2), nmax
+!!!    ext = -1
+!!!    n = 0
+!!!    nmax = size(toks); if(present(maxnum)) nmax = maxnum
+!!!    call tokenize(string, sep, ext, group, allow_empty)
+!!!    do while(ext(1) > 0 .and. n < nmax)
+!!!       n = n+1
+!!!       toks(n) = string(ext(1):ext(2))
+!!!       call tokenize(string, sep, ext, group, allow_empty)
+!!!    end do
+!!!    if(present(num)) num = n
+!!!  end subroutine get_tokens
+
+subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
+  implicit none
+  character(len=*) :: string, sep
+  character(len=*) :: toks(:)
+  character(len=*), optional :: group
+  integer(i4b),     optional :: num, maxnum
+  logical(lgt),     optional :: allow_empty
+  integer(i4b) :: n, ext(2), nmax, len_tok
+  character(len=512) :: tok  ! temp buffer (assuming tokens < 512 chars)
+
+  ext = -1
+  n = 0
+  nmax = size(toks)
+  if (present(maxnum)) nmax = maxnum
+  call tokenize(string, sep, ext, group, allow_empty)
+
+  do while(ext(1) > 0 .and. n < nmax)
+     n = n+1
+     tok = string(ext(1):ext(2))
+
+     ! --- Minimal robust cleaning: trim and strip leading/trailing quotes ---
+     tok = trim(adjustl(tok))
+     len_tok = len_trim(tok)
+
+     ! Remove any leading quote characters (single or double)
+     do while(len_tok >= 1 .and. (tok(1:1) == "'" .or. tok(1:1) == '"'))
+        if (len_tok == 1) then
+           tok = ''
+           exit
+        else
+           tok = tok(2:len_tok)
+        end if
+        tok = adjustl(tok)
+        len_tok = len_trim(tok)
+     end do
+
+     ! Remove any trailing quote characters (single or double)
+     do while(len_tok >= 1 .and. (tok(len_tok:len_tok) == "'" .or. tok(len_tok:len_tok) == '"'))
+        if (len_tok == 1) then
+           tok = ''
+           exit
+        else
+           tok = tok(1:len_tok-1)
+        end if
+        tok = trim(tok)
+        len_tok = len_trim(tok)
+     end do
+
+     toks(n) = trim(tok)
+     ! ------------------------------------------------------
+
+     call tokenize(string, sep, ext, group, allow_empty)
+  end do
+
+  if (present(num)) num = n
+end subroutine get_tokens
+
 
   subroutine get_detectors(filename, detectors, num_dets)
     !

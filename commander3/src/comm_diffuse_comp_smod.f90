@@ -585,6 +585,7 @@ contains
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
 
+
                    ! Loop over priors on regions
                    if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
                       if (self%npixreg(j,i) > 32) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)

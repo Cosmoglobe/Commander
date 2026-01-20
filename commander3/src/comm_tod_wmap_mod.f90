@@ -337,13 +337,11 @@ contains
                           & 53957,54322,54688,55053,55418/)
 
       ! Choose absolute bandpass sampling
-      !if (trim(constructor%freq) == '030-WMAP_Ka') then
-      !if (constructor%freq(1:10) == '090-WMAP_W') then
-      !   constructor%sample_abs_bp   = .false.
-      !else
-      !   constructor%sample_abs_bp   = .true.
-      !end if
-      constructor%sample_abs_bp   = .true.
+      if (trim(constructor%freq) == '023-WMAP_K') then
+         constructor%sample_abs_bp   = .false.
+      else
+         constructor%sample_abs_bp   = .true.
+      end if
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -483,10 +481,10 @@ contains
       sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
 
-      !if (self%freq(1:8) == '090-WMAP') then
-      !  sample_rel_bandpass = .false.
-      !  sample_abs_bandpass = .false.
-      !end if
+      if (self%freq(1:8) == '023-WMAP') then
+        sample_rel_bandpass = .false.
+        sample_abs_bandpass = .false.
+      end if
 
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -498,16 +496,14 @@ contains
       split = .false.
       if (self%output_aux_maps > 0) then
          if (self%first_call) then
-           self%output_n_maps = 2
+           self%output_n_maps = 3
            split = .false.
          else
-           if (mod(iter-1,10) == 0)  self%output_n_maps = 2
-           !if (mod(iter-1,20) == 0)  self%output_n_maps = 8
-           !if (mod(iter-1,100) == 0) split = .true.
+           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+           if (mod(iter-1,20) == 0)  self%output_n_maps = 8
+           !! if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
-
-      self%output_n_maps = 1
 
       if (sample_rel_bandpass) then
         self%nout = self%output_n_maps + self%n_bp_prop
