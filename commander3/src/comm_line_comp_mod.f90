@@ -36,6 +36,7 @@ module comm_line_comp_mod
    contains
      procedure :: S    => evalSED_line
      procedure :: sampleSpecInd => sampleLineRatios
+     procedure :: updateMixmat => updateMixmatLineRatios
   end type comm_line_comp
 
   interface comm_line_comp
@@ -64,7 +65,8 @@ contains
     ! General parameters
     allocate(c)
     c%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
-    call c%initDiffuse(cpar, id, id_abs)
+    allocate(c%poltype(1))
+    c%poltype  = 1
 
     ! Read line template file
     call read_line_template(trim(cpar%cs_SED_template(1,id_abs)), &
@@ -92,6 +94,8 @@ contains
     allocate(c%pol_pixreg_type(3,c%npar))
     c%pol_pixreg_type = 0
 
+    call c%initDiffuse(cpar, id, id_abs)
+    
     allocate(c%theta_def(n), c%p_gauss(2,n), c%p_uni(2,n))
     allocate(c%poltype(n), c%indlabel(n), c%line2RJ(n))
     n         = 0
@@ -356,7 +360,6 @@ contains
   end subroutine sampleLineRatios
   
   ! update the mixing matrix, assumes only temperature and constant across the whole map
-
   subroutine updateMixmatLineRatios(self, theta, beta, band, df, par)
    implicit none
    class(comm_line_comp),                  intent(inout)           :: self
@@ -474,5 +477,7 @@ contains
  end subroutine updateMixmatLineRatios
  
  
+
  end module comm_line_comp_mod
  
+

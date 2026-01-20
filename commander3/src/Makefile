@@ -50,6 +50,7 @@ F90SOURCES=hashtbl.f90 \
            comm_cr_precond_mod.f90 \
            comm_zodi_mod.f90 \
            comm_zodi_comp_mod.f90 \
+           comm_tod_objctr_mod.f90 \
            comm_shared_output_mod.f90 \
            comm_status_mod.f90 \
            comm_bp_utils.f90 \
@@ -97,6 +98,7 @@ F90SOURCES=hashtbl.f90 \
 	   comm_tod_pixhist_mod.f90 \
            comm_tod_noise_psd_mod.f90 \
            comm_tod_mod.f90 \
+             comm_tod_pixcache_smod.f90 \
            comm_tod_mapmaking_mod.f90 \
            comm_tod_bandpass_mod.f90 \
 	   comm_tod_crosstalk_mod.f90 \
@@ -109,6 +111,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_noise_mod.f90 \
            comm_tod_driver_mod.f90 \
            comm_zodi_samp_mod.f90 \
+           comm_tod_objctr_samp_mod.f90 \
            comm_f_line_mod.f90 \
            comm_data_mod.f90 \
            comm_bp_mod.f90 \
@@ -246,24 +249,25 @@ comm_tod_adc_binfit_smod.o         : comm_tod_adc_binfit_mod.o
 comm_tod_bandpass_mod.o     : comm_tod_mod.o comm_utils.o comm_status_mod.o
 comm_tod_crosstalk_mod.o    : comm_tod_mod.o comm_status_mod.o
 comm_tod_cray_mod.o         : comm_param_mod.o
-comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o
-comm_tod_driver_mod.o       : comm_tod_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o comm_tod_pointing_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_simulations_mod.o comm_tod_mapmaking_mod.o comm_tod_jump_mod.o comm_tod_adc_mod.o comm_zodi_mod.o comm_tod_cray_mod.o comm_shared_arr_mod.o comm_huffman_mod.o comm_4d_map_mod.o comm_tod_adc_binfit_mod.o
+comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o comm_tod_mapmaking_mod.o
+comm_tod_driver_mod.o       : comm_tod_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o comm_tod_pointing_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_simulations_mod.o comm_tod_jump_mod.o comm_tod_adc_mod.o comm_zodi_mod.o comm_tod_cray_mod.o comm_shared_arr_mod.o comm_huffman_mod.o comm_4d_map_mod.o comm_tod_adc_binfit_mod.o comm_tod_objctr_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o
 comm_tod_gain_smod.o        : comm_tod_gain_mod.o
-comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_tod_cray_mod.o comm_tod_crosstalk_mod.o comm_tod_adc_binfit_mod.o
+comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_tod_cray_mod.o comm_tod_crosstalk_mod.o comm_tod_adc_binfit_mod.o  comm_tod_mapmaking_mod.o
 comm_tod_hfi_smod.o         : comm_tod_hfi_mod.o
-comm_tod_inst_mod.o         : comm_tod_mod.o comm_tod_lfi_mod.o comm_tod_wmap_mod.o comm_tod_hfi_mod.o comm_tod_spider_mod.o comm_tod_dirbe_mod.o comm_tod_lb_mod.o
+comm_tod_inst_mod.o         : comm_tod_mod.o comm_tod_lfi_mod.o comm_tod_wmap_mod.o comm_tod_hfi_mod.o comm_tod_spider_mod.o comm_tod_dirbe_mod.o comm_tod_lb_mod.o comm_tod_akari_mod.o
 comm_tod_jump_mod.o         : comm_utils.o
-comm_tod_lb_mod.o           : comm_tod_mod.o comm_tod_driver_mod.o comm_conviqt_mod.o
-comm_tod_lfi_mod.o          : comm_conviqt_mod.o comm_tod_driver_mod.o
+comm_tod_lb_mod.o           : comm_tod_mod.o comm_tod_driver_mod.o comm_conviqt_mod.o  comm_tod_mapmaking_mod.o
+comm_tod_lfi_mod.o          : comm_conviqt_mod.o comm_tod_driver_mod.o comm_tod_mapmaking_mod.o
 comm_tod_lfi_smod.o         : comm_tod_lfi_mod.o
-comm_tod_mapmaking_mod.o    : comm_tod_mod.o comm_shared_arr_mod.o comm_map_mod.o
+comm_tod_mapmaking_mod.o    : comm_tod_driver_mod.o comm_shared_arr_mod.o comm_map_mod.o
 comm_tod_mod.o              : comm_bp_mod.o comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_cray_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o comm_utils.o
 comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o comm_tod_noise_psd_mod.o comm_status_mod.o
 comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_map_mod.o
 comm_tod_pixhist_mod.o      : comm_tod_mod.o comm_tod_driver_mod.o
 comm_tod_mod.o              : comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o
+comm_tod_pixcache_smod.o    : comm_tod_mod.o
 comm_tod_pointing_mod.o     : comm_tod_mod.o 
 comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o 
@@ -273,6 +277,7 @@ comm_tod_bandpass_mod.o     : comm_tod_mod.o
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
 comm_zodi_mod.o             : comm_zodi_comp_mod.o comm_tod_mod.o comm_bp_mod.o
+comm_tod_objctr_mod.o       : comm_tod_mod.o comm_utils.o comm_param_mod.o
 
 comm_tod_lb_mod.o           : comm_tod_driver_mod.o
 comm_tod_lfi_mod.o          : comm_tod_driver_mod.o comm_tod_adc_mod.o
@@ -325,6 +330,7 @@ comm_spindust_comp_mod.o    : comm_comp_interface_mod.o
 comm_chisq_mod.o            : comm_comp_interface_mod.o
 comm_output_mod.o           : comm_chisq_mod.o
 comm_zodi_samp_mod.o        : comm_zodi_mod.o comm_chisq_mod.o powell_mod.o
+comm_tod_objctr_samp_mod.o  : comm_data_mod.o
 
 comm_cr_mod.o               : comm_output_mod.o
 
@@ -334,4 +340,4 @@ comm_gain_mod.o             : comm_signal_mod.o
 comm_nonlin_mod.o           : comm_gain_mod.o
 comm_nonlin_smod.o          : comm_nonlin_mod.o
 
-commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_sparse_mod.o
+commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_tod_objctr_samp_mod.o comm_sparse_mod.o

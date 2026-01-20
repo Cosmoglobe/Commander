@@ -19,214 +19,153 @@
 !
 !================================================================================
 module comm_tod_pointing_mod
-   use comm_tod_mod
-   use comm_utils
-   implicit none
-
-   interface project_sky
-      procedure project_sky_single, project_sky_multi, project_sky_differential_multi
-   end interface project_sky
+  use comm_tod_mod
+  use comm_utils
+  implicit none
    
 contains
 
+  ! Sky signal template for single detector
+  subroutine compute_scan_pix2ind(tod, sd)
+     implicit none
+     class(comm_tod),      intent(in)    :: tod
+     class(comm_scandata), intent(inout) :: sd
+ 
+     integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
+
+     scan  = sd%scan
+     nmaps = tod%nmaps
+     ndet  = sd%ndet
+
+     do j = 1, ndet ! Loop over detectors
+        d = sd%det(j)
+        
+        if (.not. tod%scans(scan)%d(d)%accept) then
+           sd%ind(:,j,:) = -999
+           cycle
+        end if
+
+        do i = 1, tod%scans(scan)%ntod ! Loop over time samples
+           do h = 1, sd%nhorn          ! Loop over horns
+              sd%ind(i,j,h) = tod%pixcache%pix2ind(sd%pix(i,j,h))
+              if (sd%pix(i,j,h) == -1) then
+                 write(*,*) "missing pixel", sd%pix(i,j,h), tod%pixcache%ind2pix(tod%pixcache%nobs-2:tod%pixcache%nobs)
+              end if
+           end do
+        end do
+     end do
+   end subroutine compute_scan_pix2ind
+
+  
+  ! Sky signal template for single detector
+  subroutine project_sky(tod, sd)
+     implicit none
+     class(comm_tod),      intent(in)             :: tod
+     class(comm_scandata), intent(inout)          :: sd
+ 
+     integer(i4b) :: i, j, k, d, h, hp, p, nmaps, scan, ndet
+     logical(lgt) :: do_gain, do_bp
+     real(sp)     :: s, eff
+
+     do_gain = btest(sd%oper,SD_GAIN) .and. allocated(tod%pixcache%map_gain)
+     do_bp   = btest(sd%oper,SD_BP)
+     
+     !if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
+     
+     ! s = T + eff*(Q * cos(2*psi) + U * sin(2*psi))
+     ! T - temperature; Q, U - Stoke's parameters
+     scan  = sd%scan
+     nmaps = tod%nmaps
+     ndet  = sd%ndet
+
+     do j = 1, ndet ! Loop over detectors
+        d = sd%det(j)
+
+        if (.not. tod%scans(scan)%d(d)%accept) then
+           sd%s_sky(:,j,:,:) = 0.
+           if (allocated(tod%pixcache%map_gain)) sd%s_gain(:,j,:) = 0.
+           cycle
+        end if
+
+        eff = 1.0 !tod%pol_sign(d) * tod%pol_eff(d)
+        do h = 1, sd%nhorn          ! Loop over horns
+           hp = h; if (sd%nhorn == 1) hp = 0
+           do i = 1, tod%scans(scan)%ntod ! Loop over time samples
+              p = sd%ind(i,j,h)
+              if ((sd%psi(i,j,h) > tod%npsi)) then
+                 write(*,*) 'Polarization angle is wrong', d, tod%scanid(scan), sd%psi(i,j,h)
+                 cycle
+              end if
+              do k = 1, sd%nbp ! Loop over bandpass models
+                 if (nmaps == 3) then
+                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k) + &
+                         & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                         &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
+                   ! write(*,*) j, i, p, sd%s_sky(i,j,hp,k), eff, tod%pixcache%map_sky(1:3,p,d,k), tod%pixcache%cos2psi(sd%psi(i,d,h)), tod%pixcache%sin2psi(sd%psi(i,d,h))
+                    if (do_gain .and. k == 1) then
+                       sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d) + &
+                            & eff*(tod%pixcache%map_gain(2,p,d) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                            &      tod%pixcache%map_gain(3,p,d) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
+                    end if
+                 else 
+                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k)
+                    if (do_gain .and. k == 1) sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d)
+                 end if
+
+                 if (do_bp) then
+                    if (nmaps == 3) then
+                       s = tod%pixcache%map_sky(1,p,0,k) + eff * &
+                            & (tod%pixcache%map_sky(2,p,0,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                            &  tod%pixcache%map_sky(3,p,0,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
+                    else if (nmaps == 1) then
+                       s = tod%pixcache%map_sky(1,p,0,k)
+                    end if
+                    sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
+                 end if
+              end do
+           end do
+        end do
+     end do
+   end subroutine project_sky
+
    ! Sky signal template for single detector
-   subroutine project_sky_single(tod, det, map, pix, psi, flag, pmask, scan_id, s_sky, tmask)
-      implicit none
-      class(comm_tod),                   intent(in)             :: tod
-      integer(i4b),                      intent(in)             :: det
-      real(sp),     dimension(0:),       intent(in)             :: pmask
-      real(sp),     dimension(1:,1:),    intent(in)             :: map
-      integer(i4b), dimension(:),        intent(in)             :: pix, psi
-      integer(i4b), dimension(:),        intent(in)             :: flag
-      integer(i4b),                      intent(in)             :: scan_id
-      real(sp),     dimension(:),        intent(out)            :: s_sky, tmask
+   subroutine project_mask(tod, bitmask0, sd)
+     implicit none
+     class(comm_tod),      intent(in)    :: tod
+     integer(i4b),         intent(in)    :: bitmask0
+     class(comm_scandata), intent(inout) :: sd
+ 
+     integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
 
-      integer(i4b)                                      :: i, j, k, p, nmap
-      real(sp)                                          :: s
+     scan        = sd%scan
+     ndet        = sd%ndet
+     sd%bitmask0 = bitmask0
+     
+     do j = 1, ndet ! Loop over detectors
+        d = sd%det(j)
+         
+        if (.not. tod%scans(scan)%d(d)%accept) then
+           sd%mask(:,j)  = 0.
+           cycle
+        end if
 
-      ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
-      ! T - temperature; Q, U - Stoke's parameters
-!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+        do h = 1, sd%nhorn          ! Loop over horns
+           do i = 1, tod%scans(scan)%ntod ! Loop over time samples
+              p = sd%ind(i,j,h)
+              if (h == 1) then
+                 if (iand(sd%flag(i,j), tod%flag0) .ne. 0) then
+                    sd%mask(i,j) = 0.
+                 else
+                    sd%mask(i,j) = 1.
+                 end if
+              end if
+              if (sd%bitmask0 >= 0 .and. sd%mask(i,j) == 1.) then
+                 if (btest(tod%pixcache%bitmask(p), sd%bitmask0)) sd%mask(i,j) = 0.
+              end if
+           end do
+        end do
 
-      nmap = SIZE(map, 1)
-      if (.not. tod%scans(scan_id)%d(det)%accept) then
-         s_sky = 0.
-         tmask = 0.
-         return
-      end if
-
-      do i = 1, tod%scans(scan_id)%ntod
-         p = tod%pix2ind(pix(i))
-         if (nmap == 3) then
-            if ((psi(i) > 4096)) then
-               write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i)
-               cycle
-            end if
-            s_sky(i) = map(1,p) + map(2,p) * tod%cos2psi(psi(i)) + map(3,p) * tod%sin2psi(psi(i))
-         else if (nmap == 1) then
-            s_sky(i) = map(1,p)  ! Unpolarized channel
-         end if
-         tmask(i) = pmask(pix(i))
-         if (iand(flag(i), tod%flag0) .ne. 0) tmask(i) = 0.
-      end do
-    end subroutine project_sky_single
-
-   ! Sky signal template for detector set
-   subroutine project_sky_multi(tod, map, pix, psi, flag, pmask, scan_id, &
-        & s_sky, tmask, s_bp)
-      implicit none
-      class(comm_tod),                   intent(in)             :: tod
-      real(sp),     dimension(0:),       intent(in)             :: pmask
-      real(sp),     dimension(1:,1:,0:), intent(in)             :: map
-      integer(i4b), dimension(:,:),      intent(in)             :: pix, psi
-      integer(i4b), dimension(:,:),      intent(in)             :: flag
-      integer(i4b),                      intent(in)             :: scan_id
-      real(sp),     dimension(:,:),      intent(out)            :: s_sky, tmask
-      real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
-
-      integer(i4b)                                      :: i, j, k, p, det, nmap
-      real(sp)                                          :: s
-
-      ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
-      ! T - temperature; Q, U - Stoke's parameters
-!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
-
-      nmap = SIZE(map, 1)
-      do det = 1, tod%ndet
-         if (.not. tod%scans(scan_id)%d(det)%accept) then
-            s_sky(:, det) = 0.
-            tmask(:, det) = 0.
-            cycle
-         end if
-         do i = 1, tod%scans(scan_id)%ntod
-            p = tod%pix2ind(pix(i,det))
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
-            
-            if (nmap == 3) then
-                if ((psi(i,det) > 4096)) then
-                  write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i, det)
-                  cycle
-                end if
-                s_sky(i,det) = map(1,p,det) + &
-                         & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
-                         & map(3,p,det) * tod%sin2psi(psi(i,det))
-            else if (nmap == 1) then
-                s_sky(i,det) = map(1,p,det)  ! Unpolarized channel
-            end if 
-
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
-            tmask(i,det) = pmask(pix(i,det))
-            if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
-            !tmask(i,det) = 1
-            !if (iand(flag(i,det), 2) .ne. 2) tmask(i,det) = 0.
-         end do
-      end do
-
-      if (present(s_bp)) then
-         do det = 1, tod%ndet
-            if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bp(:,det) = 0.
-               cycle
-            end if
-            do i = 1, tod%scans(scan_id)%ntod
-               p = tod%pix2ind(pix(i,det))
-               if (nmap == 3) then
-                   s = map(1,p,0) + &
-                      & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
-                      & map(3,p,0) * tod%sin2psi(psi(i,det))
-               else if (nmap == 1) then
-                   s = map(1,p,0)
-               end if
-               s_bp(i,det) = s_sky(i,det) - s
-            end do
-         end do
-      end if
-    end subroutine project_sky_multi
-
-   
-   ! Sky signal template for full differential detector set
-   subroutine project_sky_differential_multi(tod, map, pix, psi, flag, pmask, scan_id,&
-        & s_skyA, s_skyB, tmask, s_bpA, s_bpB)
-      implicit none
-      !class(comm_tod), intent(in)  :: tod
-      ! It is only inout for simulating data
-      class(comm_tod),                      intent(inout)  :: tod
-      real(sp),        dimension(0:),       intent(in)     :: pmask
-      real(sp),        dimension(1:,1:,0:), intent(in)     :: map
-      integer(i4b),    dimension(:,:),      intent(in)     :: pix, psi
-      integer(i4b),    dimension(:),        intent(in)     :: flag
-      integer(i4b),                         intent(in)     :: scan_id
-      real(sp),        dimension(:,:),      intent(out)    :: s_skyA, s_skyB, tmask
-      real(sp),        dimension(:,:),      intent(out), optional :: s_bpA, s_bpB
-
-      integer(i4b) :: i, j, lpoint, rpoint, det
-      real(sp)     :: sA, sB, tr, pr, tl, pl
-      real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
-
-
-      s_skyA = 0.
-      s_skyB = 0.
-      tmask  = 0.
-      if (present(s_bpA) .and. present(s_bpB)) then
-         s_bpA = 0.
-         s_bpB = 0.
-      end if
-
-      if (any(.not. tod%scans(scan_id)%d(:)%accept)) then
-         return
-      end if
-
-      do i = 1, tod%ndet
-         do j = 1, tod%scans(scan_id)%ntod
-            lpoint = tod%pix2ind(pix(j, 1))
-            rpoint = tod%pix2ind(pix(j, 2))
-            ! The gain imbalance parameters x are different for each radiometer.
-            ! d13 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)]
-            !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
-            ! We need to make sure that the imbalance parameters are redundant,
-            ! i.e., d13 and d14 have the same model,
-            ! d14 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)]
-            !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
-            ! but d23 and d24 have different models,
-            ! i.e., d13 and d14 have the same model,
-            ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
-            !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
-
-            s_skyA(j, i) = s_skyA(j,i) + map(1, lpoint, i) + &
-                       &  sgn(i)*( &
-                       &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
-                       &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
-            s_skyB(j, i) = s_skyB(j,i) + map(1, rpoint, i) + &
-                       &  sgn(i) *( &
-                       &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
-                       &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
-                    
-            if (iand(flag(j), tod%flag0) .ne. 0) then
-               tmask(j, i) = 0.
-            else
-               tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
-            end if
-         end do
-      end do
-
-      if (present(s_bpA) .and. present(s_bpB)) then
-         do i = 1, tod%scans(scan_id)%ntod
-            lpoint = tod%pix2ind(pix(i, 1))
-            rpoint = tod%pix2ind(pix(i, 2))
-            tl     = map(1, lpoint, 0) 
-            tr     = map(1, rpoint, 0) 
-            pl     = map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
-                  &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1))
-            pr     = map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
-                  &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2))
-
-            do det = 1, tod%ndet      
-               s_bpA(i, det) = s_skyA(i, det) - (tl + sgn(det)*pl) 
-               s_bpB(i, det) = s_skyB(i, det) - (tr + sgn(det)*pr) 
-            end do
-         end do
-      end if
-
-    end subroutine project_sky_differential_multi
-
-end module comm_tod_pointing_mod
+     end do
+   end subroutine project_mask
+    
+ end module comm_tod_pointing_mod

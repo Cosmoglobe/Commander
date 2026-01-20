@@ -6,7 +6,7 @@ module comm_zodi_mod
 
    private
    public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
-   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
+   public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi
    public band_monopole, band_update_monopole
 
    type :: ZodiCompLOS
@@ -252,20 +252,6 @@ contains
       
       if (cpar%myid_chain == 0) then
          write(*,*) ' Total number of free zodi parameters = ', count(zodi_model%theta_stat(:,0)==0)
-!!$         do i = 1, zodi_model%npar_tot
-!!$            write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:)
-!!$         end do
-      end if
-
-      ! Initialize stationary zodi component
-      if (cpar%incl_zodi_solar_comp) then
-         !allocate(zodi_model%map_static(0:12*cpar%zodi_solar_nside**2-1,1))
-         !allocate(zodi_model%amp_static(numband))
-         !zodi_model%amp_static = 1.d0
-         !zodi_model%map_static = 0.d0
-         !if (trim(cpar%zodi_solar_initmap) /= 'none') then
-         !   call read_map(trim(cpar%datadir)//'/'//trim(cpar%zodi_solar_initmap), zodi_model%map_static)
-         !end if
       end if
 
       allocate(comp_LOS(zodi_model%n_comps))
@@ -322,9 +308,9 @@ contains
       real(dp), dimension(1:,1:), intent(inout) :: prior
       real(dp), dimension(1:,1:), intent(inout) :: scale
 
-      prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
+      prior(:,1) = [250.d0, 330.d0, 286.d0, 5.d0] ! T_0
       scale(1,:) = [286.d0, 3.d0]
-      prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
+      prior(:,2) = [0.3d0, 0.5d0, 0.467d0, 0.004d0] ! delta
       scale(2,:) = [0.4d0, 0.01d0]
       prior(:,3) = [-1d0, 1d0, 0.70d0, 0.1d0] ! g_1
       scale(3,:) = [1d0, 0.01d0]
@@ -756,153 +742,57 @@ contains
          call write_hdf(file, trim(adjustl(comp_path))//'/albedo', self%comps(i)%c%albedo)
       end do
 
-      ! Static component
-      !path = trim(adjustl(zodi_path))//'/static'
-      !call create_hdf_group(file, trim(adjustl(path)))
-      !call write_hdf(file, trim(adjustl(path))//'/map', self%map_static)
-      !call write_hdf(file, trim(adjustl(path))//'/amp', self%amp_static)
-
       call close_hdf_file(file)
       deallocate(params,labels)
    end subroutine
-
+   
    subroutine comp_from_chain(self, cpar, params, comp_idx)
-      ! Initialize a component from a chain
-      class(ZodiModel), target, intent(inout) :: self
-      type(comm_params), intent(in) :: cpar
-      real(dp), intent(inout) :: params(:, :)
-      integer(i4b), intent(in) :: comp_idx
-
-      logical(lgt) :: exist
-      integer(i4b) :: i, j, l, ierr, initsamp
-      character(len=6) :: itext
-
-      type(hdf_file) :: file
-
-      character(len=32), allocatable :: param_labels(:)
-      character(len=2048) :: chainfile, group_name
-
-      if (cpar%myid == cpar%root) then
-         if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
-            call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
-         else
-            call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
-         end if
-         inquire (file=trim(chainfile), exist=exist)
-         if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
-         l = len(trim(chainfile))
-         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-         
-         call open_hdf_file(trim(chainfile), file, "r")
-         
-         call int2string(initsamp, itext)
-         group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx))))
-         if (.not. hdf_group_exists(file, group_name)) then
-            print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(comp_idx))), "not found in chain:", trim(chainfile)
-            stop
-         end if 
-
-         param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(comp_idx))), add_common=.true.)
-         do j = 1, size(param_labels)
-            call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
-                  & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
-         end do
-         deallocate(param_labels)
-      end if
-      ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-
-   end subroutine
-   ! subroutine model_from_chain(self, cpar)
-   !    ! Initializes parts of the zodi model from the chain file
-   !    class(ZodiModel), target, intent(inout) :: self
-   !    type(comm_params), intent(in) :: cpar
-   !    logical(lgt) :: exist
-   !    integer(i4b) :: i, j, l, unit, ierr, initsamp, hdferr
-   !    character(len=6) :: itext
-
-   !    type(hdf_file) :: file
-   !    real(dp) :: comp_params(100), params(100, 100), general_params(100)
-   !    character(len=32), allocatable :: common_param_labels(:), param_labels(:)
-   !    character(len=512) :: chainfile, group_name
-   !    TYPE(h5o_info_t) :: object_info
-
-   !    params = 0.
-   !    if (cpar%myid == cpar%root) then
-   !       call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-   !       inquire (file=trim(chainfile), exist=exist)
-   !       if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
-   !       l = len(trim(chainfile))
-   !       if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-         
-   !       call open_hdf_file(trim(chainfile), file, "r")
-         
-   !       call int2string(initsamp, itext)
-   !       do i = 1, cpar%zs_ncomps
-   !          group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
-   !          if (.not. hdf_group_exists(file, group_name)) then
-   !             params(i, :) = cpar%zs_comp_params(i, :, 1)
-   !             cycle
-   !          end if 
-   !          param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
-   !          do j = 1, size(param_labels)
-   !             call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
-   !                 & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
-   !          end do
-   !             params(i, :) = comp_params
-   !       end do 
-   !       do i = 1, self%n_general_params
-   !          call read_hdf(file, trim(adjustl(itext)//'/zodi/general/'//trim(adjustl(self%general_labels(i)))), general_params(i))
-   !       end do
-   !       call close_hdf_file(file)
-   !    end if
-   !    call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-   !    call mpi_bcast(general_params, size(general_params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-   !    call self%init_general_params(general_params)
-   !    call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
-
-   ! end subroutine model_from_chain
-
-!!$   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
-!!$      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-!!$      ! integrated thermal zodiacal emission and scattered zodiacal light.
-!!$      !
-!!$      ! Parameters:
-!!$      ! -----------
-!!$      ! s_scat :
-!!$      !     Integrated contribution from scattered sunlight light.
-!!$      ! s_therm :
-!!$      !     Integrated contribution from thermal interplanetary dust emission.
-!!$      ! s_zodi :
-!!$      !     Zodiacal signal.
-!!$      ! emissivity :
-!!$      !     Emissivity of the zodiacal components.
-!!$      ! albedo :
-!!$     !     Albedo of the zodiacal components.
-!!$     implicit none
-!!$     integer(i4b),                  intent(in)  :: band
-!!$     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
-!!$     real(sp),     dimension(:),    intent(out) :: s_zodi
-!!$     integer(i4b),                  intent(in), optional :: comp_id
-!!$     
-!!$     integer(i4b) :: i, first
-!!$     real(dp)     :: al, em
-!!$
-!!$     first = 1; if (present(comp_id)) first = comp_id
-!!$     
-!!$     s_zodi = 0.
-!!$     do i = first, first+size(s_therm,2)-1
-!!$        al     = zodi_model%comps(i)%c%albedo(band)
-!!$        em     = zodi_model%comps(i)%c%emissivity(band)
-!!$        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-!!$        if (trim(zodi_model%phasefunc_type) == 'Wright') then
-!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) +             em * s_therm(:,i-first+1))
-!!$        else
-!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
-!!$        end if
-!!$     end do
-!!$   end subroutine get_s_zodi
-
+     ! Initialize a component from a chain
+     class(ZodiModel), target, intent(inout) :: self
+     type(comm_params), intent(in) :: cpar
+     real(dp), intent(inout) :: params(:, :)
+     integer(i4b), intent(in) :: comp_idx
+     
+     logical(lgt) :: exist
+     integer(i4b) :: i, j, l, ierr, initsamp
+     character(len=6) :: itext
+     
+     type(hdf_file) :: file
+     
+     character(len=32), allocatable :: param_labels(:)
+     character(len=2048) :: chainfile, group_name
+     
+     if (cpar%myid == cpar%root) then
+        if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
+           call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
+        else
+           call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
+        end if
+        inquire (file=trim(chainfile), exist=exist)
+        if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
+        l = len(trim(chainfile))
+        if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+        
+        call open_hdf_file(trim(chainfile), file, "r")
+        
+        call int2string(initsamp, itext)
+        group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx))))
+        if (.not. hdf_group_exists(file, group_name)) then
+           print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(comp_idx))), "not found in chain:", trim(chainfile)
+           stop
+        end if
+        
+        param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(comp_idx))), add_common=.true.)
+        do j = 1, size(param_labels)
+           call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
+                & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
+        end do
+        deallocate(param_labels)
+     end if
+     ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     
+   end subroutine comp_from_chain
    
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
      implicit none
@@ -1310,9 +1200,9 @@ contains
 
       ! Initialize cache
       if (use_lowres) then
-         allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
+         !allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
       else
-         allocate(cache(tod%nobs,                   tod%ndet))
+         allocate(cache(tod%pixcache%nobs,                   tod%ndet))
       end if
       cache_time = tod%scans(1)%t0(1)
       cache      = -1
@@ -1342,11 +1232,12 @@ contains
 
          ! Get lookup index for cache. If the pixel is already cached, used that value.
          if (use_lowres) then
-            lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
-            unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
+            !lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
+            !unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
          else
-            lookup_idx  = tod%pix2ind(pix(i))
-            unit_vector = tod%ind2vec_ecl(:, lookup_idx)
+            lookup_idx  = tod%pixcache%pix2ind(pix(i))
+            if (lookup_idx == -2) write(*,*) 'oor', tod%scanid(scan), det, i, pix(i)
+            unit_vector = tod%pixcache%ind2vec_ecl(:, lookup_idx)
          end if
          
          if (cache(lookup_idx, det) > 0.d0) then
@@ -1452,83 +1343,299 @@ contains
       
     end subroutine get_zodi_emission
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s_zodi_tot, pix_dynamic, exclude_static, comp)
+
+    subroutine get_zodi_emission_adaptive(tod, pix, scan, det, model, s_zodi, accuracy, samprate_min, comp)
       implicit none
-      class(ZodiModel),                 intent(in)               :: zodi_model
-      class(comm_tod),                  intent(inout)            :: tod
-      integer(i4b),                     intent(in)               :: det, scan
-      real(sp),         dimension(:),   intent(out)              :: s_zodi_tot
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
-      character(len=*),                 intent(in),     optional :: exclude_static
-      integer(i4b),                     intent(in),     optional :: comp
+      ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
+      !
+      ! Parameters
+      ! ----------
+      ! tod : class(comm_tod)
+      !     The TOD object holding the spline objects to update.
+      ! pix : integer(i4b), dimension(ntod)
+      !     The pixel indices of each time-ordered observation.
+      ! det : integer(i4b)
+      !     The detector index.
+      ! scan : integer(i4b)
+      !     The scan number.
+      ! s_zodi_scat : real(sp), dimension(ntod, ncomps)
+      !     Contribution from scattered sunlight light.
+      ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
+      !     Contribution from thermal interplanetary dust emission.
+      ! model : type(ZodiModel)
+      !     The zodiacal emission model.
+      ! use_lowres_pointing : logical(lgt), optional
+      !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
+      ! comp : integer(i4b), optional
+      !     If present, only evaluate the zodiacal emission for this component.
+      !
+      ! Returns
+      ! -------
+      ! s_zodi_scat : real(sp), dimension(ntod, ncomps, ndet)
+      !     Contribution from scattered sunlight light.
+      ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
+      !     Contribution from thermal interplanetary dust emission.
+      !
+      class(comm_tod),               intent(in)           :: tod
+      integer(i4b),    dimension(:), intent(in)           :: pix
+      integer(i4b),                  intent(in)           :: scan, det
+      type(ZodiModel),               intent(in)           :: model
+      real(sp),        dimension(:), intent(out)          :: s_zodi
+      real(sp),                      intent(in), optional :: accuracy
+      real(sp),                      intent(in), optional :: samprate_min
+      integer(i4b),                  intent(in), optional :: comp
+
+      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, nsamp, dn, iter, maxiter, ncurr, n_new, offset, offset2
+      logical(lgt) :: scattering, thermal, use_lowres
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em, acc
+      real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3), samprate
+      type(spline_type) :: s_int
+      integer(i4b), allocatable, dimension(:) :: ind
+      real(dp),     allocatable, dimension(:) :: b_nu
+      real(dp),     allocatable, dimension(:) :: s, s_pred
+            
+      acc        = 1d-3; if (present(accuracy))     acc      = accuracy  ! Minimum relative accuracy
+      samprate   = 1.d0; if (present(samprate_min)) samprate = samprate_min
+      dn         = max(1,int(tod%samprate/samprate)) ! Default sampling distance
+      maxiter    = 10
       
-      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
+      n_tod      = size(pix)
+      dt_tod     = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+      obs_pos    = tod%scans(scan)%x0_obs
+      earth_pos  = tod%scans(scan)%x0_earth
+      R_obs      = norm2(obs_pos)
+      obs_time   = tod%scans(scan)%t0(1)
+      earth_lon  = atan(earth_pos(2), earth_pos(1))
+      scattering = tod%central_freq >= model%nu_min_scatter
+      thermal    = tod%central_freq <= model%nu_max_thermal
+
+      allocate(s(n_tod), ind(n_tod), s_pred(n_tod))
+
+      ! Initialize adaptive grid
+      ncurr = 0
+      do i = 1, n_tod, dn
+         ncurr      = ncurr +1
+         ind(ncurr) = i
+         s(ncurr)   = evaluate_zodi(i) ! Get zodi at i
+      end do
+      if (ind(ncurr) < n_tod) then
+         ! Add endpoint manually
+         ncurr      = ncurr + 1
+         ind(ncurr) = n_tod
+         s(ncurr)   = evaluate_zodi(n_tod) ! Get zodi at n_tot
+      end if
+      ind(1)     = -ind(1)     ! Fix first point
+      ind(ncurr) = -ind(ncurr) ! Fix last point
+
+!!$      open(58,file="spline1.dat")
+!!$      do i = 1, ncurr
+!!$         write(58,*) i, ind(i), abs(ind(i)), s(i)
+!!$      end do
+!!$      close(58)
+      
+      ! Compute spline
+      call spline(s_int, real(abs(ind(1:ncurr)),dp), s(1:ncurr))
+
+      
+      ! Refine grid until all segments have reached sufficient accuracy
+      do iter  = 1, maxiter
+
+         ! Count new points to be evaluated; skip those with both negative indices
+         offset = 0
+         do i = ncurr, 2, -1
+            if (abs(ind(i))-abs(ind(i-1)) > 1 .and. (ind(i) >= 0 .or. ind(i-1) >= 0)) then
+               offset = offset + 1
+            end if
+         end do
+         offset2 = offset
+         
+         ! Make space for new points; fill with new values
+         !write(*,*) "offset = ", offset
+         s_pred(1:ncurr+offset) = 0.
+         do i = ncurr, 2, -1
+!            write(*,*) i, i+offset, offset, ind(i), s(i)
+            ind(i+offset) = ind(i)
+            s(i+offset)   = s(i)
+            if (abs(ind(i))-abs(ind(i-1)) > 1 .and. (ind(i) >= 0 .or. ind(i-1) >= 0)) then
+               ! Evaluate and insert new midpoint
+               offset           = offset-1               
+               j                = (abs(ind(i-1))+abs(ind(i)))/2
+               ind(i+offset)    = j
+               s(i+offset)      = evaluate_zodi(j)
+               s_pred(i+offset) = splint(s_int, real(j,dp))
+               !write(*,*) 'adding', j, s(i+offset), s_pred(i+offset), abs((s(i+offset)-s_pred(i+offset))/s(i+offset))
+            end if
+         end do
+         ncurr = ncurr + offset2
+
+         ! Check accuracy
+         do i = 2, ncurr-1
+            if (abs(ind(i)) == abs(ind(i-1))+1) ind(i-1:i) = -abs(ind(i-1:i))
+            if (s_pred(i) /= 0.) then
+               ! Recent point
+               if (abs((s(i)-s_pred(i))/s(i)) < acc) ind(i-1:i+1) = -abs(ind(i-1:i+1))
+            end if
+         end do
+         
+!!$         open(58,file="spline2.dat")
+!!$      do i = 1, ncurr
+!!$         write(58,*) i, ind(i), abs(ind(i)), s(i), abs((s(i)-s_pred(i))/s(i))
+!!$      end do
+!!$      close(58)
+
+         ! Compute spline
+         call free_spline(s_int)
+         call spline(s_int, real(abs(ind(1:ncurr)),dp), s(1:ncurr))
+
+!!$      open(58,file="spline3.dat")
+!!$      do i = 1, n_tod
+!!$         write(58,*) i, splint(s_int, real(i,dp))
+!!$      end do
+!!$      close(58)
+
+         
+         if (all(ind < 0)) exit
+      end do
+
+      ! Interpolate to full scan
+      do i = 1, n_tod
+         s_zodi(i) = splint(s_int, real(i,dp))
+      end do
+
+      !write(*,fmt='(a,i8,i4,i12,i12)') '  Zodi spline = ', tod%scanid(scan), det, ncurr, n_tod
+      call free_spline(s_int)
+         
+    contains
+
+      function evaluate_zodi(ind) result(s)
+        implicit none
+        integer(i4b), intent(in) :: ind
+        real(dp)                 :: s
+
+        integer(i4b) :: j, k
+        real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3), samprate
+        real(dp) :: earth_lon, R_obs, R_min, R_max, lat, lon, s_tot, s_scat, s_therm, al, em
+
+        unit_vector = tod%pixcache%ind2vec_ecl(:, tod%pixcache%pix2ind(pix(ind)))
+        obs_time    = tod%scans(scan)%t0(1) + (ind-1)*dt_tod 
+        do j = 1, 3
+           earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
+           obs_pos(j)   = splint_simple(tod%x_obs_spline(j),   obs_time)
+        end do
+        R_obs      = norm2(obs_pos)
+        earth_lon  = atan(earth_pos(2), earth_pos(1))
+
+        s = 0.d0
+        do k = 1, model%n_comps
+           ! If comp is present we only evaluate the zodi emission for that component.
+           ! If comp == 0 then we evaluate the zodi emission for all components.
+           if (present(comp)) then
+              if (k /= comp .and. comp /= 0) cycle
+           end if
+
+           ! Get line of sight integration range
+           call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_min, R_min)
+           call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_max, R_max)
+
+           do l = 1, 3
+              ! Convert quadrature range from [-1, 1] to [R_min, R_max]
+              comp_LOS(k)%X_unit(l,:) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+              comp_LOS(k)%X_unit(l,:) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+              comp_LOS(k)%X(l,:)      = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
+           end do
+           comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
+!!$            do l = 1, size(comp_LOS(k)%R)
+!!$               if (sum(comp_LOS(k)%X_unit(:,l)**2) == 0.d0) then
+!!$                  write(*,*) 'comp', k, l
+!!$                  write(*,*) 'R_MIN', R_max, R_min
+!!$                  write(*,*) 'gauss', comp_LOS(k)%gauss_nodes(l)
+!!$                  write(*,*) 'unit', unit_vector
+!!$                  write(*,*) 'X_unit', comp_LOS(k)%X_unit(:,l)
+!!$               end if
+!!$            end do
+
+           ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
+           if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
+              comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+           else
+              comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+           end if
+           call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
+
+           
+           ! Compute density
+           call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+           
+           if (scattering) then
+              ! Compute phase function if scattering is included
+              if (trim(model%phasefunc_type) == 'Wright') then
+                 allocate(b_nu(size(tod%bp(0)%p%nu)))
+                 call get_blackbody_emission(tod%bp(0)%p%nu, 5772.d0, b_nu) 
+                 comp_LOS(k)%F_sol = tsum(tod%bp(0)%p%nu, tod%bp(0)%p%tau*b_nu)/comp_LOS(k)%R**2
+                 deallocate(b_nu)
+              else
+                 comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+              end if
+              call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
+              call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
+              s_scat = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5d0*(R_max-R_MIN)*1d20
+           else
+              s_scat = 0.d0
+           end if
+
+           if (thermal) then
+              s_therm = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) &
+                   & * 0.5d0*(R_max-R_MIN)*1d20
+           else
+              s_therm = 0.d0
+           end if
+
+           ! Get albedo and emussivity
+           al = zodi_model%comps(k)%c%albedo(tod%id)
+           em = zodi_model%comps(k)%c%emissivity(tod%id)
+           if (trim(zodi_model%phasefunc_type) == 'Wright') then
+              s = s + al*s_scat + em          *s_therm
+           else
+              s = s + al*s_scat + em*(1.d0-al)*s_therm
+           end if
+        end do
+
+      end function evaluate_zodi
+
+    end subroutine get_zodi_emission_adaptive
+
+    
+   subroutine compute_zodi(zodi_model, tod, sd, det, comp)
+      implicit none
+      class(ZodiModel),     intent(in)             :: zodi_model
+      class(comm_tod),      intent(in)             :: tod
+      class(comm_scandata), intent(inout)          :: sd
+      integer(i4b),         intent(in),   optional :: det
+      integer(i4b),         intent(in),   optional :: comp
+      
+      integer(i4b) :: i, j, d, h, hp, ntod, nhorn, ncomp, ndet
       real(sp)     :: w
       real(dp)     :: t1, t2
-      real(sp),     allocatable, dimension(:)   :: s_zodi
-      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
 
-      ntod  = size(s_zodi_tot)
-      ncomp = zodi_model%n_comps
-      band  = tod%id
+      ntod  = sd%ntod
+      nhorn = tod%nhorn
+      ndet  = tod%ndet;           if (present(det)) ndet = 1
+      ncomp = zodi_model%n_comps; if (present(comp)) ncomp = 1
 
-      ! Initialize
-      s_zodi_tot = 0.
-      
       ! Compute non-stationary zodi TOD through line-of-sight integration for each horn, and add together
-      call wall_time(t1)
-      if (present(pix_dynamic)) then
-         allocate(s_zodi(ntod))
-         do h = 1, size(pix_dynamic,2)
-            call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
-            w = 1.d0; if (h > 1) w = -1.d0
-            s_zodi_tot = s_zodi_tot  + w * s_zodi
+      do j = 1, ndet
+         d = j; if (present(det)) d = det
+         do h = 1, nhorn
+            hp = h; if (nhorn == 1) hp = 0
+            ! Fast, but approximate
+            call get_zodi_emission_adaptive(tod, sd%pix(:,j,h), sd%scan, d, zodi_model, sd%s_zodi(:,j,hp), accuracy=1e-3, samprate_min=1.0)
+            ! Evaluate each sample
+            !call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
          end do
-         deallocate(s_zodi)
-      end if
-      call wall_time(t2)
+      end do
       
-      ! Add solar component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
-               if (tod%map_solar(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_solar(j,1)
-               end if
-            end do
-         end do
-      end if
-      return
+    end subroutine compute_zodi
 
-      ! Add Moon component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'moon') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
-               if (tod%map_moon(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_moon(j,1)
-               end if
-            end do
-         end do
-      end if
-
-      ! Add Earth component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'earth') then
-         do h = 1, tod%nhorn 
-            do i = 1, ntod
-               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
-               if (tod%map_earth(j) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_earth(j)
-               end if
-            end do
-         end do
-      end if
-
-    end subroutine get_s_tot_zodi
     
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------

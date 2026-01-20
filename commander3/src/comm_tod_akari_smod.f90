@@ -67,14 +67,24 @@ contains
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
 
-      c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
-      ! [sigma0, fknee, alpha]; sigma0 is not used
-      do i = 1, c%n_xi 
-         c%xi_n_nu_fit(i,:) = [0.d0, 0.01d0] 
-      end do
-      c%xi_n_P_uni(1,:) = [0.d0, 0.d0]
-      c%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
-      c%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
+      if (.true.) then
+         ! Correlated noise parameters
+         c%xi_n_nu_fit(1,:) = [0.d0, 1.0d0] ! Freq range for sigma0
+         c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0] ! Freq range for fknee
+         c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0] ! Freq range for alpha
+         c%xi_n_P_rms       = [-100.d0, -0.01d0, 0.05d0] ! Prior rms [sigma0, fknee, alpha]
+         c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
+         c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
+         c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+
+         ! Data selection parameters
+         c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
+         c%sigma0_threshold = 1.d0        ! Cut scans with higher sigma0
+      else if (trim(c%freq) == 'AKARI_N160') then
+      else if (trim(c%freq) == 'AKARI_WIDE-L') then
+      else if (trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_N60') then
+      end if
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -94,10 +104,11 @@ contains
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
       c%symm_flags      = .false.
+      c%use_moon_point  = cpar%sample_moon_maps
+      c%use_earth_elon  = cpar%sample_earth_maps
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       ! c%chisq_threshold = 50000.
-      c%chisq_threshold = huge(0.0d0)
-      c%nside_pixhist   = 64
+      c%nside_pixhist    = 64
 
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -125,6 +136,7 @@ contains
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
+      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
       call c%precompute_lookups()
 
       ! Load the instrument file
@@ -135,8 +147,11 @@ contains
       !  call init_noise_model(c, i)
       !end do
 
+      ! Collect Sun velocities from all scans
+      call c%collect_v_sun
+      
       ! Allocate sidelobe convolution data structures
-      allocate(c%slconv(c%ndet), c%orb_dp)
+      allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
 
       c%orb_dp => comm_orbdipole(comm=c%comm)
 
@@ -198,10 +213,10 @@ contains
       real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -228,6 +243,8 @@ contains
 
       !call timer%start(TOD_ALLOC, self%band)
 
+      ! Output input sky model
+      call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
       
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -235,22 +252,35 @@ contains
       use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
-      select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
-      flag_threshold        = [1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
-!!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
-!!$        & trim(self%freq) == '03' .or. &
-!!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      ! if (trim(self%freq(1:2)) == '10') then
-      !    sample_ncorr = .true.
-      ! else
-      !    sample_ncorr = .false.
-      ! end if
-      sample_ncorr = .false.
-         
+
+      if (trim(self%init_from_HDF) == 'none') then
+         select_data     = iter == 5
+         sample_ncorr    = iter > 2
+         sample_xi_n     = iter > 2
+      else
+         select_data     = iter == 3 
+         sample_ncorr    = iter > 1
+         sample_xi_n     = iter > 1
+      end if
+
+      !                       Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
+      if (trim(self%freq) == 'AKARI_N160') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
+      else if (trim(self%freq) == 'AKARI_WIDE-L') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      else if (trim(self%freq) == 'AKARI_WIDE-S') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      else if (trim(self%freq) == 'AKARI_N60') then
+         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+      end if
+
+      oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+           & SD_SKY,SD_INST,SD_NCORR,SD_BP,SD_ORB,SD_ZODI])
+
+      
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -268,22 +298,10 @@ contains
       prefix_atlas = trim(chaindir) // '/atlas_' // trim(self%freq) // '_' // trim(zodi_param_text) // '_' // trim(up_down_text) // '_'
       postfix_atlas = '.fits'
 
-      ! Distribute maps
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
+      ! Initialize index-based sky map and mask
+      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
+      call update_status(status, "tod_cache"//ctext)
 
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-      if (self%sample_zodi .and. self%subtract_zodi) then
-         allocate(procmask_zodi(0:npix-1))
-         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
-      end if
-      deallocate(m_buf)
-
-      call update_status(status, "tod_init")
 
       ! Write mask for debugging
       if (.false. .and. self%myid == 0) then
@@ -302,18 +320,16 @@ contains
       !------------------------------------
 
       ! Create pixel histograms
-      if (self%first_call) then
-         call compute_tod_pixhist(self, map_sky, m_gain, procmask, procmask2)
-      end if
+      if (self%first_call) call compute_tod_pixhist(self)
       
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
-         call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'abscal', oper_default, handle)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-          call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'relcal', oper_default, handle)
          ! 'deltaG': the time-variable and detector-variable gain
-         !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
       ! Prepare intermediate data structures
@@ -335,7 +351,7 @@ contains
          !write(*,*) i, self%scans(i)%d%accept
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
           !if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
@@ -346,39 +362,43 @@ contains
          !    close(58)
          ! end if
          
+         ! Apply fast flags
+         call update_status(status, "quick_tod_flag_"//ctext)
+         
          ! Create dynamic mask
-         if (self%first_call) then
+         !if (self%first_call) then
+         if (select_data) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               if (self%scans(i)%d(j)%N_psd%sigma0 .eq. 0.d0) write(*,*) 'debug sigma0 = 0.0'
-               call self%create_dynamic_mask(i, j, sd%pix(:,j,1), sd%tod(:,j), (sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j))/self%scans(i)%d(j)%N_psd%sigma0, &
-                    & sd%mask(:,j), sd%flag(:,j), flag_threshold, s_tot=sd%s_tot(:,j))
+               call self%create_dynamic_mask(sd, j, flag_threshold)
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+         end if
+         
+         ! Sample correlated noise
+         !call project_mask(self, TODMASK_ZODI, sd)
+         if (sample_ncorr) then
+            call sample_n_corr(self, sd, handle)
+            if (sample_xi_n) then
+               call sample_noise_psd(self, sd, handle)
+            else
+               call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+            end if
+         else
+            call sample_n_corr(self, sd, handle, onlymono=.true.)
+            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
          end if
 
-         ! Sample correlated noise
-         ! if (sample_ncorr) then
-         !    !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         !    call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
-         !   ! Compute noise spectrum parameters
-         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-         ! else
-         !    sd%n_corr = 0.d0
-         !    call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, only_sigma0=.true.)
-         ! end if
-
          ! Compute chisquare
-!!$         do j = 1, sd%ndet
-!!$            if (.not. self%scans(i)%d(j)%accept) cycle
-!!$            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-!!$              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
-!!$         end do
+         do j = 1, sd%ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            call self%compute_tod_chisq(sd, j)
+         end do
 
          ! Select data
-!!$         if (select_data) call remove_bad_data(self, i, sd%flag)
+         if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -386,7 +406,6 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
-         !write(*,*) 'a', self%scanid(i), any(sd%s_zodi_scat/=sd%s_zodi_scat), any(sd%s_zodi_therm/=sd%s_zodi_therm)
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
@@ -394,10 +413,10 @@ contains
          ! For debugging: write TOD to hdf
          if (.false.) then
             ! scan id appears to be the worst chi2
-            if (self%scanid(i) < 500) then 
+            if (self%scanid(i) == 5020) then 
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
-               call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
+               call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
                call write_hdf(tod_file, '/flag', sd%flag)
@@ -410,6 +429,7 @@ contains
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
+               call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
                call close_hdf_file(tod_file)
             end if
          end if
@@ -435,7 +455,7 @@ contains
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Synchronize and output flagging statistics in first iteration
-      if (self%first_call) call self%report_dynamic_mask_stats
+      if (select_data) call self%report_dynamic_mask_stats
       
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
@@ -459,7 +479,7 @@ contains
 
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
-         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+         call sample_bp(self, handle, chisq_S, delta)
          self%bp_delta = delta(:,:,1)
       end if
 
@@ -497,7 +517,6 @@ contains
       ! Clean up
       call binmap%dealloc()
       if (allocated(slist)) deallocate(slist)
-      deallocate(map_sky, procmask, procmask2)
       !  if (self%correct_sl) then
       !     do i = 1, self%ndet
       !        call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
@@ -513,5 +532,67 @@ contains
 
    end subroutine process_akari_tod   
 
+
+   module subroutine apply_fast_flags_akari(self, sd)
+     !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+     !  Expensive operations should instead be added to the dynamic mask
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     implicit none
+     class(comm_akari_tod),                 intent(inout)    :: self
+     class(comm_scandata),                  intent(inout)    :: sd
+
+
+     integer(i4b) :: i, j, k
+
+
+     ! Exclude a sample by setting bit 29 in sd%flag to 1,
+     ! ie., sd%flag = sd%flag + 536870912
+
+     ! Nils and Katrine -- Add all fast flagging operations here (like getting rid of the 2 second ramp reset etc.)
+     ! If things need to be precomputed, and require more expensive analyses, it's better to add it to the dynamic mask,
+     ! which is only computed once. However, that's stored in an (nmask,2) array format, giving the samples of the start and
+     ! end of a rejected TOD segment. We clearly do not want the 2 second thing in there, as it would require a lot of memory
+     ! just to store it. So, use this routine for things like the 2 second mask, which may be computed quickly on the fly,
+     ! but the dynamic mask for things that are expensive.
+     !
+     ! Also note that the actual flag array should not change from Gibbs sample to Gibbs sample (at least not after some burn-in), and
+     ! so the flags in this array must be deterministic between iterations
+     
+     ! Masking the 2 second ramp reset after each calibration lamp flash
+
+
+      do i = 1, sd%ndet
+         do j = 1, sd%ntod
+            if (btest(sd%flag(j,i), TOD_CALLAMP1)) then
+               ! Mask the next 150 samples (~4 seconds at 24 Hz) after cal lamp 1
+               do k = j, min(j+150, sd%ntod)
+                  sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+               end do
+            end if
+
+            if (btest(sd%flag(j,i), TOD_CALLAMP2)) then
+               ! Mask the next 150 samples (~4 seconds at 24 Hz) after cal lamp 2
+               do k = j, min(j+150, sd%ntod)
+                  sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+               end do
+            end if
+
+            ! if (btest(sd%flag(j,i), TOD_RAMP_RESET)) then
+            !    ! Mask the next 2 samples after ramp reset
+            !    do k = j, min(j+30, sd%ntod)
+            !       sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+            !    end do   
+            ! end if
+            
+         end do
+      end do
+
+   end subroutine apply_fast_flags_akari
+
+   
 
 end submodule comm_tod_akari_smod

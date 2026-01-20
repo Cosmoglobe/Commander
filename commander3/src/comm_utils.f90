@@ -896,6 +896,7 @@ contains
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
+    character(len=8) :: headernum
 
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
@@ -952,6 +953,14 @@ contains
        call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
        call add_card(header,"TUNIT3", unit_,"Map unit")
        call add_card(header)
+    else
+       call add_card(header)
+       do i = 2, nmaps
+         ! Will crash for nmaps > 9
+         write(headernum, '(I1.1)') i
+         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype")
+         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+       end do
     endif
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
