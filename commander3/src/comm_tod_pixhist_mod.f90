@@ -177,7 +177,7 @@ contains
           tod%pixhist(4,i,det) = mu - 4.0*sigma
           tod%pixhist(5,i,det) = mu + 4.0*sigma
           
-          if (.false. .and. tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
+          if (.false. .and. tod%myid == 0 .and. mod(i,1000)==0 .and. det == 10) then
              call int2string(i,pix_text)
              open(58,file='pixhist'//pix_text//'.dat', recl=1024)
              write(58,*) '# pixhist =', tod%pixhist(:,i,det)

@@ -362,6 +362,9 @@ contains
          !    close(58)
          ! end if
          
+         ! Apply fast flags
+         call update_status(status, "quick_tod_flag_"//ctext)
+         
          ! Create dynamic mask
          !if (self%first_call) then
          if (select_data) then
@@ -426,6 +429,7 @@ contains
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
+               call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
                call close_hdf_file(tod_file)
             end if
          end if
@@ -541,6 +545,10 @@ contains
      class(comm_akari_tod),                 intent(inout)    :: self
      class(comm_scandata),                  intent(inout)    :: sd
 
+
+     integer(i4b) :: i, j, k
+
+
      ! Exclude a sample by setting bit 29 in sd%flag to 1,
      ! ie., sd%flag = sd%flag + 536870912
 
@@ -554,6 +562,35 @@ contains
      ! Also note that the actual flag array should not change from Gibbs sample to Gibbs sample (at least not after some burn-in), and
      ! so the flags in this array must be deterministic between iterations
      
+     ! Masking the 2 second ramp reset after each calibration lamp flash
+
+
+      do i = 1, sd%ndet
+         do j = 1, sd%ntod
+            if (btest(sd%flag(j,i), TOD_CALLAMP1)) then
+               ! Mask the next 150 samples (~4 seconds at 24 Hz) after cal lamp 1
+               do k = j, min(j+150, sd%ntod)
+                  sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+               end do
+            end if
+
+            if (btest(sd%flag(j,i), TOD_CALLAMP2)) then
+               ! Mask the next 150 samples (~4 seconds at 24 Hz) after cal lamp 2
+               do k = j, min(j+150, sd%ntod)
+                  sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+               end do
+            end if
+
+            ! if (btest(sd%flag(j,i), TOD_RAMP_RESET)) then
+            !    ! Mask the next 2 samples after ramp reset
+            !    do k = j, min(j+30, sd%ntod)
+            !       sd%flag(k,i) = ibset(sd%flag(k,i), 29)
+            !    end do   
+            ! end if
+            
+         end do
+      end do
+
    end subroutine apply_fast_flags_akari
 
    
