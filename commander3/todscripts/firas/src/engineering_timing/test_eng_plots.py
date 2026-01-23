@@ -243,6 +243,7 @@ t_10 = (Time('1990:220:05:00').mjd*u.day).to(u.ns) # XCAL placed under temperatu
 t_11 = (Time('1990:264:09:36').mjd*u.day).to(u.ns) # Final period over
 
 time_periods = np.array([t_launch.value, t_apco.value, t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
+time_ranges = np.array([t_launch, t_apco, t_00, t_01, t_02, t_03, t_04, t_05, t_06, t_07, t_08, t_09, t_10])*u.ns
 period_labels = ['Launch',
                  'APCO ejection',
                  'First light',
@@ -331,6 +332,7 @@ dn = 0.5
 dn = 8
 dn = 16
 dn = 8
+dn = 128
 '''
 # GMT
 gmt_time = data['fdq_eng']['ct_head']['gmt']
@@ -529,20 +531,26 @@ t1 = (4.153e9 + 480_000)*u.s
 # Mostly calibration, but a lot of small gaps. This is the entire calibration campaign
 t0 = (4.156e9 + 300_000)*u.s
 t1 = (4.156e9 + 900_000)*u.s
+#t0 = (4.156e9 + 400_000)*u.s
+#t1 = (4.156e9 + 500_000)*u.s
 
 # Calibration campaign
-t0 = t_09 + 8e5*u.s
-t1 = t_09 + 9e5*u.s
+# t0 = t_09 + 8e5*u.s
+# t1 = t_09 + 9e5*u.s
 
 # Calibration campaign, ramping up the ICAL
-t0 = t_09 + 8.4e5*u.s
-t1 = t_09 + 8.6e5*u.s
+# t0 = t_09 + 8.4e5*u.s
+# t1 = t_09 + 8.6e5*u.s
 
 # Calibration campaign, ICAL step
 # t0 = t_09 + 8.41e5*u.s
 # t1 = t_09 + 8.44e5*u.s
 # 
 # t1 = t_09 + 8.54e5*u.s
+
+
+t0 = t_09
+t1 = t_10
 
 
 
@@ -598,7 +606,6 @@ t0 = (4.1586e9 + 50_000)*u.s
 t1 = (4.1586e9 + 70_000)*u.s
 t0 = 1.853e6*u.s + t_10
 t1 = 1.856e6*u.s + t_10
-'''
 
 
 
@@ -626,6 +633,7 @@ t1 = (4.156e9 + 740_000)*u.s
 #
 #t0 = (4.156e9 + 642_250)*u.s
 #t1 = (4.156e9 + 643_250)*u.s
+'''
 
 
 # This seems to have the ifgs being aligned well with the temperature data.
@@ -670,12 +678,12 @@ t1 = (4.139e9 + 430_000)*u.s
 
 
 
+'''
 # Mirror and collimator now
 
 t0 = (4.156e9 + 700_000)*u.s
 t1 = (4.156e9 + 702_500)*u.s
 
-'''
 # Pretty good for the dihedral mirror
 t0 = (4.139e9 + 425_000)*u.s
 t1 = (4.139e9 + 426_000)*u.s
@@ -702,7 +710,6 @@ t1 = (4.1497e9 + 50_000)*u.s
 
 #t0 = (4.1497e9 + 88_500)*u.s
 #t1 = (4.1497e9 + 90_000)*u.s
-'''
 
 # Trying to look at the mirror and collimator.
 t0 = (4.138e9 + 895_500)*u.s
@@ -751,16 +758,17 @@ print(t0)
 t0 = t_09 + 8.36e5*u.s
 t1 = t_09 + 8.38e5*u.s
 # Should be just the rise
-# t1 = t_09 + 8.37e5*u.s
+t1 = t_09 + 8.37e5*u.s
 
-'''
 
 
 # This avoids the spike, but still shows the ICAL transition
 t0 = (4.1596e9 + 4_500)*u.s
 t0 = (4.1596e9 + 4_750)*u.s
 t1 = (4.1596e9 + 5_500)*u.s
+'''
 
+'''
 
 
 # Heating up at the end...
@@ -802,7 +810,11 @@ t1 = t0 + 1e5*u.s
 
 t0 = 4.15e9*u.s - 5e3*u.s
 t1 = 4.15e9*u.s + 5e3*u.s
+
 '''
+
+t0 = t_01
+t1 = t_11
 
 
 
@@ -1015,6 +1027,7 @@ plt.tight_layout()
 
 plt.savefig('temperature_stuff.png')
 
+
 fig = plt.figure(figsize=(16, 12))
 ax_first = []
 ax_second = []
@@ -1080,7 +1093,7 @@ axs[0].plot(nt(time[inds],epoch), lvdt_stat_b[inds], '.')
 axs[1].plot(nt(time[inds],epoch), stat_word_9[inds], '.')
 axs[0].margins(0)
 plt.suptitle('Important flags?')
-plt.savefig('eng_data.png', bbox_inches='tight')
+#plt.savefig('eng_data.png', bbox_inches='tight')
 plt.close()
 
 ll = sdf['fdq_sdf_ll']
@@ -1271,7 +1284,7 @@ for i, grt in enumerate(grt_names):
 plt.legend(loc='best')
 #plt.show()
 
-dn = 2
+dn = 8
 for _, j in enumerate(np.arange(-8, 8, dn)):
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
     axs = axes.flatten()
@@ -1287,7 +1300,7 @@ for _, j in enumerate(np.arange(-8, 8, dn)):
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
         
         times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
-                100*len(t_lo))
+                len(t_lo))
         inds_ = (f1(times) > 0)
         axs[2*i].plot(f1(times)[inds_], f2(times)[inds_] - f1(times)[inds_], '.', ms=1)
 
@@ -1302,7 +1315,7 @@ for _, j in enumerate(np.arange(-8, 8, dn)):
         f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
         
         times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
-                100*len(t_lo))
+                len(t_lo))
         inds_ = (f1(times) > 0)
         axs[2*i+1].plot(f1(times)[inds_], f2(times)[inds_] - f1(times)[inds_], '.', ms=1)
         axs[2*i].set_title(f"{grt}, a")
@@ -1314,8 +1327,54 @@ for _, j in enumerate(np.arange(-8, 8, dn)):
     plt.savefig(f'offsets_diff_{_:03}.png')
     plt.close()
 
+for _ in range(len(time_ranges)-1):
+    t0 = time_ranges[_]
+    t1 = time_ranges[_+1]
+    inds = (time > t0) & (time < t1)
+    fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
+    axs = axes.flatten()
+    for i, grt in enumerate(grt_names):
+        T_lo = grts[f'a_lo_{grt}'][inds]
+        T_hi = grts[f'a_hi_{grt}'][inds]
+        T_lo[T_lo < 0] = np.nan
+        T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'a_lo_{grt}'][inds]
+        t_hi = grt_times[f'a_hi_{grt}'][inds] + j*dt
 
-dn = 2
+        f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
+        f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
+        
+        times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
+                len(t_lo))
+        inds_ = (f1(times) > 0)
+        axs[2*i].plot(f1(times)[inds_], f2(times)[inds_] - f1(times)[inds_], '.', ms=1)
+
+        T_lo = grts[f'b_lo_{grt}'][inds]
+        T_hi = grts[f'b_hi_{grt}'][inds]
+        T_lo[T_lo < 0] = np.nan
+        T_hi[T_hi < 0] = np.nan
+        t_lo = grt_times[f'b_lo_{grt}'][inds]
+        t_hi = grt_times[f'b_hi_{grt}'][inds] + j*dt
+
+        f1 = interp1d(t_lo, T_lo, fill_value='extrapolate', kind=kind)
+        f2 = interp1d(t_hi, T_hi, fill_value='extrapolate', kind=kind)
+        
+        times = np.linspace(min(t_lo.min(), t_hi.min()), max(t_hi.max(), t_lo.max()),
+                len(t_lo))
+        inds_ = (f1(times) > 0)
+        axs[2*i+1].plot(f1(times)[inds_], f2(times)[inds_] - f1(times)[inds_], '.', ms=1)
+        axs[2*i].set_title(f"{grt}, a")
+        axs[2*i+1].set_title(f"{grt}, b")
+    fig.supylabel(r'$T_\mathrm{high} - T_\mathrm{low}$')
+    fig.supxlabel(r'$T_\mathrm{low}$')
+    plt.suptitle(f'Time period {_}')
+    plt.tight_layout()
+    plt.savefig(f'offsets_diff_timerange_{_:02}.png')
+    plt.close()
+
+
+'''
+dn = 8
 for _, j in enumerate(np.arange(-8, 8, dn)):
     fig, axes = plt.subplots(4, 4, sharex=False, sharey=False, figsize=(12, 10))
     axs = axes.flatten()
@@ -1359,3 +1418,5 @@ for _, j in enumerate(np.arange(-8, 8, dn)):
     plt.tight_layout()
     plt.savefig(f'offsets_temps_{_:03}.png')
     plt.close()
+
+'''
