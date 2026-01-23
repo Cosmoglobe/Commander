@@ -243,7 +243,7 @@ t_10 = (Time('1990:220:05:00').mjd*u.day).to(u.ns) # XCAL placed under temperatu
 t_11 = (Time('1990:264:09:36').mjd*u.day).to(u.ns) # Final period over
 
 time_periods = np.array([t_launch.value, t_apco.value, t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
-time_ranges = np.array([t_launch, t_apco, t_00, t_01, t_02, t_03, t_04, t_05, t_06, t_07, t_08, t_09, t_10])*u.ns
+time_ranges = np.array([t_launch.value, t_apco.value, t_00.value, t_01.value, t_02.value, t_03.value, t_04.value, t_05.value, t_06.value, t_07.value, t_08.value, t_09.value, t_10.value])*u.ns
 period_labels = ['Launch',
                  'APCO ejection',
                  'First light',
@@ -813,10 +813,8 @@ t1 = 4.15e9*u.s + 5e3*u.s
 
 '''
 
-t0 = t_01
-t1 = t_11
-
-
+t0 = t_09
+t1 = t_10
 
 epoch = find_epoch(t0)
 time = time.to('s')
@@ -859,32 +857,8 @@ for side in ['a', 'b']:
 
         grt_times[f'{side}_lo_{grt}'] += offset_ind[i]*u.s
         grt_times[f'{side}_hi_{grt}'] += offset_ind[i]*u.s
-        #if side == 'b':
-        #    grt_times[f'{side}_lo_{grt}'] += 4*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 4*u.s
 
-        #if ('xcal_tip' in grt) and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
-        #if ('ical' in grt) and (side == 'b'):
-        #    grt_times[f'{side}_lo_{grt}'] += 4*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 4*u.s
-        #if ('ical' in grt) and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] -= 4*u.s
-        #    grt_times[f'{side}_hi_{grt}'] -= 4*u.s
-        #if (grt == 'refhorn') and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] += 64*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 64*u.s
-        #if (grt == 'refhorn') and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] -= 96*u.s
-        #    grt_times[f'{side}_hi_{grt}'] -= 96*u.s
-        #if (grt == 'skyhorn') and (side == 'b'):
-        #    grt_times[f'{side}_lo_{grt}'] += 68*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 68*u.s
-        #if (grt == 'dihedral') and (side == 'a'):
-        #    grt_times[f'{side}_lo_{grt}'] += 8*u.s
-        #    grt_times[f'{side}_hi_{grt}'] += 8*u.s
-
+asdf
 
 '''
 for side in ['a', 'b']:
