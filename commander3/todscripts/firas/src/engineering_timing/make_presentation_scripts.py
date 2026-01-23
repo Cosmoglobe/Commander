@@ -857,8 +857,6 @@ for side in ['a', 'b']:
         grt_times[f'{side}_hi_{grt}'] += offset_ind[i]*u.s
 
 
-grts
-grt_times
 plt.plot(grt_times['a_lo_xcal_cone'], grts['a_lo_xcal_cone'])
 plt.plot(grt_times['a_hi_xcal_cone'], grts['a_hi_xcal_cone'])
 plt.plot(grt_times['a_hi_ical'], grts['a_hi_ical'])
@@ -867,9 +865,9 @@ plt.plot(grt_times['a_lo_ical'], grts['a_lo_ical'])
 plt.plot(grt_times['a_lo_ical'], grts['a_lo_ical'])
 plt.plot(grt_times['a_hi_ical'], grts['a_hi_ical'])
 plt.plot(grt_times['a_lo_ical'], grts['a_hi_ical'])
-plt.plot(grt['a_lo_ical'], grts['a_hi_ical'])
+
+
 plt.plot(grts['a_lo_ical'], grts['a_hi_ical'], '.')
-plt.plot(true, true)
 plt.hist(grts['a_hi_ical'] - grts['a_lo_ical'], bins=np.linspace(-5, 5, 100))
 plt.hist(grts['a_hi_ical'] - grts['a_lo_ical'], bins=np.linspace(-1, 1, 100))
 plt.hist(grts['a_hi_ical'] - grts['a_lo_ical'], bins=np.linspace(-0.05, 0.05, 100))
