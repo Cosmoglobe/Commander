@@ -35,6 +35,8 @@ for channel in g.CHANNELS.keys():
     mtm_speed = data["mtm_speed"][:]
 
     for mode in g.MODES.keys():
+        if mode == "lf" and (channel[1] == "h"):
+            continue
         # open fitted_emissivities.npy and plot the results
         fitted_emissivities = np.load(
             f"./calibration/output/fitted_emissivities_{channel}_{mode}.npy"

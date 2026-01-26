@@ -67,16 +67,17 @@ As far as I can tell, this is the order things will be read out.
 
 '''
 
-from scipy.interpolate import interp1d
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-from astropy.time import Time
-import astropy.units as u
-
+import os
 from time import time
 
+import astropy.units as u
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.time import Time
 from astropy.visualization import time_support
+from scipy.interpolate import interp1d
+
 time_support()
 
 from tqdm import tqdm
@@ -94,8 +95,11 @@ def nt(times, epoch):
     newtime = times - time_periods[epoch]
     return newtime.to('s')
 
+user = os.environ["USER"]
+
 DATA_DIR = '/mn/stornext/d16/cmbco/ola/firas/initial_data'
-DATA_DIR = '/home/dwatts/Commander/commander3/todscripts/firas/src/engineering_timing'
+DATA_DIR = f'/home/{user}/Commander/commander3/todscripts/firas/src/engineering_timing'
+DATA_DIR = "/mn/stornext/d16/cmbco/ola/firas/initial_data"
 
 def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=None,
         eng_data1=None, eng_data2=None, eng_data3=None, eng_xcal=None):
@@ -103,7 +107,7 @@ def plot_sdf(sci_mode1, sci_mode2, t_min, t_max, vmin=None, vmax=None, eng_time=
     epoch = find_epoch(t_min)
 
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) - 136*u.s + 42*u.s
-    time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) #+ 42*u.s
+#) #+ 42*u.s
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns) - 36*u.s
     time1 = sci_mode1['ct_head/time'][()]*(100*u.ns)
     time1 = time1.to('s')

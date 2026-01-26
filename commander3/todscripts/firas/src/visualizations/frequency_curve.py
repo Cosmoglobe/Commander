@@ -70,8 +70,11 @@ for channel in g.CHANNELS_PLOT:
                     f"{path}{firas_path}{channel}_{mode}/galactic/{int(freq):04d}_nside32.fits"
                 )[0].data
 
-            high_lat_map = np.where(high_lat_mask[:, np.newaxis] == 1, np.nan, m)
-            print(high_lat_map)
+            # high_lat_map = np.where(
+            #     high_lat_mask[:, np.newaxis] == 1, np.nan, m
+            # )  # + monopole
+            high_lat_map = m
+            # print(high_lat_map)
             # check for nans
             if np.isnan(high_lat_map).any():
                 print("NaNs found in high latitude map")
@@ -124,28 +127,23 @@ for channel in g.CHANNELS_PLOT:
                 ax1.legend(["High Latitude"])
                 # ax1.set_ylim(0, 600)
 
+                if channel == "ll":
+                    max = 10
+                    min = -10
+                else:
+                    max = 400
+                    min = 0
+
                 plt.axes(ax2)
                 hp.mollview(
                     high_lat_map[:, freqi],
                     title=f"High Latitude {channel} {mode} Data @ {int(f_ghz[freqi]):04d} GHz",
                     unit="Intensity (MJy/sr)",
                     hold=True,
-                    min=0,
-                    max=200,
-                    norm="symlog2",
+                    min=min,
+                    max=max,
+                    cmap="RdBu_r",
                 )
-                # cg.plot(
-                #     high_lat_map[:, freqi],
-                #     title=f"{int(freq):04d} GHz as seen by {channel.upper()}{mode.upper()}",
-                #     unit="MJy/sr",
-                #     min=0,
-                #     max=200,
-                #     comp="freqmap",
-                #     freq=int(freq) * u.GHz,
-                #     cmap="planck",
-                #     hold=True,
-                # )
-                plt.show()
                 plt.savefig(
                     f"{g.SAVE_PATH}/plots/frequency_curve/{channel}_{mode}/high_lat/{int(f_ghz[freqi]):04d}.png",
                     bbox_inches="tight",
@@ -189,15 +187,20 @@ for channel in g.CHANNELS_PLOT:
                 ax1.legend(["Low Latitude"])
                 # ax1.set_ylim(-10, 75)
                 plt.axes(ax2)
+                if channel == "ll":
+                    max = 20
+                elif channel == "rh":
+                    max = 200
                 hp.mollview(
                     low_lat_map[:, freqi],
                     title=f"Low Latitude {channel.upper()}{mode.upper()} Data @ {int(f_ghz[freqi]):04d} GHz",
                     unit="Intensity (MJy/sr)",
-                    min=np.nanmin(low_lat_amp),
-                    max=np.nanmax(low_lat_amp),
-                    cmap="jet",
+                    min=0,
+                    max=max,
+                    # cmap="jet",
                     hold=True,
-                    cbar=False,
+                    # norm="symlog2",
+                    # cbar=False,
                 )
                 # cg.plot(
                 #     low_lat_map[:, freqi],

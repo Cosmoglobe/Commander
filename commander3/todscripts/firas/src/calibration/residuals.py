@@ -23,7 +23,7 @@ if args.suffix != "":
 else:
     suffix = ""
 
-suffix = "_otf_3rddeg_ical_2nddeg"
+# suffix = "_otf_3rddeg_ical_2nddeg"
 
 fnyq = gen_nyquistl(
     "../reference/fex_samprate.txt",
@@ -142,8 +142,8 @@ for channel in g.CHANNELS:
         otf[cutoff : cutoff + length] = otf_save
 
         # fit 1st degree polynomial to otf
-        otf_fit = np.polyfit(f_ghz, otf, 3)
-        otf = np.polyval(otf_fit, f_ghz)
+        # otf_fit = np.polyfit(f_ghz, otf, 3)
+        # otf = np.polyval(otf_fit, f_ghz)
         # otf = np.mean(otf[otf != 0])
 
         # # otf = np.ones(257, dtype=np.complex128) * 0.01
@@ -152,8 +152,8 @@ for channel in g.CHANNELS:
             fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
         )
         # fit 1st degree polynomial to emiss_ical
-        emiss_ical_fit = np.polyfit(f_ghz, emiss_ical, 2)
-        emiss_ical = np.polyval(emiss_ical_fit, f_ghz)
+        # emiss_ical_fit = np.polyfit(f_ghz, emiss_ical, 2)
+        # emiss_ical = np.polyval(emiss_ical_fit, f_ghz)
         # # emiss_ical = np.mean(emiss_ical[emiss_ical != 0])
         # # emiss_ical = np.ones(257, dtype=np.complex128) * -0.0096
         emiss_dihedral[cutoff : cutoff + length] = (
@@ -416,8 +416,8 @@ for channel in g.CHANNELS:
 
         # n = np.random.randint(0, simulated_spectra.shape[0])
         # n = 1663
-        # n = 1704
-        n = 2091
+        n = 1704
+        # n = 2091
 
         fig, ax = plt.subplots(4, 2, figsize=(15, 20), sharex=True, sharey=False)
         fig.suptitle(
@@ -670,6 +670,33 @@ for channel in g.CHANNELS:
             bbox_inches="tight",
         )
         plt.close()
+
+        # plot the bb curves all together
+        fig, ax = plt.subplots(figsize=(10, 8))
+        fig.suptitle(
+            f"{channel.upper()} {mode.upper()} Black Body Spectra Components {n}\nTemps: XCAL={xcal[n]:.2f}, ICAL={ical[n]:.2f}, dihed={dihedral[n]:.2f}, refhorn={refhorn[n]:.2f}, skyhorn={skyhorn[n]:.2f}, collimator={collimator[n]:.2f}, bolometer={bolometer[n]:.2f}"
+        )
+        ax.plot(f_ghz, bb_xcal[n], label="XCAL")
+        ax.plot(f_ghz, bb_ical[n] * emiss_ical / otf, label="ICAL")
+        ax.plot(f_ghz, bb_dihedral[n] * emiss_dihedral / otf, label="Dihedral")
+        ax.plot(f_ghz, bb_refhorn[n] * emiss_refhorn / otf, label="Refhorn")
+        ax.plot(f_ghz, bb_skyhorn[n] * emiss_skyhorn / otf, label="Skyhorn")
+        ax.plot(f_ghz, bb_collimator[n] * emiss_collimator / otf, label="Collimator")
+        ax.plot(f_ghz, bb_bolometer[n] * emiss_bolometer / otf, label="Bolometer")
+        ax.plot(
+            f_ghz,
+            simulated_spectra[n],
+            label="Sum of BBs",
+            linestyle="--",
+            color="black",
+        )
+        ax.set_xlabel("Frequency (GHz)")
+        ax.set_ylabel("MJy/sr")
+        ax.legend()
+        plt.savefig(
+            f"calibration/output/checks/{channel}_{mode}/{n}_01c_bb_spectra_components{suffix}.png",
+            bbox_inches="tight",
+        )
 
         # plot residuals
         fig, ax = plt.subplots(4, 2, figsize=(15, 20), sharex=True, sharey=False)
