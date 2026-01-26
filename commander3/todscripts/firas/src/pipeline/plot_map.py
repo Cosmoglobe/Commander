@@ -5,13 +5,13 @@ Script to take the previously generated sky spectra (sky.npy) and plot a map wit
 import os
 from pathlib import Path
 
-import healpy as hp
 import astropy.units as u
+import cosmoglobe as cg
+import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from healpy.rotator import Rotator
-import cosmoglobe as cg
 
 import globals as g
 import utils.my_utils as utils
@@ -73,7 +73,7 @@ for channel in g.CHANNELS_PLOT:
                 vmin=0,
             )
             plt.title(f"{channel}_{mode}")
-            plt.savefig(f"{g.SAVE_PATH}plots/sky_over_time/{f"{channel}_{mode}"}.png")
+            plt.savefig(f"{g.SAVE_PATH}plots/sky_over_time/{channel}_{mode}.png")
             plt.clf()
 
             hpxmap[f"{channel}_{mode}"] = np.zeros(
@@ -104,12 +104,12 @@ for channel in g.CHANNELS_PLOT:
                     exist_ok=True,
                 )
                 plt.savefig(
-                    f"{g.SAVE_PATH}maps/hit_maps/{folder}/{f"{channel}_{mode}_nside{g.NSIDE}"}.png"
+                    f"{g.SAVE_PATH}maps/hit_maps/{folder}/{channel}_{mode}_nside{g.NSIDE}.png"
                 )
                 plt.close()
             if g.FITS:
                 fits.writeto(
-                    f"{curr_path}{f"{channel}_{mode}_nside{g.NSIDE}"}.fits",
+                    f"{curr_path}{channel}_{mode}_nside{g.NSIDE}.fits",
                     data_density[f"{channel}_{mode}"],
                     overwrite=True,
                 )
@@ -132,7 +132,7 @@ for channel in g.CHANNELS_PLOT:
                     #     max_amp = 25
                     cg.plot(
                         m[:, freq],
-                        title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                        title=f"{int(f_ghz[f'{channel}_{mode}'][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
                         unit="MJy/sr",
                         min=0,
                         max=max_amp,
@@ -141,7 +141,7 @@ for channel in g.CHANNELS_PLOT:
                         cmap='planck'
                     )
                     plt.savefig(
-                        f"{g.SAVE_PATH}maps/frequency_maps/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_nside{g.NSIDE}.png", bbox_inches="tight"
+                        f"{g.SAVE_PATH}maps/frequency_maps/{channel}_{mode}/{folder}/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_nside{g.NSIDE}.png", bbox_inches="tight"
                     )
                     plt.close()
                 if g.FITS:
@@ -201,25 +201,25 @@ for channel in g.CHANNELS_PLOT:
                     if g.PNG:
                         hp.mollview(
                             m_up[:, freq],
-                            title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
+                            title=f"{int(f_ghz[f'{channel}_{mode}'][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in up scan",
                             unit="MJy/sr",
                             min=0,
                             max=200,
                         )
                         plt.savefig(
-                            f"{g.SAVE_PATH}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_up_nside{g.NSIDE}.png"
+                            f"{g.SAVE_PATH}maps/up_down_scan/{channel}_{mode}/{folder}/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_up_nside{g.NSIDE}.png"
                         )
                         plt.close()
 
                         hp.mollview(
                             m_down[:, freq],
-                            title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
+                            title=f"{int(f_ghz[f'{channel}_{mode}'][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()} in down scan",
                             unit="MJy/sr",
                             min=0,
                             max=200,
                         )
                         plt.savefig(
-                            f"{g.SAVE_PATH}maps/up_down_scan/{f"{channel}_{mode}"}/{folder}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}_down_nside{g.NSIDE}.png"
+                            f"{g.SAVE_PATH}maps/up_down_scan/{f'{channel}_{mode}'}/{folder}/{int(f_ghz[f'{channel}_{mode}'][freq]):04d}_down_nside{g.NSIDE}.png"
                         )
                         plt.close()
                     if g.FITS:
