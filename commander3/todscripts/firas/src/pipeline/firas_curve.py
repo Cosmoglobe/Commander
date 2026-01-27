@@ -123,7 +123,7 @@ for mode in modes.keys():
         plt.title(f"{channel.upper()}{mode.upper()}")
         plt.grid()
         plt.legend()
-        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}"}.png")
+        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{channel}_{mode}.png")
         plt.clf()
 
         # plot also subtracted
@@ -132,5 +132,5 @@ for mode in modes.keys():
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
         plt.title(f"{channel.upper()}{mode.upper()} difference from original")
-        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{f"{channel}_{mode}_difference"}.png")
+        plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{channel}_{mode}_difference.png")
         plt.clf()
