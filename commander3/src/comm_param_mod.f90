@@ -76,6 +76,7 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=2048) :: MJysr_convention
      character(len=2048) :: fft_magic_number_file
+     character(len=2048) :: ephemerides_file
      character(len=2048) :: output_comps
      logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
@@ -540,6 +541,7 @@ contains
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
+       call get_parameter_hashtable(htbl, 'EPHEMERIDES_FILE',   par_string=cpar%ephemerides_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
        if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
@@ -4142,8 +4144,6 @@ end subroutine read_zodi_params_hash
           end if
        end if
     end do
-    
-    ! Expand md type if present
     cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
     do i = 1, cpar%cg_num_samp_groups
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
