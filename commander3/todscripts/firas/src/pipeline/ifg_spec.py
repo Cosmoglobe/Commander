@@ -17,6 +17,7 @@ def clean_ifg(
     sweeps,
     apod,
 ):
+    # print(f"DEBUG ifg shape before cleaning: {ifg.shape}")
     if len(ifg.shape) == 2:
         median_ifg = np.median(ifg, axis=1)
         median_ifg = median_ifg[:, np.newaxis]

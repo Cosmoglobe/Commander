@@ -149,18 +149,38 @@ for channel, channel_i in g.CHANNELS.items():
     print(f"Testing new way for de-biasing temperatures for ICAL and using the previous one for the rest")
     print(f"Taking the average of both sides")
     temps = {}
-    temp_mask_cal = {}
-    temp_mask_sky = {}
+    temp_mask = {}
+
+    # join calibration and sky times for interpolation
+    midpoint_time_s = np.append(
+        cal_data["midpoint_time_s"], sky_data["midpoint_time_s"]
+    )
+    xcal_pos = np.append(
+        cal_data["xcal_pos"], sky_data["xcal_pos"]
+    )
+
+    # order the times and keep track of the original indices
+    sorted_indices = np.argsort(midpoint_time_s)
+    midpoint_time_s = midpoint_time_s[sorted_indices]
+    xcal_pos = xcal_pos[sorted_indices]
     for element in elements:
         for side in sides:
             print(f"DEBUG element: {element}, side: {side}")
-            # Interpolate hi and lo temperatures for cal data
+
             temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
-                cal_data["midpoint_time_s"]
+                midpoint_time_s
             )
             temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
-                cal_data["midpoint_time_s"]
+                midpoint_time_s
             )
+
+            # Interpolate hi and lo temperatures for cal data
+            # temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+            #     cal_data["midpoint_time_s"]
+            # )
+            # temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+            #     cal_data["midpoint_time_s"]
+            # )
 
             # TODO: working on changing this to new de-biased temps
             # stats.hilo_stats(temps[f"{side}_hi_{element}"], temps[f"{side}_lo_{element}"],
@@ -168,17 +188,19 @@ for channel, channel_i in g.CHANNELS.items():
             if element == "ical":
                 mu, std, mu2, std2 = stats.fit_gaussian(temps[f"{side}_hi_{element}"],
                                                         temps[f"{side}_lo_{element}"],
-                                                        channel, element, side, ngaussians=2,
-                                                        calsky='cal')
-                temps[f"{side}_{element}"], temp_mask_cal[side] = stats.debiase_hi(mu, std, mu2,
+                                                        channel, element, side, ngaussians=2, sigma=1)
+                temps[f"{side}_{element}"], temp_mask[side] = stats.debiase_hi(mu, std, mu2,
                                                                                    std2,
                                                               temps[f"{side}_hi_{element}"],
                                                               temps[f"{side}_lo_{element}"],
-                                                              element, side, channel, calsky='cal')
+                                                              element, side, channel, sigma=1)
                 
                 if side == 'b':
-                    temps[f"a_ical"] = temps[f"a_ical"][temp_mask_cal["a"] & temp_mask_cal["b"]]
-                    temps[f"b_ical"] = temps[f"b_ical"][temp_mask_cal["a"] & temp_mask_cal["b"]]
+                    # Apply combined mask to ical temperatures and xcal_pos
+                    combined_mask = temp_mask["a"] & temp_mask["b"]
+                    temps[f"a_ical"] = temps[f"a_ical"][combined_mask]
+                    temps[f"b_ical"] = temps[f"b_ical"][combined_mask]
+                    xcal_pos = xcal_pos[combined_mask]
 
             else:
                 # Vectorized temperature selection using the temps from the original pipeline       
@@ -187,66 +209,79 @@ for channel, channel_i in g.CHANNELS.items():
                     temps[f"{side}_hi_{element}"],
                     element,
                     side,
-                )[temp_mask_cal["a"] & temp_mask_cal["b"]]
+                )[combined_mask]
 
 
         print(f"DEBUG element: {element}")
-        cal_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
-        for side in sides:
-            # Interpolate hi and lo temperatures
-            temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
-                sky_data["midpoint_time_s"]
-            )
-            temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
-                sky_data["midpoint_time_s"]
-            )
+        all_data = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
-            if element == "ical":
-                mu, std, mu2, std2 = stats.fit_gaussian(temps[f"{side}_hi_{element}"],
-                                                        temps[f"{side}_lo_{element}"],
-                                                        channel, element, side, ngaussians=2,
-                                                        calsky='sky')
-                temps[f"{side}_{element}"], temp_mask_sky[side] = stats.debiase_hi(mu, std, mu2, std2,
-                                                              temps[f"{side}_hi_{element}"],
-                                                              temps[f"{side}_lo_{element}"],
-                                                              element, side, channel, calsky='sky')
+        # split back into cal and sky data
+        cal_data[element] = all_data[xcal_pos == 1]
+        sky_data[element] = all_data[xcal_pos == 2]
+
+        # for side in sides:
+        #     # Interpolate hi and lo temperatures
+        #     temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
+        #         sky_data["midpoint_time_s"]
+        #     )
+        #     temps[f"{side}_lo_{element}"] = interpolators[f"{side}_lo_{element}"](
+        #         sky_data["midpoint_time_s"]
+        #     )
+
+        #     if element == "ical":
+        #         mu, std, mu2, std2 = stats.fit_gaussian(temps[f"{side}_hi_{element}"],
+        #                                                 temps[f"{side}_lo_{element}"],
+        #                                                 channel, element, side, ngaussians=2,
+        #                                                 calsky='sky')
+        #         temps[f"{side}_{element}"], temp_mask_sky[side] = stats.debiase_hi(mu, std, mu2, std2,
+        #                                                       temps[f"{side}_hi_{element}"],
+        #                                                       temps[f"{side}_lo_{element}"],
+        #                                                       element, side, channel, calsky='sky')
                 
-                if side == 'b':
-                    temps[f"a_ical"] = temps[f"a_ical"][temp_mask_sky["a"] & temp_mask_sky["b"]]
-                    temps[f"b_ical"] = temps[f"b_ical"][temp_mask_sky["a"] & temp_mask_sky["b"]]
+        #         if side == 'b':
+        #             temps[f"a_ical"] = temps[f"a_ical"][temp_mask_sky["a"] & temp_mask_sky["b"]]
+        #             temps[f"b_ical"] = temps[f"b_ical"][temp_mask_sky["a"] & temp_mask_sky["b"]]
                     
-            else:
-                # Vectorized temperature selection
-                # TODO: we probably want to change this
-                temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
-                    temps[f"{side}_lo_{element}"],
-                    temps[f"{side}_hi_{element}"],
-                    element,
-                    side,
-                )[temp_mask_sky["a"] & temp_mask_sky["b"]]
+        #     else:
+        #         # Vectorized temperature selection
+        #         # TODO: we probably want to change this
+        #         temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
+        #             temps[f"{side}_lo_{element}"],
+        #             temps[f"{side}_hi_{element}"],
+        #             element,
+        #             side,
+        #         )[temp_mask_sky["a"] & temp_mask_sky["b"]]
 
-        # Average temperatures from both sides
-        # TODO: we probably want to change this
-        if "xcal" not in element:
-            sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+        # # Average temperatures from both sides
+        # # TODO: we probably want to change this
+        # if "xcal" not in element:
+        #     sky_data[element] = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
-    collimator_hi = interpolators["a_hi_collimator"](cal_data["midpoint_time_s"])
-    collimator_lo = interpolators["a_lo_collimator"](cal_data["midpoint_time_s"])
-    cal_data["collimator"] = ((collimator_hi + collimator_lo) / 2.0)[temp_mask_cal["a"] & temp_mask_cal["b"]]
+    collimator_hi = interpolators["a_hi_collimator"](midpoint_time_s)
+    collimator_lo = interpolators["a_lo_collimator"](midpoint_time_s)
+    all_data = ((collimator_hi + collimator_lo) / 2.0)[combined_mask]
 
-    collimator_hi = interpolators["a_hi_collimator"](sky_data["midpoint_time_s"])
-    collimator_lo = interpolators["a_lo_collimator"](sky_data["midpoint_time_s"])
-    sky_data["collimator"] = ((collimator_hi + collimator_lo) / 2.0)[temp_mask_sky["a"] & temp_mask_sky["b"]]
-    # apply temp masks to cal and sky data
+    cal_data["collimator"] = all_data[xcal_pos == 1]
+    sky_data["collimator"] = all_data[xcal_pos == 2]
+
+    # collimator_hi = interpolators["a_hi_collimator"](sky_data["midpoint_time_s"])
+    # collimator_lo = interpolators["a_lo_collimator"](sky_data["midpoint_time_s"])
+    # sky_data["collimator"] = ((collimator_hi + collimator_lo) / 2.0)[temp_mask_sky["a"] & temp_mask_sky["b"]]
+    # apply temp masks to cal and sky data except for elements and collimator
     for key in cal_data:
         if key not in elements and key != "collimator":
-            cal_data[key] = cal_data[key][temp_mask_cal["a"] & temp_mask_cal["b"]]
-
-    for key in sky_data:
-        if key not in elements and key != "collimator":
-            sky_data[key] = sky_data[key][temp_mask_sky["a"] & temp_mask_sky["b"]]
-
+            print(f"DEBUG key: {key}. Shape before masking: cal_data {cal_data[key].shape}, sky_data {sky_data[key].shape}")
+            # Use concatenate with axis=0 for 2D arrays, append for 1D
+            if cal_data[key].ndim > 1:
+                all_data = np.concatenate([cal_data[key], sky_data[key]], axis=0)
+            else:
+                all_data = np.append(cal_data[key], sky_data[key])
+            all_data = all_data[sorted_indices]
+            all_data = all_data[combined_mask]
+            cal_data[key] = all_data[xcal_pos == 1]
+            sky_data[key] = all_data[xcal_pos == 2]
+            # print(f"DEBUG key: {key}. Shape after masking: cal_data {cal_data[key].shape}, sky_data {sky_data[key].shape}")
     (
         earth_limb,
         # wrong_ical_temp_cal,

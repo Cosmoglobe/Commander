@@ -234,13 +234,13 @@ def hilo_stats(hi, lo, channel, element, side):
     plt.savefig(f"data/output/hilo_temp_difference_histogram/{element}_{side}_{channel}.png")
     plt.close()
 
-def fit_gaussian(hi, lo, channel, element, side, ngaussians=2, calsky="sky"):
+def fit_gaussian(hi, lo, channel, element, side, ngaussians=2, sigma=3):
     """Fit a Gaussian to the difference between hi and lo temperatures."""
 
     if element == "ical":
         if side == "a":
-            lims1 = (0.0105, 0.0155)
-            lims2 = (0.031, 0.033)
+            lims1 = (0.0101, 0.0155)
+            lims2 = (0.030, 0.034)
 
         elif side == "b":
             lims1 = (0.0009, 0.0070)
@@ -294,19 +294,19 @@ def fit_gaussian(hi, lo, channel, element, side, ngaussians=2, calsky="sky"):
         p = norm.pdf(x, mu, std)
         plt.plot(x, p, ls='dashed', label='Gaussian 1')
         print(f"Fitted Gaussian 1 for {element} {side} {channel}: mu={mu:.04f}, std={std:.04f}")
-        explained = len(diff[(diff > mu - 5*std) & (diff < mu + 5*std)]) / len(diff)
-        print(f"Explained fraction by Gaussian 1 (5 std): {explained*100:.02f}%")
+        explained = len(diff[(diff > mu - sigma*std) & (diff < mu + sigma*std)]) / len(diff)
+        print(f"Explained fraction by Gaussian 1 ({sigma} std): {explained*100:.02f}%")
 
     if ngaussians > 1:
         mu2, std2 = norm.fit(diff_g2, loc=0.02, scale=0.005)
         p2 = norm.pdf(x, mu2, std2)
         plt.plot(x, p2, ls='dashed', label='Gaussian 2')
         print(f"Fitted Gaussian 2 for {element} {side} {channel}: mu={mu2:.04f}, std={std2:.04f}")
-        explained2 = len(diff[(diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)]) / len(diff)
-        print(f"Explained fraction by Gaussian 2 (5 std): {explained2*100:.02f}%")
+        explained2 = len(diff[(diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)]) / len(diff)
+        print(f"Explained fraction by Gaussian 2 ({sigma} std): {explained2*100:.02f}%")
     
     plt.legend()
-    plt.savefig(f"data/output/hilo_temp_difference_gaussian_fit/{element}_{side}_{channel}_{calsky}.png")
+    plt.savefig(f"data/output/hilo_temp_difference_gaussian_fit/{element}_{side}_{channel}.png")
     plt.close()
 
     # plot all temperatures over time for visual inspection
@@ -316,28 +316,35 @@ def fit_gaussian(hi, lo, channel, element, side, ngaussians=2, calsky="sky"):
     plt.title(f"Detector Temperatures Over Time for {element} ({side.upper()}) - {channel.upper()}")
 
     x = np.arange(len(hi))
+
+    # plot only a subset to see better
+    idx = x[(x > 90000) & (x < 95000)]
+    x = x[idx]
+    hi = hi[idx]
+    lo = lo[idx]
+    diff = diff[idx]
     
     plt.plot(x, hi, label='High Temp')
     plt.plot(x, lo, label='Low Temp')
-    plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_{calsky}_g0.png")
+    plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_g0.png")
     if ngaussians > 0:
-        plt.plot(x[(diff > mu - 5*std) & (diff < mu + 5*std)],
-                 hi[(diff > mu - 5*std) & (diff < mu + 5*std)], label='Explained by Gaussian 1',
+        plt.plot(x[(diff > mu - sigma*std) & (diff < mu + sigma*std)],
+                 hi[(diff > mu - sigma*std) & (diff < mu + sigma*std)], label='Explained by Gaussian 1',
                     linestyle='None', marker='.')
-        plt.plot(x[(diff > mu - 5*std) & (diff < mu + 5*std)],
-                 lo[(diff > mu - 5*std) & (diff < mu + 5*std)], label='Explained by Gaussian 1',
+        plt.plot(x[(diff > mu - sigma*std) & (diff < mu + sigma*std)],
+                 lo[(diff > mu - sigma*std) & (diff < mu + sigma*std)], label='Explained by Gaussian 1',
                     linestyle='None', marker='.')
         plt.legend()
-        plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_{calsky}_g1.png")
+        plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_g1.png")
     if ngaussians > 1:
-        plt.plot(x[(diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)],
-                 hi[(diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)], label='Explained by Gaussian 2',
+        plt.plot(x[(diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)],
+                 hi[(diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)], label='Explained by Gaussian 2',
                     linestyle='None', marker='.')
-        plt.plot(x[(diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)],
-                 lo[(diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)], label='Explained by Gaussian 2',
+        plt.plot(x[(diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)],
+                 lo[(diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)], label='Explained by Gaussian 2',
                     linestyle='None', marker='.')
         plt.legend()
-        plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_{calsky}_g2.png")
+        plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}_g2.png")
     
     # plt.savefig(f"data/output/hilo_temp_timeseries/{element}_{side}_{channel}.png")
     plt.close()
@@ -346,37 +353,37 @@ def fit_gaussian(hi, lo, channel, element, side, ngaussians=2, calsky="sky"):
     elif ngaussians == 2:
         return mu, std, mu2, std2
     
-def debiase_hi(mu, std, mu2, std2, hi, lo, element, side, channel, calsky):
+def debiase_hi(mu, std, mu2, std2, hi, lo, element, side, channel, sigma=3):
     """Debiase the high temperature using the fitted Gaussian parameters."""
     diff = hi - lo
     debiased_hi = np.copy(hi)
 
     # Debias using the first Gaussian
-    mask1 = (diff > mu - 5*std) & (diff < mu + 5*std)
+    mask1 = (diff > mu - sigma*std) & (diff < mu + sigma*std)
     debiased_hi[mask1] = hi[mask1] - mu
 
     # Debias using the second Gaussian
-    mask2 = (diff > mu2 - 5*std2) & (diff < mu2 + 5*std2)
+    mask2 = (diff > mu2 - sigma*std2) & (diff < mu2 + sigma*std2)
     debiased_hi[mask2] = hi[mask2] - mu2
 
     # plot before and after
     plt.plot(lo, label='Low Current')
     plt.plot(hi, label='High Current', ls='None', marker='.')
-    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_{calsky}_0.png")
+    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_0.png")
     plt.close()
 
     x = np.arange(len(hi))
     plt.plot(x, lo, label='Low Current')
     plt.plot(x[mask1 | mask2], debiased_hi[mask1 | mask2], label='Debiased High Current', ls='None',
              marker='.', ms=4)
-    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_{calsky}_1.png")
+    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_1.png")
     plt.close()
 
     # plot before and after zoom-in
     plt.plot(lo, label='Low Current')
     plt.plot(hi, label='High Current', ls='None', marker='.', ms=4)
     plt.ylim(2.5, 3)
-    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_{calsky}_zoom_0.png")
+    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_zoom_0.png")
     plt.close()
 
     x = np.arange(len(hi))
@@ -384,6 +391,6 @@ def debiase_hi(mu, std, mu2, std2, hi, lo, element, side, channel, calsky):
     plt.plot(x[mask1 | mask2], debiased_hi[mask1 | mask2], label='Debiased High Current', ls='None',
              marker='.', ms=4)
     plt.ylim(2.5, 3)
-    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_{calsky}_zoom_1.png")
+    plt.savefig(f"data/output/hilo_temp_debiasing/{element}_{side}_{channel}_zoom_1.png")
     plt.close()
     return debiased_hi, mask1 | mask2

@@ -1,6 +1,7 @@
 import os
 import sys
 
+import cosmoglobe as cg
 import h5py
 import healpy as hp
 import matplotlib.pyplot as plt
@@ -39,7 +40,7 @@ for mode in modes.keys():
         for var in data.files:
             mode_data[var] = data[var][mode_filter]
 
-        sky = np.abs(mode_data["sky"])
+        sky = mode_data["sky"]
         pix_gal = hp.ang2pix(g.NSIDE, mode_data["gal_lon"], mode_data["gal_lat"], lonlat=True).astype(int)
         f_ghz = utils.generate_frequencies(channel, mode)
 
@@ -55,12 +56,31 @@ for mode in modes.keys():
         data_density = np.zeros(g.NPIX)
 
         for todi in range(len(sky)):
-            hpxmap[pix_gal[todi]] += sky[todi]
+            hpxmap[pix_gal[todi]] += np.abs(sky[todi])
             data_density[pix_gal[todi]] += 1
 
         mask_nodata = data_density == 0
         
         m = (hpxmap - dust) / data_density[:, np.newaxis]
+
+        monopole = utils.planck(f_ghz, g.T_CMB)
+        m = m - monopole[np.newaxis, :]
+
+        # plot 217 GHz map
+        if channel == "ll" and mode == "ss":
+            cg.plot(
+                    m[:, 11],
+                    # title=f"{int(f_ghz[f'{channel}_{mode}'][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
+                    unit="MJy/sr",
+                    min=0,
+                    max=200,
+                    comp="freqmap",
+                    # freq=int(f_ghz[f"{channel}_{mode}"][freq]) * u.GHz,
+                    cmap='planck'
+                )
+            plt.savefig("debug.png")
+            quit()
+
         mask_total = mask_nodata[:, np.newaxis] | mask_gal[:, np.newaxis]
         m = np.where(mask_total == 1, np.nan, m)
 
