@@ -54,9 +54,9 @@ BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n2048.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n2048.fits
-BAND_TOD_RIMO&&&               = AKARI_instrument_v02.h5
+BAND_TOD_MAIN_PROCMASK&&&      = common/mask/mask_common_dx12_n2048.fits
+BAND_TOD_SMALL_PROCMASK&&&     = common/mask/mask_common_dx12_n2048.fits
+BAND_TOD_RIMO&&&               = akari/bp/AKARI_instrument_v02.h5
 BAND_TOD_FILELIST&&&           = /mn/stornext/d23/cmbco/cg/AKARI/ryosukem/data/akari/filelist_comb_flux.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
