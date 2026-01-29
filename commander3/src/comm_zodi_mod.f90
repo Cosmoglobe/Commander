@@ -1761,7 +1761,8 @@ contains
       integer :: i, n_earthpos, unit
       real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :)
       unit = getlun()
-      open (unit, file=trim(trim(cpar%datadir)//'/'//trim(cpar%ephemerides_file)))
+      !open (unit, file=trim(trim(cpar%datadir)//'/'//trim(cpar%ephemerides_file)))
+      open (unit, file=trim(cpar%ephemerides_file))
       read (unit, *) n_earthpos
       read (unit, *) ! skip header
 

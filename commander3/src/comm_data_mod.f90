@@ -616,8 +616,8 @@ contains
     allocate(pixwin_in(0:4*map_in%info%nside,map_in%info%nmaps))
     allocate(pixwin_out(0:4*info%nside,info%nmaps))
 
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'common/pixwind/'//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'common/pixwind'//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
 
     if (map_in%info%nmaps == 3) pixwin_in(:,3) = pixwin_in(:,2)
     if (info%nmaps == 3)        pixwin_out(:,3) = pixwin_out(:,2)
