@@ -26,6 +26,7 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_tod_Tbol_mod
+  use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
   use comm_bp_mod

@@ -381,8 +381,9 @@ contains
        call timer%start(TOD_NONLIN, self%band)
        if (.false.) then
           ! estimate A/B detector crosstalk coeficients
-          call self%xtalk%estimate_crosstalk_matrix(sd)
-          call self%xtalk%remove_crosstalk_signal(sd)
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
        end if
 
        ! Estimate modulation baselines; and set modulation phase
