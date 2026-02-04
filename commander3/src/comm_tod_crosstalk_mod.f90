@@ -33,6 +33,7 @@ module comm_tod_crosstalk_mod
   contains
     procedure :: estimate_crosstalk_matrix
     procedure :: remove_crosstalk_signal
+    procedure :: multiply => multiply_crosstalk_matrix
   end type comm_crosstalk   
 
   interface comm_crosstalk
@@ -146,5 +147,11 @@ contains
 
   end subroutine remove_crosstalk_signal
 
+  ! Routine for multiplying multi-component TOD (ntod x ndet) with crosstalk matrix
+  subroutine multiply_crosstalk_matrix(self, tod)
+    implicit none
+    class(comm_crosstalk),                 intent(in)    :: self
+    real(sp),              dimension(:,:), intent(inout) :: tod
+  end subroutine multiply_crosstalk_matrix
 
 end module comm_tod_crosstalk_mod
