@@ -177,7 +177,7 @@ contains
 !!$          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 !!$          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 !!$          call int2string(self%scanid(scan), stext)
-!!$          open(58,file=trim(chaindir)//'noise_psd'//stext//'.dat', recl=1024)
+!!$          open(58,file=trim(chaindir)//'/noise_psd'//stext//'.dat', recl=1024)
 !!$          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
 !!$          logbin = 1.05
 !!$          j1     = 1
@@ -323,7 +323,7 @@ contains
        invNcorr(0) = 0.d0
 !    end if
     invM(0)     = 1.d0
-    !open(58,file=trim(chaindir)//'N_psd.dat', recl=1024)
+    !open(58,file=trim(chaindir)//'/N_psd.dat', recl=1024)
     do l = 1, n-1
        freq        = l*(samprate/2)/(n-1)
        invNcorr(l) = N_psd%sigma0**2 / N_psd%eval_corr(freq)
@@ -569,7 +569,7 @@ contains
           ! Remove outliers
           s0 = 1d30
           do k = 1, 3
-             if (self%scanid(scan) == outscan) open(58,file=trim(chaindir)//'res2.dat', recl=1024)
+             if (self%scanid(scan) == outscan) open(58,file=trim(chaindir)//'/res2.dat', recl=1024)
              s    = 0.d0
              nval = 0
              do j = 1, ntod0-1, 2
@@ -629,7 +629,7 @@ contains
        if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file=trim(chaindir)//'noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
              write(58,*) j, dt(j)*sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)
           end do
@@ -670,7 +670,7 @@ contains
        if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file=trim(chaindir)//'noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
           j1     = 1
