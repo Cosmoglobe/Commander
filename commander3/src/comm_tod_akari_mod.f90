@@ -40,8 +40,9 @@ module comm_tod_akari_mod
 
    type, extends(comm_tod) :: comm_akari_tod
    contains
-     procedure     :: process_tod            => process_akari_tod
-     procedure     :: apply_fast_flags_inst  => apply_fast_flags_akari
+     procedure     :: process_tod             => process_akari_tod
+     procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -145,6 +146,33 @@ interface
      class(comm_akari_tod),                 intent(inout)    :: self
      class(comm_scandata),                  intent(inout)    :: sd
    end subroutine apply_fast_flags_akari
+
+   
+   module subroutine construct_corrtemp_akari(self, sd, det)
+    !  Construct an AKARI instrument-specific correction template
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_akari_tod), intent(in)             :: self
+    class(comm_scandata),  intent(inout)          :: sd
+    integer(i4b),          intent(in),   optional :: det
+  end subroutine construct_corrtemp_akari
+
+
    
 end interface
    

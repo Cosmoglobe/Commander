@@ -103,6 +103,7 @@ contains
       c%correct_orb     = .false.
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
+      c%apply_inst_corr = .false.    ! Ingunn: Enable when activating the correction template
       c%symm_flags      = .false.
       c%use_moon_point  = cpar%sample_moon_maps
       c%use_earth_elon  = cpar%sample_earth_maps
@@ -593,6 +594,54 @@ contains
 
    end subroutine apply_fast_flags_akari
 
+   module subroutine construct_corrtemp_akari(self, sd, det)
+     !  Construct an AKARI instrument-specific correction template
+     !
+     ! Ingunn: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
+     !         Fill in sd%s_inst(k,l) with the full-scan template
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     !  scan: int
+     !       scan number
+     !  pix: int
+     !       index for pixel
+     !  psi: int
+     !       integer label for polarization angle
+     !
+     !  Returns:
+     !  --------
+     !  s:   real (sp)
+     !       output template timestream
+     implicit none
+     class(comm_akari_tod), intent(in)             :: self
+     class(comm_scandata),  intent(inout)          :: sd
+     integer(i4b),          intent(in),   optional :: det
+
+     integer(i4b) :: i, j, k, l, nbin, b, ndet, scan
+     real(dp)     :: dt
+
+     scan  = sd%scan
+     dt    = 1.d0/self%samprate   ! Sample time
+     ndet  = sd%ndet
+
+     do l = 1, ndet
+        j = l; if (present(det)) j = det
+        if (.not. self%scans(scan)%d(j)%accept) cycle
+        do k = 1, self%scans(scan)%ntod
+           ! Example from LFI
+           ! t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
+           ! b = min(int(t*nbin),nbin-1)
+           ! sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+           sd%s_inst(k,l) = 0.
+        end do
+     end do
+
+   end subroutine construct_corrtemp_akari
+   
+   
    
 
 end submodule comm_tod_akari_smod
