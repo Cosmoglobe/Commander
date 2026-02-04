@@ -382,13 +382,13 @@ contains
          if (sample_ncorr) then
             call sample_n_corr(self, sd, handle)
             if (sample_xi_n) then
-               call sample_noise_psd(self, sd, handle)
+               call sample_noise_psd(self, sd, handle, chaindir)
             else
-               call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+               call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
             end if
          else
             call sample_n_corr(self, sd, handle, onlymono=.true.)
-            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+            call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
          end if
 
          ! Compute chisquare

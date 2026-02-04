@@ -367,9 +367,9 @@ contains
          ! Sample correlated noise
          if (sample_ncorr) then
             call sample_n_corr(self, sd, handle, nomono=.true.)
-            call sample_noise_psd(self, sd, handle)
+            call sample_noise_psd(self, sd, handle, chaindir)
          else
-            call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
+            call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
          end if
 
          ! Compute chisquare

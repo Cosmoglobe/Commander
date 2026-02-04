@@ -330,7 +330,7 @@ contains
 
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
-          !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+          !call sample_noise_psd(self, sd%tod, handle, chaindir, i, sd%mask, sd%s_tot, sd%n_corr)
        end if
       
        ! Compute chisquare

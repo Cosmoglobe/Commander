@@ -454,7 +454,7 @@ contains
        ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
-          call sample_noise_psd(self, sd, handle)
+          call sample_noise_psd(self, sd, handle, chaindir)
        end if
 
        ! Compute chisquare
