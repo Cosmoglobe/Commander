@@ -29,8 +29,8 @@ module comm_tod_Tbol_mod
 
   type :: comm_Tbol
   contains
-    procedure :: estimate_Tbol_params
-    procedure :: convolve_Tbol
+    procedure :: estimate_params
+    procedure :: convolve
   end type comm_Tbol   
 
   interface comm_Tbol
@@ -53,17 +53,16 @@ contains
   end function Tbol_constructor
  
   ! estimates Tbol parameters for each detector
-  subroutine estimate_Tbol_params(self)
+  subroutine estimate_params(self)
     implicit none
     class(comm_Tbol), intent(inout)      :: self
-  end subroutine estimate_Tbol_params
+  end subroutine estimate_params
 
   ! Routine for convolving with bolometer transfer function, tod = T * tod
-  subroutine convolve_Tbol(self, det, tod)
+  subroutine convolve(self, tod)
     implicit none
-    class(comm_Tbol),                            intent(in)    :: self
-    integer(i4b),                                intent(in)    :: det
-    real(sp),         allocatable, dimension(:), intent(inout) :: tod
-  end subroutine convolve_Tbol
+    class(comm_Tbol),               intent(in)    :: self
+    real(sp),         dimension(:), intent(inout) :: tod
+  end subroutine convolve
 
 end module comm_tod_Tbol_mod

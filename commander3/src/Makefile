@@ -275,6 +275,7 @@ comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o 
    comm_tod_gain_smod.o     : comm_tod_gain_mod.o
 comm_tod_mapmaking_mod.o    : comm_tod_mod.o
+comm_tod_cgmap_mod.o        : comm_utils.o
 comm_tod_bandpass_mod.o     : comm_tod_mod.o 
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
@@ -292,7 +293,7 @@ comm_tod_wmap_mod.o         : comm_tod_driver_mod.o
 comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o comm_tod_pixhist_mod.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_tod_pixhist_mod.o
 comm_tod_inst_mod.o         : comm_tod_lb_mod.o comm_tod_lfi_mod.o comm_tod_spider_mod.o comm_tod_wmap_mod.o comm_tod_dirbe_mod.o comm_tod_hfi_mod.o #comm_tod_quiet_mod.o
-comm_tod_akari_mod.o        : comm_tod_driver_mod.o comm_tod_pixhist_mod.o
+comm_tod_akari_mod.o        : comm_tod_driver_mod.o comm_tod_pixhist_mod.o comm_tod_cgmap_mod.o
    comm_tod_akari_smod.o        : comm_tod_akari_mod.o
 
 comm_data_mod.o             : comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o comm_tod_inst_mod.o comm_dust_extinction_mod.o 
