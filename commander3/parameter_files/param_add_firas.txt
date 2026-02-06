@@ -3,6 +3,12 @@
 **************************************************************
 @DEFAULT LFI_tod.defaults
 
+FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = earth_pos_1980-2050_ephem_de432s.txt
+SMOOTHING_SCALE_PIXWIN01      = pixel_window_n0032.fits
+SMOOTHING_SCALE_PIXWIN02      = pixel_window_n0016.fits
+SMOOTHING_SCALE_PIXWIN03      = pixel_window_n0016.fits
+
 OPERATION                     = sample  # {sample,optimize}
 VERBOSITY                     = 3       # [0,...,3]
 
@@ -41,7 +47,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v2
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v3
 NSIDE_CHISQ                   = 512
 
 ##############################################################
@@ -640,19 +646,23 @@ BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_RMS&&&          = 0.1
 BAND_GAIN_APOD_MASK&&&         = mask_calib_857_v1.fits
 #BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_857-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 021
 
 @START 022
 @DEFAULT bands/HFI/HFI_545_DIRBE.defaults
 #BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_545-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 022
 
 @START 028
 @DEFAULT bands/HFI/HFI_353_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 028
 
 @START 029
 @DEFAULT bands/HFI/HFI_217_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 029
 
 @START 030
@@ -689,67 +699,83 @@ BAND_GAIN_APOD_MASK&&&         = mask_calib_857_v1.fits
 
 @START 039
 @DEFAULT bands/HFI/HFI_217-1_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 039
 
 @START 040
 @DEFAULT bands/HFI/HFI_217-2_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 040
 
 @START 041
 @DEFAULT bands/HFI/HFI_217-3_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 041
 
 @START 042
 @DEFAULT bands/HFI/HFI_217-4_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 042
 
 @START 043
 @DEFAULT bands/HFI/HFI_217-5_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 043
 
 @START 044
 @DEFAULT bands/HFI/HFI_217-6_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 044
 
 @START 045
 @DEFAULT bands/HFI/HFI_217-7_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 045
 
 @START 046
 @DEFAULT bands/HFI/HFI_217-8_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 046
 
 @START 047
 @DEFAULT bands/HFI/HFI_353-1_DIRBE.defaults
 #BAND_NOISE_RMS&&&_SMOOTH01       = npipe6v20_353-1_bmap_n2048_uK_rms_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 047
 
 @START 048
 @DEFAULT bands/HFI/HFI_353-2_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 048
 
 @START 049
 @DEFAULT bands/HFI/HFI_353-3_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 049
 
 @START 050
 @DEFAULT bands/HFI/HFI_353-4_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 050
 
 @START 051
 @DEFAULT bands/HFI/HFI_353-5_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 051
 
 @START 052
 @DEFAULT bands/HFI/HFI_353-6_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 052
 
 @START 053
 @DEFAULT bands/HFI/HFI_353-7_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 053
 
 @START 054
 @DEFAULT bands/HFI/HFI_353-8_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 054
 
 
@@ -953,12 +979,15 @@ COMP_T_PRIOR_GAUSS_RMS&&      = 0 1
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
+COMP_MONOPOLE_PRIOR&&         = crosscorr:/mn/stornext/d5/data/aimartin/akari/data/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
 @END 03
 
 # Mono- and dipole component for non-FIRAS bands
 @START 04
 @DEFAULT components/monodipole/md_LFI.defaults
-COMP_MD_DEFINITION_FILE&&     = init_md_dirbe_prod4_v1.dat
+COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d5/data/aimartin/akari/data/init_md_dirbe_prod4_v1.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_INIT_FROM_HDF&&          = default
 @END 04
@@ -971,6 +1000,9 @@ COMP_INIT_FROM_HDF&&          = default
 # freefree component ---------------------------------------------------------------------
 @START 06
 @DEFAULT components/freefree/freefree_DIRBE2.defaults
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU.fits
+COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_T_E_INPUT_MAP&&           = COM_CompMap_freefree-commander_1024_R2.00_Te.fits
 @DEFAULT components/freefree/freefree_LFI_localsampler.defaults
 COMP_L_APOD&&                 = 1100
 COMP_AMP_LMAX&&               = 1100
@@ -989,6 +1021,7 @@ COMP_APPLY_DUST_EXTINCTION&&  = .false.
 # CMB relativistic quadrupole correction
 @START 08
 @DEFAULT components/cmb/cmb_relquad.defaults
+COMP_TEMPLATE_DEFINITION_FILE&& = /mn/stornext/d23/cmbco/dirbe/data/cmb_relquad_def.txt
 @END 08
 
 
@@ -1014,6 +1047,8 @@ COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits init_
 COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_dust_T_30K.fits
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
+COMP_MONOPOLE_PRIOR&&         = crosscorr:/mn/stornext/d23/cmbco/dirbe/data/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d23/cmbco/dirbe/data/init_colddust_n2048_v1.fits
 @END 10
 
 # Stars component
@@ -1054,6 +1089,10 @@ COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta
 COMP_INDMASK&&                = mask_DIRBE_hotdust_n2048_v2.fits
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_AMP_INPUT_MAP&&          = init_hotPAH_n2048_v1.fits
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 12
 
 
@@ -1146,8 +1185,11 @@ COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
 COMP_AMP_PRIOR_LMAX&&         = 6000
 COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 16
 
 
@@ -1191,6 +1233,8 @@ COMP_T_PRIOR_GAUSS_MEAN&&     = 18.0
 COMP_T_PRIOR_GAUSS_RMS&&      = 0 1
 @DEFAULT components/dust/dust_nearby_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
 @END 20
 
 
@@ -1269,6 +1313,8 @@ COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dro
  diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
+COMP_T_ALMSAMP_INIT&&         = init_alm_dust_T_hke.dat
 @END 24
 
 # WHAM Halpha correlated dust in absorption
@@ -1300,6 +1346,8 @@ COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta
 COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 25
 
 # Infrared (60um) thermal dust component
@@ -1328,6 +1376,8 @@ COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 26
 
 # CO-correlated thermal dust component
@@ -1358,6 +1408,8 @@ COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta
 COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none 
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 27
 
 
