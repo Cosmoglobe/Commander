@@ -227,7 +227,7 @@ contains
       character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
       real(sp),              dimension(9)       :: flag_threshold
-      real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
+      real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
@@ -237,6 +237,9 @@ contains
       real(dp), allocatable, dimension(:, :)    :: res_tot ! (n_tod_tot, ndet)
       real(dp), allocatable, dimension(:)       :: mask_tot ! (n_tod_tot)
       type(hdf_file) :: tod_file
+
+      integer(i4b), dimension(1) :: col_def = [1]  ! Only T
+      class(comm_cgmap), pointer :: cgmap
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -344,8 +347,11 @@ contains
          slist   = ''
       end if
 
+      ! Initialize CG mapmaker
+      cgmap => comm_cgmap(self%info%comm, self%nside, self%ndet, self%scans%ntod, col_def, self%pixcache%ind2pix)
+      
       ! Perform loop over scans
-      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps' 
+      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
@@ -409,6 +415,14 @@ contains
          d_calib = 0.d0
          call compute_calibrated_data(self, i, sd, d_calib)    
 
+         ! Feed CG mapmaker calibrated and inpainted data
+         allocate(sigma0(sd%ndet))
+         do j = 1, sd%ndet
+            sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0
+         end do
+         call cgmap%load_data(i, transpose(d_calib(1,:,:)), transpose(sd%ind(:,:,1)), transpose(sd%mask), sigma0)
+         deallocate(sigma0)
+                  
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
          
          ! For debugging: write TOD to hdf
@@ -477,7 +491,7 @@ contains
          end if
       end if
       map_out%map = binmap%outmaps(1)%p%map
-
+      
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
          call sample_bp(self, handle, chisq_S, delta)
@@ -514,6 +528,12 @@ contains
       !       call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_comp_names(i))//trim(postfix))
       !    end do
       ! endif
+
+      ! Solve for CG map
+      call cgmap%solve(map_out)
+      call dealloc_cgmap(cgmap)
+      call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+      !call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
       ! Clean up
       call binmap%dealloc()

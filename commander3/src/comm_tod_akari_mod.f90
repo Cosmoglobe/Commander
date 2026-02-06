@@ -33,6 +33,7 @@ module comm_tod_akari_mod
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
   use comm_tod_mapmaking_mod
+  use comm_tod_cgmap_mod
    implicit none
 
    private

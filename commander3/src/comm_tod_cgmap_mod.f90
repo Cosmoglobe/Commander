@@ -24,7 +24,10 @@ module comm_tod_cgmap_mod
   use comm_tod_crosstalk_mod
   use comm_tod_Tbol_mod
   implicit none
-   
+
+  private
+  public comm_cgmap, dealloc_cgmap
+  
   type comm_cgmap
      integer(i4b)  :: comm, myid, nprocs
      integer(i4b)  :: ndet, ncol, nside, npix, nscan, ntod, nobs
@@ -35,7 +38,7 @@ module comm_tod_cgmap_mod
      real(sp),                allocatable, dimension(:,:) :: tod         ! Stacked, calibrated and in-painted TOD, (ndet,nscan*ntod)
      real(sp),                allocatable, dimension(:,:) :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:,:) :: ind         ! Stacked pixel index numbers, (ndet,nscan*ntod)
-     integer(i4b),            allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
+     real(sp),                allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
      type(comm_crosstalk),                 pointer        :: W_S         ! Signal crosstalk matrix
      type(comm_crosstalk),                 pointer        :: W_N         ! Noise crosstalk matrix
      type(Tbol_ptr),          allocatable, dimension(:)   :: T           ! Bolometer transfer function, (ndet)
@@ -46,7 +49,6 @@ module comm_tod_cgmap_mod
      procedure :: A         => multiply_Amat
      procedure :: compute_rhs
      procedure :: invM      => apply_precond
-     procedure :: distrib   => distribute_cgmap
      procedure :: x_bcast
      procedure :: x_reduce
      procedure :: P         => apply_P
@@ -61,7 +63,7 @@ module comm_tod_cgmap_mod
     
 contains
 
-  subroutine constructor_cgmap(comm, nside, ndet, ntod_scan, col_def, ind2pix, W_S, W_N, Tbol) result(c)
+  function constructor_cgmap(comm, nside, ndet, ntod_scan, col_def, ind2pix, W_S, W_N, Tbol) result(c)
     implicit none
     integer(i4b),                       intent(in) :: comm, nside, ndet
     integer(i4b),         dimension(:), intent(in) :: ntod_scan
@@ -95,7 +97,7 @@ contains
     ! Find start index for each scan; each scan is stored in (ind_scan(i-1)+1):ind_scan(i)
     allocate(c%ind_scan(0:c%nscan))
     c%ind_scan(0) = 0
-    do i = 2, c%nscan
+    do i = 1, c%nscan
        c%ind_scan(i) = c%ind_scan(i-1) + ntod_scan(i)
     end do
     
@@ -116,7 +118,7 @@ contains
        end do
     end if
     
-  end subroutine constructor_cgmap
+  end function constructor_cgmap
 
   subroutine dealloc_cgmap(c)
     implicit none
@@ -138,7 +140,7 @@ contains
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: tod
     integer(i4b),      dimension(:,:), intent(in)     :: ind
-    integer(i4b),      dimension(:,:), intent(in)     :: mask
+    real(sp),          dimension(:,:), intent(in)     :: mask
     real(sp),          dimension(:),   intent(in)     :: sigma0
 
     integer(i4b) :: i, j
@@ -152,12 +154,13 @@ contains
     
   end subroutine load_calibrated_data
 
-  subroutine solve_cgmap(self)
+  subroutine solve_cgmap(self, map_out)
     implicit none
-    class(comm_cgmap), intent(inout)              :: self
+    class(comm_cgmap), intent(inout) :: self
+    class(comm_map),   intent(inout) :: map_out
 
     integer(i4b) :: i, j, oper, MAXITER=30, ierr
-    real(dp)     :: delta_old, delta_new, delta0, eps, lim_convergence, dq, alpha, beta, t1, t2
+    real(dp)     :: delta_old, delta_new, delta0, eps = 1d-6, lim_convergence, dq, alpha, beta, t1, t2
     real(dp), allocatable, dimension(:,:) :: b, invMb, r, d, q, s
     
     if (self%myid == 0) then
@@ -169,7 +172,7 @@ contains
        allocate(d(self%ncol,self%npix))
        allocate(q(self%ncol,self%npix))
        allocate(s(self%ncol,self%npix))       
-
+       
        ! Initialize RHS
        call self%compute_RHS(b)
        
@@ -190,10 +193,7 @@ contains
           call wall_time(t1)
           
           ! Check convergence
-          if (delta_new < lim_convergence) then
-             call mpi_bcast(0, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
-             exit
-          end if
+          if (delta_new < lim_convergence) exit
           
           call self%A(d, q)
           dq        = sum(d*q)
@@ -204,12 +204,15 @@ contains
           delta_old = delta_new 
           delta_new = sum(r*s)
           beta      = delta_new / delta_old
-          d         = s + beta * d       
+          d         = s + beta * d
+
+          call wall_time(t2)
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  CG iter. ', i, ' -- res = ', &
                & min(delta_new,1d30), ', tol = ', real(lim_convergence,sp), &
                & ', time = ', real(t2-t1,sp)
        end do
-
+       call mpi_bcast(0, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
+       
        call wall_time(t2)
        write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  Final CG iter ', i, ' -- res = ', &
             & real(delta_new,sp), ', tol = ', real(lim_convergence,sp)
@@ -229,7 +232,10 @@ contains
        end do
 
     end if
-        
+
+    ! Distribute full-sky map
+    call map_out%bcast_fullsky_from_root(transpose(self%x))
+    
   end subroutine solve_cgmap
 
   subroutine multiply_Amat(self, x, Ax)
@@ -313,12 +319,6 @@ contains
     invMx = x
   end subroutine apply_precond
   
-  subroutine distribute_cgmap(self,  map_out)
-    implicit none
-    class(comm_cgmap), intent(in)    :: self
-    class(comm_map),   intent(inout) :: map_out
-  end subroutine distribute_cgmap
-
   subroutine multiply_invN(self)
     implicit none
     class(comm_cgmap),                 intent(inout)    :: self
@@ -383,8 +383,8 @@ contains
 
   subroutine x_bcast(self, x)
     implicit none
-    class(comm_cgmap),                 intent(inout)           :: self
-    real(dp),          dimension(:,:), intent(in),    optional :: x
+    class(comm_cgmap),                   intent(inout)           :: self
+    real(dp),          dimension(1:,0:), intent(in),    optional :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
@@ -413,8 +413,8 @@ contains
 
   subroutine x_reduce(self, x)
     implicit none
-    class(comm_cgmap),                 intent(in)            :: self
-    real(dp),          dimension(:,:), intent(out), optional :: x
+    class(comm_cgmap),                   intent(in)            :: self
+    real(dp),          dimension(1:,0:), intent(out), optional :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
