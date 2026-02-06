@@ -34,6 +34,7 @@ module comm_tod_cgmap_mod
      integer(i4b),            allocatable, dimension(:)   :: col_def     ! Column Stokes definition; T_full=1, Q_full=2, U_full=3, S_det=det+3, T_det=-det
      integer(i4b),            allocatable, dimension(:)   :: ind_scan    ! Index range for each scan (0:nscan)
      real(dp),                allocatable, dimension(:,:) :: x           ! Final full-sky map; only stored by root processor
+     real(dp),                allocatable, dimension(:,:) :: invM        ! Diagonal preconditioner
      real(dp),                allocatable, dimension(:,:) :: xi          ! Pixel index based mini-map; separate for each core
      real(sp),                allocatable, dimension(:,:) :: tod         ! Stacked, calibrated and in-painted TOD, (ndet,nscan*ntod)
      real(sp),                allocatable, dimension(:,:) :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
@@ -48,7 +49,8 @@ module comm_tod_cgmap_mod
      procedure :: solve     => solve_cgmap
      procedure :: A         => multiply_Amat
      procedure :: compute_rhs
-     procedure :: invM      => apply_precond
+     procedure :: apply_precond
+     procedure :: init_invM 
      procedure :: x_bcast
      procedure :: x_reduce
      procedure :: P         => apply_P
@@ -107,6 +109,7 @@ contains
     allocate(c%invN(c%ndet,c%nscan))
     allocate(c%xi(c%ncol,c%nobs))
     if (c%myid == 0) allocate(c%x(c%ncol,c%npix))
+    if (c%myid == 0) allocate(c%invM(c%ncol,c%npix))
 
     ! Check for optional matrix operators
     if (present(W_S))  c%W_S  => W_S
@@ -128,6 +131,7 @@ contains
     if (allocated(c%tod))       deallocate(c%tod)
     if (allocated(c%ind))       deallocate(c%ind)
     if (allocated(c%mask))      deallocate(c%mask)
+    if (allocated(c%invM))      deallocate(c%invM)
     if (allocated(c%x))         deallocate(c%x)
     if (allocated(c%xi))        deallocate(c%xi)
     if (allocated(c%ind2pix))   deallocate(c%ind2pix)
@@ -181,10 +185,10 @@ contains
        
        ! Initialize CG variables
        r  = b 
-       call self%invM(r, d)
+       call self%apply_precond(r, d)
        
        delta_new = sum(r*d)
-       call self%invM(b, invMb)
+       call self%apply_precond(b, invMb)
        delta0    = sum(b*invMb)
        lim_convergence = eps*delta0
        
@@ -200,7 +204,7 @@ contains
           alpha     = delta_new / dq
           self%x    = self%x + alpha * d
           r         = r      - alpha * q
-          call self%invM(r, s)
+          call self%apply_precond(r, s)
           delta_old = delta_new 
           delta_new = sum(r*s)
           beta      = delta_new / delta_old
@@ -309,15 +313,38 @@ contains
     call self%x_reduce(b)
 
   end subroutine compute_RHS
-
  
   subroutine apply_precond(self, x, invMx)
     implicit none
     class(comm_cgmap),                 intent(in)  :: self
     real(dp),          dimension(:,:), intent(in)  :: x
     real(dp),          dimension(:,:), intent(out) :: invMx
-    invMx = x
+    invMx = self%invM * x
   end subroutine apply_precond
+
+  subroutine init_invM(self)
+    implicit none
+    class(comm_cgmap),                 intent(inout)    :: self
+
+    integer(i4b) :: i, j, scan, det, t
+
+    self%xi = 0.d0
+    do scan = 1, self%nscan
+       do det = 1, self%ndet
+          do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
+             self%xi(det,self%ind(det,t)) = self%xi(det,self%ind(det,t)) + self%invN(det,scan)
+          end do
+       end do
+    end do
+
+    call self%x_reduce(self%invM)
+    if (self%myid == 0) then
+       where (self%invM > 0.d0) 
+          self%invM = 1.d0 / self%invM
+       end where
+    end if
+    
+  end subroutine init_invM
   
   subroutine multiply_invN(self)
     implicit none
@@ -383,8 +410,8 @@ contains
 
   subroutine x_bcast(self, x)
     implicit none
-    class(comm_cgmap),                   intent(inout)           :: self
-    real(dp),          dimension(1:,0:), intent(in),    optional :: x
+    class(comm_cgmap),                   intent(inout) :: self
+    real(dp),          dimension(1:,0:), intent(in)    :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
@@ -413,8 +440,8 @@ contains
 
   subroutine x_reduce(self, x)
     implicit none
-    class(comm_cgmap),                   intent(in)            :: self
-    real(dp),          dimension(1:,0:), intent(out), optional :: x
+    class(comm_cgmap),                   intent(in)  :: self
+    real(dp),          dimension(1:,0:), intent(out) :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
