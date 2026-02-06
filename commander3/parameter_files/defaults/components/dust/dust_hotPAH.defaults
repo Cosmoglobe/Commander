@@ -8,7 +8,7 @@ COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        = 0  1
 COMP_CG_SAMP_GROUP_MAXITER&&  = 35
 COMP_NSIDE&&                  = 2048
-COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 6000
 COMP_APPLY_DUST_EXTINCTION&& = .false.
@@ -35,7 +35,7 @@ COMP_CL_DEFAULT_BETA_B&&      =  10.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 6000
-COMP_AMP_INPUT_MAP&&          = common/init/init_hotPAH_n2048_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_hotPAH_n2048_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
 COMP_IND_LMAX&&               = -1

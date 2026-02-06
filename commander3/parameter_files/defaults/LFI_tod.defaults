@@ -13,8 +13,8 @@ ENABLE_TOD_ANALYSIS           = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
-FFTW3_MAGIC_NUMBERS           = common/aux/fft3_magic_numbers_230810.txt
-EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
+FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = earth_pos_1980-2050_ephem_de432s.txt
 
 ENABLE_TOD_SIMULATIONS        = .false.
 SIMS_OUTPUT_DIRECTORY         = none
@@ -65,20 +65,20 @@ PROC_SMOOTH_SCALE              = 30.    #arcmin; smoothing inside processing mas
  SMOOTHING_SCALE_FWHM01          = 300.      # Arcmin; 0 = native resolution
  SMOOTHING_SCALE_LMAX01          = 96
  SMOOTHING_SCALE_NSIDE01         = 32  # Must match NSIDE of component it is used for
- SMOOTHING_SCALE_PIXWIN01        = common/pixwind/pixel_window_n0032.fits
+ SMOOTHING_SCALE_PIXWIN01        = pixel_window_n0032.fits
  SMOOTHING_SCALE_FWHM_POSTPROC01 = 600.    # Smoothing FWHM after pixel-by-pixel fit
 
  SMOOTHING_SCALE_FWHM02          = 600.      # Arcmin; 0 = native resolution
  SMOOTHING_SCALE_LMAX02          = 64
  SMOOTHING_SCALE_NSIDE02         = 16  # Must match NSIDE of component it is used for
- SMOOTHING_SCALE_PIXWIN02        = common/pixwind/pixel_window_n0016.fits
+ SMOOTHING_SCALE_PIXWIN02        = pixel_window_n0016.fits
  SMOOTHING_SCALE_FWHM_POSTPROC02 = 600.    # Smoothing FWHM after pixel-by-pixel fit
 
  #fullsky spec. ind. parameters sampling (per say no smoothing in skymaps, but smoothing in postproc)
  SMOOTHING_SCALE_FWHM03          = 60.      # Arcmin; 0 = native resolution
  SMOOTHING_SCALE_LMAX03          = 64
  SMOOTHING_SCALE_NSIDE03         = 16  # Must match NSIDE of component it is used for
- SMOOTHING_SCALE_PIXWIN03        = common/pixwind/pixel_window_n0016.fits
+ SMOOTHING_SCALE_PIXWIN03        = pixel_window_n0016.fits
  SMOOTHING_SCALE_FWHM_POSTPROC03 = 600.    # Smoothing FWHM after pixel-by-pixel fit
 
  # TOD sampling options
