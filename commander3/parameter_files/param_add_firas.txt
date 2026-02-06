@@ -30,7 +30,7 @@ SAMPLE_SOLAR_MAPS             = .true.
 SAMPLE_MOON_MAPS              = .false.
 SAMPLE_EARTH_MAPS             = .false.  # Only as a function of elongation
 
-OUTPUT_SIGNALS_PER_BAND       = .false.
+OUTPUT_SIGNALS_PER_BAND       = .true.
 OUTPUT_MIXING_MATRIX          = .false.
 OUTPUT_DEBUG_SEDS             = .false.
 
@@ -41,7 +41,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/u3/aimartin/d5/akari/chains_akari_add_firas_v1
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v2
 NSIDE_CHISQ                   = 512
 
 ##############################################################
@@ -49,7 +49,7 @@ NSIDE_CHISQ                   = 512
 ##############################################################	
 
 DATA_DIRECTORY                 = /mn/stornext/d23/cmbco/dirbe/data
-NUMBAND                        =  20 
+NUMBAND                        =  27
 
 # TOD
 # DIRBE 
@@ -115,7 +115,7 @@ INCLUDE_BAND056                = .false.    # 149 map
 INCLUDE_BAND057                = .false.    # 217 map
 INCLUDE_BAND058                = .false.    # 353 map
 INCLUDE_BAND023                = .false.    # 544 map
-INCLUDE_BAND024                = .false.    # 857 map - from here on
+INCLUDE_BAND024                = .true.     # 857 map
 INCLUDE_BAND025                = .false.    # 1251 map
 INCLUDE_BAND061                = .false.    # 1809 map
 INCLUDE_BAND059                = .false.    # 1890 map
@@ -845,37 +845,37 @@ INIT_INSTRUMENT_FROM_HDF      = none default
 EXTINCTION_E(B-V)_MAP = HFI_CompMap_ThermalDustModel_0512_R1.20_EBV.fits
 
 NUM_SIGNAL_COMPONENTS         = 31
-INCLUDE_COMP01                = .false.  # Cmb # CMB; no monopole or dipole
-INCLUDE_COMP02                = .false.  # synch # Synch pow-law
-INCLUDE_COMP03                = .true.  # dust # Thermal dust
-INCLUDE_COMP04                = .true.  # md # Mono and dipoles
-INCLUDE_COMP05                = .false.  # radio # Radio sources
-INCLUDE_COMP06                = .true.  # freefree
-INCLUDE_COMP07                = .false.  # Low-freq AME
-INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
-INCLUDE_COMP09                = .false.   # PAH
-INCLUDE_COMP10                = .false.  # Hot dust (FDS) # Thermal dust
-INCLUDE_COMP11                = .false.  # Stars (BB with fixed T)
-INCLUDE_COMP12                = .true.  # hot dust + pah, free weights
-INCLUDE_COMP13                = .false.  # stars, fir, ptsrc
-INCLUDE_COMP28                = .false.  # stars, fir, ptsrc; fainter
-INCLUDE_COMP30                = .false.  # stars, fir, ptsrc; fainter yet
-INCLUDE_COMP14                = .false.  # CO
-INCLUDE_COMP15                = .false.  # CII
-INCLUDE_COMP16                = .true.  # CII-correlated dust
-INCLUDE_COMP17                = .false.  # CO10
-INCLUDE_COMP18                = .false.  # CO21
-INCLUDE_COMP19                = .false.  # CO32
-INCLUDE_COMP20                = .false.   # nearby dust, Edenhofer et al. 2023
-INCLUDE_COMP21                = .false.  # CO combined
-INCLUDE_COMP22                = .false.  # colder point sources, fir, ptsrc
-INCLUDE_COMP23                = .true.  # stars, GAIA
-INCLUDE_COMP29                = .true.  # stars, GAIA; fainter
-INCLUDE_COMP31                = .true.  # stars, GAIA; fainter yet
-INCLUDE_COMP24                = .true.  # low-amplitude star template, WISE W1 < mag 8
-INCLUDE_COMP25                = .true.  # WHAP Halpha correlated dust in absorption
-INCLUDE_COMP26                = .false.  # Infrared dust (60um)
-INCLUDE_COMP27                = .false.  # CO-correlated dust
+INCLUDE_COMP01                = .false.     # Cmb # CMB; no monopole or dipole
+INCLUDE_COMP02                = .false.     # synch # Synch pow-law
+INCLUDE_COMP03                = .true.      # cold dust
+INCLUDE_COMP04                = .true.      # md # Mono and dipoles
+INCLUDE_COMP05                = .false.     # radio # Radio sources
+INCLUDE_COMP06                = .true.      # freefree
+INCLUDE_COMP07                = .false.     # Low-freq AME
+INCLUDE_COMP08                = .true.      # CMB relativistic quadrupole
+INCLUDE_COMP09                = .false.     # PAH
+INCLUDE_COMP10                = .false.     # Hot dust (FDS) # Thermal dust
+INCLUDE_COMP11                = .false.     # Stars (BB with fixed T)
+INCLUDE_COMP12                = .true.      # nearby dust
+INCLUDE_COMP13                = .false.     # stars, fir, ptsrc
+INCLUDE_COMP28                = .false.     # stars, fir, ptsrc; fainter
+INCLUDE_COMP30                = .false.     # stars, fir, ptsrc; fainter yet
+INCLUDE_COMP14                = .false.     # CO
+INCLUDE_COMP15                = .false.     # CII
+INCLUDE_COMP16                = .true.      # hot dust (CII-correlated)
+INCLUDE_COMP17                = .false.     # CO10
+INCLUDE_COMP18                = .false.     # CO21
+INCLUDE_COMP19                = .false.     # CO32
+INCLUDE_COMP20                = .false.     # nearby dust, Edenhofer et al. 2023
+INCLUDE_COMP21                = .false.     # CO combined
+INCLUDE_COMP22                = .false.     # colder point sources, fir, ptsrc
+INCLUDE_COMP23                = .true.      # stars, GAIA
+INCLUDE_COMP29                = .true.      # stars, GAIA; fainter
+INCLUDE_COMP31                = .true.      # stars, GAIA; fainter yet
+INCLUDE_COMP24                = .true.      # low-amplitude star template, WISE W1 < mag 8
+INCLUDE_COMP25                = .true.      # WHAP Halpha correlated dust in absorption
+INCLUDE_COMP26                = .false.     # Infrared dust (60um)
+INCLUDE_COMP27                = .false.     # CO-correlated dust
 
 NUM_CG_SAMPLING_GROUPS = 3
 
@@ -1625,7 +1625,7 @@ NUM_MCMC_SAMPLING_GROUPS = 12
 
 @START 01
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,hotPAH:tab@1%0.005,dust_Ha:tab@1%0.005
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 10a,10b 
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
@@ -1634,7 +1634,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 
 @START 02
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.01,hotPAH:tab@2%0.01,dust_Ha:tab@2%0.01
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 09a,09b 
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
@@ -1643,7 +1643,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 
 @START 03
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.001,hotPAH:tab@3%0.001,dust_Ha:tab@3%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 08a,08b
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
@@ -1652,7 +1652,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 
 @START 04
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.001,hotPAH:tab@4%0.001,dust_Ha:tab@4%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 07a,07b
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
@@ -1661,7 +1661,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 
 @START 05
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.0003,hotPAH:tab@5%0.0003,dust_cii:tab@5%0.0003,stars_diff:tab@5%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 06a,06b
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
@@ -1670,7 +1670,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
 
 @START 06
 MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
