@@ -1371,7 +1371,7 @@ contains
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
-          sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+          sd%s_inst(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
 
