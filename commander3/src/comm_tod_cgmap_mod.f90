@@ -19,10 +19,10 @@
 !
 !================================================================================
 module comm_tod_cgmap_mod
-  use comm_utils
   use comm_map_mod
-  use comm_tod_crosstalk_mod
+  use comm_tod_mod
   use comm_tod_Tbol_mod
+  use comm_tod_crosstalk_mod
   implicit none
 
   private
@@ -31,6 +31,7 @@ module comm_tod_cgmap_mod
   type comm_cgmap
      integer(i4b)  :: comm, myid, nprocs
      integer(i4b)  :: ndet, ncol, nside, npix, nscan, ntod, nobs
+     logical(lgt),            allocatable, dimension(:,:) :: accept      ! Accept status, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:)   :: col_def     ! Column Stokes definition; T_full=1, Q_full=2, U_full=3, S_det=det+3, T_det=-det
      integer(i4b),            allocatable, dimension(:)   :: ind_scan    ! Index range for each scan (0:nscan)
      real(dp),                allocatable, dimension(:,:) :: x           ! Final full-sky map; only stored by root processor
@@ -39,7 +40,7 @@ module comm_tod_cgmap_mod
      real(sp),                allocatable, dimension(:,:) :: tod         ! Stacked, calibrated and in-painted TOD, (ndet,nscan*ntod)
      real(sp),                allocatable, dimension(:,:) :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:,:) :: ind         ! Stacked pixel index numbers, (ndet,nscan*ntod)
-     real(sp),                allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
+     integer(i4b),            allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
      type(comm_crosstalk),                 pointer        :: W_S         ! Signal crosstalk matrix
      type(comm_crosstalk),                 pointer        :: W_N         ! Noise crosstalk matrix
      type(Tbol_ptr),          allocatable, dimension(:)   :: T           ! Bolometer transfer function, (ndet)
@@ -50,7 +51,7 @@ module comm_tod_cgmap_mod
      procedure :: A         => multiply_Amat
      procedure :: compute_rhs
      procedure :: apply_precond
-     procedure :: init_invM 
+     procedure :: init_precond
      procedure :: x_bcast
      procedure :: x_reduce
      procedure :: P         => apply_P
@@ -108,9 +109,11 @@ contains
     allocate(c%mask(c%ndet,c%ntod))
     allocate(c%invN(c%ndet,c%nscan))
     allocate(c%xi(c%ncol,c%nobs))
+    allocate(c%accept(c%ndet,c%nscan))
     if (c%myid == 0) allocate(c%x(c%ncol,c%npix))
     if (c%myid == 0) allocate(c%invM(c%ncol,c%npix))
-
+    c%accept = .false.
+    
     ! Check for optional matrix operators
     if (present(W_S))  c%W_S  => W_S
     if (present(W_N))  c%W_N  => W_N
@@ -135,26 +138,30 @@ contains
     if (allocated(c%x))         deallocate(c%x)
     if (allocated(c%xi))        deallocate(c%xi)
     if (allocated(c%ind2pix))   deallocate(c%ind2pix)
+    if (allocated(c%accept))   deallocate(c%accept)
     deallocate(c)
   end subroutine dealloc_cgmap
 
-  subroutine load_calibrated_data(self, scan, tod, ind, mask, sigma0)
+  subroutine load_calibrated_data(self, scan, tod, sd, d_calib)
     implicit none
-    class(comm_cgmap),                 intent(inout)  :: self
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: tod
-    integer(i4b),      dimension(:,:), intent(in)     :: ind
-    real(sp),          dimension(:,:), intent(in)     :: mask
-    real(sp),          dimension(:),   intent(in)     :: sigma0
+    class(comm_cgmap),                   intent(inout)  :: self
+    integer(i4b),                        intent(in)     :: scan
+    class(comm_tod),                     intent(in)     :: tod
+    class(comm_scandata),                intent(in)     :: sd
+    real(sp),          dimension(1:,1:), intent(in)     :: d_calib !(ntod, ndet)
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, det
     
     i = self%ind_scan(scan-1)+1
     j = self%ind_scan(scan)
-    self%tod(:,i:j)     = tod
-    self%ind(:,i:j)     = ind
-    self%mask(:,i:j)    = mask
-    self%invN(:,scan)  = 1./sigma0**2
+    self%tod(:,i:j)     = transpose(d_calib)
+    self%ind(:,i:j)     = transpose(sd%ind(:,:,1))
+    self%mask(:,i:j)    = transpose(iand(sd%flag,tod%flag0))
+    do det = 1, self%ndet
+       self%accept(det,scan) = tod%scans(scan)%d(det)%accept
+       self%invN(det,scan)   = 1./(tod%scans(scan)%d(det)%N_psd%sigma0/&
+            & tod%scans(scan)%d(det)%gain)**2
+    end do
     
   end subroutine load_calibrated_data
 
@@ -166,6 +173,9 @@ contains
     integer(i4b) :: i, j, oper, MAXITER=30, ierr
     real(dp)     :: delta_old, delta_new, delta0, eps = 1d-6, lim_convergence, dq, alpha, beta, t1, t2
     real(dp), allocatable, dimension(:,:) :: b, invMb, r, d, q, s
+
+    ! Initialize preconditioner
+    call self%init_precond
     
     if (self%myid == 0) then
 
@@ -322,7 +332,7 @@ contains
     invMx = self%invM * x
   end subroutine apply_precond
 
-  subroutine init_invM(self)
+  subroutine init_precond(self)
     implicit none
     class(comm_cgmap),                 intent(inout)    :: self
 
@@ -331,8 +341,11 @@ contains
     self%xi = 0.d0
     do scan = 1, self%nscan
        do det = 1, self%ndet
+          if (.not. self%accept(det,scan)) cycle
           do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
-             self%xi(det,self%ind(det,t)) = self%xi(det,self%ind(det,t)) + self%invN(det,scan)
+             if (self%mask(det,t) == 0) then
+                self%xi(1,self%ind(det,t)) = self%xi(1,self%ind(det,t)) + self%invN(det,scan)
+             end if
           end do
        end do
     end do
@@ -344,7 +357,7 @@ contains
        end where
     end if
     
-  end subroutine init_invM
+  end subroutine init_precond
   
   subroutine multiply_invN(self)
     implicit none
@@ -356,7 +369,12 @@ contains
        i = self%ind_scan(scan-1)+1
        j = self%ind_scan(scan)
        do det = 1, self%ndet
-          self%tod(det,i:j) = self%tod(det,i:j) * self%invN(det,scan)
+          if (.not. self%accept(det,scan)) cycle
+          where (self%mask(det,i:j) == 0)
+             self%tod(det,i:j) = self%tod(det,i:j) * self%invN(det,scan)
+          elsewhere
+             self%tod(det,i:j) = 0.  ! Remove flagged samples
+          end where
        end do
     end do
     
@@ -366,11 +384,14 @@ contains
     implicit none
     class(comm_cgmap),                 intent(inout)    :: self
 
-    integer(i4b) :: i, det
+    integer(i4b) :: i, j, det, scan
     
-    do i = 1, self%ntod
+    do scan = 1, self%nscan
+       i = self%ind_scan(scan-1)+1
+       j = self%ind_scan(scan)
        do det = 1, self%ndet
-          self%tod(det,i) = self%xi(1,self%ind(det,i))
+          if (.not. self%accept(det,scan)) cycle
+          self%tod(det,i:j) = self%xi(1,self%ind(det,i:j))
        end do
     end do
     
@@ -380,12 +401,15 @@ contains
     implicit none
     class(comm_cgmap),                 intent(inout) :: self
 
-    integer(i4b) :: i, det
+    integer(i4b) :: i, j, det, scan
 
     self%xi = 0.d0
-    do i = 1, self%ntod
+    do scan = 1, self%nscan
+       i = self%ind_scan(scan-1)+1
+       j = self%ind_scan(scan)
        do det = 1, self%ndet
-          self%xi(1,self%ind(det,i)) = self%xi(1,self%ind(det,i)) + self%tod(det,i)
+          if (.not. self%accept(det,scan)) cycle
+          self%xi(1,self%ind(det,i:j)) = self%xi(1,self%ind(det,i:j)) + self%tod(det,i:j)
        end do
     end do
     
@@ -402,6 +426,7 @@ contains
        i = self%ind_scan(scan-1)+1
        j = self%ind_scan(scan)
        do det = 1, self%ndet
+          if (.not. self%accept(det,scan)) cycle
           call self%T(det)%p%convolve(self%tod(det,i:j))
        end do
     end do
@@ -410,8 +435,8 @@ contains
 
   subroutine x_bcast(self, x)
     implicit none
-    class(comm_cgmap),                   intent(inout) :: self
-    real(dp),          dimension(1:,0:), intent(in)    :: x
+    class(comm_cgmap),                   intent(inout)          :: self
+    real(dp),          dimension(1:,0:), intent(in),   optional :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
@@ -440,8 +465,8 @@ contains
 
   subroutine x_reduce(self, x)
     implicit none
-    class(comm_cgmap),                   intent(in)  :: self
-    real(dp),          dimension(1:,0:), intent(out) :: x
+    class(comm_cgmap),                   intent(in)            :: self
+    real(dp),          dimension(1:,0:), intent(out), optional :: x
 
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p

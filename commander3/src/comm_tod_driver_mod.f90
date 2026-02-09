@@ -80,7 +80,7 @@ contains
     if (btest(oper,SD_TOD))     allocate(sd%tod     (ntod, ndet))
     if (btest(oper,SD_ORB))     allocate(sd%s_orb   (ntod, ndet, 0:hmax))
     if (btest(oper,SD_SL))      allocate(sd%s_sl    (ntod, ndet, 0:hmax))
-    if (btest(oper,SD_ZODI))    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
+    if (btest(oper,SD_ZODI) .and. tod%subtract_zodi)    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
     if (btest(oper,SD_OBJCTR))  allocate(sd%s_objctr(ntod, ndet, 0:hmax))
     if (btest(oper,SD_SKY))     allocate(sd%s_sky   (ntod, ndet, 0:hmax, nbp))
     if (btest(oper,SD_BP))      allocate(sd%s_bp    (ntod, ndet, 0:hmax, nbp))
@@ -196,7 +196,7 @@ contains
     end if
 
     ! Construct zodical light template
-    if (btest(oper,SD_ZODI)) then
+    if (btest(oper,SD_ZODI) .and. tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        call compute_zodi(zodi_model, tod, sd, det)
        call timer%stop(TOD_ZODI, tod%band)
@@ -253,7 +253,7 @@ contains
           do k = 1, nbp
              if (btest(oper,SD_SL))     sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_sl(:,d,:)
              if (btest(oper,SD_ORB))    sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_orb(:,d,:)
-             if (btest(oper,SD_ZODI))   sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
+             if (allocated(sd%s_zodi))   sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
              if (btest(oper,SD_OBJCTR)) sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_objctr(:,d,:)
           end do
        end do

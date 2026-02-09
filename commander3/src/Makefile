@@ -276,7 +276,7 @@ comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o 
    comm_tod_gain_smod.o     : comm_tod_gain_mod.o
 comm_tod_mapmaking_mod.o    : comm_tod_mod.o
-comm_tod_cgmap_mod.o        : comm_utils.o
+comm_tod_cgmap_mod.o        : comm_tod_mod.o
 comm_tod_bandpass_mod.o     : comm_tod_mod.o 
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
