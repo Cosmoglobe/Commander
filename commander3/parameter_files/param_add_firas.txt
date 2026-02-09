@@ -977,9 +977,9 @@ COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.1
 COMP_T_PRIOR_GAUSS_MEAN&&     = 14.0
 COMP_T_PRIOR_GAUSS_RMS&&      = 0 1
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
-COMP_MONOPOLE_PRIOR&&         = crosscorr:/mn/stornext/d5/data/aimartin/akari/data/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
 COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
 @END 03
@@ -1046,8 +1046,8 @@ COMP_NU_REF_T&&               = 3000
 COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits init_dust_beta_1.56.fits
 COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_dust_T_30K.fits
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
-@DEFAULT components/dust/dust_LFI_localsampler.defaults
 COMP_MONOPOLE_PRIOR&&         = crosscorr:/mn/stornext/d23/cmbco/dirbe/data/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+@DEFAULT components/dust/dust_LFI_localsampler.defaults
 COMP_AMP_INPUT_MAP&&          = /mn/stornext/d23/cmbco/dirbe/data/init_colddust_n2048_v1.fits
 @END 10
 
@@ -1087,9 +1087,9 @@ COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
 COMP_AMP_PRIOR_LMAX&&         = 6000
 COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta 
 COMP_INDMASK&&                = mask_DIRBE_hotdust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
-COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 COMP_AMP_INPUT_MAP&&          = init_hotPAH_n2048_v1.fits
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
 COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
@@ -1344,6 +1344,7 @@ COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
 COMP_AMP_PRIOR_LMAX&&         = 6000
 COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
 COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = none default
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
