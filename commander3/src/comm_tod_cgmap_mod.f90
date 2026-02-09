@@ -30,9 +30,8 @@ module comm_tod_cgmap_mod
   
   type comm_cgmap
      integer(i4b)  :: comm, myid, nprocs
-     integer(i4b)  :: ndet, ncol, nside, npix, nscan, ntod, nobs
+     integer(i4b)  :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
      logical(lgt),            allocatable, dimension(:,:) :: accept      ! Accept status, (ndet,nscan)
-     integer(i4b),            allocatable, dimension(:)   :: col_def     ! Column Stokes definition; T_full=1, Q_full=2, U_full=3, S_det=det+3, T_det=-det
      integer(i4b),            allocatable, dimension(:)   :: ind_scan    ! Index range for each scan (0:nscan)
      real(dp),                allocatable, dimension(:,:) :: x           ! Final full-sky map; only stored by root processor
      real(dp),                allocatable, dimension(:,:) :: invM        ! Diagonal preconditioner
@@ -40,6 +39,7 @@ module comm_tod_cgmap_mod
      real(sp),                allocatable, dimension(:,:) :: tod         ! Stacked, calibrated and in-painted TOD, (ndet,nscan*ntod)
      real(sp),                allocatable, dimension(:,:) :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:,:) :: ind         ! Stacked pixel index numbers, (ndet,nscan*ntod)
+     integer(i4b),            allocatable, dimension(:,:) :: psi         ! Stacked psi index numbers, (ndet,nscan*ntod)
      integer(i4b),            allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
      type(comm_crosstalk),                 pointer        :: W_S         ! Signal crosstalk matrix
      type(comm_crosstalk),                 pointer        :: W_N         ! Noise crosstalk matrix
@@ -66,11 +66,10 @@ module comm_tod_cgmap_mod
     
 contains
 
-  function constructor_cgmap(comm, nside, ndet, ntod_scan, col_def, ind2pix, W_S, W_N, Tbol) result(c)
+  function constructor_cgmap(maptype, comm, nside, ndet, ntod_scan, ind2pix, W_S, W_N, Tbol) result(c)
     implicit none
-    integer(i4b),                       intent(in) :: comm, nside, ndet
+    integer(i4b),                       intent(in) :: maptype, comm, nside, ndet
     integer(i4b),         dimension(:), intent(in) :: ntod_scan
-    integer(i4b),         dimension(:), intent(in) :: col_def
     integer(i4b),         dimension(:), intent(in) :: ind2pix
     type(comm_crosstalk), target,       intent(in), optional :: W_S
     type(comm_crosstalk), target,       intent(in), optional :: W_N
@@ -84,17 +83,23 @@ contains
     call mpi_comm_rank(comm, c%myid, ierr)
     call mpi_comm_size(comm, c%nprocs, ierr) 
     
+    c%maptype   = maptype
     c%nside     = nside
     c%npix      = 12*c%nside**2
     c%ndet      = ndet
     c%nscan     = size(ntod_scan)
-    c%ncol      = size(col_def)
     c%ntod      = sum(ntod_scan)
     c%nobs      = size(ind2pix)
+
+    if (c%maptype == 1) then
+       ! Temperature only
+       c%ncol = 1
+    else
+       write(*,*) 'CGmap type not supported = ', maptype
+       stop
+    end if
     
-    allocate(c%col_def(c%ncol))
     allocate(c%ind2pix(c%nobs))
-    c%col_def   = col_def
     c%ind2pix   = ind2pix
     
     ! Find start index for each scan; each scan is stored in (ind_scan(i-1)+1):ind_scan(i)
@@ -113,6 +118,10 @@ contains
     if (c%myid == 0) allocate(c%x(c%ncol,c%npix))
     if (c%myid == 0) allocate(c%invM(c%ncol,c%npix))
     c%accept = .false.
+
+    if (c%maptype > 1) then ! Polarization
+       allocate(c%psi(c%ndet,c%ntod))
+    end if
     
     ! Check for optional matrix operators
     if (present(W_S))  c%W_S  => W_S
@@ -129,10 +138,10 @@ contains
   subroutine dealloc_cgmap(c)
     implicit none
     class(comm_cgmap), pointer, intent(inout) :: c
-    if (allocated(c%col_def))   deallocate(c%col_def)
     if (allocated(c%ind_scan))  deallocate(c%ind_scan)
     if (allocated(c%tod))       deallocate(c%tod)
     if (allocated(c%ind))       deallocate(c%ind)
+    if (allocated(c%psi))       deallocate(c%psi)
     if (allocated(c%mask))      deallocate(c%mask)
     if (allocated(c%invM))      deallocate(c%invM)
     if (allocated(c%x))         deallocate(c%x)
@@ -162,6 +171,10 @@ contains
        self%invN(det,scan)   = 1./(tod%scans(scan)%d(det)%N_psd%sigma0/&
             & tod%scans(scan)%d(det)%gain)**2
     end do
+
+    if (self%maptype > 1) then
+       self%psi(:,i:j) = transpose(sd%psi(:,:,1))
+    end if
     
   end subroutine load_calibrated_data
 
@@ -391,7 +404,9 @@ contains
        j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          self%tod(det,i:j) = self%xi(1,self%ind(det,i:j))
+          if (self%maptype == 1) then
+             self%tod(det,i:j) = self%xi(1,self%ind(det,i:j))
+          end if
        end do
     end do
     
@@ -409,7 +424,9 @@ contains
        j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          self%xi(1,self%ind(det,i:j)) = self%xi(1,self%ind(det,i:j)) + self%tod(det,i:j)
+          if (self%maptype == 1) then
+             self%xi(1,self%ind(det,i:j)) = self%xi(1,self%ind(det,i:j)) + self%tod(det,i:j)
+          end if
        end do
     end do
     

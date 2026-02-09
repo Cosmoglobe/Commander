@@ -40,10 +40,12 @@ module comm_tod_akari_mod
    public comm_akari_tod
 
    type, extends(comm_tod) :: comm_akari_tod
+      ! Ingunn: Add binned residual params here
    contains
      procedure     :: process_tod             => process_akari_tod
      procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
      procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
+     procedure     :: sample_binned_residual
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -172,6 +174,28 @@ interface
     class(comm_scandata),  intent(inout)          :: sd
     integer(i4b),          intent(in),   optional :: det
   end subroutine construct_corrtemp_akari
+
+  module subroutine sample_binned_residual(self, sd)
+     ! Sample an AKARI binned residual
+     !
+     ! Task: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
+     !       Fill in sd%s_inst(k,l) with the full-scan template
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     !  sd:  comm_scandata
+     !
+     !  Returns:
+     !  --------
+     !  self: updates module variables
+     !       
+     implicit none
+     class(comm_akari_tod), intent(in)             :: self
+     class(comm_scandata),  intent(inout)          :: sd
+
+   end subroutine sample_binned_residual
 
 
    
