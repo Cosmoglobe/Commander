@@ -19,9 +19,9 @@ VERBOSITY                     = 3       # [0,...,3]
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 3       # Length of each Markov chain
-CHAIN_STATUS     = append
+CHAIN_STATUS     = new append
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/chain_c0001.h5:294
+INIT_CHAIN01     = none # had to change because there is no FIRAS in this chain /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/chain_c0001.h5:294
 
 BASE_SEED                     = 3231714
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
@@ -29,8 +29,8 @@ SAMPLE_SPECTRAL_INDICES       = .true.
 SAMPLE_ONLY_TEMPERATURE       = .true.
 
 ENABLE_TOD_ANALYSIS           = .false.
-TOD_INCLUDE_ZODI              = .true.
-SAMPLE_ZODI                   = .true.
+TOD_INCLUDE_ZODI              = .false.
+SAMPLE_ZODI                   = .false.
 
 SAMPLE_SOLAR_MAPS             = .true.
 SAMPLE_MOON_MAPS              = .false.
@@ -47,7 +47,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v3
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v5
 NSIDE_CHISQ                   = 512
 
 ##############################################################
@@ -140,7 +140,7 @@ BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglo
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 1 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_TYPE&&&               = DIRBE
+BAND_TOD_TYPE&&&               = none
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 01a ,01b
 BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_01a_v10.fits none
@@ -903,7 +903,7 @@ INCLUDE_COMP25                = .true.      # WHAP Halpha correlated dust in abs
 INCLUDE_COMP26                = .false.     # Infrared dust (60um)
 INCLUDE_COMP27                = .false.     # CO-correlated dust
 
-NUM_CG_SAMPLING_GROUPS = 3
+NUM_CG_SAMPLING_GROUPS = 0
 
 #@START 01
 #CG_SAMPLING_GROUP&&          = 08a,08b
@@ -963,7 +963,7 @@ COMP_AMP_INPUT_MAP&&          = init_dust_cold_dirbe_prod6_v3.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
 COMP_NU_REF_T&&               = 545
-COMP_MBBTAB_TYPE&&            = binned
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
 COMP_SED_TEMPLATE&&           = SEDtab_dust_cold_dirbe_prod6_v3.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_T_NU_MIN&&               = 120  
@@ -1077,7 +1077,7 @@ COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 19.25
 COMP_BETA_DEFAULT&&           =   1.62
-COMP_MBBTAB_TYPE&&            = binned
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
 COMP_SED_TEMPLATE&&           = SEDtab_hotPAH_dirbe_prod6_v4.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
@@ -1173,7 +1173,7 @@ COMP_BETA_NU_MIN&&            = 120
 COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 28.77
-COMP_MBBTAB_TYPE&&            = binned
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
 COMP_BETA_DEFAULT&&           =   1.635
 COMP_SED_TEMPLATE&&           = SEDtab_dust_hot_dirbe_prod6_v5.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
@@ -1335,7 +1335,7 @@ COMP_T_DEFAULT&&              = 17.8
 COMP_BETA_DEFAULT&&           =   1.620
 COMP_SED_TEMPLATE&&           = SEDtab_dust_Ha_dirbe_prod6_v4.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
 COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
@@ -1674,106 +1674,114 @@ ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 06
 
 
-NUM_MCMC_SAMPLING_GROUPS = 12
+NUM_MCMC_SAMPLING_GROUPS = 1 13
+
+#@START 01
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,hotPAH:tab@1%0.005,dust_Ha:tab@1%0.005
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 10a,10b 
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 01
+
+#@START 02
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.01,hotPAH:tab@2%0.01,dust_Ha:tab@2%0.01
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 09a,09b 
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 02
+
+#@START 03
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.001,hotPAH:tab@3%0.001,dust_Ha:tab@3%0.001
+##MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 08a,08b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 03
+
+#@START 04
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.001,hotPAH:tab@4%0.001,dust_Ha:tab@4%0.001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 07a,07b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 04
+
+#@START 05
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.0003,hotPAH:tab@5%0.0003,dust_cii:tab@5%0.0003,stars_diff:tab@5%0.0001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 06a,06b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
+#@END 05
+
+#@START 06
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
+#@END 06
+
+#@START 07
+#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@10%0.003
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 01a,01b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_01_compobj_res_v13.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
+#@END 07
+
+#@START 08
+#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@9%0.003
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 02a,02b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_02_compobj_res_v13.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
+#@END 08
+
+#@START 09
+#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@8%0.003
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_03_compobj_res_v12.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
+#@END 09
+
+#@START 10
+#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@7%0.003
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_04_compobj_res_v12.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
+#@END 10
+
+#@START 11
+#MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@8%0.0001,dust_cii:tab@8%0.0001
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 11
+
+#@START 12
+#MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@7%0.0001,dust_cii:tab@7%0.0001
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+#@END 12
 
 @START 01
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,hotPAH:tab@1%0.005,dust_Ha:tab@1%0.005
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 10a,10b 
+MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005 # add other tabs ,dust_cii:tab@2%0.005,dust:tab@2%0.005
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = FIRAS_H0857 # add other bandsFIRAS_band1,FIRAS_band2,...FIRAS_band9,FIRAS_band10
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 @END 01
-
-@START 02
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.01,hotPAH:tab@2%0.01,dust_Ha:tab@2%0.01
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 09a,09b 
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 02
-
-@START 03
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.001,hotPAH:tab@3%0.001,dust_Ha:tab@3%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 08a,08b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 03
-
-@START 04
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.001,hotPAH:tab@4%0.001,dust_Ha:tab@4%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 07a,07b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 04
-
-@START 05
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.0003,hotPAH:tab@5%0.0003,dust_cii:tab@5%0.0003,stars_diff:tab@5%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 06a,06b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-@END 05
-
-@START 06
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-@END 06
-
-@START 07
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@10%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 01a,01b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_01_compobj_res_v13.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 07
-
-@START 08
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@9%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 02a,02b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_02_compobj_res_v13.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 08
-
-@START 09
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@8%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_03_compobj_res_v12.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 09
-
-@START 10
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@7%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_04_compobj_res_v12.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 10
-
-@START 11
-MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@8%0.0001,dust_cii:tab@8%0.0001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 11
-
-@START 12
-MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@7%0.0001,dust_cii:tab@7%0.0001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 12

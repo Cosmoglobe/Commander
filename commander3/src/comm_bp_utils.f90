@@ -180,11 +180,11 @@ contains
   end function dB_rj_dnu
 
   ! Routine for reading bandpass files for one detecor with threshold
-  subroutine read_bandpass(filename, instlabel, threshold, n, nu, tau)
+  subroutine read_bandpass(filename, label, threshold, n, nu, tau)
     implicit none
 
     character(len=*),                            intent(in)  :: filename
-    character(len=*),                            intent(in)  :: instlabel
+    character(len=*),                            intent(in)  :: label
     real(dp),                                    intent(in)  :: threshold
     integer(i4b),                                intent(out) :: n
     real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
@@ -206,13 +206,13 @@ contains
     if (filename(l-2:l) == '.h5' .or. filename(l-3:l) == '.hd5') then
 
        call open_hdf_file(filename, file, "r")
-       call get_size_hdf(file, trim(instlabel) // "/bandpass", ext)
+       call get_size_hdf(file, trim(label) // "/bandpass", ext)
        m = ext(1)
 
        allocate(x(m), y(m))
        !write(*,*) "About to read bandpass"
-       call read_hdf(file, trim(instlabel) // "/bandpassx",x)
-       call read_hdf(file, trim(instlabel) // "/bandpass", y)
+       call read_hdf(file, trim(label) // "/bandpassx",x)
+       call read_hdf(file, trim(label) // "/bandpass", y)
        call close_hdf_file(file)
 
        ! Drop double entries
@@ -282,11 +282,11 @@ contains
   end subroutine read_bandpass
 
   ! Routine for reading bandpass files all detectors at the same time
-  subroutine read_bandpass_nonzero_threshold(filename, instlabel, ndet, threshold, n, nu, tau)
+  subroutine read_bandpass_nonzero_threshold(filename, label, ndet, threshold, n, nu, tau)
     implicit none
 
     character(len=*),                            intent(in)  :: filename
-    character(len=*),              dimension(:), intent(in)  :: instlabel
+    character(len=*),              dimension(:), intent(in)  :: label
     integer(i4b),                                intent(in)  :: ndet
     real(dp),                                    intent(in)  :: threshold
     integer(i4b),                                intent(out) :: n
@@ -312,13 +312,13 @@ contains
        call open_hdf_file(filename, file, "r")
 
        do i = 1, ndet      
-           call get_size_hdf(file, trim(instlabel(i)) // "/bandpass", ext)
+           call get_size_hdf(file, trim(label(i)) // "/bandpass", ext)
            m = ext(1)
 
            allocate(x(m), y(m))
            !write(*,*) "About to read bandpass"
-           call read_hdf(file, trim(instlabel(i)) // "/bandpassx",x)
-           call read_hdf(file, trim(instlabel(i)) // "/bandpass", y)
+           call read_hdf(file, trim(label(i)) // "/bandpassx",x)
+           call read_hdf(file, trim(label(i)) // "/bandpass", y)
            !call close_hdf_file(file)
 
            ! Drop double entries
@@ -340,8 +340,8 @@ contains
 
     do i = 1, ndet
         allocate(x(m_array(i)), y(m_array(i)))
-        call read_hdf(file, trim(instlabel(i)) // "/bandpassx",x)
-        call read_hdf(file, trim(instlabel(i)) // "/bandpass", y)
+        call read_hdf(file, trim(label(i)) // "/bandpassx",x)
+        call read_hdf(file, trim(label(i)) // "/bandpass", y)
         x = x * 1.d9 ! Convert from GHz to Hz
 
         first = 1
@@ -369,8 +369,8 @@ contains
 
     do i = 1, ndet
         allocate(x(m_array(i)), y(m_array(i)))
-        call read_hdf(file, trim(instlabel(i)) // "/bandpassx",x)
-        call read_hdf(file, trim(instlabel(i)) // "/bandpass", y)
+        call read_hdf(file, trim(label(i)) // "/bandpassx",x)
+        call read_hdf(file, trim(label(i)) // "/bandpass", y)
         x = x * 1.d9 ! Convert from GHz to Hz
 
         if (i == 1) then

@@ -160,7 +160,7 @@ contains
        c%tau0(1) = 1.d0
     else
        if (present(detlabel)) then
-          call read_bandpass(trim(cpar%ds_bpfile(id_abs)), instlabel, &
+          call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
                & c%threshold, &
                & c%n, c%nu0, c%tau0)
        else 
