@@ -358,7 +358,8 @@ contains
          !write(*,*) i, self%scans(i)%d%accept
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+         ! FIXME!! NCORR MASK CHANGED TEMPORARILY TO GAIN MASK. WILL LEAK SIGNAL INTO NCORR!!!
+         call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd)
 
           !if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
