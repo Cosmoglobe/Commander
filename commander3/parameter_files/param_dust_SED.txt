@@ -47,7 +47,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v5
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v6
 NSIDE_CHISQ                   = 512
 
 ##############################################################
@@ -140,7 +140,7 @@ BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglo
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 1 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_TYPE&&&               = none
+BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 01a ,01b
 BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_01a_v10.fits none
@@ -896,11 +896,12 @@ INCLUDE_COMP20                = .false.     # nearby dust, Edenhofer et al. 2023
 INCLUDE_COMP21                = .false.     # CO combined
 INCLUDE_COMP22                = .false.     # colder point sources, fir, ptsrc
 INCLUDE_COMP23                = .true.      # stars, GAIA
-INCLUDE_COMP29                = .true.      # stars, GAIA; fainter
-INCLUDE_COMP31                = .true.      # stars, GAIA; fainter yet
 INCLUDE_COMP24                = .true.      # low-amplitude star template, WISE W1 < mag 8
 INCLUDE_COMP25                = .true.      # WHAP Halpha correlated dust in absorption
 INCLUDE_COMP26                = .false.     # Infrared dust (60um)
+INCLUDE_COMP29                = .true.      # stars, GAIA; fainter
+INCLUDE_COMP31                = .true.      # stars, GAIA; fainter yet
+
 INCLUDE_COMP27                = .false.     # CO-correlated dust
 
 NUM_CG_SAMPLING_GROUPS = 0
@@ -958,7 +959,7 @@ COMP_APPLY_DUST_EXTINCTION&&  = .false.
 # Thermal dust component
 @START 03
 @DEFAULT components/dust/dust_coldtab_DIRBE_n4096.defaults
-#COMP_TYPE&&                   = MBB
+#COMP_TYPE&&                  = MBB
 COMP_AMP_INPUT_MAP&&          = init_dust_cold_dirbe_prod6_v3.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
@@ -971,7 +972,7 @@ COMP_BETA_NU_MIN&&            = 120
 COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 13.36
-COMP_BETA_DEFAULT&&           =  1.6256
+COMP_BETA_DEFAULT&&           = 1.6256
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 1.6
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.1
 COMP_T_PRIOR_GAUSS_MEAN&&     = 14.0
@@ -1273,36 +1274,6 @@ COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
 COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 23
 
-# Star templates from Gaia + Wise
-@START 29
-@DEFAULT components/stars/stars_templates.defaults
-COMP_LABEL&&                   = gaia2
-COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
-COMP_TYPE&&                    = stars
-COMP_CATALOG&&                 = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_2.h5
-COMP_PTSRC_TEMPLATE&&          = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_2_beam.h5
-COMP_CG_SCALE&&                = 1
-COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
-COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
-COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
-COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
-@END 29
-
-# Star templates from Gaia + Wise
-@START 31
-@DEFAULT components/stars/stars_templates.defaults
-COMP_LABEL&&                   = gaia3
-COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
-COMP_TYPE&&                    = stars
-COMP_CATALOG&&                 = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_3.h5
-COMP_PTSRC_TEMPLATE&&          = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_3_beam.h5
-COMP_CG_SCALE&&                = 1
-COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
-COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
-COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
-COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
-@END 31
-
 # Faint WISE stars, < mag 8
 @START 24
 @DEFAULT components/stars/faint_WISE_DIRBE.defaults
@@ -1413,6 +1384,35 @@ COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
 COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 27
 
+# Star templates from Gaia + Wise
+@START 29
+@DEFAULT components/stars/stars_templates.defaults
+COMP_LABEL&&                   = gaia2
+COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
+COMP_TYPE&&                    = stars
+COMP_CATALOG&&                 = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_2.h5
+COMP_PTSRC_TEMPLATE&&          = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_2_beam.h5
+COMP_CG_SCALE&&                = 1
+COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
+COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+@END 29
+
+# Star templates from Gaia + Wise
+@START 31
+@DEFAULT components/stars/stars_templates.defaults
+COMP_LABEL&&                   = gaia3
+COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
+COMP_TYPE&&                    = stars
+COMP_CATALOG&&                 = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_3.h5
+COMP_PTSRC_TEMPLATE&&          = mar25_mag12_5arcsec_withmcmc_mag7cutoff_parametrized_template_3_beam.h5
+COMP_CG_SCALE&&                = 1
+COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
+COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+@END 31
 
 
 # ------------------------------------------------------------------
