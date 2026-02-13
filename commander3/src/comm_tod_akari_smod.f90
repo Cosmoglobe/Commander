@@ -49,7 +49,7 @@ contains
       integer(i4b),            intent(in) :: id, id_abs        !index of the current band within the parameters 
       class(comm_mapinfo),     target     :: info
       character(len=128),      intent(in) :: tod_type      !
-      class(comm_akari_tod),      pointer    :: c
+      class(comm_akari_tod),   pointer    :: c
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
@@ -156,11 +156,19 @@ contains
 
       c%orb_dp => comm_orbdipole(comm=c%comm)
 
-
       ! Initialize all baseline corrections to zero
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
       !end do
+      
+      ! initialize tod correction template(s)
+      c%ntempl = 1  ! OBS may change
+      allocate(c%nsamp_templ(c%ntempl))
+      !c%nsamp_templ=[28,12,4]              ! OBS may automate this by init_sample_ramp routine
+      !c%nsamp_templ=[28,12]
+      c%nsamp_templ=[28]
+      allocate(c%tod_correction_templ(maxval(c%nsamp_templ),c%ntempl,c%ndet,c%nscan))
+      c%tod_correction_templ = 0.d0
       
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_akari
@@ -217,7 +225,7 @@ contains
       type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n, sample_ramp
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -260,14 +268,16 @@ contains
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
 
-      if (trim(self%init_from_HDF) == 'none') then
-         select_data     = iter == 5
+      if (trim(self%init_from_HDF) == 'none') then  ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none 
+         select_data     = iter == 5                ! in param file. Takes you to 'else' below
          sample_ncorr    = iter > 2
          sample_xi_n     = iter > 2
+         sample_ramp   = iter > 3
       else
          select_data     = iter == 3 
          sample_ncorr    = iter > 1
          sample_xi_n     = iter > 1
+         sample_ramp   = iter > 2
       end if
 
       !                       Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
@@ -283,7 +293,6 @@ contains
 
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
            & SD_SKY,SD_INST,SD_NCORR,SD_BP,SD_ORB,SD_ZODI])
-
       
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -336,7 +345,20 @@ contains
          !call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
-      ! Prepare intermediate data structures
+      ! sample ramp baselines 
+      if (sample_ramp) then
+         do i = 1, self%nscan
+            ! Skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=2)  ! OBS may change mask
+            call self%sample_ramp(sd)
+            ! Clean up
+            call dealloc_scan_data(sd)
+         end do
+      end if
+
+      
+      ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
@@ -350,7 +372,7 @@ contains
       ! Initialize CG mapmaker, maptype = 1 = T-only
       cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
       
-      ! Perform loop over scans
+      ! Perform loop over scans to prepare data to make maps
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
 
@@ -421,9 +443,9 @@ contains
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
          
          ! For debugging: write TOD to hdf
-         if (.false.) then
+         if (.true.) then
             ! scan id appears to be the worst chi2
-            if (self%scanid(i) == 5020) then 
+            if (self%scanid(i) == 1000) then 
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
@@ -432,12 +454,14 @@ contains
                call write_hdf(tod_file, '/flag', sd%flag)
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
+               call write_hdf(tod_file, '/s_inst', sd%s_inst)
                call write_hdf(tod_file, '/n_corr', sd%n_corr)
                call write_hdf(tod_file, '/s_sl', sd%s_sl)
                call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
+!               call write_hdf(tod_file, '/accept', real(self%scans(i)%d(:)%accept,dp))
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
                call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
                call close_hdf_file(tod_file)
@@ -512,6 +536,7 @@ contains
          if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
          if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
          if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+         if (self%output_n_maps > 7 ) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'inst'//trim(postfix))
          if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
             do i = 1, zodi_model%n_comps
                call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
@@ -610,90 +635,300 @@ contains
    end subroutine apply_fast_flags_akari
 
    module subroutine construct_corrtemp_akari(self, sd, det)
-     ! Construct an AKARI instrument-specific correction template
-     !
-     ! Ingunn: Project binned residual params into sd%s_inst(k,l) 
-     !
-     !  Arguments:
-     !  ----------
-     !  self: comm_tod object
-     !
-     !  sd:  comm_scandata
-     !       Decompressed data for current scan (defined in comm_tod_mod)
-     !  det: int
-     !       detector index (optional)
-     !
-     !  Returns:
-     !  --------
-     !  self:  comm_akari_to
-     !       Updates sd%s_inst
+     ! construct AKARI instrument-specific correction template from ramp template
      implicit none
-     class(comm_akari_tod), intent(in)             :: self
-     class(comm_scandata),  intent(inout)          :: sd
+     class(comm_akari_tod), intent(in)             :: self ! full data object with compressed tods
+     class(comm_scandata),  intent(inout)          :: sd   ! decompressed self%scans(scan)%d(det)%tod
      integer(i4b),          intent(in),   optional :: det
 
-     integer(i4b) :: i, j, k, l, nbin, b, ndet, scan
-     real(dp)     :: dt
+     integer(i4b) :: i, j, k, l, m, ndet, scan, ntod, nramps, nsamp, ntempl, beg_det, end_det
+     integer(i4b) :: flag_id(5), ndata, nflagged, start
+     logical(lgt) :: flagged
+     real(dp),       allocatable, dimension(:)     :: templ!, res
 
-     scan  = sd%scan
-     dt    = 1.d0/self%samprate   ! Sample time
-     ndet  = sd%ndet
+     ! flag bit 5 = ramp reset, 15 = cal lamp on for long wavelengts, 16 = cal lamp for short wavelength
+     flag_id(1) =  5
+     flag_id(2) =  5
+     flag_id(3) =  5
+     flag_id(4) = 15
+     flag_id(5) = 16
+    
+     scan   = sd%scan              ! scan number
+     ndet   = sd%ndet              ! number of detectors                = self%ndet
+     ntod   = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
+     ntempl = self%ntempl          ! number of tod correction templates to include
 
-     do l = 1, ndet
-        j = l; if (present(det)) j = det
-        if (.not. self%scans(scan)%d(j)%accept) cycle
-        do k = 1, self%scans(scan)%ntod
-           ! Example from LFI
-           ! t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
-           ! b = min(int(t*nbin),nbin-1)
-           ! sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
-           sd%s_inst(k,j) = 0.
+     !allocate(res(1:ntod))
+
+     ! start by putting instrument signal tod to zero   ! OBS assuming s_inst not used for other systematics!
+     sd%s_inst = 0.d0
+
+     ! check whitch detectors to include
+     if (present(det)) then
+        beg_det = det
+        end_det = det
+     else
+        beg_det = 1
+        end_det = ndet
+     end if
+
+     ! loop over detetctors
+     do m = beg_det, end_det
+        !if (self%info%myid==0) write (*,*) 'detector nr', m, ' of ', ndet
+        ! skip detector if full scan is un-accepted
+        if (.not. self%scans(scan)%d(m)%accept) cycle
+
+        ! loop through samples and find unfagged segments of length nsamp, following ramp flags
+        do k = 1, ntempl
+           !if (self%info%myid==0) write (*,*) 'templ nr', k, ' of ', ntempl
+           ! Put correction template with length nsamp into templ
+           nsamp     = self%nsamp_templ(k)                         ! length of give correction template (ramp event)
+           allocate(templ(nsamp))
+           templ     = self%tod_correction_templ(1:nsamp,k,m,scan) ! tod correction template
+           ! skip unwrapping if  correction template is zero
+           if (maxval(templ)==0.d0 .and. minval(templ)==0.d0) then
+              deallocate(templ)
+              cycle
+           end if
+           nramps    = 0                                           ! counting number of ramp events 
+           start     = 0                                           ! start of new ramp event in tod
+           ndata     = 0                                           ! counting unflagged samples
+           nflagged  = 0                                           ! counting flagged samples
+           flagged   = .false.
+           do i = 1, ntod
+              !if (self%info%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
+              if ( btest(sd%flag(i,m), flag_id(k) ) ) then       ! if tod sample has ramp flag
+                 if (.not. flagged) then                         ! .. and previous sample was unflagged
+                    ! if this is not start of first event
+                    if (start /= 0) then
+                       ! check that previous event had correct length
+                       if (ndata == nsamp) then
+                          !if (self%info%myid==0) write (*,*) 'B start', start+nflagged, start, nflagged, nsamp
+                          ! put template into s_inst tod
+                          sd%s_inst(start+nflagged:start+nflagged+nsamp-1, m) = templ
+                          nramps = nramps + 1
+                       end if
+                    end if
+                    start = i                                     ! .. then start new event
+                    ndata = 0                                     ! .. and restart unflagged counter
+                    nflagged = 0                                  ! .. andand restart flagged counter
+                 end if
+                 flagged = .true.                                 ! irrespective of whether last sample was flagged
+                 nflagged = nflagged +1                           ! this one is, and flag counter increases.   
+              else                                                ! else if tod sample is unflagged,
+                 flagged = .false.                                ! unflagge data counter increases.
+                 ndata = ndata + 1
+              end if
+           end do
+           ! output for plotting
+           !if (self%info%myid==0) write(*,*) 'B num ramps for template:', nramps, k, scan
+           deallocate(templ)
         end do
-     end do
 
+        ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
+        !res = sd%tod(:,m) - sd%s_tot(:,m,0,1) * self%scans(scan)%d(m)%gain
+        !if (self%info%myid==0) then
+        !   open(19, file="res_corr.dat", recl=1024)
+        !   do l = 1, ntod
+        !      write(19,*) l, res(l), sd%s_inst(l,1), res(l) - sd%s_inst(l,1)
+        !   end do
+        !   close(19)
+        !end if
+
+     end do
+     !deallocate(res)
+
+    !sd%s_inst = 0.d0      !OBS OBS nulling whole routine DEBUG
+     
    end subroutine construct_corrtemp_akari
 
-   module subroutine sample_binned_residual(self, sd)
-     ! Sample an AKARI binned residual
-     !
-     ! Ingunn: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
-     !         Fill in sd%s_inst(k,l) with the full-scan template
-     !
-     !  Arguments:
-     !  ----------
-     !  self: comm_tod object
-     !
-     !  sd:  comm_scandata
-     !
-     !  Returns:
-     !  --------
-     !  self: updates module variables
-     !       
+   module subroutine sample_ramp(self, sd)
+     ! find template of baseline beween to ramp events, by averaging over all events in a scan
      implicit none
-     class(comm_akari_tod), intent(in)             :: self
-     class(comm_scandata),  intent(inout)          :: sd
+     class(comm_akari_tod), intent(inout)          :: self  ! full data object with compressed tods
+     class(comm_scandata),  intent(in)             :: sd    ! decompressed self%scans(scan)%d(det)%tod
 
-     integer(i4b) :: i, j, k, l, nbin, b, ndet, scan
-     real(dp)     :: dt
+     integer(i4b) :: i, j, k, l, m, ndet, scan, ntod, nramps, nsamp, ntempl
+     integer(i4b) :: flag_id(5), ndata, nflagged, start
+     real(dp)     :: flag_val(3) 
+     logical(lgt) :: flagged
+     real(dp),       allocatable, dimension(:)     :: res, total, buffer, mask
 
-     scan  = sd%scan
-     dt    = 1.d0/self%samprate   ! Sample time
-     ndet  = sd%ndet
+     ! flag bit 5 = ramp reset, 15 = cal lamp on for long wavelengts, 16 = cal lamp for short wavelength
+     flag_id(1) =  5
+     flag_id(2) =  5
+     flag_id(3) =  5
+     flag_id(4) = 15
+     flag_id(5) = 16
+     ! output value for plotting
+     flag_val(1) = 20.d0
+     flag_val(2) = 30.d0
+     flag_val(3) = 40.d0
+    
+     scan   = sd%scan              ! scan number
+     ndet   = sd%ndet              ! number of detectors                = self%ndet
+     ntod   = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
+     ntempl = self%ntempl          ! number of tod correction templates we will generate
 
-     do j = 1, ndet
-        if (.not. self%scans(scan)%d(j)%accept) cycle
-        do k = 1, self%scans(scan)%ntod
-           ! Example from LFI
-           ! t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
-           ! b = min(int(t*nbin),nbin-1)
-           ! sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
-           sd%s_inst(k,j) = 0.
+     allocate(res(1:ntod))
+
+     ! loop over detectors
+     do m = 1, ndet
+        if (self%info%myid==0) write (*,*) 'detector nr', m
+        ! skip detector if full scan is un-accepted
+        if (.not. self%scans(scan)%d(m)%accept) cycle
+        ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
+        res = sd%tod(:,m) - sd%s_tot(:,m,0,1) * self%scans(scan)%d(m)%gain
+
+        ! loop through tod samples and find unflagged segments of length nsamp, following ramp flags
+        do k = 1, ntempl
+           nsamp     = self%nsamp_templ(k)                       ! length of give correction template (ramp event)
+           allocate(buffer(nsamp), total(nsamp), mask(nsamp))
+           total     = 0.d0                                      ! will collect all ramp segements here
+           nramps    = 0                                         ! counting number of ramp events 
+           start     = 0                                         ! start of new ramp event in tod
+           ndata     = 0                                         ! counting unflagged samples
+           nflagged  = 0                                         ! counting flagged samples
+           flagged   = .false.
+           do i = 1, ntod
+              !if (self%info%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
+              if ( btest(sd%flag(i,m), flag_id(k) ) ) then       ! if tod sample has ramp flag
+                 if (.not. flagged) then                         ! .. and previous sample was unflagged
+                    ! if this is not start of first event
+                    if (start /= 0) then
+                       ! check that previous event had correct length
+                       if (ndata == nsamp) then                    
+                          ! put previous event into buffer
+                          buffer =  sd%tod(start+nflagged:start+nflagged+nsamp-1, m)
+                          ! and get corresponding mask
+                          mask   = sd%mask(start+nflagged:start+nflagged+nsamp-1, m)
+                          ! if enough unmasked sample, add buffer to total sum, and count +1 ramp event
+                          if ( sum(mask) > nsamp*0.5 ) then
+                             total = total + buffer * mask
+                             nramps = nramps + 1
+                          end if
+                       end if
+                    end if
+                    start = i                                     ! .. then start new event
+                    ndata = 0                                     ! .. and restart unflagged counter
+                    nflagged = 0                                  ! .. andand restart flagged counter
+                 end if
+                 flagged = .true.                                 ! irrespective of whether last sample was flagged
+                 nflagged = nflagged +1                           ! this one is, and flag counter increases.   
+              else                                                ! else if tod sample is unflagged,
+                 flagged = .false.                                ! unflagge data counter increases.
+                 ndata = ndata + 1
+              end if
+           end do
+           if (nramps /= 0) then
+              ! average over all ramp events to create template
+              total = total/real(nramps,dp)
+              ! make sure template has zero mean
+              total = total - mean(total)
+           end if
+           ! put template into comm_akari_tod data structure
+           self%tod_correction_templ(1:nsamp,k,m,scan) = total
+
+           ! output for plotting
+           !if (self%info%myid==0) then
+           !   write(*,*) 'A num ramps for template:', nramps
+           !   open(19, file="templcorr2.dat", recl=1024)
+           !   do l = 1, nsamp
+           !      write(19,*) l, buffer(l), total(l), buffer(l)-total(l)
+           !   end do
+           !   close(19)
+           !end if
+           
+           deallocate(buffer, total, mask)
         end do
+        
+        !if (self%info%myid==0) then
+        !   open(19, file="templ2.dat", recl=1024)
+        !   do l = 1, self%nsamp_templ(1)
+        !      write(19,*) l, self%tod_correction_templ(l,1,m,scan)
+        !   end do
+        !   close(19)
+        !end if
+
      end do
+     deallocate(res)
+     
+   end subroutine sample_ramp
 
-   end subroutine sample_binned_residual
+   ! This subroutine is not yet used, but can be modified to automate template length search
+   ! and called from the end of constructor_akari function above
+   module subroutine init_sample_ramp(self, sd)
+     ! find template of baseline beween to ramp events, by averaging over all events in a scan
+     implicit none
+     class(comm_akari_tod), intent(inout)          :: self  ! full data object with compressed tods
+     class(comm_scandata),  intent(in)             :: sd    ! decompressed self%scans(scan)%d(det)%tod
 
+     integer(i4b) :: i, j, k, l, nbin, b, ndet, scan, ntod, num_used, nsamp, nflags
+     integer(i4b) :: num_events(3), flag_id(3), max_num
+     real(dp)     :: dt, invgain, flag(3), flag_val(3) 
+     logical(lgt) :: flagged(3)
+     real(dp),       allocatable, dimension(:)     :: res, total, buffer, mask
+     integer(i4b),   allocatable, dimension(:,:)   :: nflagged, ndata, events
+
+     ! flag bit 5 = ramp reset, 15 = cal lamp on for long wavelengts, 16 = cal lamp for short wavelength
+     flag_id(1) =  5
+     flag_id(2) = 15
+     flag_id(3) = 16
+     ! output value for plotting
+     flag_val(1) = 20.d0
+     flag_val(2) = 30.d0
+     flag_val(3) = 40.d0
+     nflags = 1
+    
+     scan  = sd%scan              ! scan number
+     ndet  = sd%ndet              ! number of detectors                = self%ndet
+     ntod  = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
+     dt    = 1.d0/self%samprate   ! time per/between sample in seconds
+
+     if (self%info%myid==0) write (*,*) 'ntod', ntod
+     if (self%info%myid==0) write (*,*) 'ndet', ndet
+     if (self%info%myid==0) write (*,*) 'dt  ', dt
+     if (self%info%myid==0) write (*,*) 'length of tod (s)', dt*ntod
+     if (self%info%myid==0) write (*,*) 'length of ramp (s)', dt*32
+     if (self%info%myid==0) write (*,*) 'samprate', self%samprate
+     if (self%info%myid==0) write (*,*) ''
+
+     max_num = 10000 ! OBS
+     allocate(nflagged(max_num, 3))
+     allocate(ndata(0:max_num, 3))
+     allocate(events(max_num, 3))
+     allocate(res(1:ntod))
+     
+     do j = 1, ndet
+        if (self%info%myid==0) write (*,*) 'detector nr', j
+        if (.not. self%scans(scan)%d(j)%accept) cycle
+        ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
+        res = sd%tod(:,j) - sd%s_tot(:,j,0,1) * self%scans(scan)%d(j)%gain
+
+        ! loop through samples and check for flags
+        flagged(:)    = .false.
+        num_events(:) = 0
+        nflagged      = 0
+        ndata         = 0
+        if (self%info%myid==0) open(19, file="res.dat", recl=1024)
+        do i = 1, ntod
+           flag(:)    = 0.d0      
+           do k = 1, nflags
+              if ( btest(sd%flag(i,j), flag_id(k) ) ) then
+                 flag(k) = flag_val(k)
+                 if (.not. flagged(k)) num_events(k) = num_events(k) + 1
+                 flagged(k) = .true.
+                 nflagged(num_events(k),k) = nflagged(num_events(k),k) + 1
+                 events(num_events(k),k) = i
+              else
+                 flagged(k) = .false.
+                 ndata(num_events(k),k) = ndata(num_events(k),k) + 1
+              end if
+           end do
+           if (self%info%myid==0) write (19,*) i, res(i), flag
+        end do
+
+     end do
+   end subroutine init_sample_ramp
    
-   
-
 end submodule comm_tod_akari_smod

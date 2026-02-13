@@ -392,32 +392,32 @@ module comm_tod_mod
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
 
-  ! Class for uncompressed data for a given scan
-  type :: comm_scandata
+  ! Class for uncompressed data for a given scan                    ! Defined in init_scan data 
+  type :: comm_scandata                                             ! in comm_tod_driver_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
      integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
-     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing [ntod,ndet,nhorn]
      integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
-     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
+     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags -- bit mask
      real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + bitmask)
-     real(sp),     allocatable, dimension(:,:)     :: mask2          ! TOD mask (flags + bitmask)
-     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: mask2         ! TOD mask (flags + bitmask)
+     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
      real(sp),     allocatable, dimension(:,:,:)   :: s_sl          ! Sidelobe correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_objctr      ! Object-centric signal (solar, Moon, Earth, zodi..)
-     real(sp),     allocatable, dimension(:,:,:,:) :: s_sky         ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:,:) :: s_sky         ! Stationary sky signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:,:)   :: s_orb         ! Orbital dipole
      real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
      real(sp),     allocatable, dimension(:,:,:,:) :: s_calib       ! Custom calibrator
      real(sp),     allocatable, dimension(:,:,:,:) :: s_bp          ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_zodi        ! Zodiacal emission
-     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
-     real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal
-     real(sp),     allocatable, dimension(:,:)     :: s_spur         ! Total spurious signal
+     real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
+     real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
      real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
   end type comm_scandata
