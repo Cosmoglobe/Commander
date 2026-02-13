@@ -61,8 +61,8 @@ contains
 
       ! Set up noise PSD type and priors
       c%freq            = cpar%ds_label(id_abs)
-      c%n_xi            = 3
-      c%noise_psd_model = 'oof'
+      c%n_xi            = 5
+      c%noise_psd_model = '2oof'
       allocate(c%xi_n_nu_fit(c%n_xi,2))
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
@@ -72,10 +72,17 @@ contains
          c%xi_n_nu_fit(1,:) = [0.d0, 1.0d0] ! Freq range for sigma0
          c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0] ! Freq range for fknee
          c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0] ! Freq range for alpha
-         c%xi_n_P_rms       = [-100.d0, -0.01d0, 0.05d0] ! Prior rms [sigma0, fknee, alpha]
+         c%xi_n_nu_fit(4,:) = [4.d0, 1.0d1] ! Freq range for fknee2
+         c%xi_n_nu_fit(5,:) = [4.d0, 1.0d1] ! Freq range for alpha2
+         
+         ! Set rms of all parameters to 0.05 for initial test phase. 
+         c%xi_n_P_rms       = [-100.d0, 0.05d0, 0.05d0, 0.05d0, 0.05d0] ! Prior rms [sigma0, fknee, alpha, fknee2, alpha2]
+
          c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
          c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
          c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+         c%xi_n_P_uni(3,:)  = [4.0d0, 1.d1]   ! Uniform prior for fknee2
+         c%xi_n_P_uni(3,:)  = [1d-6, 3.d0]   ! Uniform prior for alpha2
 
          ! Data selection parameters
          c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
