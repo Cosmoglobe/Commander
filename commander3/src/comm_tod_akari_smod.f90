@@ -81,8 +81,8 @@ contains
          c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
          c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
          c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
-         c%xi_n_P_uni(3,:)  = [4.0d0, 1.d1]   ! Uniform prior for fknee2
-         c%xi_n_P_uni(3,:)  = [1d-6, 3.d0]   ! Uniform prior for alpha2
+         c%xi_n_P_uni(4,:)  = [4.0d0, 1.d1]   ! Uniform prior for fknee2
+         c%xi_n_P_uni(5,:)  = [1d-6, 3.d0]   ! Uniform prior for alpha2
 
          ! Data selection parameters
          c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
