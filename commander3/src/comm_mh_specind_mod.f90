@@ -386,7 +386,7 @@ contains
           select type (c)
           type is (comm_MBBtab_comp)
             if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
-               mval = maxval(c%theta_steplen(3:,l))
+               mval = maxval(c%theta_steplen(c%npar+1:,l))
                mval_0 = max(mval, mval_0)
                exit
             end if
@@ -445,6 +445,14 @@ contains
             call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
 
+            if (c%mbbtab_type == 'spline_log') then
+                c%spl_buff=c%spl
+                call c%update_spline()
+                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
+                !               & 0, data(1)%info%comm, ierr)
+                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
+                !               & 0, data(1)%info%comm, ierr)
+            end if 
           end select
           
           !go to next component
@@ -487,6 +495,11 @@ contains
                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
                         & 0, data(1)%info%comm, ierr)
                 end if
+                if (c%mbbtab_type == 'spline_log') then
+                    c%spl=c%spl_buff
+                    ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
+                    !           & 0, data(1)%info%comm, ierr)
+                end if 
              end select
              c => c%nextComp()
           end do
@@ -516,6 +529,8 @@ contains
 
   end subroutine sample_mbbtab_mh
 
+
+  !!!add step to redo the spline in here if it is a mbbTab spline type
   subroutine sample_specind_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
@@ -631,6 +646,16 @@ contains
  
              end select
 
+            select type (c)
+            class is (comm_MBBtab_comp)
+               if (c%mbbtab_type == 'spline_log') then
+                 c%spl_buff=c%spl
+                 call c%update_spline()
+               end if 
+            end select
+                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
+                              ! & 0, data(1)%info%comm, ierr)
+
           end do
           
           !go to next component
@@ -697,10 +722,18 @@ contains
                end select
             end do
             
+            select type (c)
+            class is (comm_MBBtab_comp)
+               if (c%mbbtab_type == 'spline_log') then
+                  c%spl=c%spl_buff
+               end if 
+            end select
+
             !go to next component
             c => c%nextComp()
                 
          end do
+
 
          ! Update mixing matrices
          call update_mixing_matrices(update_F_int=.true.)
