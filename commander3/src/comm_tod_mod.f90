@@ -585,8 +585,12 @@ contains
  
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-      self%zodi_n_comps = cpar%zs_ncomps
-      self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
+      self%zodi_n_comps  = cpar%zs_ncomps
+      self%sample_zodi   = cpar%sample_zodi .and. self%subtract_zodi
+   else
+      self%subtract_zodi = .false.
+      self%zodi_n_comps  = 0
+      self%sample_zodi   = .false.
    end if
    self%use_solar_point = self%subtract_zodi
    self%use_moon_point  = .false.

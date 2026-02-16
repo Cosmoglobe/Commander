@@ -238,6 +238,9 @@ contains
       real(dp), allocatable, dimension(:)       :: mask_tot ! (n_tod_tot)
       type(hdf_file) :: tod_file
 
+      integer(i4b), dimension(1) :: col_def = [1]  ! Only T
+      class(comm_cgmap), pointer :: cgmap
+
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
@@ -344,15 +347,19 @@ contains
          slist   = ''
       end if
 
+      ! Initialize CG mapmaker, maptype = 1 = T-only
+      cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
+      
       ! Perform loop over scans
-      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps' 
+      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
          !write(*,*) i, self%scans(i)%d%accept
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+         ! FIXME!! NCORR MASK CHANGED TEMPORARILY TO GAIN MASK. WILL LEAK SIGNAL INTO NCORR!!!
+         call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd)
 
           !if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
@@ -409,6 +416,9 @@ contains
          d_calib = 0.d0
          call compute_calibrated_data(self, i, sd, d_calib)    
 
+         ! Feed CG mapmaker calibrated and cleaned data
+         call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+                  
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
          
          ! For debugging: write TOD to hdf
@@ -477,7 +487,7 @@ contains
          end if
       end if
       map_out%map = binmap%outmaps(1)%p%map
-
+      
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
          call sample_bp(self, handle, chisq_S, delta)
@@ -514,6 +524,12 @@ contains
       !       call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_comp_names(i))//trim(postfix))
       !    end do
       ! endif
+
+      ! Solve for CG map
+      call cgmap%solve(map_out)
+      call dealloc_cgmap(cgmap)
+      call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+      !call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
       ! Clean up
       call binmap%dealloc()
@@ -595,26 +611,23 @@ contains
    end subroutine apply_fast_flags_akari
 
    module subroutine construct_corrtemp_akari(self, sd, det)
-     !  Construct an AKARI instrument-specific correction template
+     ! Construct an AKARI instrument-specific correction template
      !
-     ! Ingunn: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
-     !         Fill in sd%s_inst(k,l) with the full-scan template
+     ! Ingunn: Project binned residual params into sd%s_inst(k,l) 
      !
      !  Arguments:
      !  ----------
      !  self: comm_tod object
      !
-     !  scan: int
-     !       scan number
-     !  pix: int
-     !       index for pixel
-     !  psi: int
-     !       integer label for polarization angle
+     !  sd:  comm_scandata
+     !       Decompressed data for current scan (defined in comm_tod_mod)
+     !  det: int
+     !       detector index (optional)
      !
      !  Returns:
      !  --------
-     !  s:   real (sp)
-     !       output template timestream
+     !  self:  comm_akari_to
+     !       Updates sd%s_inst
      implicit none
      class(comm_akari_tod), intent(in)             :: self
      class(comm_scandata),  intent(inout)          :: sd
@@ -635,12 +648,52 @@ contains
            ! t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
            ! b = min(int(t*nbin),nbin-1)
            ! sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
-           sd%s_inst(k,l) = 0.
+           sd%s_inst(k,j) = 0.
         end do
      end do
 
    end subroutine construct_corrtemp_akari
-   
+
+   module subroutine sample_binned_residual(self, sd)
+     ! Sample an AKARI binned residual
+     !
+     ! Ingunn: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
+     !         Fill in sd%s_inst(k,l) with the full-scan template
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     !  sd:  comm_scandata
+     !
+     !  Returns:
+     !  --------
+     !  self: updates module variables
+     !       
+     implicit none
+     class(comm_akari_tod), intent(in)             :: self
+     class(comm_scandata),  intent(inout)          :: sd
+
+     integer(i4b) :: i, j, k, l, nbin, b, ndet, scan
+     real(dp)     :: dt
+
+     scan  = sd%scan
+     dt    = 1.d0/self%samprate   ! Sample time
+     ndet  = sd%ndet
+
+     do j = 1, ndet
+        if (.not. self%scans(scan)%d(j)%accept) cycle
+        do k = 1, self%scans(scan)%ntod
+           ! Example from LFI
+           ! t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
+           ! b = min(int(t*nbin),nbin-1)
+           ! sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+           sd%s_inst(k,j) = 0.
+        end do
+     end do
+
+   end subroutine sample_binned_residual
+
    
    
 

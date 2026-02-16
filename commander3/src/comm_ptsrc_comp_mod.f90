@@ -921,7 +921,7 @@ contains
             & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
           ! Read from precomputed file
           !if (self%myid == 0) write(*,*) 'a1'
-          call self%read_febecop_beam(cpar, tempfile, data(i)%label, i)
+          call self%read_febecop_beam(cpar, tempfile, data(i)%instlabel, i)
        else if (filename(n-2:n) == '.h5') then
           ! Read precomputed Febecop beam from HDF file
           !if (self%myid == 0) write(*,*) 'a2'
@@ -1006,7 +1006,7 @@ contains
         if (.not. self%F_null(i)) then !band is included in ptsrcs
           found = .false.
           do j=1, size(band_list)
-            if(trim(data(i)%label) == trim(band_list(j))) then ! band is in catalog
+            if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
               star_catalog(self%b2a(i),:) = catalog(j,:)/ catalog(1,:)
               found = .true.
               !write(*,*) "Found band ", trim(data(i)%label), " at position ", j

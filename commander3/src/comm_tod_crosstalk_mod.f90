@@ -149,9 +149,10 @@ contains
   end subroutine remove_crosstalk_signal
 
   ! Routine for multiplying multi-component TOD (ntod x ndet) with crosstalk matrix
-  subroutine multiply_crosstalk_matrix(self, tod)
+  subroutine multiply_crosstalk_matrix(self, transpose, tod)
     implicit none
     class(comm_crosstalk),                 intent(in)    :: self
+    logical(lgt),                          intent(in)    :: transpose
     real(sp),              dimension(:,:), intent(inout) :: tod
   end subroutine multiply_crosstalk_matrix
 
