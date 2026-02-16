@@ -75,12 +75,14 @@ contains
     
     ! Initialize instrument-specific parameters
 
-    c%compressed_tod  = .true.
-    c%correct_sl      = .false.
-    c%correct_orb     = .true.
-    c%apply_inst_corr = .true.
-    c%orb_4pi_beam    = .false.
-    c%symm_flags      = .true.
+    c%compressed_tod    = .true.
+    c%correct_sl        = .false.
+    c%correct_orb       = .true.
+    c%correct_S_crosstalk = .false.
+    c%correct_N_crosstalk = .false.
+    c%apply_inst_corr   = .true.
+    c%orb_4pi_beam      = .false.
+    c%symm_flags        = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
@@ -193,11 +195,13 @@ contains
     c%mod_phase = 1.0
    
     ! initialize crosstalk class
-    allocate(correlations(c%ndet, c%ndet))
-    correlations = .true.    
+    if (c%correct_N_crosstalk) then
+       allocate(correlations(c%ndet, c%ndet))
+       correlations = .true.    
 
-  !  allocate(c%xtalk)
-    c%xtalk => comm_crosstalk(correlations)
+       !  allocate(c%xtalk)
+       c%xtalk => comm_crosstalk(correlations)
+    end if
 
     ! Pre-initialize ADC object
     allocate(c%adc(c%ndet))
@@ -379,10 +383,11 @@ contains
         ! Not implemented yet
 
        call timer%start(TOD_NONLIN, self%band)
-       if (.false.) then
+       if (self%correct_N_crosstalk) then
           ! estimate A/B detector crosstalk coeficients
-          call self%xtalk%estimate_crosstalk_matrix(sd)
-          call self%xtalk%remove_crosstalk_signal(sd)
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
        end if
 
        ! Estimate modulation baselines; and set modulation phase

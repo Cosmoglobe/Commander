@@ -25,6 +25,8 @@ module comm_tod_mod
   use comm_tod_cray_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
+  use comm_tod_Tbol_mod
+  use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
   use comm_bp_mod
@@ -234,6 +236,9 @@ module comm_tod_mod
      logical(lgt) :: use_earth_elon                               ! Compute Earth elongation
      real(sp)     :: sol_elong_range(2)                           ! Acceptable solar elongation range
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
+     logical(lgt) :: correct_Tbol                                 ! Deconvolve bolometer transfer function
+     logical(lgt) :: correct_S_crosstalk                          ! Correct for signal cross-talk during mapmaking; requires CG mapmaker
+     logical(lgt) :: correct_N_crosstalk                          ! Correct for noise cross-talk during mapmaking; requires CG mapmaker
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
@@ -277,7 +282,10 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
-     class(conviqt_ptr), allocatable, dimension(:,:)     :: slconv   ! SL-convolved maps (ndet,nhorn)
+     class(conviqt_ptr), allocatable, dimension(:,:)   :: slconv   ! SL-convolved maps (ndet,nhorn)
+     class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_S     ! Signal crosstalk object, (ndet x ndet) matrix
+     class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_N     ! Noise crosstalk object, (ndet x ndet) matrix
+     class(Tbol_ptr),    allocatable, dimension(:)     :: Tbol     ! Bolometer transfer function 
      class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      !class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
@@ -560,8 +568,11 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
-    self%level        = cpar%ds_tod_level(id_abs)
-
+    self%level         = cpar%ds_tod_level(id_abs)
+    self%correct_Tbol        = .false.
+    self%correct_S_crosstalk = .false.
+    self%correct_N_crosstalk = .false.
+    
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%apply_inst_corr = .false.
     self%accept_threshold = 0.9d0 ! default
@@ -574,8 +585,12 @@ contains
  
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-      self%zodi_n_comps = cpar%zs_ncomps
-      self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
+      self%zodi_n_comps  = cpar%zs_ncomps
+      self%sample_zodi   = cpar%sample_zodi .and. self%subtract_zodi
+   else
+      self%subtract_zodi = .false.
+      self%zodi_n_comps  = 0
+      self%sample_zodi   = .false.
    end if
    self%use_solar_point = self%subtract_zodi
    self%use_moon_point  = .false.
