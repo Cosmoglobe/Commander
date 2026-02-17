@@ -279,16 +279,17 @@ contains
           if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
           if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
        end do
-
-       ! Subtract spurious corrections from TOD according to spur_level
-       do j = 1, ndet
-          d = j; if (present(det)) d = det
-          if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-          if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-          if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
-       end do
     end if
+
+    ! Subtract spurious corrections from TOD according to spur_level
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. tod%scans(scan)%d(d)%accept) cycle
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+    end do
+   
     
   end subroutine init_scan_data
   

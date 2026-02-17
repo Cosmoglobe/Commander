@@ -40,13 +40,15 @@ module comm_tod_akari_mod
    public comm_akari_tod
 
    type, extends(comm_tod) :: comm_akari_tod
+      integer(i4b)                                  :: ntempl       ! Number of tod correction templates
+      integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! size of each template
+      real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
       class(comm_dynmask), pointer :: dynmask
-      ! Ingunn: Add binned residual params here
    contains
      procedure     :: process_tod             => process_akari_tod
      procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
      procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
-     procedure     :: sample_binned_residual
+     procedure     :: sample_ramp
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -176,7 +178,7 @@ interface
     integer(i4b),          intent(in),   optional :: det
   end subroutine construct_corrtemp_akari
 
-  module subroutine sample_binned_residual(self, sd)
+  module subroutine init_sample_ramp(self, sd)
      ! Sample an AKARI binned residual
      !
      ! Task: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
@@ -185,18 +187,38 @@ interface
      !  Arguments:
      !  ----------
      !  self: comm_tod object
-     !
-     !  sd:  comm_scandata
+     !  sd:   comm_scandata
      !
      !  Returns:
      !  --------
      !  self: updates module variables
      !       
      implicit none
-     class(comm_akari_tod), intent(in)             :: self
-     class(comm_scandata),  intent(inout)          :: sd
+     class(comm_akari_tod), intent(inout)       ::self
+     class(comm_scandata),  intent(in)          :: sd
 
-   end subroutine sample_binned_residual
+   end subroutine init_sample_ramp
+
+  module subroutine sample_ramp(self, sd)
+     ! Sample an AKARI binned residual
+     !
+     ! Task: Bin TOD residual into a 60-sec template. Full scan? Shorter sub-segments?
+     !       Fill in sd%s_inst(k,l) with the full-scan template
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !  sd:   comm_scandata
+     !
+     !  Returns:
+     !  --------
+     !  self: updates module variables
+     !       
+     implicit none
+     class(comm_akari_tod), intent(inout)       ::self
+     class(comm_scandata),  intent(in)          :: sd
+
+   end subroutine sample_ramp
 
 
    
