@@ -40,6 +40,7 @@ module comm_tod_akari_mod
    public comm_akari_tod
 
    type, extends(comm_tod) :: comm_akari_tod
+      class(comm_dynmask), pointer :: dynmask
       ! Ingunn: Add binned residual params here
    contains
      procedure     :: process_tod             => process_akari_tod
