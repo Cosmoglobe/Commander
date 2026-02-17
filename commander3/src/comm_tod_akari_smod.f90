@@ -160,6 +160,26 @@ contains
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
       !end do
+
+      ! Initialize dynamic mask
+      c%dynmask => comm_dynmask(c, cpar)
+      c%dynmask%output_scan             = 915
+      c%dynmask%output_det              = 1
+      c%dynmask%apply_pixhist           = .true.
+      c%dynmask%remove_isolated_samples = .true.
+      c%dynmask%threshold_longchunks    = 0.3
+      c%dynmask%window_longchunks       = 2000
+
+!!$      if (trim(self%freq) == 'AKARI_N160') then
+!!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
+!!$      else if (trim(self%freq) == 'AKARI_WIDE-L') then
+!!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+!!$      else if (trim(self%freq) == 'AKARI_WIDE-S') then
+!!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+!!$      else if (trim(self%freq) == 'AKARI_N60') then
+!!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
+!!$      end if
+
       
       ! initialize tod correction template(s)
       c%ntempl = 1  ! OBS may change
@@ -268,8 +288,13 @@ contains
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
 
-      if (trim(self%init_from_HDF) == 'none') then  ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none 
-         select_data     = iter == 5                ! in param file. Takes you to 'else' below
+      if (.true.) then
+         ! Debug
+         select_data     = iter == 2
+         sample_ncorr    = iter == 2
+         sample_xi_n     = iter == 2 
+      else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
+         select_data     = iter == 5                    ! in param file. Takes you to 'else' below
          sample_ncorr    = iter > 2
          sample_xi_n     = iter > 2
          sample_ramp   = iter > 3
@@ -278,17 +303,6 @@ contains
          sample_ncorr    = iter > 1
          sample_xi_n     = iter > 1
          sample_ramp   = iter > 2
-      end if
-
-      !                       Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
-      if (trim(self%freq) == 'AKARI_N160') then
-         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
-      else if (trim(self%freq) == 'AKARI_WIDE-L') then
-         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
-      else if (trim(self%freq) == 'AKARI_WIDE-S') then
-         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
-      else if (trim(self%freq) == 'AKARI_N60') then
-         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]
       end if
 
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
@@ -400,7 +414,7 @@ contains
          if (select_data) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(sd, j, flag_threshold)
+               call self%dynmask%create(sd, j)
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -446,7 +460,7 @@ contains
          ! For debugging: write TOD to hdf
          if (.true.) then
             ! scan id appears to be the worst chi2
-            if (self%scanid(i) == 1000) then 
+            if (self%scanid(i) == 915) then 
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
@@ -490,7 +504,7 @@ contains
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Synchronize and output flagging statistics in first iteration
-      if (select_data) call self%report_dynamic_mask_stats
+      if (select_data) call self%dynmask%report
       
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)

@@ -43,6 +43,7 @@ module comm_tod_akari_mod
       integer(i4b)                                  :: ntempl       ! Number of tod correction templates
       integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! size of each template
       real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
+      class(comm_dynmask), pointer :: dynmask
    contains
      procedure     :: process_tod             => process_akari_tod
      procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
