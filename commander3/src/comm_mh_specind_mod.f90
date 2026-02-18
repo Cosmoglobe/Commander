@@ -48,6 +48,7 @@ contains
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
        ! Check if there are any gains to sample
+
     do m = 1, cpar%mcmc_samp_group_numstep(l)
        if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
        num_to_samp = 0
@@ -360,6 +361,8 @@ contains
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
+    real(dp) :: accept_rate
+
     if (cpar%myid == 0) then
        write(*,fmt='(a,i3,a,a)') ' | MH MBBtab sampling group ', l, ', active CG sampling groups = ', trim(cpar%mcmc_update_cg_groups(l))
        if (mh_accept_stat(l,1) > 30) then
@@ -522,10 +525,16 @@ contains
 
        else if (cpar%myid_chain == 0) then                   
           write(*,fmt='(a,f12.2,a,f12.2,a,f7.3)') " |    ACCEPT -- X^2 = ", chisq_prop, ', dX^2 = ', (chisq_prop - chisq_old), ', X^2/dof = ', chisq_prop/ndof
+
           chisq_old = chisq_prop
           mh_accept_stat(l,2) = mh_accept_stat(l,2) + 1
        end if
      end do
+
+     accept_rate = mh_accept_stat(l,2)/max(1,mh_accept_stat(l,1))
+      if (cpar%myid_chain == 0) then
+          write(*,fmt='(a,i3,a,i3,a,f8.4)') ' | Finished MH sampling group ', l, ', nsamp_tot = ', mh_accept_stat(l,1), ', accept rate = ', accept_rate
+      end if
 
   end subroutine sample_mbbtab_mh
 

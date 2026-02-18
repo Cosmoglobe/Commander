@@ -3,6 +3,12 @@
 **************************************************************
 @DEFAULT LFI_tod.defaults
 
+FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = earth_pos_1980-2050_ephem_de432s.txt
+SMOOTHING_SCALE_PIXWIN01      = pixel_window_n0032.fits
+SMOOTHING_SCALE_PIXWIN02      = pixel_window_n0016.fits
+SMOOTHING_SCALE_PIXWIN03      = pixel_window_n0016.fits
+
 OPERATION                     = sample  # {sample,optimize}
 VERBOSITY                     = 3       # [0,...,3]
 
@@ -12,25 +18,25 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
-NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
-CHAIN_STATUS     = append  
+NUM_GIBBS_ITER   = 3       # Length of each Markov chain
+CHAIN_STATUS     = new append
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_chain_akari_v1.h5:400 # This is DIRBE DR2
+INIT_CHAIN01     = none # had to change because there is no FIRAS in this chain /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/chain_c0001.h5:294
 
 BASE_SEED                     = 3231714
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
-SAMPLE_SPECTRAL_INDICES       = .false.
-SAMPLE_ONLY_TEMPERATURE       = .false.
+SAMPLE_SPECTRAL_INDICES       = .true.
+SAMPLE_ONLY_TEMPERATURE       = .true.
 
-ENABLE_TOD_ANALYSIS           = .true.
-TOD_INCLUDE_ZODI              = .true.
+ENABLE_TOD_ANALYSIS           = .false.
+TOD_INCLUDE_ZODI              = .false.
 SAMPLE_ZODI                   = .false.
 
-SAMPLE_SOLAR_MAPS             = .false.
+SAMPLE_SOLAR_MAPS             = .true.
 SAMPLE_MOON_MAPS              = .false.
 SAMPLE_EARTH_MAPS             = .false.  # Only as a function of elongation
 
-OUTPUT_SIGNALS_PER_BAND       = .false.
+OUTPUT_SIGNALS_PER_BAND       = .true.
 OUTPUT_MIXING_MATRIX          = .false.
 OUTPUT_DEBUG_SEDS             = .false.
 
@@ -41,29 +47,22 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v13
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v14
 NSIDE_CHISQ                   = 512
 
 ##############################################################
 #                         Data sets                          #
 ##############################################################	
 
-DATA_DIRECTORY                 = /mn/stornext/d23/cmbco/globe/ #/mn/stornext/d23/cmbco/akari/data/
-NUMBAND                        = 4 20
-
-# AKARI
-INCLUDE_BAND001                = .false.    # n065 (N60)
-INCLUDE_BAND002                = .true.    # n160 (N160)
-INCLUDE_BAND003                = .false.    # w090 (WIDE-S)
-INCLUDE_BAND004                = .false.    # w140 (WIDE-L)
-
+DATA_DIRECTORY                 = /mn/stornext/d23/cmbco/dirbe/data
+NUMBAND                        =  27
 
 # TOD
 # DIRBE 
-INCLUDE_BAND101                = .true.    # 1.25 micron T 01 first half
-INCLUDE_BAND102                = .true.    # 1.25 micron T 01 second half
-INCLUDE_BAND103                = .true.    # 2.2  micron T 02 first half
-INCLUDE_BAND104                = .true.    # 2.2  micron T 02 second half
+INCLUDE_BAND001                = .true.    # 1.25 micron T 01 first half
+INCLUDE_BAND002                = .true.    # 1.25 micron T 01 second half
+INCLUDE_BAND003                = .true.    # 2.2  micron T 02 first half
+INCLUDE_BAND004                = .true.    # 2.2  micron T 02 second half
 INCLUDE_BAND005                = .true.    # 3.5  micron T 03 first half
 INCLUDE_BAND006                = .true.    # 3.5  micron T 03 second half
 INCLUDE_BAND007                = .true.    # 4.9  micron T 04 first half
@@ -134,136 +133,10 @@ INCLUDE_BAND027                = .false.    # 2802 map
 
 
 @START 001
-@DEFAULT bands/AKARI/AKARI_N60_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_N60
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; placeholder
-BAND_TOD_FILELIST&&&               = akari/tod/n065/filelist_akari_n65.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N60/filelist_AKARI_N60_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_N60_01,AKARI_N60_02,AKARI_N60_03,AKARI_N60_04,AKARI_N60_05,AKARI_N60_06,AKARI_N60_07,AKARI_N60_08,AKARI_N60_09,AKARI_N60_10,AKARI_N60_11,AKARI_N60_12,AKARI_N60_13,AKARI_N60_14,AKARI_N60_15,AKARI_N60_16,AKARI_N60_17,AKARI_N60_18,AKARI_N60_19,AKARI_N60_20,AKARI_N60_21,AKARI_N60_22,AKARI_N60_23,AKARI_N60_24,AKARI_N60_25,AKARI_N60_26,AKARI_N60_27,AKARI_N60_28,AKARI_N60_29,AKARI_N60_30,AKARI_N60_31,AKARI_N60_32,AKARI_N60_33,AKARI_N60_34,AKARI_N60_35,AKARI_N60_36,AKARI_N60_37,AKARI_N60_38,AKARI_N60_39,AKARI_N60_40
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
-BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_n60_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_proc_akari_n60_v1.fits # Not used
-BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 001
-
-
-@START 002
-@DEFAULT bands/AKARI/AKARI_N160_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_N160
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/n160/filelist_akari_n160.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N160/filelist_AKARI_N160_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_N160_01,AKARI_N160_02,AKARI_N160_03,AKARI_N160_04,AKARI_N160_05,AKARI_N160_06,AKARI_N160_07,AKARI_N160_08,AKARI_N160_09,AKARI_N160_10,AKARI_N160_11,AKARI_N160_12,AKARI_N160_13,AKARI_N160_14,AKARI_N160_15,AKARI_N160_16,AKARI_N160_17,AKARI_N160_18,AKARI_N160_19,AKARI_N160_20,AKARI_N160_21,AKARI_N160_22,AKARI_N160_23,AKARI_N160_24,AKARI_N160_25,AKARI_N160_26,AKARI_N160_27,AKARI_N160_28,AKARI_N160_29,AKARI_N160_30
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
-BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_n160_v1.fits 
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_proc_akari_n60_v1.fits # Not used
-BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 002 
-
-@START 003
-@DEFAULT bands/AKARI/AKARI_WIDE-S_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-S
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/w090/filelist_akari_w090.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-S/filelist_AKARI_WIDE-S_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_WIDE-S_01,AKARI_WIDE-S_02,AKARI_WIDE-S_03,AKARI_WIDE-S_04,AKARI_WIDE-S_05,AKARI_WIDE-S_06,AKARI_WIDE-S_07,AKARI_WIDE-S_08,AKARI_WIDE-S_09,AKARI_WIDE-S_10,AKARI_WIDE-S_11,AKARI_WIDE-S_12,AKARI_WIDE-S_13,AKARI_WIDE-S_14,AKARI_WIDE-S_15,AKARI_WIDE-S_16,AKARI_WIDE-S_17,AKARI_WIDE-S_18,AKARI_WIDE-S_19,AKARI_WIDE-S_20,AKARI_WIDE-S_21,AKARI_WIDE-S_22,AKARI_WIDE-S_23,AKARI_WIDE-S_24,AKARI_WIDE-S_25,AKARI_WIDE-S_26,AKARI_WIDE-S_27,AKARI_WIDE-S_28,AKARI_WIDE-S_29,AKARI_WIDE-S_30,AKARI_WIDE-S_31,AKARI_WIDE-S_32,AKARI_WIDE-S_33,AKARI_WIDE-S_34,AKARI_WIDE-S_35,AKARI_WIDE-S_36,AKARI_WIDE-S_37,AKARI_WIDE-S_38,AKARI_WIDE-S_39,AKARI_WIDE-S_40,AKARI_WIDE-S_41,AKARI_WIDE-S_42,AKARI_WIDE-S_43,AKARI_WIDE-S_44,AKARI_WIDE-S_45,AKARI_WIDE-S_46,AKARI_WIDE-S_47,AKARI_WIDE-S_48,AKARI_WIDE-S_49,AKARI_WIDE-S_50,AKARI_WIDE-S_51,AKARI_WIDE-S_52,AKARI_WIDE-S_53,AKARI_WIDE-S_54,AKARI_WIDE-S_55,AKARI_WIDE-S_56,AKARI_WIDE-S_57,AKARI_WIDE-S_58,AKARI_WIDE-S_59,AKARI_WIDE-S_60
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
-BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_wide-s_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_zodi_akari_wide-s_v1.fits # Not used
-BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 003
-
-@START 004
-@DEFAULT bands/AKARI/AKARI_WIDE-L_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-L
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/w140/filelist_akari_w140.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-L/filelist_AKARI_WIDE-L_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_WIDE-L_01,AKARI_WIDE-L_02,AKARI_WIDE-L_03,AKARI_WIDE-L_04,AKARI_WIDE-L_05,AKARI_WIDE-L_06,AKARI_WIDE-L_07,AKARI_WIDE-L_08,AKARI_WIDE-L_09,AKARI_WIDE-L_10,AKARI_WIDE-L_11,AKARI_WIDE-L_12,AKARI_WIDE-L_13,AKARI_WIDE-L_14,AKARI_WIDE-L_15,AKARI_WIDE-L_16,AKARI_WIDE-L_17,AKARI_WIDE-L_18,AKARI_WIDE-L_19,AKARI_WIDE-L_20,AKARI_WIDE-L_21,AKARI_WIDE-L_22,AKARI_WIDE-L_23,AKARI_WIDE-L_24,AKARI_WIDE-L_25,AKARI_WIDE-L_26,AKARI_WIDE-L_27,AKARI_WIDE-L_28,AKARI_WIDE-L_29,AKARI_WIDE-L_30,AKARI_WIDE-L_31,AKARI_WIDE-L_32,AKARI_WIDE-L_33,AKARI_WIDE-L_34,AKARI_WIDE-L_35,AKARI_WIDE-L_36,AKARI_WIDE-L_37,AKARI_WIDE-L_38,AKARI_WIDE-L_39,AKARI_WIDE-L_40,AKARI_WIDE-L_41,AKARI_WIDE-L_42,AKARI_WIDE-L_43,AKARI_WIDE-L_44,AKARI_WIDE-L_45
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
-BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_wide-l_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_zodi_akari_wide-l_v1.fits # not used
-BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 004
-
-
-@START 101
 @DEFAULT bands/DIRBE/DIRBE_01_CIO_512.defaults
 BAND_LABEL&&&                  = 01a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_01_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_01_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 1 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
@@ -282,13 +155,13 @@ BAND_TOD_MAIN_PROCMASK&&&      = mask_01_compobj_res_v13.fits mask_chisq_stars_g
 BAND_TOD_SMALL_PROCMASK&&&     = mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_01_compobj_res_v13.fits mask_stars_01_0.02MJysr_res0.02_v8.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 101
+@END 001
 
-@START 102
+@START 002
 @DEFAULT bands/DIRBE/DIRBE_01_CIO_512.defaults
 BAND_LABEL&&&                  = 01b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_01_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_01_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -307,13 +180,13 @@ BAND_TOD_MAIN_PROCMASK&&&      = mask_01_compobj_res_v13.fits mask_chisq_stars_g
 BAND_TOD_SMALL_PROCMASK&&&     = mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_01_compobj_res_v13.fits mask_stars_01_0.02MJysr_res0.02_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 102
+@END 002
 
-@START 103
+@START 003
 @DEFAULT bands/DIRBE/DIRBE_02_CIO_512.defaults
 BAND_LABEL&&&                  = 02a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_02_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_02_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_02_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -332,13 +205,13 @@ BAND_TOD_MAIN_PROCMASK&&&      = mask_02_compobj_res_v13.fits mask_chisq_stars_g
 BAND_TOD_SMALL_PROCMASK&&&     = mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_02_compobj_res_v13.fits mask_stars_01_0.02MJysr_v10.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 103
+@END 003
 
-@START 104
+@START 004
 @DEFAULT bands/DIRBE/DIRBE_02_CIO_512.defaults
 BAND_LABEL&&&                  = 02b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_02_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_02_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_02_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -357,13 +230,13 @@ BAND_TOD_MAIN_PROCMASK&&&      = mask_02_compobj_res_v13.fits mask_chisq_stars_g
 BAND_TOD_SMALL_PROCMASK&&&     = mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_02_compobj_res_v13.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 104
+@END 004
 
 @START 005
 @DEFAULT bands/DIRBE/DIRBE_03_CIO_512.defaults
 BAND_LABEL&&&                  = 03a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_03_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_03_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -387,8 +260,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 006
 @DEFAULT bands/DIRBE/DIRBE_03_CIO_512.defaults
 BAND_LABEL&&&                  = 03b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_03_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_03_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -412,8 +285,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 007
 @DEFAULT bands/DIRBE/DIRBE_04_CIO_512.defaults
 BAND_LABEL&&&                  = 04a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_04_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_04_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_04_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -437,8 +310,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 008
 @DEFAULT bands/DIRBE/DIRBE_04_CIO_512.defaults
 BAND_LABEL&&&                  = 04b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_04_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_04_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_04_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
@@ -462,8 +335,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 009
 @DEFAULT bands/DIRBE/DIRBE_05_CIO_512.defaults
 BAND_LABEL&&&                  = 05a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_05_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_05_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_05_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 8 1 16 31 
 BAND_TOD_END_SCANID&&&         = 285 
@@ -487,8 +360,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 @START 010
 @DEFAULT bands/DIRBE/DIRBE_05_CIO_512.defaults
 BAND_LABEL&&&                  = 05b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_05_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_05_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_05_nside512_V24b.txt
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
@@ -512,8 +385,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 @START 011
 @DEFAULT bands/DIRBE/DIRBE_06_CIO_512.defaults
 BAND_LABEL&&&                  = 06a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_06_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_06_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 8 1 16 31 
 BAND_TOD_END_SCANID&&&         = 285 
@@ -537,8 +410,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 @START 012
 @DEFAULT bands/DIRBE/DIRBE_06_CIO_512.defaults
 BAND_LABEL&&&                  = 06b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_06_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_06_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_nside512_V24b.txt
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
@@ -562,8 +435,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 @START 013
 @DEFAULT bands/DIRBE/DIRBE_07_CIO_512.defaults
 BAND_LABEL&&&                  = 07a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_07_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_07_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -588,8 +461,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 014
 @DEFAULT bands/DIRBE/DIRBE_07_CIO_512.defaults
 BAND_LABEL&&&                  = 07b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_07_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_07_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -614,8 +487,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 015
 @DEFAULT bands/DIRBE/DIRBE_08_CIO_512.defaults
 BAND_LABEL&&&                  = 08a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_08_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_08_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -631,7 +504,7 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_ecl_30deg_n2048.fits mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dirbe_zodi_08_v2.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
@@ -640,8 +513,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 016
 @DEFAULT bands/DIRBE/DIRBE_08_CIO_512.defaults
 BAND_LABEL&&&                  = 08b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_08_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_08_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -666,8 +539,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 017
 @DEFAULT bands/DIRBE/DIRBE_09_CIO_512.defaults
 BAND_LABEL&&&                  = 09a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_09_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_09_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -692,8 +565,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 018
 @DEFAULT bands/DIRBE/DIRBE_09_CIO_512.defaults
 BAND_LABEL&&&                  = 09b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_09_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_09_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -718,8 +591,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 019
 @DEFAULT bands/DIRBE/DIRBE_10_CIO_512.defaults
 BAND_LABEL&&&                  = 10a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10a_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_10_map_n00512_fullres_hm1_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_10_rms_n00512_fullres_hm1_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -744,8 +617,8 @@ BAND_TOD_INIT_FROM_HDF&&&      = none default
 @START 020
 @DEFAULT bands/DIRBE/DIRBE_10_CIO_512.defaults
 BAND_LABEL&&&                  = 10b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10b_rms_c0001_k000294.fits
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/globe/dirbe/maps/cosmoglobe_dr2v2_dirbe_10_map_n00512_fullres_hm2_I.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/globe/dirbe/rms/cosmoglobe_dr2v2_dirbe_10_rms_n00512_fullres_hm2_I.fits
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
@@ -773,19 +646,23 @@ BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_RMS&&&          = 0.1
 BAND_GAIN_APOD_MASK&&&         = mask_calib_857_v1.fits
 #BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_857-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 021
 
 @START 022
 @DEFAULT bands/HFI/HFI_545_DIRBE.defaults
 #BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_545-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 022
 
 @START 028
 @DEFAULT bands/HFI/HFI_353_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 028
 
 @START 029
 @DEFAULT bands/HFI/HFI_217_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 029
 
 @START 030
@@ -822,67 +699,83 @@ BAND_GAIN_APOD_MASK&&&         = mask_calib_857_v1.fits
 
 @START 039
 @DEFAULT bands/HFI/HFI_217-1_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 039
 
 @START 040
 @DEFAULT bands/HFI/HFI_217-2_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 040
 
 @START 041
 @DEFAULT bands/HFI/HFI_217-3_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 041
 
 @START 042
 @DEFAULT bands/HFI/HFI_217-4_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 042
 
 @START 043
 @DEFAULT bands/HFI/HFI_217-5_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 043
 
 @START 044
 @DEFAULT bands/HFI/HFI_217-6_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 044
 
 @START 045
 @DEFAULT bands/HFI/HFI_217-7_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 045
 
 @START 046
 @DEFAULT bands/HFI/HFI_217-8_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 046
 
 @START 047
 @DEFAULT bands/HFI/HFI_353-1_DIRBE.defaults
 #BAND_NOISE_RMS&&&_SMOOTH01       = npipe6v20_353-1_bmap_n2048_uK_rms_5deg_n256_v2.fits
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 047
 
 @START 048
 @DEFAULT bands/HFI/HFI_353-2_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 048
 
 @START 049
 @DEFAULT bands/HFI/HFI_353-3_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 049
 
 @START 050
 @DEFAULT bands/HFI/HFI_353-4_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 050
 
 @START 051
 @DEFAULT bands/HFI/HFI_353-5_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 051
 
 @START 052
 @DEFAULT bands/HFI/HFI_353-6_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 052
 
 @START 053
 @DEFAULT bands/HFI/HFI_353-7_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 053
 
 @START 054
 @DEFAULT bands/HFI/HFI_353-8_DIRBE.defaults
+BAND_PIXEL_WINDOW&&& = /mn/stornext/d23/cmbco/dirbe/data/pixel_window_n2048.fits
 @END 054
 
 
@@ -959,7 +852,7 @@ NUM_SMOOTHING_SCALES           = 1
 SMOOTHING_SCALE_FWHM01          = 60.      # Arcmin; 0 = native resolution
 SMOOTHING_SCALE_LMAX01          = 768
 SMOOTHING_SCALE_NSIDE01         = 256  # Must match NSIDE of component it is used for
-SMOOTHING_SCALE_PIXWIN01        = common/pixwind/pixel_window_n0256.fits
+SMOOTHING_SCALE_PIXWIN01        = pixel_window_n0256.fits
 SMOOTHING_SCALE_FWHM_POSTPROC01 = 30.    # Smoothing FWHM after pixel-by-pixel fit
 
 # Alm sampler settings
@@ -972,74 +865,53 @@ ALMSAMP_APPLY_PRIOR                    = .true.
 ALMSAMP_PIXREG                         = .true.
 ALMSAMP_PRIORSAMP_FROZEN_REGIONS       = .true.
 
-INSTRUMENT_PARAM_FILE         = init_comm3/akari_v00/init_instpar_dirbe_akari_v1.dat
+INSTRUMENT_PARAM_FILE         = init_instpar_dirbe_prod6_v1.dat
 INIT_INSTRUMENT_FROM_HDF      = none default
 
-EXTINCTION_E(B-V)_MAP = common/maps/HFI_CompMap_ThermalDustModel_0512_R1.20_EBV.fits
+EXTINCTION_E(B-V)_MAP = HFI_CompMap_ThermalDustModel_0512_R1.20_EBV.fits
 
 NUM_SIGNAL_COMPONENTS         = 31
-INCLUDE_COMP01                = .false.  # Cmb # CMB; no monopole or dipole
-INCLUDE_COMP02                = .false.  # synch # Synch pow-law
-INCLUDE_COMP03                = .true.  # dust # Thermal dust
-INCLUDE_COMP04                = .true.  # md # Mono and dipoles
-INCLUDE_COMP05                = .false.  # radio # Radio sources
-INCLUDE_COMP06                = .true.  # freefree
-INCLUDE_COMP07                = .false.  # Low-freq AME
-INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
-INCLUDE_COMP09                = .false.   # PAH
-INCLUDE_COMP10                = .false.  # Hot dust (FDS) # Thermal dust
-INCLUDE_COMP11                = .false.  # Stars (BB with fixed T)
-INCLUDE_COMP12                = .true.  # hot dust + pah, free weights
-INCLUDE_COMP13                = .false.  # stars, fir, ptsrc
-INCLUDE_COMP28                = .false.  # stars, fir, ptsrc; fainter
-INCLUDE_COMP30                = .false.  # stars, fir, ptsrc; fainter yet
-INCLUDE_COMP14                = .false.  # CO
-INCLUDE_COMP15                = .false.  # CII
-INCLUDE_COMP16                = .true.  # CII-correlated dust
-INCLUDE_COMP17                = .false.  # CO10
-INCLUDE_COMP18                = .false.  # CO21
-INCLUDE_COMP19                = .false.  # CO32
-INCLUDE_COMP20                = .false.   # nearby dust, Edenhofer et al. 2023
-INCLUDE_COMP21                = .false.  # CO combined
-INCLUDE_COMP22                = .false.  # colder point sources, fir, ptsrc
-INCLUDE_COMP23                = .false.  # stars, GAIA
-INCLUDE_COMP29                = .false.  # stars, GAIA; fainter
-INCLUDE_COMP31                = .false.  # stars, GAIA; fainter yet
-INCLUDE_COMP24                = .false.  # low-amplitude star template, WISE W1 < mag 8
-INCLUDE_COMP25                = .true.  # WHAP Halpha correlated dust in absorption
-INCLUDE_COMP26                = .false.  # Infrared dust (60um)
-INCLUDE_COMP27                = .false.  # CO-correlated dust
+INCLUDE_COMP01                = .false.     # Cmb # CMB; no monopole or dipole
+INCLUDE_COMP02                = .false.     # synch # Synch pow-law
+INCLUDE_COMP03                = .true.      # cold dust
+INCLUDE_COMP04                = .true.      # md # Mono and dipoles
+INCLUDE_COMP05                = .false.     # radio # Radio sources
+INCLUDE_COMP06                = .true.      # freefree
+INCLUDE_COMP07                = .false.     # Low-freq AME
+INCLUDE_COMP08                = .true.      # CMB relativistic quadrupole
+INCLUDE_COMP09                = .false.     # PAH
+INCLUDE_COMP10                = .false.     # Hot dust (FDS) # Thermal dust
+INCLUDE_COMP11                = .false.     # Stars (BB with fixed T)
+INCLUDE_COMP12                = .true.      # nearby dust
+INCLUDE_COMP13                = .false.     # stars, fir, ptsrc
+INCLUDE_COMP28                = .false.     # stars, fir, ptsrc; fainter
+INCLUDE_COMP30                = .false.     # stars, fir, ptsrc; fainter yet
+INCLUDE_COMP14                = .false.     # CO
+INCLUDE_COMP15                = .false.     # CII
+INCLUDE_COMP16                = .true.      # hot dust (CII-correlated)
+INCLUDE_COMP17                = .false.     # CO10
+INCLUDE_COMP18                = .false.     # CO21
+INCLUDE_COMP19                = .false.     # CO32
+INCLUDE_COMP20                = .false.     # nearby dust, Edenhofer et al. 2023
+INCLUDE_COMP21                = .false.     # CO combined
+INCLUDE_COMP22                = .false.     # colder point sources, fir, ptsrc
+INCLUDE_COMP23                = .true.      # stars, GAIA
+INCLUDE_COMP24                = .true.      # low-amplitude star template, WISE W1 < mag 8
+INCLUDE_COMP25                = .true.      # WHAP Halpha correlated dust in absorption
+INCLUDE_COMP26                = .false.     # Infrared dust (60um)
+INCLUDE_COMP29                = .true.      # stars, GAIA; fainter
+INCLUDE_COMP31                = .true.      # stars, GAIA; fainter yet
 
+INCLUDE_COMP27                = .false.     # CO-correlated dust
 
 NUM_CG_SAMPLING_GROUPS = 1
 
-@START 01
-CG_SAMPLING_GROUP&&          = AKARI_WIDE-L
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_WIDE-L
-@END 01
-
-@START 02
-CG_SAMPLING_GROUP&&          = AKARI_N60
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_N60
-@END 02
-
-@START 03
-CG_SAMPLING_GROUP&&          = AKARI_N160
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_N160
-@END 03
-
-@START 04
-CG_SAMPLING_GROUP&&          = AKARI_WIDE-S
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_WIDE-S
-@END 04
+#@START 01
+#CG_SAMPLING_GROUP&&          = 08a,08b
+#CG_SAMPLING_GROUP_MASK&&     = mask_dirbe_zodi_08_v2.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 3
+#CG_SAMPLING_GROUP_BANDS&&    = 08a,08b
+#@END 01
 
 #@START 02
 #CG_SAMPLING_GROUP&&          = 09a,09b,10a,10b
@@ -1094,8 +966,8 @@ COMP_APPLY_DUST_EXTINCTION&&  = .false.
 # Thermal dust component
 @START 03
 @DEFAULT components/dust/dust_coldtab_DIRBE_n4096.defaults
-#COMP_TYPE&&                   = MBB
-COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_cold_dirbe_prod6_v3.fits
+#COMP_TYPE&&                  = MBB
+COMP_AMP_INPUT_MAP&&          = init_dust_cold_dirbe_prod6_v3.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
 COMP_NU_REF_T&&               = 545
@@ -1107,14 +979,17 @@ COMP_BETA_NU_MIN&&            = 120
 COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MAX&&            = 1000     
 COMP_T_DEFAULT&&              = 13.36
-COMP_BETA_DEFAULT&&           =  1.6256
+COMP_BETA_DEFAULT&&           = 1.6256
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 1.6
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.1
 COMP_T_PRIOR_GAUSS_MEAN&&     = 14.0
 COMP_T_PRIOR_GAUSS_RMS&&      = 0 1
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
+COMP_INIT_FROM_HDF&&          = none default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
 @END 03
 
 # Mono- and dipole component for non-FIRAS bands
@@ -1122,7 +997,7 @@ COMP_INIT_FROM_HDF&&          = default
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d5/data/aimartin/akari/data/init_md_dust_FIRAS_v2.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_INIT_FROM_HDF&&          = none default
+COMP_INIT_FROM_HDF&&          = default
 @END 04
 
 # Radio sources
@@ -1133,6 +1008,9 @@ COMP_INIT_FROM_HDF&&          = none default
 # freefree component ---------------------------------------------------------------------
 @START 06
 @DEFAULT components/freefree/freefree_DIRBE2.defaults
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU.fits
+COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_T_E_INPUT_MAP&&           = COM_CompMap_freefree-commander_1024_R2.00_Te.fits
 @DEFAULT components/freefree/freefree_LFI_localsampler.defaults
 COMP_L_APOD&&                 = 1100
 COMP_AMP_LMAX&&               = 1100
@@ -1151,6 +1029,7 @@ COMP_APPLY_DUST_EXTINCTION&&  = .false.
 # CMB relativistic quadrupole correction
 @START 08
 @DEFAULT components/cmb/cmb_relquad.defaults
+COMP_TEMPLATE_DEFINITION_FILE&& = /mn/stornext/d23/cmbco/dirbe/data/cmb_relquad_def.txt
 @END 08
 
 
@@ -1175,7 +1054,9 @@ COMP_NU_REF_T&&               = 3000
 COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits init_dust_beta_1.56.fits
 COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_dust_T_30K.fits
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
+COMP_MONOPOLE_PRIOR&&         = crosscorr:/mn/stornext/d23/cmbco/dirbe/data/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d23/cmbco/dirbe/data/init_colddust_n2048_v1.fits
 @END 10
 
 # Stars component
@@ -1195,7 +1076,7 @@ COMP_INIT_FROM_HDF&&          = default
 #COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = hotPAH
 COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_near_dirbe_prod6_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_dust_near_dirbe_prod6_v1.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
 COMP_T_NU_MIN&&               = 120  
@@ -1204,8 +1085,8 @@ COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MAX&&            = 1000     
 COMP_T_DEFAULT&&              = 19.25
 COMP_BETA_DEFAULT&&           =   1.62
-COMP_MBBTAB_TYPE&&            = binned
-COMP_SED_TEMPLATE&&           = init_comm3/akari_v00/SEDtab_hotPAH_dirbe_prod6_v4.dat
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
+COMP_SED_TEMPLATE&&           = SEDtab_hotPAH_dirbe_prod6_v4.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
@@ -1213,9 +1094,13 @@ COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
 COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
 COMP_AMP_PRIOR_LMAX&&         = 6000
 COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta 
-COMP_INDMASK&&                = common/mask/mask_DIRBE_hotdust_n2048_v2.fits
+COMP_INDMASK&&                = mask_DIRBE_hotdust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
+COMP_INIT_FROM_HDF&&          = none default
+COMP_AMP_INPUT_MAP&&          = init_hotPAH_n2048_v1.fits
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 12
 
 
@@ -1288,7 +1173,7 @@ COMP_INIT_FROM_HDF&&          = default
 #COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = dust_cii
 COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_hot_dirbe_prod6_v3.fits
+COMP_AMP_INPUT_MAP&&          = init_dust_hot_dirbe_prod6_v3.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
 COMP_T_NU_MIN&&               = 120  
@@ -1296,7 +1181,7 @@ COMP_BETA_NU_MIN&&            = 120
 COMP_T_NU_MAX&&               = 1000
 COMP_BETA_NU_MAX&&            = 1000     
 COMP_T_DEFAULT&&              = 28.77
-COMP_MBBTAB_TYPE&&            = binned
+COMP_MBBTAB_TYPE&&            = binned # TODO: change
 COMP_BETA_DEFAULT&&           =   1.635
 COMP_SED_TEMPLATE&&           = /mn/stornext/d5/data/aimartin/akari/data/SEDtab_hot_dust_FIRAS_v2.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
@@ -1308,8 +1193,11 @@ COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
 COMP_AMP_PRIOR_LMAX&&         = 6000
 COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
 COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
+COMP_INIT_FROM_HDF&&          = none default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
 @END 16
 
 
@@ -1353,6 +1241,8 @@ COMP_T_PRIOR_GAUSS_MEAN&&     = 18.0
 COMP_T_PRIOR_GAUSS_RMS&&      = 0 1
 @DEFAULT components/dust/dust_nearby_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
+COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
 @END 20
 
 
@@ -1531,108 +1421,6 @@ COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_INIT_FROM_HDF&&           = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/chain_c0001.h5:488 default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 31
 
-# Faint WISE stars, < mag 8
-@START 24
-@DEFAULT components/stars/faint_WISE_DIRBE.defaults
-COMP_LABEL&&                  = stars_diff
-COMP_MBBTAB_TYPE&&            = binned
-COMP_SED_TEMPLATE&&           = faint_WISE_DIRBE_tab_v07.dat
-COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits
- diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
-@DEFAULT components/dust/dust_DIRBE_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
-@END 24
-
-# WHAM Halpha correlated dust in absorption
-@START 25
-@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_Ha
-COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_Ha_multicomp_n4096_v9.fits init_WHAM_Ha_545_uKrj_n2048_v1.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_hot_n2048_node01.fits
-COMP_IND_LMAX&&               = 0
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MIN&&            = 1000     
-COMP_T_DEFAULT&&              = 17.8
-COMP_BETA_DEFAULT&&           =   1.620
-COMP_SED_TEMPLATE&&           = init_comm3/akari_v00/SEDtab_dust_Ha_dirbe_prod6_v4.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_AMP_PRIOR_LMAX&&         = 6000
-COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
-COMP_INDMASK&&                = common/mask/mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
-@END 25
-
-# Infrared (60um) thermal dust component
-@START 26
-@DEFAULT components/dust/dust_ir_DIRBE_n0512.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_ir
-COMP_NU_REF_T&&               = 3000
-COMP_AMP_INPUT_MAP&&          = init_dust_ir_prod4_v1.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MIN&&            = 1000     
-COMP_T_DEFAULT&&              = 34.03
-COMP_BETA_DEFAULT&&           =   1.650
-COMP_SED_TEMPLATE&&           = SEDtab_dust_ir_dirbe_prod4_v1.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
-@END 26
-
-# CO-correlated thermal dust component
-@START 27
-@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_co
-COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_dust_co_multicomp_v6.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_hot_n2048_node01.fits
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MIN&&            = 1000     
-COMP_T_DEFAULT&&              = 13.0
-COMP_BETA_DEFAULT&&           =   1.650
-COMP_SED_TEMPLATE&&           = SEDtab_dust_co_dirbe_prod3_v1.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_AMP_PRIOR_LMAX&&         = 6000
-COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
-COMP_INDMASK&&                = common/mask/mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = none 
-@END 27
-
-
 
 # ------------------------------------------------------------------
 #                               ZODI
@@ -1662,7 +1450,7 @@ ZODI_TOD_THINNING_THRESHOLD      = 8      # Only neglect samples with lower devi
 ZODI_OUTPUT_COMP_MAPS            = .false.
 ZODI_OUTPUT_ASCII                = .true.
 ZODI_OPERATION                   = powell # {sample,powell}
-ZODI_INIT_FROM_ASCII             = /mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_zodi_akari_v3.dat 
+ZODI_INIT_FROM_ASCII             = ../data/init_zodi_dirbe_prod6_v4.dat
 ZODI_RMS_RANDOMIZE_BETWEEN_STEPS = 0.3
 ZODI_SAMP_METHOD                 = powell
 ZODI_REFERENCE_BAND              = 05a
@@ -1684,8 +1472,7 @@ ZODI_NU_MAX_THERMAL              = 90000. # Enable thermal    >= 3.5 um
 
 # Only emissivity wires support right now
 #ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:em>ring:em,band1:em@09a>cloud:em@09a,ring:em@09a>cloud:em@09a,band1:em@09b>cloud:em@09b,ring:em@09b>cloud:em@09b,band1:em@10a>cloud:em@10a,ring:em@10a>cloud:em@10a,band1:em@10b>cloud:em@10b,ring:em@10b>cloud:em@10b
-ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:em>ring:em
-#ZODI_PARAMETER_WIRING            = none
+ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:em>ring:em,band1:em@09a>cloud:em@09a,ring:em@09a>cloud:em@09a,band1:em@09b>cloud:em@09b,ring:em@09b>cloud:em@09b,band1:em@10a>cloud:em@10a,ring:em@10a>cloud:em@10a,band1:em@10b>cloud:em@10b,ring:em@10b>cloud:em@10b,band1:em@03a>cloud:em@03a,band1:em@03b>cloud:em@03b,ring:em@03a>cloud:em@03a,ring:em@03b>cloud:em@03b
 
 #                             COMPONENTS
 # ------------------------------------------------------------------
@@ -1855,52 +1642,31 @@ ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/i
 
 #                             SAMPLING
 # ------------------------------------------------------------------
-NUM_ZODI_SAMPLING_GROUPS         = 1 6
-
-
-@START 02
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_N60
-ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 02
+NUM_ZODI_SAMPLING_GROUPS         = 6
 
 @START 01
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_N160
+ZODI_SAMPLING_GROUP&&       = cloud:n_0,cloud:i,cloud:omega,cloud:alpha,cloud:beta,cloud:x_0,cloud:y_0,cloud:z_0,cloud:gamma,cloud:mu,cloud:em,band1:n_0,band1:em,band2:n_0,band3:n_0,ring:em@07a,T_delta
+ZODI_SAMPLING_GROUP_BANDS&& = 05a,05b,06a,06b,07a,07b
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 01
 
+@START 02
+ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em,m@08a,m@08b
+ZODI_SAMPLING_GROUP_BANDS&& = 08a,08b
+ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
+@END 02
+
 @START 03
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_WIDE-S
+ZODI_SAMPLING_GROUP&&       = cloud:em,m@09a,m@09b
+ZODI_SAMPLING_GROUP_BANDS&& = 09a,09b
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 03
 
 @START 04
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_WIDE-L
-ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 04
-
-
-
-@START 12
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em,m@08a,m@08b
-ZODI_SAMPLING_GROUP_BANDS&& = 08a,08b
-ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 12
-
-@START 13
-ZODI_SAMPLING_GROUP&&       = cloud:em,m@09a,m@09b
-ZODI_SAMPLING_GROUP_BANDS&& = 09a,09b
-ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 13
-
-@START 14
 ZODI_SAMPLING_GROUP&&       = cloud:em,m@10a,m@10b
 ZODI_SAMPLING_GROUP_BANDS&& = 10a,10b
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 14
+@END 04
 
 @START 05
 ZODI_SAMPLING_GROUP&&       = cloud:em,ring:em,band1:em,cloud:al,band1:al,ring:al,g1,g2,g3,w2,w3,m@01a,m@01b,m@02a,m@02b,m@03a,m@03b
@@ -2026,106 +1792,3 @@ MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = FIRAS_H0857,FIRAS_H1251 # add other ba
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 @END 01
-
-
-@START 91
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,hotPAH:tab@1%0.005,dust_Ha:tab@1%0.005
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 10a,10b 
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 91
-
-@START 02
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.01,hotPAH:tab@2%0.01,dust_Ha:tab@2%0.01
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 09a,09b 
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 02
-
-@START 03
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.001,hotPAH:tab@3%0.001,dust_Ha:tab@3%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 08a,08b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 03
-
-@START 04
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.001,hotPAH:tab@4%0.001,dust_Ha:tab@4%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 07a,07b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 04
-
-@START 05
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.0003,hotPAH:tab@5%0.0003,dust_cii:tab@5%0.0003,stars_diff:tab@5%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 06a,06b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-@END 05
-
-@START 06
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-@END 06
-
-@START 07
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@10%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 01a,01b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_01_compobj_res_v13.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 07
-
-@START 08
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@9%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 02a,02b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_02_compobj_res_v13.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 08
-
-@START 09
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@8%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_03_compobj_res_v12.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 09
-
-@START 10
-MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@7%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_04_compobj_res_v12.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-@END 10
-
-@START 11
-MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@8%0.0001,dust_cii:tab@8%0.0001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 11
-
-@START 12
-MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@7%0.0001,dust_cii:tab@7%0.0001
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-@END 12
