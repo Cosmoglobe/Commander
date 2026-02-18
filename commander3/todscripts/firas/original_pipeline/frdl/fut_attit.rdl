@@ -1,8 +1,0 @@
-!
-! ATTITUDE substructure.
-!
-record FUT_ATTIT FUT_ATTIT
-
-  include attitude.rdl
-
-end_record

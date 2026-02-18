@@ -1,8 +1,0 @@
-!
-! Engineering analog substructure.
-!
-record FUT_ENGANLG FUT_ENGANLG
-
-  include eng_analog.rdl
-
-end_record
