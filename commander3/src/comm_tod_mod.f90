@@ -1290,7 +1290,7 @@ contains
           xi_n(1) =  0.10  ! sigma0. Using same as for oof.
           xi_n(2) =  0.02  ! fknee (Hz); arbitrary value
           xi_n(3) = -2.00  ! alpha; arbitrary value
-          xi_n(4) =  1.00  ! fknee2 (Hz); arbitrary value
+          xi_n(4) =  5.00  ! fknee2 (Hz); arbitrary value
           xi_n(5) =  1.00  ! alpha2; arbitrary value >0 for Akari
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
