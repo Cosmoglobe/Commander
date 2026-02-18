@@ -169,6 +169,17 @@ contains
       c%dynmask%remove_isolated_samples = .true.
       c%dynmask%threshold_longchunks    = 0.3
       c%dynmask%window_longchunks       = 2000
+      c%dynmask%threshold_cr            = 6.   ! sigma
+      c%dynmask%width_cr_mask           = 5
+      allocate(c%dynmask%templ_cr(-5:5))
+      c%dynmask%templ_cr    = 1.
+      c%dynmask%templ_cr(0) = 10.
+      c%dynmask%templ_cr(1) = 5.
+      c%dynmask%templ_cr(2) = 2.5
+      c%dynmask%templ_cr(3) = 1.25
+      c%dynmask%templ_cr(4) = 1.
+      c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
+      
 
 !!$      if (trim(self%freq) == 'AKARI_N160') then
 !!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
@@ -292,7 +303,8 @@ contains
          ! Debug
          select_data     = iter == 2
          sample_ncorr    = iter == 2
-         sample_xi_n     = iter == 2 
+         sample_xi_n     = iter == 2
+         sample_ramp     = iter == 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
          select_data     = iter == 5                    ! in param file. Takes you to 'else' below
          sample_ncorr    = iter > 2
@@ -371,6 +383,22 @@ contains
          end do
       end if
 
+      ! Create dynamic mask
+      if (select_data) then
+         if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+         do i = 1, self%nscan
+            ! Skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               call self%dynmask%create(sd, j)
+            end do
+            call dealloc_scan_data(sd)
+         end do
+         ! Synchronize and output flagging statistics in first iteration
+         call self%dynmask%report
+      end if
       
       ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
@@ -408,18 +436,6 @@ contains
          
          ! Apply fast flags
          call update_status(status, "quick_tod_flag_"//ctext)
-         
-         ! Create dynamic mask
-         !if (self%first_call) then
-         if (select_data) then
-            do j = 1, sd%ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%dynmask%create(sd, j)
-            end do
-            call dealloc_scan_data(sd)
-            if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
-         end if
          
          ! Sample correlated noise
          !call project_mask(self, TODMASK_ZODI, sd)
@@ -503,9 +519,6 @@ contains
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
-      ! Synchronize and output flagging statistics in first iteration
-      if (select_data) call self%dynmask%report
-      
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
 

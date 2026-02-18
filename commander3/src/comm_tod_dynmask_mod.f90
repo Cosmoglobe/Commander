@@ -60,6 +60,7 @@ module comm_tod_dynmask_mod
      class(comm_tod), pointer :: tod
      character(len=512) :: outdir
      integer(i4b)       :: output_scan, output_det    ! Write residuals after each cut to ascii for given detector and scan
+     logical(lgt)       :: output_current
      logical(lgt)       :: apply_pixhist              ! Pixel histogram outliers in units of sigma; tod%pixhist must be allocated
      real(sp)           :: threshold_extreme          ! Extreme outliers in white noise sigma; inside flagging mask; typically set to a high value
      real(sp)           :: threshold_singlesamp       ! Remove individual sample outliers above a given RMS threshold; only applied outside flagging mask
@@ -73,7 +74,8 @@ module comm_tod_dynmask_mod
      logical(lgt)       :: apply_earth_mask           ! Apply precomputed Earth mask
      real(sp)           :: threshold_cr               ! Cosmic ray threshold in sigma; defined by fast rise
      integer(i4b)       :: width_cr_mask              ! Number of samples to remove after CR hit
-     integer(i8b), dimension(-1:9)  :: stats    ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
+     real(sp), allocatable, dimension(:) :: templ_cr  ! Cosmic ray matched filter
+     integer(i8b), dimension(-1:10)  :: stats    ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
    contains
      procedure :: create => create_dynamic_mask
      procedure :: remove_pixhist_outliers
@@ -149,6 +151,7 @@ contains
     gain        = self%tod%scans(scan)%d(det)%gain
     self%stats(-1) = self%stats(-1) + ntod        ! Total number of samples
     self%stats( 0) = self%stats( 0) + ntod - ntot ! Number of samples removed by base flagging
+    self%output_current = self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det
     
     ! Compute residual
     allocate(res(ntod))
@@ -159,10 +162,10 @@ contains
     allocate(mask_dyn(ntod))
     mask_dyn = 1.0
     
-    ! Apply all cuts
+    ! Apply cuts
+    if (self%threshold_cr > 0.)         call self%remove_cr_hits         (sd, det, res, mask_dyn)
     if (self%apply_pixhist)             call self%remove_pixhist_outliers(sd, det, res, mask_dyn)
     if (self%threshold_extreme > 0.)    call self%remove_extreme_outliers(sd, det, res, mask_dyn)
-    if (self%threshold_cr > 0.)         call self%remove_cr_hits         (sd, det, res, mask_dyn)
     if (self%threshold_singlesamp > 0.) call self%remove_single_outliers (sd, det, res, mask_dyn)
     do i = 1, N_rms
        if (self%threshold_excessRMS(i) > 0.) then
@@ -199,6 +202,17 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     ! Pixel histogram outliers
     q    = (self%tod%nside / self%tod%nside_pixhist)**2
@@ -213,12 +227,16 @@ contains
              sd%mask(i,det) = 0.
              sd%flag(i,det) = sd%flag(i,det) + flag_dyn
              ncut           = ncut + 1
+             if (self%output_current) mask(i) = 0.5
           end if
        end if
     end do
     self%stats(1) = self%stats(1) + ncut
     
-    if (self%output_scan == self%tod%scanid(sd%scan)) call self%dump_residual(sd, res, det, "pixhist")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "pixhist")
+       deallocate(mask)
+    end if
     
   end subroutine remove_pixhist_outliers
   
@@ -231,6 +249,17 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     ncut = 0
     do i = 1, sd%ntod
@@ -239,11 +268,15 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     self%stats(2) = self%stats(2) + ncut
     
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "extreme")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "extreme")
+       deallocate(mask)
+    end if
     
   end subroutine remove_extreme_outliers
   
@@ -257,6 +290,17 @@ contains
     
     integer(i4b) :: q, ncut, i
     logical(lgt), allocatable, dimension(:) :: cut
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     allocate(cut(sd%ntod))
     ncut = 0
@@ -275,6 +319,7 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
+       if (self%output_current) mask(i) = 0.5
     end if
     
     ! Check all intermediate samples
@@ -284,6 +329,7 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     
@@ -293,13 +339,17 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut                 = ncut + 1
+       if (self%output_current) mask(i) = 0.5
     end if
     !if (self%output_scan == tod%scanid(scan)) close(58)
     deallocate(cut)
     
     self%stats(3) = self%stats(3) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "singla")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "single")
+       deallocate(mask)
+    end if
     
   end subroutine remove_single_outliers
 
@@ -310,8 +360,95 @@ contains
     integer(i4b),                       intent(in)    :: det
     real(sp),             dimension(:), intent(in)    :: res
     real(sp),             dimension(:), intent(inout) :: mask_dyn
+
+    integer(i4b) :: i, j, k, n, ind, ncut
+    real(sp)     :: mu, sigma
+    real(sp), allocatable, dimension(:) :: mask, conv, norm
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+
+    ! Convolve (masked) absolute residual with CR filter
+    allocate(conv(sd%ntod), norm(sd%ntod))
+    do i = 1, sd%ntod
+       conv(i) = 0.
+       if (sd%mask(i,det) == 0.) cycle
+       do j = -self%width_cr_mask, self%width_cr_mask
+          ind = i+j
+          if (ind < 1 .or. ind > sd%ntod) cycle
+          if (sd%mask(ind,det) == 1.) then
+             !if (j == 0 .or. j == 1) then
+                conv(i) = conv(i) + abs(res(ind)) * self%templ_cr(j)
+             !else
+             !   conv(i) = conv(i) +     res(ind) * self%templ_cr(j)
+             !end if
+          end if
+       end do
+    end do
+
+    ! Subtract local mean and divide by local RMS
+    do i = 1, sd%ntod
+       if (sd%mask(i,det) == 0.) cycle
+       n = 0; mu = 0.; sigma = 0.
+       do j = -10*self%width_cr_mask, 10*self%width_cr_mask
+          ind = i+j
+          if (ind < 1 .or. ind > sd%ntod .or. abs(j) < self%width_cr_mask) cycle
+          if (sd%mask(ind,det) == 1. .and. conv(ind) > 0.) then
+             n     = n     + 1
+             mu    = mu    + conv(ind)
+             sigma = sigma + conv(ind)**2
+          end if
+       end do
+       if (n > 5) then
+          mu      = mu / n
+          sigma   = sqrt(sigma/n - mu**2) * sqrt(n/real(n-1,sp))
+          norm(i) = (conv(i) - mu)/sigma
+       else
+          norm(i) = 0. ! Don't flag if there aren't enough local reference samples
+       end if
+    end do
+
+    ! Threshold
+    ncut = 0
+    do i = 1, sd%ntod
+       if (sd%mask(i,det) == 0. .or. conv(i) == 0.) cycle
+       if (norm(i) > self%threshold_cr) then
+          do k = max(i-2,1), min(i+self%width_cr_mask,sd%ntod)
+             if (iand(sd%flag(k,det),self%tod%flag0) .eq. 0) then
+                mask_dyn(k)    = 0.
+                sd%mask(k,det) = 0.
+                sd%flag(k,det) = sd%flag(k,det) + flag_dyn
+                ncut           = ncut + 1
+                if (self%output_current) mask(i) = 0.5
+             end if
+          end do
+       end if
+    end do    
+
+    self%stats(10) = self%stats(10) + ncut
     
-    
+    if (self%output_current) then
+       open(58,file='dynmask_cr.dat')
+       do i = 1, sd%ntod
+          if (mask(i) > 0.) write(58,*) i, res(i), conv(i), norm(i), mask(i)
+       end do
+       close(58)
+    end if
+
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "cr")
+       deallocate(mask)
+    end if
+
+    deallocate(conv, norm)
+
   end subroutine remove_cr_hits
 
   subroutine remove_excessRMS(self, sd, det, threshold,  window, res, mask_dyn)
@@ -327,7 +464,18 @@ contains
     integer(i4b) :: ncut, i, k
     real(sp)     :: var0
     real(sp), allocatable, dimension(:) :: var_window
-    
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+
     ! Look for excess variance excess in small windows; typically cosmic rays and other short glitches
     allocate(var_window(sd%ntod))
     call compute_running_variance(res, sd%mask(:,det), window, var_window, var_mean=var0, mean_full=.true.)
@@ -344,6 +492,7 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
+                if (self%output_current) mask(i) = 0.5
              end if
           end do
        end if
@@ -353,7 +502,10 @@ contains
     
     self%stats(4) = self%stats(4) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "excessRMS")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "excessRMS")
+       deallocate(mask)
+    end if
     
   end subroutine remove_excessRMS
   
@@ -366,7 +518,18 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: q, ncut, i, pix_nest
-    
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+
     ncut       = 0
     
     ! Check first sample manually
@@ -375,6 +538,7 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
+       if (self%output_current) mask(i) = 0.5
     end if
     
     ! Check intermediate samples
@@ -384,6 +548,7 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     
@@ -393,11 +558,15 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut              = ncut + 1
+       if (self%output_current) mask(i) = 0.5
     end if
     
     self%stats(7) = self%stats(7) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "isolated")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "isolated")
+       deallocate(mask)
+    end if
     
   end subroutine remove_isolated_samp
   
@@ -410,6 +579,17 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: ncut, i, j, k, window
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     ! Remove consecutive chunks with many flagged samples
     window = self%window_longchunks
@@ -426,6 +606,7 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
+                if (self%output_current) mask(i) = 0.5
              end if
           end do
        end if
@@ -435,7 +616,10 @@ contains
     
     self%stats(8) = self%stats(8) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "longchunks")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "longchunks")
+       deallocate(mask)
+    end if
     
   end subroutine remove_longchunks
   
@@ -448,6 +632,17 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     ncut = 0
     do i = 1, sd%ntod
@@ -457,11 +652,15 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut+1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     self%stats(9) = self%stats(9) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "solar")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "solar")
+       deallocate(mask)
+    end if
     
   end subroutine exclude_solar_mask
   
@@ -474,6 +673,17 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
     
     integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
 
     ncut = 0
     do i = 1, sd%ntod
@@ -483,12 +693,16 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut+1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     
     self%stats(9) = self%stats(9) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "moon")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "moon")
+       deallocate(mask)
+    end if
     
   end subroutine exclude_moon_mask
   
@@ -502,6 +716,17 @@ contains
      
     integer(i4b) :: q, ncut, i, pix_nest
     real(sp)     :: b_elon
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
     
     ncut = 0
     do i = 1, sd%ntod
@@ -512,11 +737,15 @@ contains
           sd%mask(i,det) = 0.
           sd%flag(i,det) = sd%flag(i,det) + flag_dyn
           ncut           = ncut+1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     self%stats(9) = self%stats(9) + ncut
 
-    if (self%output_scan == self%tod%scanid(sd%scan) .and. self%output_det == det) call self%dump_residual(sd, res, det, "earth")
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "earth")
+       deallocate(mask)
+    end if
     
   end subroutine exclude_earth_mask
   
@@ -538,6 +767,7 @@ contains
        else
           write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%stats(-1),dp)/ntod, ntod
           write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%stats( 0),dp)/ntod, self%stats( 0)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, cosmic rays   = ', real(self%stats(10),dp)/ntod, self%stats(10)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%stats( 1),dp)/ntod, self%stats( 1)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%stats( 2),dp)/ntod, self%stats( 2)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%stats( 3),dp)/ntod, self%stats( 3)
@@ -547,17 +777,18 @@ contains
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%stats( 7),dp)/ntod, self%stats( 7)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%stats( 8),dp)/ntod, self%stats( 8)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%stats( 9),dp)/ntod, self%stats( 9)
-          write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%stats(0:9)),dp)/ntod, ntod-sum(self%stats(0:9))
+          write(*,fmt='(a,f8.5,i16)') '  Final accept ratio          = ', real(ntod-sum(self%stats(0:10)),dp)/ntod, ntod-sum(self%stats(0:10))
        end if
     end if
     
   end subroutine report_dynamic_mask_stats
   
-  subroutine dump_residual(self, sd, res, det, tag)
+  subroutine dump_residual(self, sd, res, mask, det, tag)
     implicit none
     class(comm_dynmask),               intent(in) :: self
     class(comm_scandata),              intent(in) :: sd
     real(sp),            dimension(:), intent(in) :: res
+    real(sp),            dimension(:), intent(in) :: mask
     integer(i4b),                      intent(in) :: det
     character(len=*),                  intent(in) :: tag
 
@@ -565,12 +796,12 @@ contains
     character(len=6) :: scan_text
     character(len=4) :: det_text
     
-    call int2string(sd%scan, scan_text)
+    call int2string(self%tod%scanid(sd%scan), scan_text)
     call int2string(det,  det_text)
     
     open(58, file=trim(self%outdir)//'/dynmask_'//trim(adjustl(tag))//'_'//scan_text//'_'//det_text//'.dat')
     do i = 1, sd%ntod
-       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0) write(58,*) i, res(i)
+       if (mask(i) > 0.) write(58,*) i, res(i), 2*mask(i)-1
     end do
     close(58)
     
