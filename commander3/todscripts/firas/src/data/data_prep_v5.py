@@ -165,7 +165,7 @@ for channel, channel_i in g.CHANNELS.items():
     xcal_pos = xcal_pos[sorted_indices]
     for element in elements:
         for side in sides:
-            print(f"DEBUG element: {element}, side: {side}")
+            # print(f"DEBUG element: {element}, side: {side}")
 
             temps[f"{side}_hi_{element}"] = interpolators[f"{side}_hi_{element}"](
                 midpoint_time_s
@@ -202,6 +202,13 @@ for channel, channel_i in g.CHANNELS.items():
                     temps[f"b_ical"] = temps[f"b_ical"][combined_mask]
                     xcal_pos = xcal_pos[combined_mask]
 
+            elif element == "xcal_cone":
+                    temps[f"{side}_hi_{element}"] = temps[f"{side}_hi_{element}"][xcal_pos == 1]
+                    temps[f"{side}_lo_{element}"] = temps[f"{side}_lo_{element}"][xcal_pos == 1]
+
+                    stats.fit_gaussian(temps[f"{side}_hi_{element}"], temps[f"{side}_lo_{element}"],
+                                       channel, element, side, ngaussians=0, sigma=1)
+
             else:
                 # Vectorized temperature selection using the temps from the original pipeline       
                 temps[f"{side}_{element}"] = data_utils.get_temperature_hl_vectorized(
@@ -212,9 +219,12 @@ for channel, channel_i in g.CHANNELS.items():
                 )[combined_mask]
 
 
-        print(f"DEBUG element: {element}")
+        # print(f"DEBUG element: {element}")
 
-        all_data = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
+        if element == "ical":
+            all_data = (temps["a_ical"] * 0.1 + temps["b_ical"] * 0.9)  # from fex_grtcoawt.txt
+        else:
+            all_data = (temps[f"a_{element}"] + temps[f"b_{element}"]) / 2.0
 
         # split back into cal and sky data
         cal_data[element] = all_data[xcal_pos == 1]
@@ -271,7 +281,7 @@ for channel, channel_i in g.CHANNELS.items():
     # apply temp masks to cal and sky data except for elements and collimator
     for key in cal_data:
         if key not in elements and key != "collimator":
-            print(f"DEBUG key: {key}. Shape before masking: cal_data {cal_data[key].shape}, sky_data {sky_data[key].shape}")
+            # print(f"DEBUG key: {key}. Shape before masking: cal_data {cal_data[key].shape}, sky_data {sky_data[key].shape}")
             # Use concatenate with axis=0 for 2D arrays, append for 1D
             if cal_data[key].ndim > 1:
                 all_data = np.concatenate([cal_data[key], sky_data[key]], axis=0)

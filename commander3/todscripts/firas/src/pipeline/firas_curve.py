@@ -1,17 +1,10 @@
-import os
-import sys
-
-import cosmoglobe as cg
-import h5py
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.io import fits
 from scipy.optimize import minimize
 
 import globals as g
 from utils import my_utils as utils
-from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
@@ -63,24 +56,6 @@ for mode in modes.keys():
         
         m = (hpxmap - dust) / data_density[:, np.newaxis]
 
-        monopole = utils.planck(f_ghz, g.T_CMB)
-        m = m - monopole[np.newaxis, :]
-
-        # plot 217 GHz map
-        if channel == "ll" and mode == "ss":
-            cg.plot(
-                    m[:, 11],
-                    # title=f"{int(f_ghz[f'{channel}_{mode}'][freq]):04d} GHz as seen by {channel.upper()}{mode.upper()}",
-                    unit="MJy/sr",
-                    min=0,
-                    max=200,
-                    comp="freqmap",
-                    # freq=int(f_ghz[f"{channel}_{mode}"][freq]) * u.GHz,
-                    cmap='planck'
-                )
-            plt.savefig("debug.png")
-            quit()
-
         mask_total = mask_nodata[:, np.newaxis] | mask_gal[:, np.newaxis]
         m = np.where(mask_total == 1, np.nan, m)
 
@@ -94,6 +69,7 @@ for mode in modes.keys():
             else:
                 temps[pixi] = np.nan
 
+        fig1 = plt.figure(1)
         hp.mollview(
             (temps - g.T_CMB)*1e3,
             title=f"{channel.upper()}{mode.upper()} Deviation from Fixsen 2009 CMB temperature",
@@ -105,7 +81,7 @@ for mode in modes.keys():
             fig=1,
         )
         plt.savefig(f"{g.SAVE_PATH}/maps/bb_temp/{channel}_{mode}.png")
-        plt.close()
+        plt.close(fig1)
 
         # get rid of 5sigma outliers
         std = np.nanstd(temps)
@@ -121,6 +97,8 @@ for mode in modes.keys():
         # plt.plot(f_ghz, bb_curve, label="Data")
         tf = minimize(utils.residuals, t0, args=(f_ghz, bb_curve_data)).x[0]
         print(f"BB temperature according to {channel.upper()}{mode.upper()} average temperature after fitting per pixel and fitting after averaging over sky: {bb_temp:.5f} K and {tf:.5f} K")
+        
+        fig2 = plt.figure(2)
         plt.plot(
             f_ghz,
             utils.planck(f_ghz, bb_temp),
@@ -144,13 +122,15 @@ for mode in modes.keys():
         plt.grid()
         plt.legend()
         plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{channel}_{mode}.png")
-        plt.clf()
+        plt.savefig("debug.png")
+        plt.close(fig2)
 
         # plot also subtracted
+        fig3 = plt.figure(3)
         difference = bb_curve_data - utils.planck(f_ghz, t0)
         plt.plot(f_ghz, difference, label="Difference")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
         plt.title(f"{channel.upper()}{mode.upper()} difference from original")
         plt.savefig(f"{g.SAVE_PATH}/plots/bb_curve/{channel}_{mode}_difference.png")
-        plt.clf()
+        plt.close(fig3)

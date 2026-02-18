@@ -42,7 +42,7 @@ PNG = True
 FITS = True
 
 # plotting parameters
-CHANNELS_PLOT = ["ll", "rh"]
+CHANNELS_PLOT = ["ll"]
 MODES_PLOT = ["ss"]
 JOINT = False
 SCANUPDOWN = False
