@@ -487,13 +487,13 @@ contains
                   & data(i)%gain)
   
                 call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%label)), ext)
+                     & trim(adjustl(data(i)%instlabel)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)
@@ -508,13 +508,13 @@ contains
                      & data(i)%gain)
   
                 call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%label)), ext)
+                     & trim(adjustl(data(i)%instlabel)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)

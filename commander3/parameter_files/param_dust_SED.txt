@@ -1729,12 +1729,9 @@ NUM_MCMC_SAMPLING_GROUPS = 1 13
 #@END 05
 
 #@START 06
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
 #MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
+#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
 #MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
 #@END 06
 
 #@START 07

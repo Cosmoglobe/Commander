@@ -363,6 +363,8 @@ contains
 
     real(dp) :: accept_rate
 
+    pol=1
+    ! Should be updated to loop over polarization, but tabulated dust currently does not support?
     if (cpar%myid == 0) then
        write(*,fmt='(a,i3,a,a)') ' | MH MBBtab sampling group ', l, ', active CG sampling groups = ', trim(cpar%mcmc_update_cg_groups(l))
        if (mh_accept_stat(l,1) > 30) then
@@ -450,7 +452,11 @@ contains
 
             if (c%mbbtab_type == 'spline_log') then
                 c%spl_buff=c%spl
-                call c%update_spline()
+                ! beta    = theta(1)
+                ! T       = theta(2)
+                call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
+                !c%theta(1 for beta, 2 for temp)%p%map(pixel - any value fine,pol)
+
                 ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
                 !               & 0, data(1)%info%comm, ierr)
                 ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
@@ -659,7 +665,8 @@ contains
             class is (comm_MBBtab_comp)
                if (c%mbbtab_type == 'spline_log') then
                  c%spl_buff=c%spl
-                 call c%update_spline()
+                 pol=1
+                 call c%update_spline(c%theta(1)%p%map(1,pol), c%theta(2)%p%map(1,pol), pol)
                end if 
             end select
                 ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
@@ -731,12 +738,12 @@ contains
                end select
             end do
             
-            select type (c)
-            class is (comm_MBBtab_comp)
-               if (c%mbbtab_type == 'spline_log') then
-                  c%spl=c%spl_buff
-               end if 
-            end select
+            ! select type (c)
+            ! class is (comm_MBBtab_comp)
+            !    if (c%mbbtab_type == 'spline_log') then
+            !       c%spl=c%spl_buff
+            !    end if 
+            ! end select
 
             !go to next component
             c => c%nextComp()
