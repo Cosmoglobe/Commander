@@ -31,7 +31,7 @@ module comm_MBBtab_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
-     integer(i4b) :: npar_tab,posneg
+     integer(i4b) :: npar_tab, posneg
      !real(dp), allocatable, dimension(:,:) :: SEDtab
      !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
      type(spline_type) :: spl
@@ -40,6 +40,7 @@ module comm_MBBtab_comp_mod
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
      procedure :: update_spline  !!procedure to update the spline 
+     procedure :: write_spline !!procedure to print the spline 
   end type comm_MBBtab_comp
 
   interface comm_MBBtab_comp
@@ -190,7 +191,7 @@ contains
     integer(i4b) :: i
     real(dp) :: x, x_ref, beta, T,maxnu,minnu, val
     
-
+   ! nu, pol and theta are not in fact optional for this code so we should check we actually are getting those
     if (.not. present(nu)) then
          write(*,*) "nu missing in mbbtab"
          stop
@@ -208,72 +209,70 @@ contains
 
     ! First check if requested frequency is in tabulated range
     ! SED table has nu_min nu_max SED
+    ! SED table should be ordered from lowest to highest 
     if (self%ntab .ne. 0) then
-   
-    maxnu=self%SEDtab(2,self%ntab)
-    minnu=self%SEDtab(1,1)
 
-    if (trim(self%mbbtab_type) == 'spline_log') then
-       if (nu<=minnu) then
-          beta    = theta(1)
-          T       = theta(2)
-          x       = h*nu               / (k_b*T)
-          if (x > EXP_OVERFLOW) then
-             evalSED_mbbtab = 0.d0
-             return
-          end if
-          x_ref   = h*self%nu_ref(pol) / (k_b*T)
-          evalSED_mbbtab = (nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
-          return
-       else if (nu > minnu .and. nu <= maxnu) then 
-          val = splint(self%spl, log(nu))
-         !  write(*,*) 'Splint', splint(self%spl, log(1070000000000d0)), splint(self%spl, log(45500000000000d0))
-         !  write(*,*) 'Splint', exp(splint(self%spl, log(1070000000000d0))), exp(splint(self%spl, log(45500000000000d0)))
-          if (.not. ieee_is_finite(val)) then
-            write(*,*) "SPLINE RETURNED NAN"
-            write(*,*) "val = ", val
-            write(*,*) "nu =", nu
-            write(*,*) "log(nu) =", log(nu)
-            write(*,*) 'minnu = ', minnu
-            write(*,*) 'maxnu = ', maxnu
-            write(*,*) 'nuref = ', self%nu_ref(pol)
-            write(*,*) 'pol = ', pol
-            evalSED_mbbtab = 0.d0
-            ! stop
-          end if
-         !  write(*,*) "val, nu", self%posneg*exp(val), nu
-          if (val > EXP_OVERFLOW) then
-             evalSED_mbbtab = HUGE(0.d0)
-             write(*,*) 'Warning, dust spline value is huge, possible unstable spline behaviour.'
-          else if (val < -16) then
-             evalSED_mbbtab = 0.d0
-             write(*,*) 'Warning, dust spline value is very small, possible unstable spline behaviour.'
-          else
-             evalSED_mbbtab = self%posneg*exp(val) 
-          end if 
-          evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
-          return
-       else
-         ! write(*,*) 'Warning, frequency request out of bounds - too high.'
-         evalSED_mbbtab = 0.d0
-       end if
-    else
-       do i = 1, self%ntab
-          if (nu > self%SEDtab(1,i) .and. nu <= self%SEDtab(2,i)) then
-            ! Table defined in flux density
-            if (trim(self%mbbtab_type) == 'binned') then
-               evalSED_mbbtab = self%SEDtab(3,i)
-            else if (trim(self%mbbtab_type) == 'linear') then
-               evalSED_mbbtab = self%SEDtab(3,i) + self%SEDtab(4,i) * (nu-self%SEDtab(1,i))/(self%SEDtab(2,i)-self%SEDtab(1,i))
-            else 
-               write(*,*) 'Error: MBBtab type unknown, =', trim(self%mbbtab_type)
-               stop
+      maxnu=self%SEDtab(2,self%ntab)
+      minnu=self%SEDtab(1,1)
+
+      if (trim(self%mbbtab_type) == 'spline_log') then
+         if (nu<=minnu) then
+            beta    = theta(1)
+            T       = theta(2)
+            x       = h*nu               / (k_b*T)
+            if (x > EXP_OVERFLOW) then
+               evalSED_mbbtab = 0.d0
+               return
             end if
+            x_ref   = h*self%nu_ref(pol) / (k_b*T)
+            evalSED_mbbtab = self%posneg*(nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
+            return
+         else if (nu > minnu .and. nu <= maxnu) then 
+            val = splint(self%spl, log(nu))
+            if (.not. ieee_is_finite(val)) then
+               if (self%x%info%myid == 0) then
+                  write(*,*) "SPLINE RETURNED NAN, that is probably a bad thing"
+                  write(*,*) "val = ", val
+                  write(*,*) "nu =", nu
+                  write(*,*) "log(nu) =", log(nu)
+                  write(*,*) 'minnu = ', minnu
+                  write(*,*) 'maxnu = ', maxnu
+                  write(*,*) 'nuref = ', self%nu_ref(pol)
+                  write(*,*) 'pol = ', pol
+               end if 
+               evalSED_mbbtab = 0.d0
+            end if
+            if (val > EXP_OVERFLOW) then
+               evalSED_mbbtab = HUGE(0.d0)
+               if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is huge, possible unstable spline behaviour.'
+            else if (val < -16) then
+               evalSED_mbbtab = 0.d0
+               if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is very small, possible unstable spline behaviour.'
+            else
+               evalSED_mbbtab = self%posneg*exp(val) 
+            end if 
             evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
             return
-          end if
-       end do
-   end if 
+         else
+            evalSED_mbbtab = 0.d0
+         end if
+      else
+         do i = 1, self%ntab
+            if (nu > self%SEDtab(1,i) .and. nu <= self%SEDtab(2,i)) then
+               ! Table defined in flux density
+               if (trim(self%mbbtab_type) == 'binned') then
+                  evalSED_mbbtab = self%SEDtab(3,i)
+               else if (trim(self%mbbtab_type) == 'linear') then
+                  evalSED_mbbtab = self%SEDtab(3,i) + self%SEDtab(4,i) * (nu-self%SEDtab(1,i))/(self%SEDtab(2,i)-self%SEDtab(1,i))
+               else 
+                  if (self%x%info%myid == 0) write(*,*) 'Error: MBBtab type unknown, =', trim(self%mbbtab_type)
+                  stop
+               end if
+               evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
+               return
+            end if
+         end do
+      end if 
    end if
 
     beta    = theta(1)
@@ -284,7 +283,7 @@ contains
       return
     end if
     x_ref   = h*self%nu_ref(pol) / (k_b*T)
-    evalSED_mbbtab = (nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
+    evalSED_mbbtab = self%posneg*(nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
 
   end function evalSED_mbbtab
 
@@ -307,6 +306,7 @@ contains
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
        if (line(1:1) == '#') cycle
+       if (len_trim(line) == 0) cycle ! fixes crash with empty lines in the table
        self%ntab = self%ntab+1
     end do
 1   close(unit)
@@ -319,6 +319,7 @@ contains
        read(unit,'(a)', end=2) line
        line = trim(adjustl(line))
        if (line(1:1) == '#') cycle
+       if (len_trim(line) == 0) cycle ! fixes crash with empty lines in the table
        i = i+1
        read(line,*) self%SEDtab(:,i)
     end do
@@ -326,6 +327,7 @@ contains
 
     self%SEDtab(1:2,:) = self%SEDtab(1:2,:) * 1d9
     self%SEDtab_buff = self%SEDtab
+    self%posneg=1
   end subroutine read_SED_table
 
 
@@ -336,17 +338,29 @@ contains
     integer(i4b),            intent(in)         :: pol
  
     
-    integer :: i
+    integer :: i, n_pts
     real(dp), allocatable :: x(:), y(:)
     real(dp) :: xnu, xnu_ref,nu,nu_ref,MBBbound,y_linear
-    
+    character(512) :: filename
 
-    allocate(x(self%ntab+1), y(self%ntab+1))
+
+    ! If ntab < 3, we add 1 extra point to ensure spline stability
+    if (self%ntab == 1) then
+       n_pts = 3  ! One bin -> [Left, Mid, Right]
+    else if (self%ntab == 2) then
+       n_pts = 4  ! Two bins -> [Left1, Mid1, Mid2, Right2]
+    else
+       n_pts = self%ntab + 1 ! Standard case
+    end if
+    allocate(x(n_pts), y(n_pts))
 
    
     if (self%mbbtab_type == 'spline_log') then
       ! first match the low frequency edge of the first bin to the associated modified blackbody 
-      ! (this assumes the bins are sorted from the lowest to highest frequencies)
+      ! the bins should be sorted from the lowest to highest frequencies
+      ! you should not have zeros in the table, but if they are there you will get a warning and it will be set to 
+      ! a very small value instead for the spline calculation - spline will be irratic though very likely
+
       ! computes the spline in log space
       
       nu=self%SEDtab(1,1)
@@ -355,64 +369,152 @@ contains
       ! beta    = theta(1)
       ! T       = theta(2)
       nu_ref  = self%nu_ref(pol)
-      ! write(*,*) 'pol, nu_ref', pol, nu_ref
       xnu       = h*self%SEDtab(1,1) / (k_b*T)
       if (xnu > EXP_OVERFLOW) then
         y(1) = 0.d0
-        write(*,*) 'Error: MBB overflow in exponent'
+        if (self%x%info%myid == 0) then
+         write(*,*) 'Error: MBB overflow in exponent, mbbTab'
+        end if
         return
       end if
       xnu_ref   = h*nu_ref / (k_b*T)
-      !normalize the MBB in Mj/sr by the value at the reference frequency 
+      ! normalize the MBB in Mj/sr by the value at the reference frequency 
 
       y_linear=((nu)**(beta+3.d0)/(exp(xnu)-1.d0))/((nu_ref)**(beta+3.d0)/(exp(xnu_ref)-1.d0))
       y(1)=log(y_linear)
-      ! write(*,*) "spline nodes1 ", x(1), y(1), y_linear, nu, beta, xnu, nu_ref, xnu_ref
-      !!Checks if the table is negative dust or not, only checks the first column, if the dust
-      !changes signs this will not work (would need a new spline function to handle this zero crossing)
+      
+      ! Checks if the table is negative dust or not, only checks the first column, spline cannot cross the zero line
+      ! so if the first line is negative they all should be
       self%posneg=INT(SIGN(1.0,self%SEDtab(3,1)))
-      ! choose the logarithmic midpoint of the bins for the spline nodes x
-      ! and the logarithm of the SED tabulated values
-      do i = 1, self%ntab-1
-         if (abs(self%SEDtab(3,i))>1e-16) then !check for non-zero elements, don't want zeros in the spline? 
-            x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
-            y(i+1) = log(abs(self%SEDtab(3,i)))
-         else
-            x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
-            y(i+1) = log(1d-16)
-            write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
-         end if 
-         write(*,*) "spline nodes ", i+1, x(i+1), y(i+1)
-      end do
 
-      x(self%ntab+1)=log((self%SEDtab(2,self%ntab)))
-      y(self%ntab+1) = log(abs(self%SEDtab(3,self%ntab)))
-      ! write(*,*) "spline nodes ", self%ntab+1, x(self%ntab+1), y(self%ntab+1)
+      ! check if there are enough rows in the table, of there are only 1 or 2 we add extra bins of equal height 
+      ! to help stabilize the spline, this is probably not optimal
+      select case (self%ntab)
+      case (1)
+         ! Sample the only bin: Midpoint and Right Edge
+         x(2) = log(0.5d0*(self%SEDtab(1,1) + self%SEDtab(2,1)))
+         y(2) = log(max(1d-16, abs(self%SEDtab(3,1))))
+         x(3) = log(self%SEDtab(2,1))
+         y(3) = y(2)
+      case (2)
+         ! Sample both bins: Midpoint 1, Midpoint 2, and Right Edge 2
+         x(2) = log(0.5d0*(self%SEDtab(1,1) + self%SEDtab(2,1)))
+         y(2) = log(max(1d-16, abs(self%SEDtab(3,1))))
+         x(3) = log(0.5d0*(self%SEDtab(1,2) + self%SEDtab(2,2)))
+         y(3) = log(max(1d-16, abs(self%SEDtab(3,2))))
+         x(4) = log(self%SEDtab(2,2))
+         y(4) = y(3)
+
+      case default
+         ! choose the log of the midpoint of the bins for the spline nodes x
+         ! and the logarithm of the SED tabulated values
+         do i = 1, self%ntab-1
+            if (abs(self%SEDtab(3,i))>1e-16) then !check for non-zero elements, don't want zeros in the spline? 
+               x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
+               y(i+1) = log(abs(self%SEDtab(3,i)))
+            else
+               x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
+               y(i+1) = log(1d-16)
+               if (self%x%info%myid == 0) then
+                  write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
+               end if
+            end if 
+            !uncomment to debug if necessary
+            ! if (self%x%info%myid == 0) then
+            !    write(*,*) "spline nodes ", i+1, x(i+1), y(i+1)
+            ! end if
+         end do
+         ! the last original point
+         x(self%ntab+1)=log((self%SEDtab(2,self%ntab)))
+         y(self%ntab+1) = log(abs(self%SEDtab(3,self%ntab)))
+      end select
+
+
       ! the left boundary should match the first derivative between the MBB and the tabulated values
       ! the right boundary can be left to natural, set by 1e30
       MBBbound=(beta + 3.d0) - xnu * exp(xnu) / (exp(xnu) - 1.0)
+      ! write(*,*) "MBBbound", MBBbound
+
       do i = 2, size(x)
          if (x(i) <= x(i-1)) then
-            write(*,*) "ERROR: mbbtab grid not strictly increasing"
-            write(*,*) "i=", i, "x(i-1)=", x(i-1), "x(i)=", x(i)
+            if (self%x%info%myid == 0) then
+               write(*,*) "ERROR: mbbtab grid not strictly increasing, this will break the spline."
+               write(*,*) "i=", i, "x(i-1)=", x(i-1), "x(i)=", x(i)
+            end if
             stop
          end if
       end do
 
-      ! write(*,*) "MBBbound", MBBbound
-
-
-      call spline(self%spl, x, y, &
-                  boundary=[MBBbound,1d30], &
-                  regular=.false., &
-                  linear=.false.)
+      call spline(self%spl, x, y, boundary=[MBBbound,1d30], &
+                  regular=.false., linear=.false.)
     else 
-      write(*,*) 'Warning: MBBtab spline type unknown = ', trim(self%mbbtab_type)
+      if (self%x%info%myid == 0) then
+         write(*,*) 'Warning: MBBtab spline type unknown = ', trim(self%mbbtab_type)
+      end if 
     end if
     
     deallocate(x,y)
 
+    ! to debug set to true, warning! will output to the run folder
+   !  if (.false.) then 
+   !    filename = 'SEDdebug_.dat'
+   !    call self%write_spline(filename,1,beta,T)
+   !  end if 
+
+
   end subroutine  update_spline
+
+  !subroutine to write the spline, not currently used
+  subroutine write_spline(self, filename, pol, beta, T, npts, nu_min, nu_max)
+      implicit none
+      class(comm_MBBtab_comp), intent(in) :: self
+      character(len=*),        intent(in) :: filename
+      integer(i4b),            intent(in) :: pol
+      real(dp),                intent(in) :: beta, T
+      integer(i4b), optional,  intent(in) :: npts
+      real(dp),    optional,   intent(in) :: nu_min, nu_max
+
+      integer(i4b) :: unit, i, N
+      real(dp) :: nu1, nu2, dlognu, nu, sed
+      real(dp), dimension(2)              :: theta
+
+      theta(1) = beta
+      theta(2) = T
+      ! Defaults
+      if (present(npts)) then
+         N = npts
+      else
+         N = 500
+      end if
+
+      if (present(nu_min)) then
+         nu1 = nu_min
+      else
+         nu1 = 30d0*1d9 !self%SEDtab(1,1)
+      end if
+
+      if (present(nu_max)) then
+         nu2 = nu_max
+      else
+         nu2 = self%SEDtab(2,self%ntab)
+      end if
+
+      unit = getlun()
+      open(unit, file=trim(filename), status='replace')
+
+      write(unit,'(a)') '# nu[Hz]    SED'
+
+      dlognu = (log(nu2) - log(nu1)) / real(N-1,dp)
+
+      do i = 0, N-1
+         nu  = exp(log(nu1) + dlognu*i)
+         sed = self%S(nu=nu, pol=pol, theta=theta)
+         write(unit,'(2E20.10)') nu, sed
+      end do
+
+      close(unit)
+
+  end subroutine write_spline
 
 
 end module comm_MBBtab_comp_mod

@@ -2489,9 +2489,10 @@ contains
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i, l, j, k, m, ierr, unit
+    integer(i4b)       :: i, l, j, k, m, ierr, unit, nnu, nuc
     integer(i4b)       :: p, p_min, p_max, npr, npol
-    real(dp)           :: vals(10)
+    real(dp)           :: vals(10),theta(2)
+    real(dp)           :: nu1, nu2, dlognu, nu, sed
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
     character(len=512) :: filename, path
@@ -2783,6 +2784,26 @@ contains
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
          call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         !!write the mbbTab SED for a range of frequencies from nu1 to nu2
+         ! this could maybe be updated for a more custom 'range' of frequencies in the future,
+         ! currently runs from 30GHz to the higher frequency in the table, and for 
+         ! 500 logarithmically spaced samples between those two frequencies (this could
+         ! also maybe be done more cleanly)
+         filename = trim(dir)// '/mbbTab_SED_' // trim(self%label) //'_'  // trim(postfix) // '.dat'
+         unit = getlun()
+         open(unit, file=trim(filename), status='replace')
+         write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
+         nu1=30d0*1e9
+         nu2=self%SEDtab(2,self%ntab)
+         dlognu = (log(nu2) - log(nu1)) / 500d0
+         theta(1)=self%theta(1)%p%map(1,1)
+         theta(2)=self%theta(2)%p%map(1,1)
+         do nuc = 0, 500
+            nu  = exp(log(nu1) + dlognu*nuc)
+            sed = self%S(nu=nu, pol=1, theta=theta)
+            write(unit,'(2E20.10)') nu, sed
+         end do
+         close(unit)
        end if
        
        ! Write mixing matrices
