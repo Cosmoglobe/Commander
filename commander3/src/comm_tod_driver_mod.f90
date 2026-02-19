@@ -244,7 +244,7 @@ contains
     
 
     ! Generate instrument-specific correction template
-    if (btest(oper,SD_INST)) then
+    if (btest(oper,SD_INST) .and. spur_lvl>2 ) then
        call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
@@ -282,6 +282,7 @@ contains
     end if
 
     ! Subtract spurious corrections from TOD according to spur_level
+    call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
@@ -289,7 +290,7 @@ contains
        if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
        if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
     end do
-   
+    call timer%stop(TOD_INSTCORR, tod%band)
     
   end subroutine init_scan_data
   

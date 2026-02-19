@@ -31,7 +31,6 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_NCORR     = 11
   integer(i4b), parameter, public :: TOD_XI_N      = 12
   integer(i4b), parameter, public :: TOD_MAPBIN    = 13
-  integer(i4b), parameter, public :: TOD_MAPSYN    = 32
   integer(i4b), parameter, public :: TOD_MAPSOLVE  = 14
   integer(i4b), parameter, public :: TOD_ZODI      = 15
   integer(i4b), parameter, public :: TOD_IMBAL     = 16
@@ -50,6 +49,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_OBJCTR    = 29
   integer(i4b), parameter, public :: TOD_DYNMASK   = 30
   integer(i4b), parameter, public :: TOD_PIXHIST   = 31
+  integer(i4b), parameter, public :: TOD_MAPSYN    = 32
 
 !  private
 !  public comm_timing
