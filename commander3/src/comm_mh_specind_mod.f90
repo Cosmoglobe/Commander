@@ -451,13 +451,8 @@ contains
                 c%spl_buff=c%spl
                 ! beta    = theta(1)
                 ! T       = theta(2)
+                ! pol is set to 1, mbbTab not currently setup to support polarization
                 call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
-                !c%theta(1 for beta, 2 for temp)%p%map(pixel - any value fine,pol)
-
-                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
-                !               & 0, data(1)%info%comm, ierr)
-                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
-                !               & 0, data(1)%info%comm, ierr)
             end if 
           end select
           
@@ -503,8 +498,6 @@ contains
                 end if
                 if (c%mbbtab_type == 'spline_log') then
                     c%spl=c%spl_buff
-                    ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
-                    !           & 0, data(1)%info%comm, ierr)
                 end if 
              end select
              c => c%nextComp()
@@ -536,7 +529,6 @@ contains
   end subroutine sample_mbbtab_mh
 
 
-  !!!add step to redo the spline in here if it is a mbbTab spline type
   subroutine sample_specind_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
@@ -654,6 +646,8 @@ contains
 
             select type (c)
             class is (comm_MBBtab_comp)
+            !if this is a spline type then the spline needs to be recalculated since the left derivative and leftmost spline
+            !point is defined by the MBB 
                if (c%mbbtab_type == 'spline_log') then
                  c%spl_buff=c%spl
                  pol=1
@@ -729,12 +723,12 @@ contains
                end select
             end do
             
-            ! select type (c)
-            ! class is (comm_MBBtab_comp)
-            !    if (c%mbbtab_type == 'spline_log') then
-            !       c%spl=c%spl_buff
-            !    end if 
-            ! end select
+            select type (c)
+            class is (comm_MBBtab_comp)
+               if (c%mbbtab_type == 'spline_log') then
+                  c%spl=c%spl_buff
+               end if 
+            end select
 
             !go to next component
             c => c%nextComp()
