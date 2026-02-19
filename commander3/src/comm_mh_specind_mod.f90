@@ -537,7 +537,7 @@ contains
        end if
      end do
 
-     accept_rate = mh_accept_stat(l,2)/max(1,mh_accept_stat(l,1))
+     accept_rate = real(mh_accept_stat(l,2),dp)/max(1,mh_accept_stat(l,1))
       if (cpar%myid_chain == 0) then
           write(*,fmt='(a,i3,a,i3,a,f8.4)') ' | Finished MH sampling group ', l, ', nsamp_tot = ', mh_accept_stat(l,1), ', accept rate = ', accept_rate
       end if
