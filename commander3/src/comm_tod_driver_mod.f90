@@ -368,6 +368,13 @@ contains
        if (.not. tod%scans(i)%d(det)%accept) cycle
        call init_scan_data(tod, i, oper, bitmask0, sd, det=det)
 
+       ! Check for accepted data
+       if (all(iand(sd%flag,tod%flag0) > 0)) then
+          tod%scans(i)%d(det)%accept = .false.
+          call dealloc_scan_data(sd)
+          cycle
+       end if
+       
        g = tod%scans(i)%d(det)%gain
        do j = 1, sd%ntod
           if (sd%mask(j,1) == 1.) then

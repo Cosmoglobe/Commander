@@ -276,7 +276,7 @@ contains
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
       type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default, oper
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n, sample_ramp
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
@@ -427,6 +427,7 @@ contains
          end if
          call timer%start(TOD_INSTCORR, self%band)
          ! allocate and initialize self%tod_correction_templ
+         !write(*,*) self%myid, maxval(self%nsamp_templ), self%ntempl, self%ndet, self%nscan
          allocate(self%tod_correction_templ(maxval(self%nsamp_templ),self%ntempl,self%ndet,self%nscan))
          self%tod_correction_templ = 0.d0
       end if
