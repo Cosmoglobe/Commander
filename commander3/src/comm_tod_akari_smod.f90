@@ -53,6 +53,7 @@ contains
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
+      real(dp)     :: band_samprate
 
       call timer%start(TOD_INIT, id_abs)
 
@@ -72,43 +73,48 @@ contains
       allocate(c%xi_n_nu_fit(c%n_xi,2))
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
-
-      if (.true.) then
-         ! Correlated noise parameters
-         c%xi_n_nu_fit(1,:) = [0.05d0, 1.d1]   ! Freq range for sigma0
-         c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0]    ! Freq range for fknee
-         c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0]    ! Freq range for alpha
-         
-         c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
-         c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
-         c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
-         
-         ! Set rms of all parameters to 0.05 for initial test phase. 
-         c%xi_n_P_rms(1)    = 0.05d0           ! Prior rms for sigma0
-         c%xi_n_P_rms(2)    = 0.05d0           ! Prior rms for fknee
-         c%xi_n_P_rms(3)    = 0.05d0           ! Prior rms for alpha
-
-         if (trim(c%noise_psd_model) == '2oof') then
-            ! Extend correlated noise parameters for fknee2 and alpha2
-            
-            c%xi_n_nu_fit(4,:) = [4.d0, 1.0d1]  ! Freq range for fknee2
-            c%xi_n_nu_fit(5,:) = [4.d0, 1.0d1]  ! Freq range for alpha2
-            
-            c%xi_n_P_uni(4,:)  = [4.0d0, 1.d1]  ! Uniform prior for fknee2
-            c%xi_n_P_uni(5,:)  = [1d-6, 3.d0]   ! Uniform prior for alpha2
-            
-            c%xi_n_P_rms(4)    = 0.05d0         ! Prior rms for fknee2
-            c%xi_n_P_rms(5)    = 0.05d0         ! Prior rms for alpha2
-         end if 
-
-         ! Data selection parameters
-         c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
-         c%sigma0_threshold = 1.d0        ! Cut scans with higher sigma0
-      else if (trim(c%freq) == 'AKARI_N160') then
+      
+      ! For 2oof, the max psd freq. (samprate/2) is needed for freq. ranges and priors.
+      ! samprate is defined in c%read_tod(c%label), but psd params must be defined before this. 
+      if (trim(c%freq) == 'AKARI_N160') then
+         band_samprate = 16.86
       else if (trim(c%freq) == 'AKARI_WIDE-L') then
+         band_samprate = 16.86
       else if (trim(c%freq) == 'AKARI_WIDE-S') then
+         band_samprate = 25.28
       else if (trim(c%freq) == 'AKARI_N60') then
+         band_samprate = 25.28
       end if
+
+      ! Correlated noise parameters
+      c%xi_n_nu_fit(1,:) = [0.05d0, 1.d1]   ! Freq range for sigma0
+      c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0]    ! Freq range for fknee
+      c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0]    ! Freq range for alpha
+      
+      c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
+      c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
+      c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+      
+      ! Set rms of all parameters to 0.05 for initial test phase. 
+      c%xi_n_P_rms(1)    = 0.05d0           ! Prior rms for sigma0
+      c%xi_n_P_rms(2)    = 0.05d0           ! Prior rms for fknee
+      c%xi_n_P_rms(3)    = 0.05d0           ! Prior rms for alpha
+
+      if (trim(c%noise_psd_model) == '2oof') then
+         ! Extend correlated noise parameters for fknee2 and alpha2
+         c%xi_n_nu_fit(4,:) = [4.d0, band_samprate/2]  ! Freq range for fknee2
+         c%xi_n_nu_fit(5,:) = [4.d0, band_samprate/2]  ! Freq range for alpha2
+         
+         c%xi_n_P_uni(4,:)  = [4.0d0, band_samprate/2]  ! Uniform prior for fknee2
+         c%xi_n_P_uni(5,:)  = [0.5d0, 3.d0]   ! Uniform prior for alpha2
+         
+         c%xi_n_P_rms(4)    = 0.05d0         ! Prior rms for fknee2
+         c%xi_n_P_rms(5)    = 0.05d0         ! Prior rms for alpha2
+      end if
+
+      ! Data selection parameters
+      c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
+      c%sigma0_threshold = 1.d0        ! Cut scans with higher sigma0
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
