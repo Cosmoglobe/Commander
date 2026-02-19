@@ -77,35 +77,35 @@ contains
       ! For 2oof, the max psd freq. (samprate/2) is needed for freq. ranges and priors.
       ! samprate is defined in c%read_tod(c%label), but psd params must be defined before this. 
       if (trim(c%freq) == 'AKARI_N160') then
-         band_samprate = 16.86
+         band_samprate = 16.86 ! Hz
       else if (trim(c%freq) == 'AKARI_WIDE-L') then
-         band_samprate = 16.86
+         band_samprate = 16.86 ! Hz 
       else if (trim(c%freq) == 'AKARI_WIDE-S') then
-         band_samprate = 25.28
+         band_samprate = 25.28 ! Hz
       else if (trim(c%freq) == 'AKARI_N60') then
-         band_samprate = 25.28
+         band_samprate = 25.28 ! Hz
       end if
 
       ! Correlated noise parameters
-      c%xi_n_nu_fit(1,:) = [0.05d0, 1.d1]   ! Freq range for sigma0
+      c%xi_n_nu_fit(1,:) = [0.05d0, 0.99*band_samprate/2]   ! Freq range for sigma0
       c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0]    ! Freq range for fknee
       c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0]    ! Freq range for alpha
       
-      c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
+      c%xi_n_P_uni(1,:)  = [1d-6, 100.d0]   ! Uniform prior for sigma0
       c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
       c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
       
       ! Set rms of all parameters to 0.05 for initial test phase. 
-      c%xi_n_P_rms(1)    = 0.05d0           ! Prior rms for sigma0
+      c%xi_n_P_rms(1)    = 1.00d0           ! Prior rms for sigma0
       c%xi_n_P_rms(2)    = 0.05d0           ! Prior rms for fknee
       c%xi_n_P_rms(3)    = 0.05d0           ! Prior rms for alpha
 
       if (trim(c%noise_psd_model) == '2oof') then
          ! Extend correlated noise parameters for fknee2 and alpha2
-         c%xi_n_nu_fit(4,:) = [4.d0, band_samprate/2]  ! Freq range for fknee2
-         c%xi_n_nu_fit(5,:) = [4.d0, band_samprate/2]  ! Freq range for alpha2
+         c%xi_n_nu_fit(4,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for fknee2
+         c%xi_n_nu_fit(5,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for alpha2
          
-         c%xi_n_P_uni(4,:)  = [4.0d0, band_samprate/2]  ! Uniform prior for fknee2
+         c%xi_n_P_uni(4,:)  = [4.0d0, 0.99*band_samprate/2]  ! Uniform prior for fknee2
          c%xi_n_P_uni(5,:)  = [0.5d0, 3.d0]   ! Uniform prior for alpha2
          
          c%xi_n_P_rms(4)    = 0.05d0         ! Prior rms for fknee2
@@ -193,12 +193,23 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 915
+      c%dynmask%output_scan             = 1000
       c%dynmask%output_det              = 1
       c%dynmask%apply_pixhist           = .true.
       c%dynmask%remove_isolated_samples = .true.
       c%dynmask%threshold_longchunks    = 0.3
       c%dynmask%window_longchunks       = 2000
+      c%dynmask%threshold_cr            = 6.   ! sigma
+      c%dynmask%width_cr_mask           = 5
+      allocate(c%dynmask%templ_cr(-5:5))
+      c%dynmask%templ_cr    = 1.
+      c%dynmask%templ_cr(0) = 10.
+      c%dynmask%templ_cr(1) = 5.
+      c%dynmask%templ_cr(2) = 2.5
+      c%dynmask%templ_cr(3) = 1.25
+      c%dynmask%templ_cr(4) = 1.
+      c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
+      
 
 !!$      if (trim(self%freq) == 'AKARI_N160') then
 !!$         flag_threshold        = [1.0,    -20., -5.0,     -3.0, -2.0, -1.5,     1.0,      0.3,     -1.0]         
@@ -309,11 +320,12 @@ contains
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
 
-      if (.true.) then
+      if (.false.) then
          ! Debug
          select_data     = iter == 2
          sample_ncorr    = iter == 2
-         sample_xi_n     = iter == 2 
+         sample_xi_n     = iter == 2
+         sample_ramp     = iter == 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
          select_data     = iter == 5                    ! in param file. Takes you to 'else' below
          sample_ncorr    = iter > 2
@@ -433,6 +445,23 @@ contains
       end if
       call timer%stop(TOD_INSTCORR, self%band)
 
+      ! Create dynamic mask
+      if (select_data) then
+         if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+         do i = 1, self%nscan
+            ! Skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               call self%dynmask%create(sd, j)
+            end do
+            call dealloc_scan_data(sd)
+         end do
+         ! Synchronize and output flagging statistics in first iteration
+         call self%dynmask%report
+      end if
+      
       ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -469,18 +498,6 @@ contains
          
          ! Apply fast flags
          call update_status(status, "quick_tod_flag_"//ctext)
-         
-         ! Create dynamic mask
-         !if (self%first_call) then
-         if (select_data) then
-            do j = 1, sd%ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%dynmask%create(sd, j)
-            end do
-            call dealloc_scan_data(sd)
-            if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
-         end if
          
          ! Sample correlated noise
          !call project_mask(self, TODMASK_ZODI, sd)
@@ -564,9 +581,6 @@ contains
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
-      ! Synchronize and output flagging statistics in first iteration
-      if (select_data) call self%dynmask%report
-      
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
 

@@ -192,6 +192,11 @@ contains
     
     if (self%myid == 0) then
 
+       if (sum(abs(self%invM)) == 0.d0) then
+          write(*,*) "CGmap error: Preconditioner is zero; no accepted data; . Exiting."
+          stop
+       end if
+       
        ! Allocate temporary arrays
        allocate(b(self%ncol,self%npix))
        allocate(invMb(self%ncol,self%npix))
