@@ -33,13 +33,15 @@ module comm_tod_DIRBE_mod
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
   use comm_tod_mapmaking_mod
+  use comm_tod_dynmask_mod
    implicit none
 
    private
    public comm_dirbe_tod
 
    type, extends(comm_tod) :: comm_dirbe_tod
-   contains
+      class(comm_dynmask), pointer :: dynmask
+    contains
       procedure     :: process_tod          => process_DIRBE_tod
       procedure     :: dumpToHDF_inst       => dumpToHDF_DIRBE
    end type comm_dirbe_tod
@@ -166,6 +168,12 @@ contains
       !   c%scans(i)%d%baseline = 0.d0
       !end do
 
+      ! Initialize dynamic mask
+      c%dynmask => comm_dynmask(c, cpar)
+      c%dynmask%apply_pixhist           = .true.
+      c%dynmask%apply_solar_mask        = .true.
+      c%dynmask%remove_isolated_samples = .true.
+      
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_dirbe
 
@@ -276,17 +284,6 @@ contains
          sample_gain = .false.
       end if
       
-      if (trim(self%freq(1:2)) == '05' .or. trim(self%freq(1:2)) == '06' .or. &
-        & trim(self%freq(1:2)) == '07' .or. trim(self%freq(1:2)) == '08' .or. &
-        & trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-         !                     Pixhist  Extreme           RMS ranges     Single     Ranges   Pointing
-         flag_threshold     = [1.0,    -20., -5.0,       -3.0, -2.0, -1.5,     1.0,      -0.30,     1.0]
-      else
-         !                     Pixhist    Extreme            RMS ranges     Single     Ranges   Pointing
-         flag_threshold     = [1.0,    -50., -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
-         !flag_threshold     = [-1.0, -1.0,      -1.0, -1.0, -1.0,   1.0,        -1.0,      1.0]
-      end if
-
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -357,7 +354,7 @@ contains
          if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%create_dynamic_mask(sd, j, flag_threshold)
+               call self%dynmask%create(sd, j)
             end do
             call dealloc_scan_data(sd)
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -439,7 +436,7 @@ contains
       end do
 
       ! Synchronize and output flagging statistics in first iteration
-      if (self%first_call) call self%report_dynamic_mask_stats
+      if (self%first_call) call self%dynmask%report
       
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
