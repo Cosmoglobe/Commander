@@ -323,7 +323,7 @@ contains
       sample_gain           = iter > 1                        ! Gain sampling, LB TOD sims have perfect gain
       only_solar_mask       = .false.                        ! Only apply solar mask
 
-      if (.true.) then
+      if (.false.) then
          ! Debug
          select_data     = iter == 2
          sample_ncorr    = iter == 2
