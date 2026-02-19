@@ -14,6 +14,7 @@ module comm_tod_driver_mod
   use comm_tod_cray_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
+  use comm_tod_dynmask_mod
   !use comm_4d_map_mod
   use omp_lib
   implicit none
@@ -243,7 +244,7 @@ contains
     
 
     ! Generate instrument-specific correction template
-    if (btest(oper,SD_INST)) then
+    if (btest(oper,SD_INST) .and. spur_lvl>2 ) then
        call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
@@ -278,16 +279,18 @@ contains
           if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
           if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
        end do
-
-       ! Subtract spurious corrections from TOD according to spur_level
-       do j = 1, ndet
-          d = j; if (present(det)) d = det
-          if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-          if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-          if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
-       end do
     end if
+
+    ! Subtract spurious corrections from TOD according to spur_level
+    call timer%start(TOD_INSTCORR, tod%band)
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. tod%scans(scan)%d(d)%accept) cycle
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+    end do
+    call timer%stop(TOD_INSTCORR, tod%band)
     
   end subroutine init_scan_data
   
