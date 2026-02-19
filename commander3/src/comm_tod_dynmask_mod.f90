@@ -799,7 +799,7 @@ contains
     call int2string(self%tod%scanid(sd%scan), scan_text)
     call int2string(det,  det_text)
     
-    open(58, file=trim(self%outdir)//'/dynmask_'//trim(adjustl(tag))//'_'//scan_text//'_'//det_text//'.dat')
+    open(58, file=trim(self%outdir)//'/dynmask_'//trim(adjustl(tag))//'_'//trim(self%tod%freq)//'_'//scan_text//'_'//det_text//'.dat')
     do i = 1, sd%ntod
        if (mask(i) > 0.) write(58,*) i, res(i), 2*mask(i)-1
     end do

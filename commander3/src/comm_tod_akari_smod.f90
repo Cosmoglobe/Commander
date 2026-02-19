@@ -77,35 +77,35 @@ contains
       ! For 2oof, the max psd freq. (samprate/2) is needed for freq. ranges and priors.
       ! samprate is defined in c%read_tod(c%label), but psd params must be defined before this. 
       if (trim(c%freq) == 'AKARI_N160') then
-         band_samprate = 16.86
+         band_samprate = 16.86 ! Hz
       else if (trim(c%freq) == 'AKARI_WIDE-L') then
-         band_samprate = 16.86
+         band_samprate = 16.86 ! Hz 
       else if (trim(c%freq) == 'AKARI_WIDE-S') then
-         band_samprate = 25.28
+         band_samprate = 25.28 ! Hz
       else if (trim(c%freq) == 'AKARI_N60') then
-         band_samprate = 25.28
+         band_samprate = 25.28 ! Hz
       end if
 
       ! Correlated noise parameters
-      c%xi_n_nu_fit(1,:) = [0.05d0, 1.d1]   ! Freq range for sigma0
+      c%xi_n_nu_fit(1,:) = [0.05d0, 0.99*band_samprate/2]   ! Freq range for sigma0
       c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0]    ! Freq range for fknee
       c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0]    ! Freq range for alpha
       
-      c%xi_n_P_uni(1,:)  = [1d-6, 1.d0]     ! Uniform prior for sigma0
+      c%xi_n_P_uni(1,:)  = [1d-6, 100.d0]   ! Uniform prior for sigma0
       c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
       c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
       
       ! Set rms of all parameters to 0.05 for initial test phase. 
-      c%xi_n_P_rms(1)    = 0.05d0           ! Prior rms for sigma0
+      c%xi_n_P_rms(1)    = 1.00d0           ! Prior rms for sigma0
       c%xi_n_P_rms(2)    = 0.05d0           ! Prior rms for fknee
       c%xi_n_P_rms(3)    = 0.05d0           ! Prior rms for alpha
 
       if (trim(c%noise_psd_model) == '2oof') then
          ! Extend correlated noise parameters for fknee2 and alpha2
-         c%xi_n_nu_fit(4,:) = [4.d0, band_samprate/2]  ! Freq range for fknee2
-         c%xi_n_nu_fit(5,:) = [4.d0, band_samprate/2]  ! Freq range for alpha2
+         c%xi_n_nu_fit(4,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for fknee2
+         c%xi_n_nu_fit(5,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for alpha2
          
-         c%xi_n_P_uni(4,:)  = [4.0d0, band_samprate/2]  ! Uniform prior for fknee2
+         c%xi_n_P_uni(4,:)  = [4.0d0, 0.99*band_samprate/2]  ! Uniform prior for fknee2
          c%xi_n_P_uni(5,:)  = [0.5d0, 3.d0]   ! Uniform prior for alpha2
          
          c%xi_n_P_rms(4)    = 0.05d0         ! Prior rms for fknee2
@@ -193,7 +193,7 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 915
+      c%dynmask%output_scan             = 1000
       c%dynmask%output_det              = 1
       c%dynmask%apply_pixhist           = .true.
       c%dynmask%remove_isolated_samples = .true.
