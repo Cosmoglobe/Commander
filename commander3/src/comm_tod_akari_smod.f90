@@ -99,11 +99,11 @@ contains
       else
           c%compressed_tod  = .false.
       end if
-      c%correct_sl      = .false.
-      c%correct_orb     = .false.
+      c%correct_sl      = .false.                ! OBS FIXME these flags are obsolete and not used
+      c%correct_orb     = .false.                ! replaced by oper_default below
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
-      c%apply_inst_corr = .false.    ! Ingunn: Enable when activating the correction template
+      c%apply_inst_corr = .false.   
       c%symm_flags      = .false.
       c%use_moon_point  = cpar%sample_moon_maps
       c%use_earth_elon  = cpar%sample_earth_maps
@@ -160,15 +160,6 @@ contains
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
       !end do
-      
-      ! initialize tod correction template(s)
-      c%ntempl = 1  ! OBS may change
-      allocate(c%nsamp_templ(c%ntempl))
-      !c%nsamp_templ=[28,12,4]              ! OBS may automate this by init_sample_ramp routine
-      !c%nsamp_templ=[28,12]
-      c%nsamp_templ=[28]
-      allocate(c%tod_correction_templ(maxval(c%nsamp_templ),c%ntempl,c%ndet,c%nscan))
-      c%tod_correction_templ = 0.d0
       
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_akari
@@ -345,19 +336,59 @@ contains
          !call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
-      ! sample ramp baselines 
-      if (sample_ramp) then
+      call timer%start(TOD_INSTCORR, self%band)
+      ! initialize ramp sampling
+      if (self%first_call) then
+         ! set number of correction templates
+         self%ntempl = 1     ! OBS may change
+         ! allocate self%nsamp_templ
+         allocate(self%nsamp_templ(self%ntempl, self%ndet, self%nscan))
          do i = 1, self%nscan
-            ! Skip scan if no accepted data
+            ! skip scan if no accepted data
             if (.not. any(self%scans(i)%d%accept)) cycle
+            ! decompress data for this scan into sd
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0) ! OBS may change to decompress_flags
+            ! find length of ramp correction template(s)
+            call self%init_sample_ramp(sd)
+            ! clean up
+            call dealloc_scan_data(sd)
+         end do
+         call timer%stop(TOD_INSTCORR, self%band)
+
+         if (self%myid==0) then
+            write(*,*) 'max templ length', maxval(self%nsamp_templ)
+            open(19, file="maxlength_scan.dat", recl=1024)
+            do i = 1, self%nscan
+               !do j = 1, self%ndet
+               if (maxval(self%nsamp_templ(1, :, i)) /= 28) then
+                  write(19,*) self%scanid(i), maxval(self%nsamp_templ(1, :, i))
+                  ! write(19,*) self%scanid(i), self%nsamp_templ(1, j, i)
+               end if
+               !end do
+            end do
+            close(19)
+            write(*,*) 'written to file'
+         end if
+         call timer%start(TOD_INSTCORR, self%band)
+         ! allocate and initialize self%tod_correction_templ
+         allocate(self%tod_correction_templ(maxval(self%nsamp_templ),self%ntempl,self%ndet,self%nscan))
+         self%tod_correction_templ = 0.d0
+      end if
+      ! ramp sampling
+      if (sample_ramp) then
+          do i = 1, self%nscan
+            ! skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            ! decompress data for this scan into sd
             call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=2)  ! OBS may change mask
+            ! sample tod correction template for ramp
             call self%sample_ramp(sd)
-            ! Clean up
+            ! clean up
             call dealloc_scan_data(sd)
          end do
       end if
+      call timer%stop(TOD_INSTCORR, self%band)
 
-      
       ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -637,6 +668,8 @@ contains
 
    module subroutine construct_corrtemp_akari(self, sd, det)
      ! construct AKARI instrument-specific correction template from ramp template
+     ! put into sd%s_inst
+     ! ramp template is calculated in sample_ramp routine below and stored in self%tod_correction_templ
      implicit none
      class(comm_akari_tod), intent(in)             :: self ! full data object with compressed tods
      class(comm_scandata),  intent(inout)          :: sd   ! decompressed self%scans(scan)%d(det)%tod
@@ -675,15 +708,15 @@ contains
 
      ! loop over detetctors
      do m = beg_det, end_det
-        !if (self%info%myid==0) write (*,*) 'detector nr', m, ' of ', ndet
+        !if (self%myid==0) write (*,*) 'detector nr', m, ' of ', ndet
         ! skip detector if full scan is un-accepted
         if (.not. self%scans(scan)%d(m)%accept) cycle
 
         ! loop through samples and find unfagged segments of length nsamp, following ramp flags
         do k = 1, ntempl
-           !if (self%info%myid==0) write (*,*) 'templ nr', k, ' of ', ntempl
+           !if (self%myid==0) write (*,*) 'templ nr', k, ' of ', ntempl
            ! Put correction template with length nsamp into templ
-           nsamp     = self%nsamp_templ(k)                         ! length of give correction template (ramp event)
+           nsamp     = self%nsamp_templ(k, m, scan)                ! length of give correction template (ramp event)
            allocate(templ(nsamp))
            templ     = self%tod_correction_templ(1:nsamp,k,m,scan) ! tod correction template
            ! skip unwrapping if  correction template is zero
@@ -697,14 +730,14 @@ contains
            nflagged  = 0                                           ! counting flagged samples
            flagged   = .false.
            do i = 1, ntod
-              !if (self%info%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
+              !if (self%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
               if ( btest(sd%flag(i,m), flag_id(k) ) ) then       ! if tod sample has ramp flag
                  if (.not. flagged) then                         ! .. and previous sample was unflagged
                     ! if this is not start of first event
                     if (start /= 0) then
                        ! check that previous event had correct length
                        if (ndata == nsamp) then
-                          !if (self%info%myid==0) write (*,*) 'B start', start+nflagged, start, nflagged, nsamp
+                          !if (self%myid==0) write (*,*) 'B start', start+nflagged, start, nflagged, nsamp
                           ! put template into s_inst tod
                           sd%s_inst(start+nflagged:start+nflagged+nsamp-1, m) = templ
                           nramps = nramps + 1
@@ -722,13 +755,13 @@ contains
               end if
            end do
            ! output for plotting
-           !if (self%info%myid==0) write(*,*) 'B num ramps for template:', nramps, k, scan
+           !if (self%myid==0) write(*,*) 'B num ramps for template:', nramps, k, scan
            deallocate(templ)
         end do
 
         ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
         !res = sd%tod(:,m) - sd%s_tot(:,m,0,1) * self%scans(scan)%d(m)%gain
-        !if (self%info%myid==0) then
+        !if (self%myid==0) then
         !   open(19, file="res_corr.dat", recl=1024)
         !   do l = 1, ntod
         !      write(19,*) l, res(l), sd%s_inst(l,1), res(l) - sd%s_inst(l,1)
@@ -738,13 +771,11 @@ contains
 
      end do
      !deallocate(res)
-
-    !sd%s_inst = 0.d0      !OBS OBS nulling whole routine DEBUG
-     
    end subroutine construct_corrtemp_akari
 
    module subroutine sample_ramp(self, sd)
      ! find template of baseline beween to ramp events, by averaging over all events in a scan
+     ! Put this into self%tod_correction_templ
      implicit none
      class(comm_akari_tod), intent(inout)          :: self  ! full data object with compressed tods
      class(comm_scandata),  intent(in)             :: sd    ! decompressed self%scans(scan)%d(det)%tod
@@ -775,7 +806,6 @@ contains
 
      ! loop over detectors
      do m = 1, ndet
-        if (self%info%myid==0) write (*,*) 'detector nr', m
         ! skip detector if full scan is un-accepted
         if (.not. self%scans(scan)%d(m)%accept) cycle
         ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
@@ -783,7 +813,8 @@ contains
 
         ! loop through tod samples and find unflagged segments of length nsamp, following ramp flags
         do k = 1, ntempl
-           nsamp     = self%nsamp_templ(k)                       ! length of give correction template (ramp event)
+           nsamp     = self%nsamp_templ(k, m, scan)              ! length of give correction template (ramp event)
+           if (nsamp == 0) cycle
            allocate(buffer(nsamp), total(nsamp), mask(nsamp))
            total     = 0.d0                                      ! will collect all ramp segements here
            nramps    = 0                                         ! counting number of ramp events 
@@ -792,7 +823,7 @@ contains
            nflagged  = 0                                         ! counting flagged samples
            flagged   = .false.
            do i = 1, ntod
-              !if (self%info%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
+              !if (self%myid==0) write (*,*) 'sample nr', i, start, nflagged, nramps
               if ( btest(sd%flag(i,m), flag_id(k) ) ) then       ! if tod sample has ramp flag
                  if (.not. flagged) then                         ! .. and previous sample was unflagged
                     ! if this is not start of first event
@@ -831,7 +862,7 @@ contains
            self%tod_correction_templ(1:nsamp,k,m,scan) = total
 
            ! output for plotting
-           !if (self%info%myid==0) then
+           !if (self%myid==0) then
            !   write(*,*) 'A num ramps for template:', nramps
            !   open(19, file="templcorr2.dat", recl=1024)
            !   do l = 1, nsamp
@@ -843,7 +874,7 @@ contains
            deallocate(buffer, total, mask)
         end do
         
-        !if (self%info%myid==0) then
+        !if (self%myid==0) then
         !   open(19, file="templ2.dat", recl=1024)
         !   do l = 1, self%nsamp_templ(1)
         !      write(19,*) l, self%tod_correction_templ(l,1,m,scan)
@@ -856,19 +887,19 @@ contains
      
    end subroutine sample_ramp
 
-   ! This subroutine is not yet used, but can be modified to automate template length search
-   ! and called from the end of constructor_akari function above
    module subroutine init_sample_ramp(self, sd)
-     ! find template of baseline beween to ramp events, by averaging over all events in a scan
+     ! scans tod flags to find length of tod segment between ramp flags (= length of correction template)
+     ! puts this into self%nsamp_templ
+     ! used to initialize correction template structure
      implicit none
      class(comm_akari_tod), intent(inout)          :: self  ! full data object with compressed tods
      class(comm_scandata),  intent(in)             :: sd    ! decompressed self%scans(scan)%d(det)%tod
 
      integer(i4b) :: i, j, k, l, nbin, b, ndet, scan, ntod, num_used, nsamp, nflags
-     integer(i4b) :: num_events(3), flag_id(3), max_num
-     real(dp)     :: dt, invgain, flag(3), flag_val(3) 
+     integer(i4b) :: num_events(3), flag_id(3), max_num, maxlength, num
+     real(dp)     :: dt, invgain, flag(3), flag_val(3), length
      logical(lgt) :: flagged(3)
-     real(dp),       allocatable, dimension(:)     :: res, total, buffer, mask
+     real(dp),       allocatable, dimension(:)     :: res
      integer(i4b),   allocatable, dimension(:,:)   :: nflagged, ndata, events
 
      ! flag bit 5 = ramp reset, 15 = cal lamp on for long wavelengts, 16 = cal lamp for short wavelength
@@ -879,29 +910,32 @@ contains
      flag_val(1) = 20.d0
      flag_val(2) = 30.d0
      flag_val(3) = 40.d0
-     nflags = 1
-    
-     scan  = sd%scan              ! scan number
-     ndet  = sd%ndet              ! number of detectors                = self%ndet
-     ntod  = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
-     dt    = 1.d0/self%samprate   ! time per/between sample in seconds
 
-     if (self%info%myid==0) write (*,*) 'ntod', ntod
-     if (self%info%myid==0) write (*,*) 'ndet', ndet
-     if (self%info%myid==0) write (*,*) 'dt  ', dt
-     if (self%info%myid==0) write (*,*) 'length of tod (s)', dt*ntod
-     if (self%info%myid==0) write (*,*) 'length of ramp (s)', dt*32
-     if (self%info%myid==0) write (*,*) 'samprate', self%samprate
-     if (self%info%myid==0) write (*,*) ''
+     nflags = 1                    ! OBS set here
+     scan   = sd%scan              ! scan number
+     ndet   = sd%ndet              ! number of detectors                = self%ndet
+     ntod   = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
+     dt     = 1.d0/self%samprate   ! time per/between sample in seconds
+     !ntempl = self%ntempl          ! number of tod correction templates we will generate
 
-     max_num = 10000 ! OBS
-     allocate(nflagged(max_num, 3))
-     allocate(ndata(0:max_num, 3))
-     allocate(events(max_num, 3))
-     allocate(res(1:ntod))
+     
+!     if (self%myid==0) write (*,*) 'ntod', ntod
+!     if (self%myid==0) write (*,*) 'ndet', ndet
+!     if (self%myid==0) write (*,*) 'dt  ', dt
+!     if (self%myid==0) write (*,*) 'length of tod (s)', dt*ntod
+!     if (self%myid==0) write (*,*) 'length of ramp (s)', dt*32
+!     if (self%myid==0) write (*,*) 'samprate', self%samprate
+!     if (self%myid==0) write (*,*) ''
+
+     max_num     = 10000 ! OBS
+     maxlength   =   100 ! max length of ramp segment  OBS hack until we get new hdf files with all flags
+     allocate(nflagged(max_num, nflags))
+     allocate(ndata(0:max_num, nflags))
+     allocate(events(max_num, nflags))
+!     allocate(res(1:ntod))
      
      do j = 1, ndet
-        if (self%info%myid==0) write (*,*) 'detector nr', j
+        if (self%myid==0) write (*,*) 'det scan samprate ', trim(self%label(j)), self%scanid(scan), self%samprate
         if (.not. self%scans(scan)%d(j)%accept) cycle
         ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
         res = sd%tod(:,j) - sd%s_tot(:,j,0,1) * self%scans(scan)%d(j)%gain
@@ -911,12 +945,12 @@ contains
         num_events(:) = 0
         nflagged      = 0
         ndata         = 0
-        if (self%info%myid==0) open(19, file="res.dat", recl=1024)
+!        if (self%myid==0) open(19, file="res.dat", recl=1024)
         do i = 1, ntod
            flag(:)    = 0.d0      
            do k = 1, nflags
               if ( btest(sd%flag(i,j), flag_id(k) ) ) then
-                 flag(k) = flag_val(k)
+!                 flag(k) = flag_val(k)
                  if (.not. flagged(k)) num_events(k) = num_events(k) + 1
                  flagged(k) = .true.
                  nflagged(num_events(k),k) = nflagged(num_events(k),k) + 1
@@ -926,10 +960,40 @@ contains
                  ndata(num_events(k),k) = ndata(num_events(k),k) + 1
               end if
            end do
-           if (self%info%myid==0) write (19,*) i, res(i), flag
+!           if (self%myid==0) write (19,*) i, res(i), flag(1:nflags)
         end do
-
+!        if (self%myid==0) close(19)
+        
+!        if (self%myid==0) open(19, file="ndata.dat", recl=1024)
+        do k = 1, nflags
+           do i = 1, num_events(k)
+!              if (self%myid==0) write(19,*) ndata(i,k)
+              if (ndata(i,k) > maxlength) ndata(i,k) = 0
+           end do
+           length = maxval(ndata(1:num_events(k),k))
+           do l = length, 1, -1
+              num = 0
+              do i = 1, num_events(k)
+                 if (ndata(i,k) == length) num = num + 1
+              end do
+              if (num > 1) exit
+           end do
+           self%nsamp_templ(1, j, scan) = l
+        end do
+ !       if (self%myid==0) close(19)
+        
      end do
+
+!     if (self%myid==0) then
+!        open(19, file="length_det.dat", recl=1024)
+!        do j = 1, ndet
+!           write(19,*) j, self%nsamp_templ(1, j, scan)
+!        end do
+!        close(19)
+!     end if
+     
+     deallocate(ndata, nflagged, events)!, res)
+     
    end subroutine init_sample_ramp
    
 end submodule comm_tod_akari_smod

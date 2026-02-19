@@ -552,7 +552,7 @@ contains
     self%instlabel     = cpar%ds_instlabel(id_abs)
     self%operation     = cpar%operation
     self%outdir        = cpar%outdir
-    self%first_call    = .true.
+    self%first_call    = .true.  ! set to .false. at end of process_inst_tod in comm_tod_inst_smod.f90
     self%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     self%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     self%flag0         = cpar%ds_tod_flag(id_abs)
