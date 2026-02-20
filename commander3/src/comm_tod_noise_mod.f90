@@ -631,7 +631,7 @@ contains
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
-             write(58,*) j, dt(j)*sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)
+             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
           end do
           close(58)
        end if
@@ -681,7 +681,7 @@ contains
                 ps_d = ps_d + abs(dv(l))**2 / ntod
                 ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
              end do
-             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
+             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1)/self%scans(scan)%d(i)%gain**2, ps_s/(j2-j1+1)/self%scans(scan)%d(i)%gain**2
              j1 = j2+1
              j2 = j1*logbin + 1             
           end do

@@ -18,7 +18,7 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
-NUM_GIBBS_ITER   = 300       # Length of each Markov chain
+NUM_GIBBS_ITER   = 200       # Length of each Markov chain
 CHAIN_STATUS     = new append
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = none # had to change because there is no FIRAS in this chain /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/chain_c0001.h5:294
@@ -47,7 +47,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v19
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v7
 NSIDE_CHISQ                   = 512
 
 ##############################################################

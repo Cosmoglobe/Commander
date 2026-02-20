@@ -111,6 +111,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_spider_mod.f90 comm_tod_spider_smod.f90 \
            comm_tod_orbdipole_mod.f90 \
            comm_tod_noise_mod.f90 \
+           comm_tod_dynmask_mod.f90 \
            comm_tod_driver_mod.f90 \
            comm_zodi_samp_mod.f90 \
            comm_tod_objctr_samp_mod.f90 \
@@ -253,7 +254,7 @@ comm_tod_crosstalk_mod.o    : comm_utils.o comm_status_mod.o
 comm_tod_Tbol_mod.o         : comm_utils.o comm_status_mod.o
 comm_tod_cray_mod.o         : comm_param_mod.o
 comm_tod_dirbe_mod.o        : comm_tod_driver_mod.o comm_tod_mapmaking_mod.o
-comm_tod_driver_mod.o       : comm_tod_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o comm_tod_pointing_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_simulations_mod.o comm_tod_jump_mod.o comm_tod_adc_mod.o comm_zodi_mod.o comm_tod_cray_mod.o comm_shared_arr_mod.o comm_huffman_mod.o comm_4d_map_mod.o comm_tod_adc_binfit_mod.o comm_tod_objctr_mod.o
+comm_tod_driver_mod.o       : comm_tod_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o comm_tod_pointing_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_simulations_mod.o comm_tod_jump_mod.o comm_tod_adc_mod.o comm_zodi_mod.o comm_tod_cray_mod.o comm_shared_arr_mod.o comm_huffman_mod.o comm_4d_map_mod.o comm_tod_adc_binfit_mod.o comm_tod_objctr_mod.o comm_tod_dynmask_mod.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o
 comm_tod_gain_smod.o        : comm_tod_gain_mod.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_tod_cray_mod.o comm_tod_adc_binfit_mod.o  comm_tod_mapmaking_mod.o
@@ -282,7 +283,7 @@ comm_tod_bandpass_mod.o     : comm_tod_mod.o
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
 comm_zodi_mod.o             : comm_zodi_comp_mod.o comm_tod_mod.o comm_bp_mod.o
 comm_tod_objctr_mod.o       : comm_tod_mod.o comm_utils.o comm_param_mod.o
-
+comm_tod_dynmask_mod.o      : comm_tod_mod.o comm_status_mod.o comm_param_mod.o
 comm_tod_lb_mod.o           : comm_tod_driver_mod.o
 comm_tod_lfi_mod.o          : comm_tod_driver_mod.o comm_tod_adc_mod.o
    comm_tod_lfi_smod.o         : comm_tod_lfi_mod.o
