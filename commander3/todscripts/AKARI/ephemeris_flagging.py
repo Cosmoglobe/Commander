@@ -1,40 +1,19 @@
-from astropy.time import Time
-from astropy.coordinates import (
-    EarthLocation,
-    HeliocentricMeanEcliptic,
-    Galactic,
-    SkyCoord,
-    angular_separation,
-    Angle,
-)
-from astropy.coordinates import (
-    get_body_barycentric,
-    get_body,
-    SphericalRepresentation,
-    CartesianRepresentation,
-)
-import astropy.units as u
-from astropy.wcs import WCS
-from astropy.io import fits
-from astropy_healpix import HEALPix
-
-
-from astroquery.jplhorizons import Horizons
-from astroplan import Observer
-from astroplan.moon import moon_phase_angle
-
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-import h5py
 import glob
 import os
 from typing import Optional
 
+import astropy.units as u
+import numpy as np
 import tqdm
-
-from pixell import enmap, utils
-from cosmoglobe.tod_tools import TODLoader
+from astropy.coordinates import (
+    Angle,
+    CartesianRepresentation,
+    HeliocentricMeanEcliptic,
+    SkyCoord,
+    SphericalRepresentation,
+    angular_separation,
+)
+from astropy.time import Time
 
 
 class EphemerisFlagger:
