@@ -4127,46 +4127,47 @@ end subroutine read_zodi_params_hash
     ! Add user specified sample groups
     cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
     
+    ! COMMENTING OUT FOR NOW -- THIS SEEMS TO BE USELESS LEGACY CODE
     ! Add one sample group per component
-    do i = 1, cpar%cs_ncomp_tot
-       if (cpar%cs_include(i)) then
-          cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
-          cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
-          cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
-          if (trim(cpar%cs_class(i)) == 'diffuse') then
-             if (trim(cpar%cs_type(i)) == 'cmb') then
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-             else
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
-             end if
-          else
-             cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-          end if
-       end if
-    end do
-    cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
-    do i = 1, cpar%cg_num_samp_groups
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(comp_label(j)) == 'md') then
-             if (n==1 .and. cpar%cg_samp_group_md < 0) then
-                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
-             else
-             end if
-             do k = 1, cpar%numband
-                if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
-             end do
-          end if
-       end do
-    end do
+!     do i = 1, cpar%cs_ncomp_tot
+!        if (cpar%cs_include(i)) then
+!           cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
+!           cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
+!           cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
+!           if (trim(cpar%cs_class(i)) == 'diffuse') then
+!              if (trim(cpar%cs_type(i)) == 'cmb') then
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!              else
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
+!              end if
+!           else
+!              cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!           end if
+!        end if
+!     end do
+!     cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
+!     do i = 1, cpar%cg_num_samp_groups
+!        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+!        do j = 1, n
+!           if (trim(comp_label(j)) == 'md') then
+!              if (n==1 .and. cpar%cg_samp_group_md < 0) then
+!                 cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+!              else
+!              end if
+!              do k = 1, cpar%numband
+!                 if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
+!              end do
+!           end if
+!        end do
+!     end do
     
-    ! More groups may be defined here
+!     ! More groups may be defined here
     
     
-    if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
-       write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
-       stop
-    end if
+!     if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
+!        write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
+!        stop
+!     end if
 
 
     ! Temporary
