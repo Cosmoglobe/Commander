@@ -207,8 +207,22 @@ contains
     allocate(c%adc(c%ndet))
     allocate(c%adu_range(c%ndet,2))
 
-    call timer%stop(TOD_INIT, id_abs)
+    ! Initialize dynamic mask
+    c%dynmask => comm_dynmask(c, cpar)
+    c%dynmask%apply_pixhist           = .true.
+    c%dynmask%apply_solar_mask        = .true.
+    c%dynmask%remove_isolated_samples = .true.
+    if (c%freq(1:3) /= "353") then
+       c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
+       c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
+       c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
+       c%dynmask%window_excessRMS(1)    =    5  ! window size in number of samples
+       c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
+       c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
+    end if
     
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor_hfi
 
   !**************************************************
@@ -316,16 +330,6 @@ contains
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
-
-    !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
-    if (self%freq(1:3) == "100") then
-       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   -1.0,      -1.0,     -1.0]
-    else if (self%freq(1:3) == "353") then
-       flag_threshold     = [  1.0,       -200.0, -50.0,    -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
-    else
-       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
-    end if
-
 
     oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
          & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
@@ -535,7 +539,7 @@ contains
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%create_dynamic_mask(sd, j, flag_threshold)
+             call self%dynmask%create(sd, j)
           end do
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -644,7 +648,7 @@ contains
     
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
     if (make_dyn_mask) then
-       call self%report_dynamic_mask_stats
+       call self%dynmask%report
        call update_status(status, "tod_dynstats"//ctext)
     end if
     
