@@ -41,7 +41,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/aimartin/akari/chains_akari_add_firas_v13
+OUTPUT_DIRECTORY              = chains_debug
 NSIDE_CHISQ                   = 512
 
 ##############################################################
@@ -122,8 +122,8 @@ INCLUDE_BAND056                = .false.    # 149 map
 INCLUDE_BAND057                = .false.    # 217 map
 INCLUDE_BAND058                = .false.    # 353 map
 INCLUDE_BAND023                = .false.    # 544 map
-INCLUDE_BAND024                = .true.     # 857 map
-INCLUDE_BAND025                = .true.    # 1251 map
+INCLUDE_BAND024                = .false.    # 857 map
+INCLUDE_BAND025                = .false.    # 1251 map
 INCLUDE_BAND061                = .false.    # 1809 map
 INCLUDE_BAND059                = .false.    # 1890 map
 INCLUDE_BAND032                = .false.    # 1904 map
@@ -1011,7 +1011,7 @@ INCLUDE_COMP26                = .false.  # Infrared dust (60um)
 INCLUDE_COMP27                = .false.  # CO-correlated dust
 
 
-NUM_CG_SAMPLING_GROUPS = 1
+NUM_CG_SAMPLING_GROUPS = 0 4
 
 @START 01
 CG_SAMPLING_GROUP&&          = AKARI_WIDE-L
@@ -1069,13 +1069,6 @@ CG_SAMPLING_GROUP_BANDS&&    = AKARI_WIDE-S
 #CG_SAMPLING_GROUP_BANDS&&    = 02a,02b,03a,03b,04a,04b
 #@END 03
 
-@START 01
-CG_SAMPLING_GROUP&&          = md
-CG_SAMPLING_GROUP_MASK&&     = mask_chisq_15band_n256_v2_ptsrc.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 7
-CG_SAMPLING_GROUP_BANDS&&    = 01a,01b,02a,02b,03a,03b,04a,04b,05a,05b,06a,06b,07a,07b,08a,08b,09a,09b,10a,10b
-@END 01
-
 
 # CMB
 @START 01
@@ -1099,13 +1092,13 @@ COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_cold_dirbe_prod6_
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
 COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
 COMP_NU_REF_T&&               = 545
-COMP_MBBTAB_TYPE&&            = binned # TODO: change
-COMP_SED_TEMPLATE&&           = /mn/stornext/d5/data/aimartin/akari/data/SEDtab_cold_dust_FIRAS_v2.dat
+COMP_MBBTAB_TYPE&&            = binned
+COMP_SED_TEMPLATE&&           = init_comm3/akari_v00/SEDtab_dust_cold_dirbe_prod6_v3.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_T_NU_MIN&&               = 120  
 COMP_BETA_NU_MIN&&            = 120      
 COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
+COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 13.36
 COMP_BETA_DEFAULT&&           =  1.6256
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 1.6
@@ -1120,7 +1113,7 @@ COMP_INIT_FROM_HDF&&          = default
 # Mono- and dipole component for non-FIRAS bands
 @START 04
 @DEFAULT components/monodipole/md_LFI.defaults
-COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d5/data/aimartin/akari/data/init_md_dust_FIRAS_v2.dat
+COMP_MD_DEFINITION_FILE&&     = init_comm3/akari_v00/init_md_dirbe_akari_v0.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_INIT_FROM_HDF&&          = none default
 @END 04
@@ -1201,7 +1194,7 @@ COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
 COMP_T_NU_MIN&&               = 120  
 COMP_BETA_NU_MIN&&            = 120      
 COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
+COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 19.25
 COMP_BETA_DEFAULT&&           =   1.62
 COMP_MBBTAB_TYPE&&            = binned
@@ -1294,11 +1287,11 @@ COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
 COMP_T_NU_MIN&&               = 120  
 COMP_BETA_NU_MIN&&            = 120      
 COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
+COMP_BETA_NU_MIN&&            = 1000     
 COMP_T_DEFAULT&&              = 28.77
 COMP_MBBTAB_TYPE&&            = binned
 COMP_BETA_DEFAULT&&           =   1.635
-COMP_SED_TEMPLATE&&           = /mn/stornext/d5/data/aimartin/akari/data/SEDtab_hot_dust_FIRAS_v2.dat
+COMP_SED_TEMPLATE&&           = init_comm3/akari_v00/SEDtab_dust_hot_dirbe_prod6_v5.dat
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
@@ -1388,118 +1381,8 @@ COMP_CG_SCALE&&                = 1
 COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
-COMP_INIT_FROM_HDF&&           = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/chain_c0001.h5:488 default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 23
-
-# Faint WISE stars, < mag 8
-@START 24
-@DEFAULT components/stars/faint_WISE_DIRBE.defaults
-COMP_LABEL&&                  = stars_diff
-COMP_MBBTAB_TYPE&&            = binned
-COMP_SED_TEMPLATE&&           = faint_WISE_DIRBE_tab_v07.dat
-COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits
- diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
-@DEFAULT components/dust/dust_DIRBE_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
-COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
-COMP_T_ALMSAMP_INIT&&         = init_alm_dust_T_hke.dat
-@END 24
-
-# WHAM Halpha correlated dust in absorption
-@START 25
-@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_Ha
-COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_dust_Ha_multicomp_n4096_v9.fits init_WHAM_Ha_545_uKrj_n2048_v1.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_hot_n2048_node01.fits
-COMP_IND_LMAX&&               = 0
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
-COMP_T_DEFAULT&&              = 17.8
-COMP_BETA_DEFAULT&&           =   1.620
-COMP_SED_TEMPLATE&&           = SEDtab_dust_Ha_dirbe_prod6_v4.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned # TODO: change
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_AMP_PRIOR_LMAX&&         = 6000
-COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
-COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
-COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = none default
-COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
-COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
-@END 25
-
-# Infrared (60um) thermal dust component
-@START 26
-@DEFAULT components/dust/dust_ir_DIRBE_n0512.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_ir
-COMP_NU_REF_T&&               = 3000
-COMP_AMP_INPUT_MAP&&          = init_dust_ir_prod4_v1.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
-COMP_T_DEFAULT&&              = 34.03
-COMP_BETA_DEFAULT&&           =   1.650
-COMP_SED_TEMPLATE&&           = SEDtab_dust_ir_dirbe_prod4_v1.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
-COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
-COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
-@END 26
-
-# CO-correlated thermal dust component
-@START 27
-@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_co
-COMP_NU_REF_T&&               = 545
-COMP_AMP_INPUT_MAP&&          = init_dust_co_multicomp_v6.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_hot_n2048_node01.fits
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MAX&&            = 1000     
-COMP_T_DEFAULT&&              = 13.0
-COMP_BETA_DEFAULT&&           =   1.650
-COMP_SED_TEMPLATE&&           = SEDtab_dust_co_dirbe_prod3_v1.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_AMP_PRIOR_LMAX&&         = 6000
-COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
-COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = none 
-COMP_BETA_ALMSAMP_INIT&&      = init_alm_hotPAH_beta_hke.dat
-COMP_T_ALMSAMP_INIT&& = init_alm_hotPAH_T_hke.dat
-@END 27
 
 # Star templates from Gaia + Wise
 @START 29
@@ -1513,7 +1396,7 @@ COMP_CG_SCALE&&                = 1
 COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
-COMP_INIT_FROM_HDF&&           = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/chain_c0001.h5:488 default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 29
 
 # Star templates from Gaia + Wise
@@ -1528,7 +1411,7 @@ COMP_CG_SCALE&&                = 1
 COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
-COMP_INIT_FROM_HDF&&           = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/chain_c0001.h5:488 default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 31
 
 # Faint WISE stars, < mag 8
@@ -1915,114 +1798,13 @@ ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 06
 
 
-NUM_MCMC_SAMPLING_GROUPS = 1 13
-
-#@START 01
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,hotPAH:tab@1%0.005,dust_Ha:tab@1%0.005
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.1,dust:tab@1%0.05,hotPAH:tab@1%0.05,dust_Ha:tab@1%0.05
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 10a,10b 
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 01
-
-#@START 02
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@2%0.01,hotPAH:tab@2%0.01,dust_Ha:tab@2%0.01
-#MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@2%0.1,dust:tab@2%0.1,hotPAH:tab@2%0.05,dust_Ha:tab@2%0.05
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 09a,09b 
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 02
-
-#@START 03
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@3%0.001,hotPAH:tab@3%0.001,dust_Ha:tab@3%0.001
-##MCMC_SAMPLING_GROUP_PARAMS&&           = dust_cii:tab@3%0.1,dust:tab@3%0.01,hotPAH:tab@3%0.1,dust_Ha:tab@3%0.1
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 08a,08b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 03
-
-#@START 04
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.001,hotPAH:tab@4%0.001,dust_Ha:tab@4%0.001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.1,dust:tab@4%0.03,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 07a,07b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 04
-
-#@START 05
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.0003,hotPAH:tab@5%0.0003,dust_cii:tab@5%0.0003,stars_diff:tab@5%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_Ha:tab@5%0.01,hotPAH:tab@5%0.01,dust_cii:tab@5%0.01,dust:tab@5%0.001,stars_diff:tab@5%0.001
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 06a,06b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-#@END 05
-
-#@START 06
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.0003,dust_Ha:tab@6%0.0003,hotPAH:tab@6%0.0003,stars_diff:tab@6%0.0001
-#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@6%0.01,dust_Ha:tab@6%0.01,hotPAH:tab@6%0.01,dust:tab@6%0.001,stars_diff:tab@6%0.001
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_MBBtab_08_v1.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
-#@END 06
-
-#@START 07
-#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@10%0.003
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 01a,01b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_01_compobj_res_v13.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-#@END 07
-
-#@START 08
-#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@9%0.003
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 02a,02b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_02_compobj_res_v13.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-#@END 08
-
-#@START 09
-#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@8%0.003
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_03_compobj_res_v12.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-#@END 09
-
-#@START 10
-#MCMC_SAMPLING_GROUP_PARAMS&&            = stars_diff:tab@7%0.003
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_04_compobj_res_v12.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 20
-#@END 10
-
-#@START 11
-#MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@8%0.0001,dust_cii:tab@8%0.0001
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 03a,03b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 11
-
-#@START 12
-#MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@7%0.0001,dust_cii:tab@7%0.0001
-#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 04a,04b
-#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dirbe_chisq1000_1deg.fits
-#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
-#@END 12
+NUM_MCMC_SAMPLING_GROUPS = 0 1 12
 
 @START 01
-MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@1%0.005,dust:tab@1%0.005,dust_cii:tab@2%0.05,dust:tab@2%0.05 # add other tabs ,dust_cii:tab@2%0.005,dust:tab@2%0.005
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = FIRAS_H0857,FIRAS_H1251 # add other bandsFIRAS_band1,FIRAS_band2,...FIRAS_band9,FIRAS_band10
+MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
+#MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.1,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = AKARI_N60
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 @END 01
