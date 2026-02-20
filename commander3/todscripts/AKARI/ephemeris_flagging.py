@@ -102,8 +102,20 @@ class EphemerisFlagger:
         ]  # Normalize names to lowercase for consistent file naming
 
         proximity_flags = []
+
+        pbar = tqdm.tqdm(
+            total=len(celestial_body_names),
+            desc="Processing",
+            colour="red",
+            ncols=80,
+            position=0,
+            leave=True,
+        )
+
         # Looping through each celestial body to generate flags based on proximity to the observatory's pointing
         for body in celestial_body_names:
+            pbar.set_description(f"\033[92mProcessing {body}\033[00m")
+
             if body not in [
                 os.path.basename(f).replace("_ephemeris.txt", "")
                 for f in self.available_ephemeris_files
@@ -173,7 +185,8 @@ class EphemerisFlagger:
             )
 
             proximity_flags.append(proximity_flag)
-
+            pbar.update(1)
+        pbar.close()
         return proximity_flags
 
 
