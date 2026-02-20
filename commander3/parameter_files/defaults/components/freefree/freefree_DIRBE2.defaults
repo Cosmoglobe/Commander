@@ -38,7 +38,7 @@ COMP_CL_DEFAULT_THETA_B&&     = 90.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 1500
-COMP_AMP_INPUT_MAP&&          = common/init/init_ff_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_comm3/common/init_ff_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits none
 COMP_AMP_PRIOR_LMAX&&         = -1
 
