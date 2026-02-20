@@ -1004,7 +1004,7 @@ contains
 !     allocate(res(1:ntod))
      
      do j = 1, ndet
-        if (self%myid==0) write (*,*) 'det scan samprate ', trim(self%label(j)), self%scanid(scan), self%samprate
+        ! if (self%myid==0) write (*,*) 'det scan samprate ', trim(self%label(j)), self%scanid(scan), self%samprate
         if (.not. self%scans(scan)%d(j)%accept) cycle
         ! get tod data for residual = full tod - signal_tod ! OBS ignoring ncorr which is not set yet
         !res = sd%tod(:,j) - sd%s_tot(:,j,0,1) * self%scans(scan)%d(j)%gain
