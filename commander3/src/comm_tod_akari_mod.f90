@@ -41,14 +41,14 @@ module comm_tod_akari_mod
 
    type, extends(comm_tod) :: comm_akari_tod
       integer(i4b)                                  :: ntempl       ! Number of tod correction templates
-      integer(i4b), allocatable, dimension(:,:,:)   :: nsamp_templ  ! length of each template [ntempl, ndet, nscan]
+      integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! length of each template [ntempl]
       real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
       class(comm_dynmask), pointer :: dynmask
    contains
      procedure     :: process_tod             => process_akari_tod
      procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
      procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
-     procedure     :: sample_ramp, init_sample_ramp
+     procedure     :: sample_ramp
    end type comm_akari_tod
 
    interface comm_akari_tod
