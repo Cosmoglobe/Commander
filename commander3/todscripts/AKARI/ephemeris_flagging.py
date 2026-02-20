@@ -17,12 +17,28 @@ from astropy.time import Time
 
 
 class EphemerisFlagger:
+    """Generate flags for celestial bodies based on proximity to observatory pointing.
+
+    This class loads ephemeris data for celestial bodies and generates boolean flags
+    indicating when the bodies are within a specified proximity threshold of the
+    observatory's pointing direction.
+    """
+
     def __init__(
         self,
         ephemeris_file_dir: Optional[
             str
         ] = "/mn/stornext/d23/cmbco/globe/common/aux/ephemeris",
     ):
+        """Initialize EphemerisFlagger with ephemeris data directory.
+
+        Args:
+            ephemeris_file_dir: Path to directory containing ephemeris data files.
+                Defaults to the common aux ephemeris directory.
+
+        Raises:
+            ValueError: If the provided directory path does not exist.
+        """
         if not os.path.isdir(ephemeris_file_dir):
             raise ValueError(f"Provided path {ephemeris_file_dir} is not a directory.")
 
@@ -32,6 +48,16 @@ class EphemerisFlagger:
         )
 
     def load_ephemeris(self, ephemeris_file: str):
+        """Load ephemeris data from file.
+
+        Args:
+            ephemeris_file: Path to ephemeris file containing time and position data.
+
+        Returns:
+            Tuple[Time, SkyCoord]: Tuple containing:
+                - ephemeris time as astropy Time object in TDB scale
+                - position as astropy SkyCoord in Heliocentric Mean Ecliptic frame
+        """
         ephemeris_data = np.loadtxt(ephemeris_file, skiprows=2)
         mjd = Time(ephemeris_data[:, 0], format="mjd", scale="tdb")
         pos = SkyCoord(
@@ -46,6 +72,23 @@ class EphemerisFlagger:
     def linearly_interpolate_ephemeris(
         self, ephemeris_time: Time, ephemeris_position: SkyCoord, target_time: Time
     ):
+        """Interpolate ephemeris position at a specific time.
+
+        Performs linear interpolation of celestial body position between ephemeris
+        data points at the requested time.
+
+        Args:
+            ephemeris_time: Array of times from ephemeris data (astropy Time).
+            ephemeris_position: Array of positions from ephemeris data (astropy SkyCoord).
+            target_time: Time at which to interpolate position (astropy Time).
+
+        Returns:
+            SkyCoord: Interpolated position at target time in the same frame as
+                ephemeris_position.
+
+        Raises:
+            ValueError: If target_time is outside the bounds of ephemeris data.
+        """
         if target_time < ephemeris_time[0] or target_time > ephemeris_time[-1]:
             raise ValueError("Target time is out of bounds of the ephemeris data.")
 
@@ -83,7 +126,27 @@ class EphemerisFlagger:
         observatory_time: Time,
         proximity_threshold: list[Angle],
     ):
+        """Generate proximity flags for celestial bodies.
 
+        Determines which celestial bodies are within specified proximity thresholds
+        of the observatory's pointing direction at a given time.
+
+        Args:
+            celestial_body_names: List of celestial body names (e.g., 'Jupiter', 'Saturn').
+            observatory_pointing: Observatory's pointing direction (astropy SkyCoord).
+            observatory_position: Observatory's position in space (astropy SkyCoord).
+            observatory_time: Time of observation (astropy Time).
+            proximity_threshold: List of angular separation thresholds for each body
+                (astropy Angle, same length as celestial_body_names).
+
+        Returns:
+            list: Boolean arrays indicating when each celestial body is within its
+                proximity threshold. Each array has same length as input time series.
+
+        Raises:
+            ValueError: If input coordinates are not SkyCoord objects or if
+                required ephemeris files are not found.
+        """
         # Ensure inputs are of the correct types
         if not isinstance(observatory_pointing, SkyCoord):
             raise ValueError("Observatory pointing must be an astropy SkyCoord object.")
@@ -191,6 +254,11 @@ class EphemerisFlagger:
 
 
 def main():
+    """Demonstrate usage of the EphemerisFlagger class with example data.
+
+    Creates an EphemerisFlagger instance, defines example celestial bodies and
+    observatory parameters, and generates proximity flags for the bodies.
+    """
     # Example usage of the EphemerisFlagger class
     ephemeris_flagger = EphemerisFlagger()
 
