@@ -225,19 +225,11 @@ class EphemerisFlagger:
             apparent_lon = relative_spherical_position.lon
             apparent_lat = relative_spherical_position.lat
 
-            # Astropy SkyCoord's "longitude" and "latitude" component names depend on the frame,
-            # so we need to determine the correct component names for the observatory pointing
-            inverse_representation_component_names = {
-                v: k
-                for k, v in observatory_pointing.representation_component_names.items()
-            }
-
-            pointing_lon = getattr(
-                observatory_pointing, inverse_representation_component_names["lon"]
-            )
-            pointing_lat = getattr(
-                observatory_pointing, inverse_representation_component_names["lat"]
-            )
+            # Convert observatory pointing to spherical representation to get lon/lat
+            # (needed because the input might be in cartesian representation)
+            pointing_spherical = observatory_pointing.spherical
+            pointing_lon = pointing_spherical.lon
+            pointing_lat = pointing_spherical.lat
 
             separation = angular_separation(
                 apparent_lon,
@@ -297,70 +289,30 @@ def main():
 
 
 def main2():
-
     import h5py
     from pixell import enmap, utils
     import matplotlib.pyplot as plt
+    from astropy.coordinates import get_body, solar_system_ephemeris, EarthLocation
 
-    # Example usage of the EphemerisFlagger class
     ephemeris_flagger = EphemerisFlagger()
 
-    celestial_bodies = ["Jupiter", "Saturn", "Mars", "Ceres"]
-    proximity_thresholds = [Angle(0.1, unit=u.degree)] * len(celestial_bodies)
+    celestial_bodies = [
+        "Jupiter",
+    ]
+    proximity_thresholds = [Angle(0.5, unit=u.degree)] * len(celestial_bodies)
 
-    path = "/mn/stornext/d16/cmbco/comap/data/level1/2019-09/comap-0008000-2019-09-29-003017.hd5"
-
-    l1_data = {}
-    with h5py.File(path, "r") as infile:
-        for key, value in tqdm.tqdm(infile["spectrometer"].items()):
-            if key == "pixel_pointing":
-                for _key, _value in infile["spectrometer/pixel_pointing"].items():
-                    l1_data[_key] = _value[()]
-            elif key == "tod":
-                l1_data[key] = value[(0, 1), 0, 250]
-            else:
-                l1_data[key] = value[()]
-
-    ra = l1_data["pixel_ra"][(0, 1), :]
-    dec = l1_data["pixel_dec"][(0, 1), :]
-
+    observatory_time = Time(58755.028530304335, format="mjd", scale="tdb")
     observatory_pointing = SkyCoord(
-        ra=ra * u.deg, dec=dec * u.deg, frame="icrs"
-    ).transform_to("icrs")
-
-    observatory_time = Time(l1_data["MJD"], format="mjd", scale="utc").tdb
-
-    earth_file_data = np.loadtxt(
-        "/mn/stornext/d23/cmbco/globe/common/aux/ephemeris/earth_ephemeris.txt",
-        skiprows=2,
-    )
-    mjd_lr = Time(earth_file_data[:, 0], format="mjd", scale="tdb")
-    observatory_position_lr = SkyCoord(
-        x=earth_file_data[:, 1] * u.au,
-        y=earth_file_data[:, 2] * u.au,
-        z=earth_file_data[:, 3] * u.au,
-        representation_type="cartesian",
-        frame=HeliocentricMeanEcliptic,
+        ra=[256.82296228613416, 0, 90],
+        dec=[-22.609898786867273, 76, 43],
+        unit=u.deg,
+        frame="icrs",
     )
 
-    # Interpolating OVRO's (~Earth's) position to match the time array of the L1 data
-    earth_x_hr = np.interp(
-        l1_data["MJD"], mjd_lr.mjd, observatory_position_lr.x.to(u.km).value
-    )
-    earth_y_hr = np.interp(
-        l1_data["MJD"], mjd_lr.mjd, observatory_position_lr.y.to(u.km).value
-    )
-    earth_z_hr = np.interp(
-        l1_data["MJD"], mjd_lr.mjd, observatory_position_lr.z.to(u.km).value
-    )
-
-    observatory_position = SkyCoord(
-        x=earth_x_hr * u.km,
-        y=earth_y_hr * u.km,
-        z=earth_z_hr * u.km,
-        representation_type="cartesian",
-        frame=HeliocentricMeanEcliptic,
-    ).transform_to("icrs")
+    loc = EarthLocation.of_site("ovro")
+    with solar_system_ephemeris.set("builtin"):
+        earth = get_body("earth", observatory_time, loc)
+    observatory_position = earth.transform_to("heliocentricmeanecliptic")
 
     flags = ephemeris_flagger.generate_tod_flag(
         celestial_body_names=celestial_bodies,
@@ -371,58 +323,9 @@ def main2():
     )
 
     flags = np.array(flags)
-    print("\nFinished:", flags.shape)
-
-    fig, ax = plt.subplots()
-    ax.plot(observatory_time.mjd, flags[0, 0], label="Jupiter Flag")
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("Flag")
-    ax.set_title("Proximity Flag for Jupiter")
-    ax.legend()
-    fig.savefig("jupiter_proximity_flag.png", dpi=300)
-
-    fig, ax = plt.subplots()
-    ax.plot(observatory_time.mjd, flags[1, 0], label="Saturn Flag")
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("Flag")
-    ax.set_title("Proximity Flag for Saturn")
-    ax.legend()
-    fig.savefig("saturn_proximity_flag.png", dpi=300)
-
-    fig, ax = plt.subplots()
-    ax.plot(observatory_time.mjd, flags[2, 0], label="Mars Flag")
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("Flag")
-    ax.set_title("Proximity Flag for Mars")
-    ax.legend()
-    fig.savefig("mars_proximity_flag.png", dpi=300)
-
-    fig, ax = plt.subplots()
-    ax.plot(observatory_time.mjd, flags[3, 0], label="Ceres Flag   ")
-    ax.set_xlabel("MJD")
-    ax.set_ylabel("Flag")
-    ax.set_title("Proximity Flag for Ceres")
-    ax.legend()
-    fig.savefig("ceres_proximity_flag.png", dpi=300)
-
-    fig, ax = plt.subplots()
-    ax.scatter(
-        dec[0, :],
-        ra[0, :],
-        c=flags[0, 0],
-        s=1,
-        label="Jupiter Proximity Flag",
-        cmap="viridis",
-    )
-    # Flip the x-axis to match the standard astronomical convention of increasing RA to the left
-    ax.invert_xaxis()
-    ax.set_xlabel("RA (deg)")
-    ax.set_ylabel("Dec (deg)")
-    ax.set_title("Jupiter Proximity Flag Map")
-    ax.legend()
-    fig.savefig("jupiter_proximity_flag_map.png", dpi=300)
+    print("Proximity Flags:", flags)
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     main2()
