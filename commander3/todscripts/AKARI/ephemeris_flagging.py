@@ -29,16 +29,19 @@ class EphemerisFlagger:
         ephemeris_file_dir: Optional[
             str
         ] = "/mn/stornext/d23/cmbco/globe/common/aux/ephemeris",
+        progressbar: bool = False,
     ):
         """Initialize EphemerisFlagger with ephemeris data directory.
 
         Args:
             ephemeris_file_dir: Path to directory containing ephemeris data files.
                 Defaults to the common aux ephemeris directory.
+            progressbar: If True, enables progressbar display during flag generation.
 
         Raises:
             ValueError: If the provided directory path does not exist.
         """
+        self.progressbar = progressbar
         if not os.path.isdir(ephemeris_file_dir):
             raise ValueError(f"Provided path {ephemeris_file_dir} is not a directory.")
 
@@ -169,18 +172,20 @@ class EphemerisFlagger:
 
         proximity_flags = []
 
-        pbar = tqdm.tqdm(
-            total=len(celestial_body_names),
-            desc="Processing",
-            colour="red",
-            ncols=80,
-            position=0,
-            leave=True,
-        )
+        if self.progressbar:
+            pbar = tqdm.tqdm(
+                total=len(celestial_body_names),
+                desc="Processing",
+                colour="red",
+                ncols=80,
+                position=0,
+                leave=True,
+            )
 
         # Looping through each celestial body to generate flags based on proximity to the observatory's pointing
         for body in celestial_body_names:
-            pbar.set_description(f"\033[92mProcessing {body}\033[00m")
+            if self.progressbar:
+                pbar.set_description(f"\033[92mProcessing {body}\033[00m")
 
             if body not in [
                 os.path.basename(f).replace("_ephemeris.txt", "")
@@ -243,8 +248,12 @@ class EphemerisFlagger:
             )
 
             proximity_flags.append(proximity_flag)
-            pbar.update(1)
-        pbar.close()
+            if self.progressbar:
+                pbar.update(1)
+
+        if self.progressbar:
+            pbar.close()
+
         return proximity_flags
 
 
@@ -294,7 +303,7 @@ def main2():
     import matplotlib.pyplot as plt
     from astropy.coordinates import get_body, solar_system_ephemeris, EarthLocation
 
-    ephemeris_flagger = EphemerisFlagger()
+    ephemeris_flagger = EphemerisFlagger(progressbar=True)
 
     celestial_bodies = [
         "Jupiter",
