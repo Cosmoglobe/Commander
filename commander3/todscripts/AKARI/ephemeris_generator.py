@@ -100,9 +100,9 @@ class EphemerisGenerator:
         )
 
         self.jpl_horizons_query_limit = 90024
-        self.number_of_query_batches = max(1, int(
-            np.ceil(self.time_arr.size / self.jpl_horizons_query_limit)
-        ))
+        self.number_of_query_batches = max(
+            1, int(np.ceil(self.time_arr.size / self.jpl_horizons_query_limit))
+        )
         self.batch_size = int(
             np.ceil(self.time_arr.size / self.number_of_query_batches)
         )
@@ -359,7 +359,9 @@ class EphemerisGenerator:
                         grp["position_au"].attrs["units"] = "au"
                         grp["position_au"].attrs["frame"] = "heliocentric_mean_ecliptic"
             else:
-                print(f"Warning: Unknown format '{fmt}'. Skipping. Valid formats: txt, hdf5, h5, both")
+                print(
+                    f"Warning: Unknown format '{fmt}'. Skipping. Valid formats: txt, hdf5, h5, both"
+                )
 
 
 def parse_commandline_args():
