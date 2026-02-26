@@ -26,6 +26,7 @@ TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 0
 TOD_INCLUDE_ZODI              = .false.
 FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
 
 NSKIP_FILELIST                = 0
 ENABLE_TOD_SIMULATIONS        = .false.

@@ -900,20 +900,32 @@ contains
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
-       !d_calib(1,:,j) = (sd%tod(:,j)) &
-       !     & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
-       d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
-            & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
-       !d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
-       !     & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
-       if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j,0,1) + sd%s_bp(:,j,0,1)              ! residual
-       if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
-       !if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
-       if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j,0,1)                                               ! bandpass
-       if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j,0)                                              ! orbital dipole
+       ! sky signal
+       d_calib(1,:,j) = sd%tod(:,j) * inv_gain
+       if (allocated(sd%n_corr))   d_calib(1,:,j) = d_calib(1,:,j) - sd%n_corr(:,j) * inv_gain
+       if (allocated(sd%s_sl))     d_calib(1,:,j) = d_calib(1,:,j) - sd%s_sl(:,j,0)
+       if (allocated(sd%s_orb))    d_calib(1,:,j) = d_calib(1,:,j) - sd%s_orb(:,j,0)
+       if (allocated(sd%s_zodi))   d_calib(1,:,j) = d_calib(1,:,j) - sd%s_zodi(:,j,0)
+       if (allocated(sd%s_objctr)) d_calib(1,:,j) = d_calib(1,:,j) - sd%s_objctr(:,j,0)
+       if (allocated(sd%s_bp))     d_calib(1,:,j) = d_calib(1,:,j) - sd%s_bp(:,j,0,1)
+       ! residual
+       if (tod%output_n_maps > 1) then
+          d_calib(2,:,j) = d_calib(1,:,j)
+          if (allocated(sd%s_sky)) d_calib(2,:,j) = d_calib(2,:,j) - sd%s_sky(:,j,0,1)
+          if (allocated(sd%s_bp))  d_calib(2,:,j) = d_calib(2,:,j) + sd%s_bp(:,j,0,1)
+       end if
+       ! ncorr
+       if (tod%output_n_maps > 2 .and. allocated(sd%n_corr)) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain
+       ! bandpass
+       if (tod%output_n_maps > 3 .and. allocated(sd%s_bp))   d_calib(4,:,j) = sd%s_bp(:,j,0,1)
+       ! orbital dipole
+       if (tod%output_n_maps > 4 .and. allocated(sd%s_orb))  d_calib(5,:,j) = sd%s_orb(:,j,0)
+       ! sidelobes
        if (tod%output_n_maps > 5 .and. allocated(sd%s_sl))   d_calib(6,:,j) = sd%s_sl(:,j,0)          
-       if (tod%output_n_maps > 6 .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j,0) ! zodi
-       if (tod%output_n_maps > 7 .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
+       ! zodi
+       if (tod%output_n_maps > 6 .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j,0)
+       ! instrument specific
+       if (tod%output_n_maps > 7 .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain
 !!$       if (tod%output_n_maps > 8) then
 !!$          do i = 1, zodi_model%n_comps
 !!$             call get_s_tot_zodi(zodi_model, tod, j, scan, d_calib(8+i,:,j), pix_dynamic=sd%pix(:,j,:), exclude_static='all', comp=i)

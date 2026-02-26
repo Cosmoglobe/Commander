@@ -154,9 +154,10 @@ contains
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
-    ! Construct lookup tables
+    ! Construct lookup table
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
     call c%precompute_lookups()
-
+    
     ! Load the instrument file
     call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
@@ -247,10 +248,14 @@ contains
     ! Define useful sd operation codes
     if (sample_ncorr) then
        oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+            & SD_TOD,SD_SKY, SD_NCORR])
+            !& SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+            ! OBS FIXME include V_SUN, sidelobes and zodi in litebird files!
     else
        oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+            & SD_TOD,SD_SKY])
+            !& SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+            ! OBS FIXME include V_SUN, sidelobes and zodi in litebird files!
     end if
     
     ! Initialize local variables

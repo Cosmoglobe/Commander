@@ -410,6 +410,7 @@ contains
 !!$         self%ntempl = 1     ! OBS may change
 !!$         ! allocate self%nsamp_templ
 !!$         allocate(self%nsamp_templ(self%ntempl, self%ndet, self%nscan))
+!!$         self%nsamp_templ = 0.d0
 !!$         do i = 1, self%nscan
 !!$            ! skip scan if no accepted data
 !!$            if (.not. any(self%scans(i)%d%accept)) cycle

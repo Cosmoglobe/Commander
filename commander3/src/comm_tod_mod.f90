@@ -2682,7 +2682,8 @@ contains
 !!$          end if
           if (minval(sd%psi(:,j,h)) <= 0) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', fix input HDF files. Perhaps zero-based psi?'
-            stop
+            !stop
+            where (sd%psi(:,j,h) <= 0) sd%psi(:,j,h) = sd%psi(:,j,h) + self%npsi  !FIXME
           end if
           if (maxval(sd%psi(:,j,h)) > self%npsi) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', greater than npsi,', self%npsi,'; fix input HDF files'
