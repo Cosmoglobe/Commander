@@ -12,7 +12,7 @@ BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
 BAND_MASKFILE&&&               = fullsky
 BAND_MASKFILE_CALIB&&&         = fullsky
 BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
-BAND_BEAM_B_L_FILE&&&          = Bl_TEB_npipe6v19_100-ds2x100-ds2.fits
+BAND_BEAM_B_L_FILE&&&          = common/beam/beam_005arcmin.fits
 BAND_BEAM_B_PTSRC_FILE&&&      = none
 BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n8192.fits 
 BAND_SAMP_NOISE_AMP&&&         = .false.
@@ -44,6 +44,7 @@ BAND_TOD_TOT_NUMSCAN&&&        = 977
 BAND_TOD_FLAG&&&               = 0
 BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = Mv21_f090_Ar00c02A,Mv21_f090_Ar00c03A,Mv21_f090_Ar00c03B,Mv21_f090_Ar00c04A,Mv21_f090_Ar00c04B,Mv21_f090_Ar00c05B,Mv21_f090_Ar00c06A,Mv21_f090_Ar00c07A
+BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
 BAND_TOD_INIT_FROM_HDF&&&      = default
 
@@ -59,22 +60,22 @@ BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none
 
 
 #TODO: make these paths into real defaults in the Oslo legacy archive 
-BAND_MAPFILE&&&                = HFI_SkyMap_100-BPassCorrected_1024_R4.00_full.fits
-BAND_NOISEFILE&&&              = HFI_SkyMap_100-BPassCorrected_1024_R4.00_full_rms_uK.fits
+BAND_MAPFILE&&&                = common/maps/ones_n08192.fits
+BAND_NOISEFILE&&&              = common/maps/ones_n08192.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_BANDPASSFILE&&&           = HFI_instrument_v4.h5
 
-BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_100_n1024_mask.fits
-BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_100_n1024_mask.fits
+BAND_TOD_MAIN_PROCMASK&&&      = common/maps/ones_n08192.fits
+BAND_TOD_SMALL_PROCMASK&&&     = common/maps/ones_n08192.fits
 N_GIBBS_PER_TOD&&&             = 1
 BAND_TOD_RIMO&&&               = HFI_instrument_v4.h5
 BAND_TOD_FILELIST&&&           = filelist_100.txt
 
 BAND_TOD_ZODI_SUBTRACTION&&&   = .false. 
-BAND_TOD_ZODI_MASK&&&          = mask_common_dx12_n1024_TQU.fits 
+BAND_TOD_ZODI_MASK&&&          = so_lat/maps/dummy_n08192.fits
 BAND_TOD_ZODI_EMISSIVITY&&&    = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
 BAND_TOD_ZODI_REFERENCE_BAND&&&= .false.
