@@ -972,7 +972,7 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
-       call read_hdf_string2(file, "/common/det", det_buf, n)
+       call read_hdf_string2(file, "/common/dets", det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
