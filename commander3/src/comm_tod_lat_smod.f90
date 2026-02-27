@@ -356,19 +356,6 @@ contains
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
 
-    ! Precompute far sidelobe Conviqt structures
-    if (self%correct_sl) then
-       call timer%start(TOD_SL_PRE, self%band)
-       if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-       do i = 1, self%ndet
-          !TODO: figure out why this is rotated
-          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-          self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-       end do
-       call timer%stop(TOD_SL_PRE, self%band)
-    end if
 
     call update_status(status, "tod_init")
 
@@ -376,134 +363,6 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
-    ! Fit per-chunk low-level non-linearity parameters
-    do i = 1, self%nscan
-       ! Skip scan if no accepted data
-       if (.not. any(self%scans(i)%d%accept)) cycle
-
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
-       
-        ! Subtract A/B detector crosstalk
-        ! Not implemented yet
-
-       call timer%start(TOD_NONLIN, self%band)
-       if (self%correct_N_crosstalk) then
-          ! estimate A/B detector crosstalk coeficients
-          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
-          !call self%xtalk%estimate_crosstalk_matrix(sd)
-          !call self%xtalk%remove_crosstalk_signal(sd)
-       end if
-
-       ! Estimate modulation baselines; and set modulation phase
-       if (self%first_call .and. trim(self%init_from_HDF) == 'none') then
-          call sample_lat_baselines(sd, self, i, handle, subtract_s_tot=.false.)
-          call set_modulation_phase(sd, self, i)
-       else
-          call sample_lat_baselines(sd, self, i, handle)
-       end if
-       call demodulate_tod(sd, self, i)
-       
-       if (.not. self%first_call) then
-          call int2string(iter, itertext)
-          call int2string(self%scanid(i), scantext)
-          do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
-             ! fill gaps and deconvolve rolloff
-             call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j,0,1), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
-                            !& ps_output = 'init_' // itertext // '_' // scantext)
-             call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j,0,1), sd%mask(:,j), nomono=.true.)!,&
-                                     !& ps_output = itertext // '_' // scantext)
-          end do
-       end if
-       call timer%stop(TOD_NONLIN, self%band)
-
-       ! Fix dc level jumps 
-       call self%stitch_lat_dc_level(i, sd)
-
-       ! Dark bolometer drift correction
-       call self%lat_dark_correction(i, sd)       
-
-       ! 4k Line corrections
-       call self%estimate_lat_4k_lines(i, sd)
- 
-       ! Clean up
-       call dealloc_scan_data(sd)
-    end do
-    call timer%start(TOD_WAIT, self%band)
-    call mpi_barrier(self%comm, ierr) ! Improve timing information
-    call timer%stop(TOD_WAIT, self%band)
-
-    
-!!$    call update_status(status, "tod_nonlin"//ctext)
-
-    ! Fit global timestream contaminants 
-
-    ! Subtract cosmic ray contribution
-!!$    do j=1, self%ndet
-!!$
-!!$      call init_det_data_singlehorn(dd, self, j)
-!!$
-!!$      call self%cray(j)%p%build_cray_templates()
-!!$
-!!$      do i=1, self%nscan
-!!$        call populate_sd_from_dd(sd, dd, i, j)
-!!$
-!!$        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
-!!$
-!!$        call dealloc_scan_data(sd)
-!!$      end do
-!!$
-!!$      call dd%dealloc
-!!$    end do
-
-    ! Estimate ADC corrections
-    !    Not implemented yet
-
-    ! Fit bolometer transfer function parameters?
-    !    Not implemented yet     
-
-
-    ! NOW Sample high level tod components that require cleaned data
-
-    ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    if (sample_gain) then
-       ! TODO: Also sample non-linear gain response here?
-       call sample_calibration(self, 'abscal', oper_default, handle)
-       call sample_calibration(self, 'relcal', oper_default, handle)
-       !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
-       call update_status(status, "tod_calib"//ctext)
-    end if
-    
-    ! Sample ADC and baseline parameters jointly
-    if (sample_adc) then
-       ! Initialize ADC objects before first call
-       if (.not. associated(self%adc(1)%p)) then          
-          call self%compute_adu_range
-          do i = 1, self%ndet
-             self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
-                  & self%adu_range(i,1), self%adu_range(i,2), 40)
-          end do
-       end if
-
-       ! Sample ADC parameters
-!!$       do i = 1, self%ndet
-!!$          call self%sample_adc_and_baselines(handle, i, map_sky(:,:,i,1), procmask)
-!!$       end do
-       call update_status(status, "tod_adc"//ctext)
-    end if
-
-    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
-    do i = 1, self%nscan
-       if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
-       call sample_lat_baselines(sd, self, i, handle)
-       call dealloc_scan_data(sd)
-    end do
-    call update_status(status, "tod_base"//ctext)
-    
-    ! Create pixel histograms
-    if (self%first_call) call compute_tod_pixhist(self)
-    call update_status(status, "tod_hist"//ctext)
     
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
@@ -548,22 +407,6 @@ contains
           call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        end if
 
-       ! Sample correlated noise
-       if (sample_ncorr) then
-          call sample_n_corr(self, sd, handle)
-          if (sample_xi_n) then
-             allocate(freqmask(0:sd%ntod/2))
-             freqmask = 1.
-             call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
-             call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
-             call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
-             deallocate(freqmask)
-          else
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
-          end if
-       else
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
-       end if
 
        
        ! Compute chisquare
