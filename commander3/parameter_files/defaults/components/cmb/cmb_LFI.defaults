@@ -13,7 +13,7 @@ COMP_L_APOD&&                 = 2000
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 2000
-COMP_AMP_INPUT_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_comm3/common/init_cmb_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
 COMP_LMAX_IND&&               = 0
