@@ -177,7 +177,7 @@ contains
 !!$          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 !!$          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 !!$          call int2string(self%scanid(scan), stext)
-!!$          open(58,file='noise_psd'//stext//'.dat', recl=1024)
+!!$          open(58,file=trim(chaindir)//'/noise_psd'//stext//'.dat', recl=1024)
 !!$          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
 !!$          logbin = 1.05
 !!$          j1     = 1
@@ -323,7 +323,7 @@ contains
        invNcorr(0) = 0.d0
 !    end if
     invM(0)     = 1.d0
-    !open(58,file='N_psd.dat', recl=1024)
+    !open(58,file=trim(chaindir)//'/N_psd.dat', recl=1024)
     do l = 1, n-1
        freq        = l*(samprate/2)/(n-1)
        invNcorr(l) = N_psd%sigma0**2 / N_psd%eval_corr(freq)
@@ -494,11 +494,12 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, freqmask, only_sigma0, dec_wn)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
     type(planck_rng),                   intent(inout)  :: handle
+    character(len=*),                   intent(in)    :: chaindir
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
@@ -568,7 +569,7 @@ contains
           ! Remove outliers
           s0 = 1d30
           do k = 1, 3
-             if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+             if (self%scanid(scan) == outscan) open(58,file=trim(chaindir)//'/res2.dat', recl=1024)
              s    = 0.d0
              nval = 0
              do j = 1, ntod0-1, 2
@@ -628,9 +629,9 @@ contains
        if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file='noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
-             write(58,*) j, dt(j)*sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)
+             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
           end do
           close(58)
        end if
@@ -669,7 +670,7 @@ contains
        if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file='noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
           j1     = 1
@@ -680,7 +681,7 @@ contains
                 ps_d = ps_d + abs(dv(l))**2 / ntod
                 ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
              end do
-             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1), ps_s/(j2-j1+1)
+             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1)/self%scans(scan)%d(i)%gain**2, ps_s/(j2-j1+1)/self%scans(scan)%d(i)%gain**2
              j1 = j2+1
              j2 = j1*logbin + 1             
           end do

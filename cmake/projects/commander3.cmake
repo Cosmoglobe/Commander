@@ -63,6 +63,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pixcache_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_cgmap_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_hfi_mod.f90
@@ -83,6 +84,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_dynmask_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_inst_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
@@ -178,7 +180,8 @@ set(sources
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_smod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
-        ${COMMANDER3_SOURCE_DIR}/comm_tod_crosstalk_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_crosstalk_mod.f90
+          ${COMMANDER3_SOURCE_DIR}/comm_tod_Tbol_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)

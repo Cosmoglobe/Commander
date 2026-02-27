@@ -14,6 +14,7 @@ module comm_tod_driver_mod
   use comm_tod_cray_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
+  use comm_tod_dynmask_mod
   !use comm_4d_map_mod
   use omp_lib
   implicit none
@@ -39,17 +40,22 @@ contains
   !                   (1) = demodulate
   !                   (2) = (1) + adc corrections
   !                   (3) = (2) + fill gaps + rolloff deconvolution
-  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, handle)
+  !
+  ! spurious levels   (0) = skip
+  !                   (1) = monopole
+  !                   (2) = (1) + jumps
+  !                   (3) = (2) + instrument-specific
+  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
     integer(i4b),         intent(in)              :: scan, oper, bitmask0
     class(comm_scandata), intent(inout)           :: sd    
     integer(i4b),         intent(in),    optional :: det
-    integer(i4b),         intent(in),    optional :: nonlin_level 
+    integer(i4b),         intent(in),    optional :: nonlin_level
+    integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
 
-
-    integer(i4b) :: i, j, k, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl
+    integer(i4b) :: i, j, k, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -64,6 +70,7 @@ contains
          & sd%nbp = size(tod%pixcache%map_sky,4)
     sd%hmax     = 0; if (tod%nhorn > 1) sd%hmax = tod%nhorn
     nonlin_lvl  = 100; if (present(nonlin_level)) nonlin_lvl = nonlin_level
+    spur_lvl    = 100; if (present(spur_level))   spur_lvl = spur_level
     
     ! Allocate data structures
     ntod  = sd%ntod
@@ -80,7 +87,7 @@ contains
     if (btest(oper,SD_TOD))     allocate(sd%tod     (ntod, ndet))
     if (btest(oper,SD_ORB))     allocate(sd%s_orb   (ntod, ndet, 0:hmax))
     if (btest(oper,SD_SL))      allocate(sd%s_sl    (ntod, ndet, 0:hmax))
-    if (btest(oper,SD_ZODI))    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
+    if (btest(oper,SD_ZODI) .and. tod%subtract_zodi)    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
     if (btest(oper,SD_OBJCTR))  allocate(sd%s_objctr(ntod, ndet, 0:hmax))
     if (btest(oper,SD_SKY))     allocate(sd%s_sky   (ntod, ndet, 0:hmax, nbp))
     if (btest(oper,SD_BP))      allocate(sd%s_bp    (ntod, ndet, 0:hmax, nbp))
@@ -196,7 +203,7 @@ contains
     end if
 
     ! Construct zodical light template
-    if (btest(oper,SD_ZODI)) then
+    if (btest(oper,SD_ZODI) .and. tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        call compute_zodi(zodi_model, tod, sd, det)
        call timer%stop(TOD_ZODI, tod%band)
@@ -236,8 +243,8 @@ contains
     end if
     
 
-    ! Generate and apply instrument-specific correction template
-    if (btest(oper,SD_INST)) then
+    ! Generate instrument-specific correction template
+    if (btest(oper,SD_INST) .and. spur_lvl>2 ) then
        call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
@@ -253,7 +260,7 @@ contains
           do k = 1, nbp
              if (btest(oper,SD_SL))     sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_sl(:,d,:)
              if (btest(oper,SD_ORB))    sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_orb(:,d,:)
-             if (btest(oper,SD_ZODI))   sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
+             if (allocated(sd%s_zodi))  sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
              if (btest(oper,SD_OBJCTR)) sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_objctr(:,d,:)
           end do
        end do
@@ -262,7 +269,7 @@ contains
     ! Coadd horn signals into detector signals; store result in 0th horn-row
     if (nhorn > 1) call tod%coadd_horns(sd)
 
-    ! Add non-optical components into a net spurious component
+    ! Add non-optical components into a net spurious component; subtract from data
     if (btest(oper,SD_SPUR)) then
        sd%s_spur = 0.
        do j = 1, ndet
@@ -274,6 +281,17 @@ contains
        end do
     end if
 
+    ! Subtract spurious corrections from TOD according to spur_level
+    call timer%start(TOD_INSTCORR, tod%band)
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. tod%scans(scan)%d(d)%accept) cycle
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+    end do
+    call timer%stop(TOD_INSTCORR, tod%band)
+    
   end subroutine init_scan_data
   
   subroutine dealloc_scan_data(sd)

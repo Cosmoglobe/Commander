@@ -103,11 +103,11 @@ contains
     class(comm_bp),     pointer                            :: c
 
     integer(i4b)       :: i, j, ndet
-    character(len=512) :: label
+    character(len=512) :: instlabel
     character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
  
-    label = cpar%ds_label(id_abs)
+    instlabel = cpar%ds_instlabel(id_abs)
 
     ! General parameters
     allocate(c)
@@ -209,7 +209,7 @@ contains
 
     ! Read default delta from instrument parameter file
     call read_instrument_file(trim(cpar%cs_inst_parfile), &
-         & 'delta', cpar%ds_label(id_abs), 0.d0, c%delta(1))
+         & 'delta', cpar%ds_instlabel(id_abs), 0.d0, c%delta(1))
 
     ! Initialize active bandpass 
     call c%update_tau(c%delta)

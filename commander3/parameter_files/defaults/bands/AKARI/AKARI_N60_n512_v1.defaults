@@ -20,7 +20,7 @@ BAND_BANDPASS_TYPE&&&          = AKARI
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
 BAND_NOMINAL_FREQ&&&           = 1875
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = AKARI_instrument_v02.h5
+BAND_BANDPASSFILE&&&           = akari/bp/AKARI_instrument_v02.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0
@@ -56,7 +56,7 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0512.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0512.fits
-BAND_TOD_RIMO&&&               = AKARI_instrument_v02.h5
+BAND_TOD_RIMO&&&               = akari/bp/AKARI_instrument_v02.h5
 BAND_TOD_FILELIST&&&           = filelist_AKARI_N60_n512_v01.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1

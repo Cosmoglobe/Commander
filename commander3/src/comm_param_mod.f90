@@ -76,6 +76,7 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=2048) :: MJysr_convention
      character(len=2048) :: fft_magic_number_file
+     character(len=2048) :: ephemerides_file
      character(len=2048) :: output_comps
      logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
@@ -540,6 +541,7 @@ contains
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
+       call get_parameter_hashtable(htbl, 'EPHEMERIDES_FILE',   par_string=cpar%ephemerides_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
        if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
@@ -4125,48 +4127,47 @@ end subroutine read_zodi_params_hash
     ! Add user specified sample groups
     cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
     
+    ! COMMENTING OUT FOR NOW -- THIS SEEMS TO BE USELESS LEGACY CODE
     ! Add one sample group per component
-    do i = 1, cpar%cs_ncomp_tot
-       if (cpar%cs_include(i)) then
-          cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
-          cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
-          cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
-          if (trim(cpar%cs_class(i)) == 'diffuse') then
-             if (trim(cpar%cs_type(i)) == 'cmb') then
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-             else
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
-             end if
-          else
-             cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-          end if
-       end if
-    end do
+!     do i = 1, cpar%cs_ncomp_tot
+!        if (cpar%cs_include(i)) then
+!           cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
+!           cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
+!           cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
+!           if (trim(cpar%cs_class(i)) == 'diffuse') then
+!              if (trim(cpar%cs_type(i)) == 'cmb') then
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!              else
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
+!              end if
+!           else
+!              cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!           end if
+!        end if
+!     end do
+!     cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
+!     do i = 1, cpar%cg_num_samp_groups
+!        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+!        do j = 1, n
+!           if (trim(comp_label(j)) == 'md') then
+!              if (n==1 .and. cpar%cg_samp_group_md < 0) then
+!                 cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+!              else
+!              end if
+!              do k = 1, cpar%numband
+!                 if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
+!              end do
+!           end if
+!        end do
+!     end do
     
-    ! Expand md type if present
-    cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
-    do i = 1, cpar%cg_num_samp_groups
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(comp_label(j)) == 'md') then
-             if (n==1 .and. cpar%cg_samp_group_md < 0) then
-                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
-             else
-             end if
-             do k = 1, cpar%numband
-                if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
-             end do
-          end if
-       end do
-    end do
-    
-    ! More groups may be defined here
+!     ! More groups may be defined here
     
     
-    if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
-       write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
-       stop
-    end if
+!     if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
+!        write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
+!        stop
+!     end if
 
 
     ! Temporary

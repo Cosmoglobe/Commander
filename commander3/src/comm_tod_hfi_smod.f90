@@ -75,12 +75,14 @@ contains
     
     ! Initialize instrument-specific parameters
 
-    c%compressed_tod  = .true.
-    c%correct_sl      = .false.
-    c%correct_orb     = .true.
-    c%apply_inst_corr = .true.
-    c%orb_4pi_beam    = .false.
-    c%symm_flags      = .true.
+    c%compressed_tod    = .true.
+    c%correct_sl        = .false.
+    c%correct_orb       = .true.
+    c%correct_S_crosstalk = .false.
+    c%correct_N_crosstalk = .false.
+    c%apply_inst_corr   = .true.
+    c%orb_4pi_beam      = .false.
+    c%symm_flags        = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
@@ -193,18 +195,34 @@ contains
     c%mod_phase = 1.0
    
     ! initialize crosstalk class
-    allocate(correlations(c%ndet, c%ndet))
-    correlations = .true.    
+    if (c%correct_N_crosstalk) then
+       allocate(correlations(c%ndet, c%ndet))
+       correlations = .true.    
 
-  !  allocate(c%xtalk)
-    c%xtalk => comm_crosstalk(correlations)
+       !  allocate(c%xtalk)
+       c%xtalk => comm_crosstalk(correlations)
+    end if
 
     ! Pre-initialize ADC object
     allocate(c%adc(c%ndet))
     allocate(c%adu_range(c%ndet,2))
 
-    call timer%stop(TOD_INIT, id_abs)
+    ! Initialize dynamic mask
+    c%dynmask => comm_dynmask(c, cpar)
+    c%dynmask%apply_pixhist           = .true.
+    c%dynmask%apply_solar_mask        = .true.
+    c%dynmask%remove_isolated_samples = .true.
+    if (c%freq(1:3) /= "353") then
+       c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
+       c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
+       c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
+       c%dynmask%window_excessRMS(1)    =    5  ! window size in number of samples
+       c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
+       c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
+    end if
     
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor_hfi
 
   !**************************************************
@@ -313,16 +331,6 @@ contains
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
 
-    !                       Pixhist    Single abs/RMS       RMS ranges     Single     Ranges   Pointing
-    if (self%freq(1:3) == "100") then
-       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   -1.0,      -1.0,     -1.0]
-    else if (self%freq(1:3) == "353") then
-       flag_threshold     = [  1.0,       -200.0, -50.0,    -1.5, -2.0, -1.0,   -1.0,      -1.0,     -1.0]
-    else
-       flag_threshold     = [  1.0,        20.0, 5.0,         1.5, 2.0, -1.0,   1.0,      -1.0,     -1.0]
-    end if
-
-
     oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
          & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
     
@@ -379,10 +387,11 @@ contains
         ! Not implemented yet
 
        call timer%start(TOD_NONLIN, self%band)
-       if (.false.) then
+       if (self%correct_N_crosstalk) then
           ! estimate A/B detector crosstalk coeficients
-          call self%xtalk%estimate_crosstalk_matrix(sd)
-          call self%xtalk%remove_crosstalk_signal(sd)
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
        end if
 
        ! Estimate modulation baselines; and set modulation phase
@@ -524,13 +533,13 @@ contains
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
           if (trim(self%init_from_HDF) == 'none') then
-             call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
 
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%create_dynamic_mask(sd, j, flag_threshold)
+             call self%dynmask%create(sd, j)
           end do
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -547,13 +556,13 @@ contains
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
-             call sample_noise_psd(self, sd, handle, freqmask=freqmask)
+             call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              deallocate(freqmask)
           else
-             call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
        else
-          call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
 
        
@@ -639,7 +648,7 @@ contains
     
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
     if (make_dyn_mask) then
-       call self%report_dynamic_mask_stats
+       call self%dynmask%report
        call update_status(status, "tod_dynstats"//ctext)
     end if
     
