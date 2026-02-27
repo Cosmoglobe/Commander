@@ -45,7 +45,7 @@ DIRBE_POS_FILES = [
     "dmr_anc_90326_90356.txt",
 ]
 
-BANDS = ['N60', 'WIDE-S', 'WIDE-L', 'N160']
+BANDS = ["N60", "WIDE-S", "WIDE-L", "N160"]
 NDETS = [40, 60, 45, 30]
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
@@ -53,7 +53,7 @@ WAVELENGTHS = (65, 90, 140, 160)
 DETECTORS = []
 for i in range(len(BANDS)):
     for j in range(NDETS[i]):
-        DETECTORS.append(f'{BANDS[i]}_{j+1:02}')
+        DETECTORS.append(f"{BANDS[i]}_{j+1:02}")
 
 
 ROWS_IN_BEAM_FILE_TO_SKIP = 19
@@ -72,7 +72,7 @@ PLANET_RADII = {
 
 for b, ndet in zip(BANDS, NDETS):
     for i in range(ndet):
-        DETECTORS.append(f'{b}_{i+1:02}')
+        DETECTORS.append(f"{b}_{i+1:02}")
 
 
 BAND_TO_WAVELENGTH: dict[str, float] = {}
@@ -139,21 +139,21 @@ def pix_to_lonlat(
 
 @cache
 def get_akari_fwhm() -> dict[str, float]:
-    """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
+    """Returns a dictionary mapping the AKARI bands to FWHM in radians."""
 
     fwhms: dict[str, float] = {}
 
     for detector in DETECTORS:
-        if 'N60' in detector:
-            fwhms[detector] = 37
-        elif 'WIDE-S' in detector:
-            fwhms[detector] = 39
-        elif 'WIDE-L' in detector:
-            fwhms[detector] = 58
-        elif 'N160' in detector:
-            fwhms[detector] = 61
+        if "N60" in detector:
+            fwhms[detector] = 37 / 60.0 / 60.0 * np.pi / 180.0
+        elif "WIDE-S" in detector:
+            fwhms[detector] = 39 / 60.0 / 60.0 * np.pi / 180.0
+        elif "WIDE-L" in detector:
+            fwhms[detector] = 58 / 60.0 / 60.0 * np.pi / 180.0
+        elif "N160" in detector:
+            fwhms[detector] = 61 / 60.0 / 60.0 * np.pi / 180.0
         else:
-            print('Weird things happening', detector)
+            print("Weird things happening", detector)
 
     return fwhms
 
@@ -164,14 +164,14 @@ def get_akari_beams(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
     Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
     """
-    #NSIDE = 128
-    #LMAX = 3 * NSIDE
+    # NSIDE = 128
+    # LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
 
     beams: dict[str, NDArray[np.floating]] = {}
     for band in DETECTORS:
-        beams[f'{band}'] = DEFAULT_BEAM
+        beams[f"{band}"] = DEFAULT_BEAM
 
     return beams
 
@@ -182,8 +182,8 @@ def get_akari_sidelobes(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
     """
-    #NSIDE = 128
-    #LMAX = 3 * NSIDE
+    # NSIDE = 128
+    # LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_SIDELOBES = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
 
@@ -370,28 +370,29 @@ def get_const_scalars(band: int) -> NDArray[np.floating]:
 
     return np.array([TEMP_GAIN, SIGMA_0[band], fknee, TEMP_ALPHA]).flatten()
 
+
 @cache
 def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
-    '''
+    """
     Reported value is given nu I_nu units.
-    '''
+    """
     bandpass_file = BANDPASS_PATH + f"FIS_RSRF_070122.txt"
     bandpass = np.loadtxt(bandpass_file, skiprows=1)
 
-    if 'N60' in band:
-        freqs = bandpass[:,0]*u.micron
-        weights = bandpass[:,2]
-    elif 'WIDE-S' in band:
-        freqs = bandpass[:,0]*u.micron
-        weights = bandpass[:,3]
-    elif 'WIDE-L' in band:
-        freqs = bandpass[:,4]*u.micron
-        weights = bandpass[:,5]
-    elif 'N160' in band:
-        freqs = bandpass[:,4]*u.micron
-        weights = bandpass[:,6]
+    if "N60" in band:
+        freqs = bandpass[:, 0] * u.micron
+        weights = bandpass[:, 2]
+    elif "WIDE-S" in band:
+        freqs = bandpass[:, 0] * u.micron
+        weights = bandpass[:, 3]
+    elif "WIDE-L" in band:
+        freqs = bandpass[:, 4] * u.micron
+        weights = bandpass[:, 6]
+    elif "N160" in band:
+        freqs = bandpass[:, 4] * u.micron
+        weights = bandpass[:, 7]
     else:
-        print('Unexpected bandpass label', band)
+        print("Unexpected bandpass label", band)
 
     return freqs, weights
 
@@ -411,5 +412,4 @@ def get_iras_factor(band: str) -> float:
 
 
 if __name__ == "__main__":
-    print(get_iras_factor('N60'))
-
+    print(get_iras_factor("N60"))
