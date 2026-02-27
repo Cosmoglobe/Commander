@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import sys
+import os
 import numpy as np
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from ....python.commander_tools.tod_tools.commander_instrument import commander_instrument
+#from typing import TYPE_CHECKING
+#if TYPE_CHECKING:
+#    from ....python.commander_tools.tod_tools.commander_instrument import commander_instrument
 
-sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
+#sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python'))
 from commander_tools.tod_tools.commander_instrument import commander_instrument
 from numpy.typing import NDArray
 import astropy.units as u
 import akari_utils
 
-TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/akari/data"
+#TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/akari/data"
+TEMP_OUTPUT_PATH = "/mn/stornext/u3/eirikgje/data/akari_analysis/akari_instrumentfile/"
 NSIDE = 128
 
 # temporary values that needs to be updated
@@ -56,7 +59,7 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
                 band_label=f'AKARI_{band_group_name}',
                 beam=beams[band_group_name],
                 sidelobe=sidelobes[band_group_name],
-                fwhm=fwhms[band_group_name],
+                fwhm=fwhms[band_group_name] * 180 / np.pi * 60, # In arcminutes instead of radians - Commander requires arcminutes
                 elip=TEMP_ELIP,
                 psi_ell=TEMP_PSI_ELL,
                 mbeam_Eff=TEMP_MBEAM_EFF,
@@ -97,7 +100,8 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 2
+    version = 3
+    #Version 3: Update with correct FWHM so it's arcminutes instead of arcseconds
     write_akari_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)
 
 

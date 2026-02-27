@@ -139,19 +139,19 @@ def pix_to_lonlat(
 
 @cache
 def get_akari_fwhm() -> dict[str, float]:
-    """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
+    """Returns a dictionary mapping the AKARI bands to FWHM in radians."""
 
     fwhms: dict[str, float] = {}
 
     for detector in DETECTORS:
         if 'N60' in detector:
-            fwhms[detector] = 37
+            fwhms[detector] = 37 / 60.0 / 60.0 * np.pi / 180.0
         elif 'WIDE-S' in detector:
-            fwhms[detector] = 39
+            fwhms[detector] = 39 / 60.0 / 60.0 * np.pi / 180.0
         elif 'WIDE-L' in detector:
-            fwhms[detector] = 58
+            fwhms[detector] = 58 / 60.0 / 60.0 * np.pi / 180.0
         elif 'N160' in detector:
-            fwhms[detector] = 61
+            fwhms[detector] = 61 / 60.0 / 60.0 * np.pi / 180.0
         else:
             print('Weird things happening', detector)
 
