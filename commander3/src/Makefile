@@ -130,6 +130,8 @@ F90SOURCES=hashtbl.f90 \
 	   comm_tod_akari_mod.f90 comm_tod_akari_smod.f90 \
 	   comm_tod_hfi_mod.f90 \
 	      comm_tod_hfi_smod.f90 \
+	   comm_tod_lat_mod.f90 \
+	      comm_tod_lat_smod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
            comm_tod_adc_binfit_mod.f90 comm_tod_adc_binfit_smod.f90 \
