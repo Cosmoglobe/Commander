@@ -2742,40 +2742,50 @@ contains
     
   end subroutine read_hdf_string
 
+subroutine read_hdf_string2(file, setname, val, n)
+  use hdf5
+  implicit none
 
-  subroutine read_hdf_string2(file, setname, val, n)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in)  :: setname
-    character(len=*), intent(out) :: val
-    integer(i4b),     intent(out) :: n
+  type(hdf_file) :: file
+  character(len=*), intent(in)  :: setname
+  character(len=*), intent(out) :: val
+  integer(i4b),     intent(out) :: n
 
-    integer(i4b), parameter :: mlen=100000
-    integer(hid_t)  :: filetype, space
-    INTEGER(SIZE_T) :: size
-    !integer(size_t), dimension(1)  :: len
-    !integer(hsize_t), dimension(1:2)  :: data_dims
-    INTEGER(HSIZE_T), DIMENSION(1:1) :: dims = (/mlen/)
-    INTEGER(HSIZE_T), DIMENSION(1:1) :: maxdims
-    integer         :: hdferr
-    !character(len=mlen), dimension(1) :: rdata
-    character(len=mlen) :: rdata
+  integer(hid_t) :: filetype, memtype, space
+  integer(hsize_t), dimension(1) :: dims
+  integer :: hdferr
 
-    call open_hdf_set(file, setname)
-    CALL H5Dget_type_f(file%sethandle, filetype, hdferr)
-    CALL H5Tget_size_f(filetype, size, hdferr)
-    CALL H5Dget_space_f(file%sethandle, space, hdferr)
-    CALL H5Sget_simple_extent_dims_f(space, dims, maxdims, hdferr)
+  integer, parameter :: mlen = 4096
+  character(len=mlen) :: buffer
 
-    call h5dread_f(file%sethandle, filetype, rdata, dims, hdferr, H5S_ALL_F, H5S_ALL_F, H5P_DEFAULT_F)
-    val = rdata(1:size)
-    n   = int(size,i4b)
+  call open_hdf_set(file, setname)
 
-    call close_hdf_set(file)
-    CALL h5sclose_f(space, hdferr)
-    CALL H5Tclose_f(filetype, hdferr)
-    
-  end subroutine read_hdf_string2
+  call H5Dget_type_f(file%sethandle, filetype, hdferr)
+  call H5Dget_space_f(file%sethandle, space, hdferr)
+
+  dims(1) = 1   ! scalar dataset
+
+  ! Create fresh fixed-length ASCII memory type
+  call H5Tcopy_f(H5T_FORTRAN_S1, memtype, hdferr)
+  call H5Tset_size_f(memtype, mlen, hdferr)
+
+  call H5Dread_f(file%sethandle, memtype, buffer, dims, hdferr)
+
+  if (hdferr /= 0) then
+     val = ""
+     n = 0
+  else
+     val = trim(buffer)
+     n   = len_trim(val)
+  end if
+
+  call H5Tclose_f(memtype, hdferr)
+  call H5Sclose_f(space, hdferr)
+  call H5Tclose_f(filetype, hdferr)
+  call close_hdf_set(file)
+
+end subroutine
+
 
   ! *****************************************************
   ! Set write operations

@@ -132,6 +132,7 @@ if(COMPILE_HDF5)
 			# -- Found ZLIB: /usr/lib64/libz.so (found version "1.2.7")
 			# -- Filter ZLIB is ON
 			# during hdf5 configuration phase. Works while building only static libs
+      -DHDF5_ENABLE_HL=ON 
 			-DHDF5_ENABLE_Z_LIB_SUPPORT:BOOL=ON
 			-DZLIB_USE_EXTERNAL:BOOL=OFF
 			-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}
