@@ -237,6 +237,9 @@ contains
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band) 
 
+    ! Output input sky model
+    call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+    
     ! Toggle optional operations
     sample_ncorr          = .false.
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
