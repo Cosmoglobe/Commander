@@ -47,6 +47,7 @@ module comm_tod_akari_mod
    contains
      procedure     :: process_tod             => process_akari_tod
      procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
+     procedure     :: dumpToHDF_inst          => dumpToHDF_akari
      procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
      procedure     :: sample_ramp
    end type comm_akari_tod
@@ -181,7 +182,21 @@ interface
 
   end subroutine sample_ramp
 
-   
+  module subroutine dumpToHDF_akari(self, chainfile, path)
+    ! writes instrument-specific tod parameters to existing chain file
+    ! ----------
+    ! self:      derived class (comm_tod)
+    !            TOD object
+    ! chainfile: derived type (hdf_file)
+    !            Already open HDF file handle to existing chainfile
+    ! path:      string
+    !            HDF path to current dataset, e.g., "000001/tod/030"
+    implicit none
+    class(comm_akari_tod),               intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_akari
+
 end interface
    
 end module comm_tod_akari_mod

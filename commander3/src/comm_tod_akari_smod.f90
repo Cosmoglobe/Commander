@@ -1065,5 +1065,76 @@ contains
      deallocate(ndata, nflagged, events)!, res)
      
    end subroutine init_sample_ramp
+
+   module subroutine dumpToHDF_akari(self, chainfile, path)
+     ! Writes instrument-specific TOD parameters to existing chain file
+     ! 
+     ! Arguments:
+     ! ----------
+     ! self:     derived class (comm_tod)
+     !           TOD object
+     ! chainfile: derived type (hdf_file)
+     !           Already open HDF file handle to existing chainfile
+     ! path:   string
+     !           HDF path to current dataset, e.g., "000001/tod/030"
+     implicit none
+     class(comm_akari_tod),               intent(in)     :: self
+     type(hdf_file),                      intent(in)     :: chainfile
+     character(len=*),                    intent(in)     :: path
+
+     character(len=10) :: diode_name
+     integer(i4b) :: ierr, i, j, nsamp
+!     real(dp), allocatable, dimension(:,:)   :: amp, amp_tot
+!     real(dp), allocatable, dimension(:,:,:) :: R, R_tot
+     real(dp), allocatable, dimension(:,:,:,:) :: templ, templ_tot
+
+     nsamp = maxval(self%nsamp_templ)
+     allocate(templ(    nsamp, self%ntempl, self%ndet, self%nscan))
+     allocate(templ_tot(nsamp, self%ntempl, self%ndet, self%nscan))
+     templ_tot = 0.d0
+     templ = 0.d0
+     templ(:,:,:,self%scanid) = self%tod_correction_templ(1:nsamp, 1:self%ntempl, 1:self%ndet, self%scanid)
+     call mpi_reduce(templ, templ_tot, size(templ), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+     
+!     allocate(amp(self%last_scan,self%ndet), amp_tot(self%last_scan,self%ndet))
+!     amp = 0.d0
+!     amp(self%scanid,:) = self%spike_amplitude
+!     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+!     if (trim(self%level) == 'L1') then
+!        allocate(R(self%last_scan,self%ndet,size(self%R,3)),R_tot(self%last_scan,self%ndet,size(self%R,3)))
+!        R = 0.d0
+!        R(self%scanid,:,:) = self%R
+!        call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!     end if
+
+     if (self%myid == 0) write(*,*) 'level ', self%level
+     
+     if (self%myid == 0 .and. trim(self%level) == 'L1') then
+ !       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
+ !       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
+ !       call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
+ !       call write_hdf(chainfile, trim(adjustl(path))//'w_diode', self%diode_weights)
+
+!        if (associated(self%adc_corrections(1,1)%p) .and. .not. self%use_dpc_adc) then
+!           allocate(adc_corr(size(self%adc_corrections(1,1)%p%adc_in),2,self%ndet,size(self%adc_corrections(1,:))))
+!           do i = 1, self%ndet
+!              do j = 1, size(self%adc_corrections(1,:))
+!                 adc_corr(:,1,i,j) = self%adc_corrections(i,j)%p%adc_in
+!                 adc_corr(:,2,i,j) = self%adc_corrections(i,j)%p%adc_out
+!              end do
+!           end do
+!           call write_hdf(chainfile, trim(adjustl(path))//'adc_corr', adc_corr)
+!           deallocate(adc_corr)
+!        end if
+!     end if
+
+!     deallocate(amp, amp_tot)
+!     if (trim(self%level) == 'L1') deallocate(R, R_tot)
+
+     end if
+        
+   end subroutine dumpToHDF_akari
    
-end submodule comm_tod_akari_smod
+ end submodule comm_tod_akari_smod
