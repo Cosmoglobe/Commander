@@ -2578,13 +2578,17 @@ contains
     type(c_ptr)     :: f_ptr
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error getting type of " // setname // ' from file ' // trim(file%filename))
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
+    write(*,*) trim(setname), len, "hyidda ho hodaa", dtype
     numint = len
     allocate(val(numint))
     f_ptr = c_loc(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error getting pointer of " // setname // ' from file ' // trim(file%filename))
     call h5tclose_f(dtype, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error closing " // setname // ' from file ' // trim(file%filename))
   end subroutine read_hdf_opaque
 
 

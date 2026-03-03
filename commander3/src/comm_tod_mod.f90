@@ -973,12 +973,7 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
-       !call read_hdf_string2(file, "/common/dets", det_buf, n)
        call read_hdf_string2(file, "/common/det", det_buf, n)
-       !!! This does not work right now;
-
-       !det_buf = 'Mv24_f090_Ar00c07B,Mv24_f090_Ar00c08A,Mv24_f090_Ar00c08B,Mv24_f090_Ar00c09A,Mv24_f090_Ar00c09B,Mv24_f090_Ar00c10A,Mv24_f090_Ar00c10B,Mv24_f090_Ar00c11A,Mv24_f090_Ar00c11B,Mv24_f090_Ar01c00A,Mv24_f090_Ar01c01B,Mv24_f090_Ar01c02B,Mv24_f090_Ar01c03B,Mv24_f090_Ar01c04A,Mv24_f090_Ar01c04B,Mv24_f090_Ar01c05A,Mv24_f090_Ar01c05B,Mv24_f090_Ar01c06A,Mv24_f090_Ar01c06B,Mv24_f090_Ar01c07A,Mv24_f090_Ar01c07B,Mv24_f090_Ar01c08A,Mv24_f090_Ar01c09B,Mv24_f090_Ar01c11A,Mv24_f090_Ar01c11B,Mv24_f090_Ar02c00B,Mv24_f090_Ar02c04A,Mv24_f090_Ar02c05A,Mv24_f090_Ar02c05B,Mv24_f090_Ar02c06A,Mv24_f090_Ar02c06B,Mv24_f090_Ar02c07A,Mv24_f090_Ar02c07B,Mv24_f090_Ar02c08A,Mv24_f090_Ar02c09A,Mv24_f090_Ar02c09B,Mv24_f090_Ar02c10A,Mv24_f090_Ar02c11A,Mv24_f090_Ar02c11B,Mv24_f090_Ar03c00A'
-       !n = len(det_buf)       
 
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
@@ -1002,9 +997,6 @@ contains
        end if
       
 
-       !do i = 1, ndet_tot
-       !   write(*,*) i, trim(adjustl(dets(i)))
-       !end do
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
@@ -1018,9 +1010,6 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-       do j = 1, ndet_tot
-          print *,  j, trim(dets(j))
-       end do
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
@@ -1332,13 +1321,12 @@ contains
          end do
        else if (nhorn .ne. 2) then
          do j = 1, nhorn
-!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
            !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%psi(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
-       !! call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        ! Get compressed diode array sizes
 !!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
@@ -1497,8 +1485,8 @@ contains
             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
-            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-            !call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
+            !call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+            call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)
             else

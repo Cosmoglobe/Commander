@@ -262,45 +262,46 @@ contains
        call update_status(status, "data_mask")
        deallocate(mask_misspix)
 
-       ! Initialize noise structures
-       select case (trim(cpar%ds_noise_format(i)))
-       case ('rms') 
-          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
-          if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
-                  & data(n)%procmask)
-          else
-             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
-          end if
-          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
-          deallocate(regnoise)
-       case ('rms_qucov') 
-          call update_status(status, 'Initializing rms qucov')
-          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
-          if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
-                  & data(n)%procmask)
-          else
-             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
-          end if
-          call update_status(status, 'set data(n)%N')
-          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
-          call update_status(status, 'added regnoise')
-          deallocate(regnoise)
-       case ('lcut') 
-          data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
-          call data(n)%N%P(data(n)%map)
-          call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
-       case ('QUcov') 
-          data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
-               & data(n)%procmask)
-          data(n)%pol_only = .true.
-       case default
-          call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
-       end select
-       data(n)%map%map  = data(n)%map%map * data(n)%mask%map
-       data(n)%pol_only = data(n)%N%pol_only
-       call update_status(status, "data_N")
+       if (cpar%myid == 0) write(*,*) "Skipping rms computations"
+       !!! ! Initialize noise structures
+       !!! select case (trim(cpar%ds_noise_format(i)))
+       !!! case ('rms') 
+       !!!    allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+       !!!    if (associated(data(n)%procmask)) then
+       !!!       data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+       !!!            & data(n)%procmask)
+       !!!    else
+       !!!       data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
+       !!!    end if
+       !!!    data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
+       !!!    deallocate(regnoise)
+       !!! case ('rms_qucov') 
+       !!!    call update_status(status, 'Initializing rms qucov')
+       !!!    allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+       !!!    if (associated(data(n)%procmask)) then
+       !!!       data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+       !!!            & data(n)%procmask)
+       !!!    else
+       !!!       data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
+       !!!    end if
+       !!!    call update_status(status, 'set data(n)%N')
+       !!!    data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
+       !!!    call update_status(status, 'added regnoise')
+       !!!    deallocate(regnoise)
+       !!! case ('lcut') 
+       !!!    data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
+       !!!    call data(n)%N%P(data(n)%map)
+       !!!    call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
+       !!! case ('QUcov') 
+       !!!    data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+       !!!         & data(n)%procmask)
+       !!!    data(n)%pol_only = .true.
+       !!! case default
+       !!!    call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
+       !!! end select
+       !!! data(n)%map%map  = data(n)%map%map * data(n)%mask%map
+       !!! data(n)%pol_only = data(n)%N%pol_only
+       !!! call update_status(status, "data_N")
 
        ! Initialize bandpass structures; 0 is full freq, j is detector       
        allocate(data(n)%bp(0:data(n)%ndet))      
