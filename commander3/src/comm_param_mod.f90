@@ -263,6 +263,8 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)     :: cs_prior_amp
      character(len=2048), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=2048), allocatable, dimension(:,:)   :: cs_SED_template
+     ! character(len=2048), allocatable, dimension(:,:)   :: cs_astrodust_template
+     !!!! RAELYN: is this the right thing to do? or should it just be a second column in the SED template??
      character(len=2048), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
@@ -2711,6 +2713,15 @@ contains
             & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
+              !!!!!! RAELYN TO DO !!!!!!!!!
+            !!!CHECK IF THIS WORKS?
+       if (trim(cpar%cs_MBBtab_type(i)) == 'spline_astrodust') then
+          ! call get_parameter_hashtable(htbl, 'COMP_ASTRODUST_TEMPLATE'//itext, len_itext=len_itext,  &
+          !   & par_string=cpar%cs_astrodust_template(1,i), path=.true.)
+            !or maybe should be 
+            call get_parameter_hashtable(htbl, 'COMP_ASTRODUST_TEMPLATE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_SED_template(2,i), path=.true.)
+       end if
     end if
 
   end subroutine read_mbb_params_hash

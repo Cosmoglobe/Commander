@@ -112,10 +112,10 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
-     integer(i4b) :: ntab
-     real(dp), allocatable, dimension(:,:) :: SEDtab        ! (2+npar_tab, nbin)
-     real(dp), allocatable, dimension(:,:) :: SEDtab_buff   ! 
-     real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
+     integer(i4b) :: ntab, nastrotab, samp_astrotab                  ! number of rows in the mbbTab and in the astrodust table
+     real(dp), allocatable, dimension(:,:) :: SEDtab, astrotab        ! (2+npar_tab, nbin)
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff, astrotab_buff   ! 
+     real(dp)                              :: SEDtab_prior, astrotab_scale  ! (npar_tab), Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling

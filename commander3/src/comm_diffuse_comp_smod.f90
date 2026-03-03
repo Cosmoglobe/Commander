@@ -2784,6 +2784,8 @@ contains
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
          call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         
+
          !!write the mbbTab SED for a range of frequencies from nu1 to nu2
          ! this could maybe be updated for a more custom 'range' of frequencies in the future,
          ! currently runs from 30GHz to the higher frequency in the table, and for 
@@ -2794,7 +2796,13 @@ contains
          open(unit, file=trim(filename), status='replace')
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
-         nu2=self%SEDtab(2,self%ntab)
+         if (allocated(self%astrotab)) then
+            !!!RAELYN: GO TO END OF ASTROTAB AMOUNT if it exists 
+            nu2=self%astrotab(1,self%nastrotab)
+         else 
+            nu2=self%SEDtab(2,self%ntab)
+         end if 
+         
          dlognu = (log(nu2) - log(nu1)) / 500d0
          theta(1)=self%theta(1)%p%map(1,1)
          theta(2)=self%theta(2)%p%map(1,1)
@@ -2806,6 +2814,13 @@ contains
          close(unit)
        end if
        
+       if (output_hdf .and. allocated(self%astrotab) .and. self%x%info%myid == 0) then
+         call write_hdf(chainfile, trim(path)//'/astroDustTab', self%astrotab)
+         !!!RAELYN make sure to write the astrodust to the hdf
+       end if
+
+
+
        ! Write mixing matrices
        if (self%output_mixmat) then
           do i = 1, numband
@@ -2866,6 +2881,9 @@ contains
 
        if (trim(self%type) == 'MBBtab') then
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+         !!RAELYN ADD A READ FOR THE MBBTAB ASTRODUST TYPE HERE, will this throw an error if the astrotab does 
+         !not exist?
+         call read_hdf(hdffile, trim(adjustl(path))//'/astroDustTab', self%astrotab)
        end if
 
        do i = 1, self%npar
