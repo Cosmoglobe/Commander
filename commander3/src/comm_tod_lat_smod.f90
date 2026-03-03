@@ -171,7 +171,7 @@ contains
     call c%precompute_lookups()
     
     ! Load the instrument file
-    ! call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Collect Sun velocities from all scans
     ! call c%collect_v_sun

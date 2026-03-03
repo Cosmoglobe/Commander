@@ -1321,8 +1321,8 @@ contains
          end do
        else if (nhorn .ne. 2) then
          do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%psi(j)%p)
+           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%psi(j)%p)
            !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
