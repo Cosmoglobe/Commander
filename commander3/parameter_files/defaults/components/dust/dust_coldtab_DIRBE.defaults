@@ -36,7 +36,7 @@ COMP_CL_DEFAULT_BETA_B&&      =  10.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 6000
-COMP_AMP_INPUT_MAP&&          = common/init/init_colddust_n2048_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_comm3/common/init_colddust_n2048_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
 COMP_IND_LMAX&&               = -1
