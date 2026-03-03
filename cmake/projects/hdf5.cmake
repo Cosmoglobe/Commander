@@ -119,8 +119,6 @@ if(COMPILE_HDF5)
 			-DBUILD_STATIC_LIBS:BOOL=ON
 			# Instructions for building language specific libraries
 			-DHDF5_BUILD_FORTRAN:BOOL=ON
-      -DHDF5_ENABLE_FORTRAN=ON
-      -DHDF5_ENABLE_F2003=ON
 			-DHDF5_ENABLE_PARALLEL:BOOL=ON
 			-DHDF5_BUILD_JAVA:BOOL=OFF
 			-DHDF5_BUILD_CPP_LIB:BOOL=OFF
@@ -132,7 +130,6 @@ if(COMPILE_HDF5)
 			# -- Found ZLIB: /usr/lib64/libz.so (found version "1.2.7")
 			# -- Filter ZLIB is ON
 			# during hdf5 configuration phase. Works while building only static libs
-      -DHDF5_ENABLE_HL=ON 
 			-DHDF5_ENABLE_Z_LIB_SUPPORT:BOOL=ON
 			-DZLIB_USE_EXTERNAL:BOOL=OFF
 			-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}

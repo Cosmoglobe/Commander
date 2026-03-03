@@ -1258,9 +1258,11 @@ contains
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n), buffer_int(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
-    do i = 1, ndet
+    do i = 1, ndet? 
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+         write(*,*) i, 'Am I correctly allocating stuff?'
+         allocate(self%d(i)%psi(nhorn))
+         allocate(self%d(i)%pix(nhorn))   ! This was where the crash occurred
        end if
        allocate(xi_n(tod%n_xi))
 
@@ -1336,7 +1338,7 @@ contains
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       !! call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        ! Get compressed diode array sizes
 !!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
