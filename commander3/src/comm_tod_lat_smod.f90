@@ -75,14 +75,14 @@ contains
     
     ! Initialize instrument-specific parameters
 
-    c%compressed_tod    = .true.
+    c%compressed_tod    = .false.
     c%correct_sl        = .false.
     c%correct_orb       = .true.
     c%correct_S_crosstalk = .false.
     c%correct_N_crosstalk = .false.
-    c%apply_inst_corr   = .true.
+    c%apply_inst_corr   = .false.
     c%orb_4pi_beam      = .false.
-    c%symm_flags        = .true.
+    c%symm_flags        = .false.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
@@ -171,13 +171,13 @@ contains
     call c%precompute_lookups()
     
     ! Load the instrument file
-    call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    ! call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Collect Sun velocities from all scans
-    call c%collect_v_sun
+    ! call c%collect_v_sun
     
     ! Allocate sidelobe convolution data structures
-    if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
+    ! if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
     
     allocate(c%orb_dp)
     !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed

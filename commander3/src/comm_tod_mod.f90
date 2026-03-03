@@ -797,16 +797,17 @@ contains
              if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
              if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
-                call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-                !self%pix2ind(pix(1)) = -1
-                do k = 2, self%scans(i)%ntod
-                   pix(k)  = pix(k-1)  + pix(k)
-                   if (pix(k) > 12*self%nside**2-1) then
-                       write(*,*) "Error: pixel number out of range for:"
-                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
-                   end if
-                   !self%pix2ind(pix(k)) = -1
-                end do
+                pix = self%scans(i)%d(j)%pix(l)%p
+                !call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+                !!self%pix2ind(pix(1)) = -1
+                !do k = 2, self%scans(i)%ntod
+                !   pix(k)  = pix(k-1)  + pix(k)
+                !   if (pix(k) > 12*self%nside**2-1) then
+                !       write(*,*) "Error: pixel number out of range for:"
+                !       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                !   end if
+                !   !self%pix2ind(pix(k)) = -1
+                !end do
                 if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
 !!$                if (any(pix==46051400)) then
 !!$                   write(*,*) "pix = 46051400", self%myid, self%scanid(i), j
@@ -973,11 +974,12 @@ contains
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
        !call read_hdf_string2(file, "/common/dets", det_buf, n)
+       call read_hdf_string2(file, "/common/det", det_buf, n)
        !!! This does not work right now;
 
-       det_buf = 'Mv21_f090_Ar00c02A, Mv21_f090_Ar00c03A, Mv21_f090_Ar00c03B, Mv21_f090_Ar00c04B, Mv21_f090_Ar00c05B, Mv21_f090_Ar00c06A, Mv21_f090_Ar00c07A, Mv21_f090_Ar00c08A, Mv21_f090_Ar00c08B, Mv21_f090_Ar00c09A, Mv21_f090_Ar00c09B, Mv21_f090_Ar00c10A, Mv21_f090_Ar00c11B, Mv21_f090_Ar01c00A, Mv21_f090_Ar01c02A, Mv21_f090_Ar01c02B, Mv21_f090_Ar01c03A, Mv21_f090_Ar01c03B, Mv21_f090_Ar01c04A, Mv21_f090_Ar01c04B, Mv21_f090_Ar01c05A, Mv21_f090_Ar01c05B, Mv21_f090_Ar01c06A, Mv21_f090_Ar01c06B, Mv21_f090_Ar01c07A, Mv21_f090_Ar01c07B, Mv21_f090_Ar01c08A, Mv21_f090_Ar01c08B, Mv21_f090_Ar01c09A, Mv21_f090_Ar01c09B, Mv21_f090_Ar01c10A, Mv21_f090_Ar01c10B, Mv21_f090_Ar01c11B, Mv21_f090_Ar02c01A, Mv21_f090_Ar02c02A, Mv21_f090_Ar02c03A, Mv21_f090_Ar02c03B, Mv21_f090_Ar02c04A, Mv21_f090_Ar02c04B, Mv21_f090_Ar02c05A, Mv21_f090_Ar02c05B, Mv21_f090_Ar02c06A, Mv21_f090_Ar02c06B, Mv21_f090_Ar02c07A, Mv21_f090_Ar02c07B, Mv21_f090_Ar02c08A, Mv21_f090_Ar02c09A, Mv21_f090_Ar02c09B, Mv21_f090_Ar02c10A, Mv21_f090_Ar02c10B, Mv21_f090_Ar02c11A, Mv21_f090_Ar02c11B, Mv21_f090_Ar03c00B, Mv21_f090_Ar03c01A, Mv21_f090_Ar03c01B, Mv21_f090_Ar03c02A, Mv21_f090_Ar03c02B, Mv21_f090_Ar03c03A, Mv21_f090_Ar03c03B, Mv21_f090_Ar03c04A, Mv21_f090_Ar03c04B, Mv21_f090_Ar03c05A, Mv21_f090_Ar03c05B, Mv21_f090_Ar03c06A, Mv21_f090_Ar03c06B, Mv21_f090_Ar03c07A, Mv21_f090_Ar03c08B, Mv21_f090_Ar03c09A, Mv21_f090_Ar03c09B, Mv21_f090_Ar03c10A, Mv21_f090_Ar03c10B, Mv21_f090_Ar03c11B, Mv21_f090_Ar04c00A, Mv21_f090_Ar04c00B, Mv21_f090_Ar04c01A, Mv21_f090_Ar04c01B, Mv21_f090_Ar04c02A, Mv21_f090_Ar04c03A, Mv21_f090_Ar04c03B, Mv21_f090_Ar04c04A, Mv21_f090_Ar04c05B, Mv21_f090_Ar04c06A, Mv21_f090_Ar04c06B, Mv21_f090_Ar04c07A, Mv21_f090_Ar04c09A, Mv21_f090_Ar04c09B, Mv21_f090_Ar04c10A, Mv21_f090_Ar05c00A, Mv21_f090_Ar05c00B, Mv21_f090_Ar05c01A, Mv21_f090_Ar05c01B, Mv21_f090_Ar05c02B, Mv21_f090_Ar05c03A, Mv21_f090_Ar05c04B, Mv21_f090_Ar05c05A, Mv21_f090_Ar05c05B, Mv21_f090_Ar05c06A, Mv21_f090_Ar05c07A, Mv21_f090_Ar05c08A, Mv21_f090_Ar05c08B, Mv21_f090_Ar05c09A, Mv21_f090_Ar05c09B, Mv21_f090_Ar05c10B, Mv21_f090_Ar05c11A, Mv21_f090_Ar05c11B, Mv21_f090_Ar06c00A, Mv21_f090_Ar06c00B, Mv21_f090_Ar06c01A, Mv21_f090_Ar06c01B, Mv21_f090_Ar06c02B, Mv21_f090_Ar06c03A, Mv21_f090_Ar06c03B, Mv21_f090_Ar06c04A, Mv21_f090_Ar06c04B, Mv21_f090_Ar06c05A, Mv21_f090_Ar06c05B, Mv21_f090_Ar06c06A, Mv21_f090_Ar06c06B, Mv21_f090_Ar06c07A, Mv21_f090_Ar06c07B, Mv21_f090_Ar06c08B, Mv21_f090_Ar06c09A, Mv21_f090_Ar06c09B, Mv21_f090_Ar06c10A, Mv21_f090_Ar06c11A, Mv21_f090_Ar06c11B, Mv21_f090_Ar07c00A, Mv21_f090_Ar07c00B, Mv21_f090_Ar07c01B, Mv21_f090_Ar07c02B, Mv21_f090_Ar07c03A, Mv21_f090_Ar07c03B, Mv21_f090_Ar07c04A, Mv21_f090_Ar07c04B, Mv21_f090_Ar07c05B, Mv21_f090_Ar07c06A, Mv21_f090_Ar07c07A, Mv21_f090_Ar07c07B, Mv21_f090_Ar07c08A, Mv21_f090_Ar07c08B, Mv21_f090_Ar07c10A, Mv21_f090_Ar07c10B'
+       !det_buf = 'Mv24_f090_Ar00c07B,Mv24_f090_Ar00c08A,Mv24_f090_Ar00c08B,Mv24_f090_Ar00c09A,Mv24_f090_Ar00c09B,Mv24_f090_Ar00c10A,Mv24_f090_Ar00c10B,Mv24_f090_Ar00c11A,Mv24_f090_Ar00c11B,Mv24_f090_Ar01c00A,Mv24_f090_Ar01c01B,Mv24_f090_Ar01c02B,Mv24_f090_Ar01c03B,Mv24_f090_Ar01c04A,Mv24_f090_Ar01c04B,Mv24_f090_Ar01c05A,Mv24_f090_Ar01c05B,Mv24_f090_Ar01c06A,Mv24_f090_Ar01c06B,Mv24_f090_Ar01c07A,Mv24_f090_Ar01c07B,Mv24_f090_Ar01c08A,Mv24_f090_Ar01c09B,Mv24_f090_Ar01c11A,Mv24_f090_Ar01c11B,Mv24_f090_Ar02c00B,Mv24_f090_Ar02c04A,Mv24_f090_Ar02c05A,Mv24_f090_Ar02c05B,Mv24_f090_Ar02c06A,Mv24_f090_Ar02c06B,Mv24_f090_Ar02c07A,Mv24_f090_Ar02c07B,Mv24_f090_Ar02c08A,Mv24_f090_Ar02c09A,Mv24_f090_Ar02c09B,Mv24_f090_Ar02c10A,Mv24_f090_Ar02c11A,Mv24_f090_Ar02c11B,Mv24_f090_Ar03c00A'
+       !n = len(det_buf)       
 
-       n = len(det_buf)       
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
@@ -1000,9 +1002,9 @@ contains
        end if
       
 
-       !!! do i = 1, ndet_tot
-       !!!    write(*,*) i, trim(adjustl(dets(i)))
-       !!! end do
+       !do i = 1, ndet_tot
+       !   write(*,*) i, trim(adjustl(dets(i)))
+       !end do
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
@@ -1019,10 +1021,8 @@ contains
        do j = 1, ndet_tot
           print *,  j, trim(dets(j))
        end do
-       write(*,*) ndet_tot, self%ndet, "What is the detector limit?"
        do i = 1, self%ndet
           do j = 1, ndet_tot
-             write(*,*) i, j, trim(adjustl(detlabels(i))), " ", trim(adjustl(dets(j))), " Where do we live?"
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
                 exit
              end if
@@ -1179,6 +1179,7 @@ contains
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
     real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
+    integer(i4b), allocatable, dimension(:)       :: buffer_int
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -1255,7 +1256,7 @@ contains
     end if
 
     ! Read detector scans
-    allocate(self%d(ndet), buffer_sp(n))
+    allocate(self%d(ndet), buffer_sp(n), buffer_int(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
@@ -1329,7 +1330,9 @@ contains
          end do
        else if (nhorn .ne. 2) then
          do j = 1, nhorn
+!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%psi(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
@@ -1390,23 +1393,23 @@ contains
 !!$          end if
 !!$       end if
     end do
-    deallocate(buffer_sp)
+    deallocate(buffer_sp, buffer_int)
 
 
     ! Initialize Huffman key
-    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
-    call hufmak_precomp_int(hsymb,htree,self%hkey)
-    deallocate(hsymb, htree)
-    if (tod%compressed_tod) then
-!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       !TODO: this needs to be generalized to work for both floats and ints
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_int(hsymb,htree,self%todkey)
-       deallocate(hsymb, htree)
-    end if
+    !! call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+    !! call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+    !! call hufmak_precomp_int(hsymb,htree,self%hkey)
+    !! deallocate(hsymb, htree)
+    !! if (tod%compressed_tod) then
+!!$ !!       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$ !!       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+    !!    !TODO: this needs to be generalized to work for both floats and ints
+    !!    call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+    !!    call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+    !!    call hufmak_precomp_int(hsymb,htree,self%todkey)
+    !!    deallocate(hsymb, htree)
+    !! end if
 
     ! Read instrument-specific infomation
     call tod%read_scan_inst(file, slabel, detlabels, self)
@@ -1493,6 +1496,7 @@ contains
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+            !call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)
             else
