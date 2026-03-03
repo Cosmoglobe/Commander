@@ -1258,7 +1258,7 @@ contains
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n), buffer_int(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
-    do i = 1, ndet? 
+    do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
          write(*,*) i, 'Am I correctly allocating stuff?'
          allocate(self%d(i)%psi(nhorn))
