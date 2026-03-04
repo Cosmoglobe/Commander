@@ -2581,7 +2581,7 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Error getting type of " // setname // ' from file ' // trim(file%filename))
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
-    write(*,*) trim(setname), len, "In an opaque dataset right now"
+    !write(*,*) trim(setname), len, "In an opaque dataset right now"
     numint = len
     allocate(val(numint))
     f_ptr = c_loc(val)

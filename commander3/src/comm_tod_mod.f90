@@ -825,7 +825,7 @@ contains
       deallocate(pix,psi)
    end do
    !write(*,*) "xyz2", self%myid, associated(self%pixcache)
-    !self%nobs = count(self%pix2ind == -1)
+   !self%nobs = count(self%pix2ind == -1)
     !allocate(self%ind2pix(self%nobs))
     !allocate(self%ind2sl(self%nobs))
     !allocate(self%ind2ang(2,self%nobs))
@@ -854,9 +854,11 @@ contains
 !!$    end if
 
     if (associated(self%pixcache)) then
+      write(*,*) 'About to sample pixcache'
        call self%pixcache%expand_storage(trim_unused=.true.)
-       !write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
+       write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
        call self%pixcache%precomp_aux(self%npsi)
+      write(*,*) 'Finished sampling pixcache'
     end if
 
 !!$    if (self%myid == 118) then
@@ -924,7 +926,7 @@ contains
          call self%mbeam(i)%p%Y()
        end if
 
-       call self%load_instrument_inst(h5_file, i)
+       !call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)
@@ -1078,6 +1080,8 @@ contains
           end do
        end do
     end if
+
+
 
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
@@ -1249,7 +1253,7 @@ contains
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         write(*,*) i, 'Am I correctly allocating stuff?'
+         ! write(*,*) i, 'Am I correctly allocating stuff?'
          allocate(self%d(i)%psi(nhorn))
          allocate(self%d(i)%pix(nhorn))   ! This was where the crash occurred
        end if
@@ -1321,9 +1325,8 @@ contains
          end do
        else if (nhorn .ne. 2) then
          do j = 1, nhorn
-           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%psi(j)%p)
-           !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
@@ -1387,19 +1390,19 @@ contains
 
 
     ! Initialize Huffman key
-    !! call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
-    !! call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
-    !! call hufmak_precomp_int(hsymb,htree,self%hkey)
-    !! deallocate(hsymb, htree)
-    !! if (tod%compressed_tod) then
-!!$ !!       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$ !!       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-    !!    !TODO: this needs to be generalized to work for both floats and ints
-    !!    call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-    !!    call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-    !!    call hufmak_precomp_int(hsymb,htree,self%todkey)
-    !!    deallocate(hsymb, htree)
-    !! end if
+    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+    call hufmak_precomp_int(hsymb,htree,self%hkey)
+    deallocate(hsymb, htree)
+    if (tod%compressed_tod) then
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       !TODO: this needs to be generalized to work for both floats and ints
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+       call hufmak_precomp_int(hsymb,htree,self%todkey)
+       deallocate(hsymb, htree)
+    end if
 
     ! Read instrument-specific infomation
     call tod%read_scan_inst(file, slabel, detlabels, self)
@@ -1466,6 +1469,7 @@ contains
 
     call read_hdf(file, slabel // "/" // "common/ntod",   n)
 
+
     if (tod%halfring_split == 0) then
       m = get_closest_fft_magic_number(n)
     else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
@@ -1482,11 +1486,10 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
-            !call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-            call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
+            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)
             else
