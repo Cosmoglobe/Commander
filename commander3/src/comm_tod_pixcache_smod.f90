@@ -267,29 +267,29 @@ contains
     end if
 
     ! Distribute sky and (optionally) gain maps
-    !do j = 1, ndelta
-    !   do i = 1, ndet
-    !      call map_sky(i,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,i,j))
-    !      if (present(map_gain) .and. j == 1) then
-    !         call map_gain(i)%p%map2pix(self%ind2pix, self%map_gain(:,:,i))
-    !      end if
-!!$ !         if (self%nobs> 0) write(*,*) 'sly', j, i, sum(abs(self%map_sky(:,:,i,j)))
-!!$ !         if (self%nobs>0) write(*,*) 'a1', self%map_sky(:,109952,1,1)
-    !   end do
+    do j = 1, ndelta
+       do i = 1, ndet
+          call map_sky(i,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,i,j))
+          if (present(map_gain) .and. j == 1) then
+             call map_gain(i)%p%map2pix(self%ind2pix, self%map_gain(:,:,i))
+          end if
+!!$          if (self%nobs> 0) write(*,*) 'sly', j, i, sum(abs(self%map_sky(:,:,i,j)))
+!!$          if (self%nobs>0) write(*,*) 'a1', self%map_sky(:,109952,1,1)
+       end do
 
-    !   ! Compute detector average
-    !   do k = 1, self%nobs
-    !      do l = 1, self%nmaps
-    !         self%map_sky(l,k,0,j) = sum(self%map_sky(l,k,1:ndet,j))/ndet
-    !         if (present(map_gain) .and. j == 1) then
-    !            self%map_gain(l,k,0) = sum(self%map_gain(l,k,1:ndet))/ndet
-    !         end if
-    !      end do
-    !   end do
-!!$ !      write(*,*) 'nobs', j, self%nobs, ndet, ndelta
+       ! Compute detector average
+       do k = 1, self%nobs
+          do l = 1, self%nmaps
+             self%map_sky(l,k,0,j) = sum(self%map_sky(l,k,1:ndet,j))/ndet
+             if (present(map_gain) .and. j == 1) then
+                self%map_gain(l,k,0) = sum(self%map_gain(l,k,1:ndet))/ndet
+             end if
+          end do
+       end do
+!!$       write(*,*) 'nobs', j, self%nobs, ndet, ndelta
 
 
-    !end do
+    end do
     
     if (present(scale)) then
        self%map_sky = scale * self%map_sky
