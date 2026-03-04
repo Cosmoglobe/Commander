@@ -169,7 +169,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_jumplist
      character(len=2048), allocatable, dimension(:)   :: ds_tod_map_type
      character(len=2048), allocatable, dimension(:)   :: ds_tod_instfile
-     character(len=20480), allocatable, dimension(:)   :: ds_tod_dets
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_dets
      character(len=2048), allocatable, dimension(:)   :: ds_tod_bp_init
      character(len=2048), allocatable, dimension(:)   :: ds_tod_initHDF
      character(len=2048), allocatable, dimension(:)   :: ds_tod_level

@@ -798,16 +798,16 @@ contains
              if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 pix = self%scans(i)%d(j)%pix(l)%p
-                !call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-                !!self%pix2ind(pix(1)) = -1
-                !do k = 2, self%scans(i)%ntod
-                !   pix(k)  = pix(k-1)  + pix(k)
-                !   if (pix(k) > 12*self%nside**2-1) then
-                !       write(*,*) "Error: pixel number out of range for:"
-                !       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
-                !   end if
-                !   !self%pix2ind(pix(k)) = -1
-                !end do
+                call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+                !self%pix2ind(pix(1)) = -1
+                do k = 2, self%scans(i)%ntod
+                   pix(k)  = pix(k-1)  + pix(k)
+                   if (pix(k) > 12*self%nside**2-1) then
+                       write(*,*) "Error: pixel number out of range for:"
+                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                   end if
+                   !self%pix2ind(pix(k)) = -1
+                end do
                 if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
 !!$                if (any(pix==46051400)) then
 !!$                   write(*,*) "pix = 46051400", self%myid, self%scanid(i), j
@@ -825,7 +825,7 @@ contains
       deallocate(pix,psi)
    end do
    !write(*,*) "xyz2", self%myid, associated(self%pixcache)
-   !self%nobs = count(self%pix2ind == -1)
+    !self%nobs = count(self%pix2ind == -1)
     !allocate(self%ind2pix(self%nobs))
     !allocate(self%ind2sl(self%nobs))
     !allocate(self%ind2ang(2,self%nobs))
@@ -926,7 +926,7 @@ contains
          call self%mbeam(i)%p%Y()
        end if
 
-       !call self%load_instrument_inst(h5_file, i)
+       call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)
