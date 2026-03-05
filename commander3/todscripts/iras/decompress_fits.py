@@ -214,7 +214,7 @@ def decompress_sop(sop_num=None, output_dir=None, output_format='fits', raw_root
     if raw_root is None:
         # Find all disk directories
         raw_dirs = []
-        for disk_dir in Path("/home/dwatts/IRAS").glob("disk*"):
+        for disk_dir in Path("/mn/stornext/d23/cmbco/globe/orig/iras/kester_rawdb/").glob("disk*"):
             if disk_dir.is_dir() and not str(disk_dir).endswith(".tgz"):
                 raw_dirs.append(disk_dir)
     else:
