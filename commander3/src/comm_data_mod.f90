@@ -235,7 +235,7 @@ contains
        !! case default
        !!    call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        !! end select
-       call update_status(status, "data_beam")
+       !! call update_status(status, "data_beam")
  
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%cs_inst_parfile), &

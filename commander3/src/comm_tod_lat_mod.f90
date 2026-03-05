@@ -63,7 +63,6 @@ module comm_tod_lat_mod
      procedure, private     :: estimate_lat_4k_lines
      procedure, private     :: deconvolve_rolloff
      procedure, private     :: fill_gaps
-     procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
   end type comm_lat_tod
 
@@ -445,21 +444,6 @@ interface
     integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine lat_dark_correction
-
-  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
-    !  Sample ADC parameters
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    implicit none
-    class(comm_lat_tod),                 intent(inout) :: self
-    type(planck_rng),                    intent(inout) :: handle
-    integer(i4b),                        intent(in)    :: det
-    real(sp),          dimension(1:,1:), intent(in)    :: map_sky
-    real(sp),          dimension(0:),    intent(in)    :: procmask
-  end subroutine sample_adc_and_baselines
 
   module subroutine estimate_lat_4k_lines(self, scan, sd)
     !  Construct and apply lat instrument-specific corrections

@@ -178,9 +178,9 @@ contains
     
     ! Construct mask
     if (btest(oper,SD_MASK)) then
-       !call timer%start(TOD_PROJECT, tod%band)
-       !call project_mask(tod, bitmask0, sd)
-       !call timer%stop(TOD_PROJECT, tod%band)
+       call timer%start(TOD_PROJECT, tod%band)
+       call project_mask(tod, bitmask0, sd)
+       call timer%stop(TOD_PROJECT, tod%band)
        sd%mask = 1.0
 
        ! Disable broken detector-scans

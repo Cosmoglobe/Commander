@@ -293,6 +293,7 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+    type(hdf_file) :: tod_file
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -307,7 +308,7 @@ contains
        sample_gain           = .false.
        make_dyn_mask         = .false.
        sample_ncorr          = .false.
-       sample_xi_n      = .false.
+       sample_xi_n           = .false.
        select_data           = .false.
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
@@ -334,7 +335,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_MASK])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR])
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -392,6 +393,10 @@ contains
        ! Prepare data
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
+
+       ! Horrible hack;
+       sd%tod = abs(sd%tod)
+
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
@@ -412,6 +417,17 @@ contains
        end if
 
 
+       !! if (sample_ncorr) then
+       !!    call sample_n_corr(self, sd, handle)
+       !!    if (sample_xi_n) then
+       !!       call sample_noise_psd(self, sd, handle, chaindir)
+       !!    else
+       !!       call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+       !!    end if
+       !! else
+       !!    call sample_n_corr(self, sd, handle, onlymono=.true.)
+       !!    call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+       !! end if
        
        ! Compute chisquare
        !! do j = 1, sd%ndet
@@ -441,11 +457,23 @@ contains
        d_calib = 0.d0
        !call compute_calibrated_data(self, i, sd, d_calib)
        d_calib(1,:,:) = sd%tod
-       write(*,*) "hello you", sum(sd%tod), shape(sd%tod)
+       write(*,*) "Sum and shape of tod is", sum(sd%tod), shape(sd%tod)
        sd%flag = 0
        sd%mask = 1
 
-       write(*,*) "Does this make sense?", shape(sd%pix)
+       ! For debugging: write TOD to hdf
+       if (.true.) then
+          !if (self%scanid(i) == 915) then 
+             !print *, self%scanid(i)
+             call int2string(self%scanid(i), scantext)
+             call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
+             call write_hdf(tod_file, '/tod', sd%tod)
+             call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+             call write_hdf(tod_file, '/flag', sd%flag)
+             call write_hdf(tod_file, '/n_corr', sd%n_corr)
+             call close_hdf_file(tod_file)
+          !end if
+       end if
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -1625,217 +1653,5 @@ contains
 
   end subroutine fill_gaps
 
-
-  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
-    !  Sample ADC parameters
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    implicit none
-    class(comm_lat_tod),                       intent(inout) :: self
-    type(planck_rng),                          intent(inout) :: handle
-    integer(i4b),                              intent(in)    :: det
-    real(sp),          dimension(1:,1:),       intent(in)    :: map_sky
-    real(sp),          dimension(0:),          intent(in)    :: procmask
-
-    integer(i4b)        :: i, j, k, flag, ierr, ntod, decimation, offset, ind, oper
-    integer(i8b)        :: ntot
-    real(sp)            :: gain, phase, base1, base2
-    real(dp)            :: chisq
-    type(comm_scandata) :: sd
-    character(len=4)    :: id
-    integer(i8b), allocatable, dimension(:)   :: numsamp
-    real(sp),     allocatable, dimension(:)   :: s_volt, tod, tod_corr
-    real(sp),     allocatable, dimension(:)   :: sigma0
-
-    decimation = 45 ! Downsampling rate; MUST BE ODD, to explore both parities
-
-    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-    
-    ! Count number of unmasked and decimated samples
-    allocate(numsamp(self%nscan), sigma0(self%nscan))
-    do i = 1, self%nscan
-       numsamp(i) = self%scans(i)%d(det)%nsamp_unmasked / decimation
-       sigma0(i)  = self%scans(i)%d(det)%N_psd%sigma0
-     end do
-    ntot = sum(numsamp)
-
-    ! Prepare reduced dataset
-    allocate(s_volt(ntot), tod(ntot), tod_corr(maxval(numsamp)))
-    ind = 1
-    do i = 1, self%nscan
-       if (.not. self%scans(i)%d(det)%accept) then
-          numsamp(i) = ind-1
-          cycle
-       end if
-       call init_scan_data(self, i, oper, TODMASK_PROC, sd, nonlin_level=0)
-
-      gain    = self%scans(i)%d(det)%gain
-      phase   = self%mod_phase(det,i)
-      base1   = self%scans(i)%d(det)%baseline1
-      base2   = self%scans(i)%d(det)%baseline2
-      
-       ! Decimate data
-       j = 0; k = decimation*j+1
-       do while (k <= sd%ntod .and. j < numsamp(i))
-          if (sd%mask(k,1) == 1.) then
-             tod(ind)   = sd%tod(k,1)
-             if (mod(k,2) == 1) then
-                s_volt(ind) =  phase*gain * sd%s_tot(k,1,0,1) + base1
-             else
-                s_volt(ind) = -phase*gain * sd%s_tot(k,1,0,1) + base2
-             end if
-             ind = ind+1
-          end if
-          j = j+1; k = decimation*j+1
-       end do
-
-       ! Store total number of accepted samples until now
-       numsamp(i) = ind-1
-
-       ! Clean up
-       call dealloc_scan_data(sd)
-    end do
-
-    ! Compute number of accepted samples for each scan
-    do i = self%nscan, 2, -1
-       numsamp(i) = numsamp(i)-numsamp(i-1)
-    end do
-    ntot = sum(numsamp)
-
-!!$    call int2string(self%myid, id)
-!!$    open(58,file='adc_data_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
-!!$    do i = 1, ntot
-!!$       write(58,*) i, tod(i), s_volt(i), tod(i)-s_volt(i)
-!!$    end do
-!!$    close(58)
-    
-    
-    !write(*,*) self%myid, self%nscan, numsamp, ntot
-    
-    !  Perform sampling
-    if (self%myid == 0) then
-       if (.true.) then
-          call self%adc(det)%p%powell_adc(powell_chisq_adc_lat)
-       else
-          call self%adc(det)%p%mcmc_sample_adc(handle, chisq_adc_lat)
-       end if
-       ! Release workers
-       flag = 0
-       call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
-    else
-       do while (.true.)
-          call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
-          if (flag > 0) then
-             chisq = chisq_adc_lat()
-          else
-             exit
-          end if
-       end do
-    end if
-
-    call mpi_bcast(self%adc(det)%p%p, self%adc(det)%p%npar_adc, MPI_REAL, 0, &
-         & self%comm, ierr)    
-
-    ! Update parameters
-    call self%adc(det)%p%param2Q
-
-    ! Clean up
-    deallocate(s_volt, tod, sigma0, tod_corr)
-    
-  contains
-
-    function powell_chisq_adc_lat(x)
-      implicit none
-      real(dp), dimension(:), intent(in),  optional :: x
-      real(dp)                                      :: powell_chisq_adc_lat
-
-      powell_chisq_adc_lat = chisq_adc_lat(real(x,sp))
-
-    end function powell_chisq_adc_lat
-
-
-    function chisq_adc_lat(x, ndof) result (chisq)
-      implicit none
-      real(sp), dimension(:), intent(in),  optional :: x
-      integer(i8b),           intent(out), optional :: ndof
-      real(dp)                                      :: chisq
-
-      integer(i4b) :: i, j, n
-      integer(i8b) :: ndof_sub, ndof_tot, k1, k2
-      real(dp)     :: chisq_sub, A, b
-      real(sp)     :: baseline
-      logical(lgt) :: output_ndof
-      real(sp), allocatable, dimension(:) :: p
-
-      allocate(p(self%adc(det)%p%npar_adc))
-      if (self%myid == 0) then
-         flag = 1; if (present(ndof)) flag = 2
-         call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
-         p = x
-      end if
-      call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
-      output_ndof = (flag == 2)
-
-      ! Check priors
-      if (any(p < 0.0)) then
-         chisq = 1.d30
-         deallocate(p)
-         return
-      end if
-      
-      ! Update ADC parameters; assume constant sigma0 fir niw
-      call self%adc(det)%p%param2Q(p)
-      call self%adc(det)%p%Q2As(92.)
-      call self%adc(det)%p%As2F
-
-!!$      if (self%myid == 0 .and. det==1) then
-!!$         call int2string(self%myid, id)
-!!$         open(58,file='adc_reddata_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
-!!$      end if
-      
-      ! Evaluate chisq
-      chisq_sub = 0.d0
-      k2 = 0 
-      do i = 1, self%nscan
-         ! Skip scan if no accepted data
-         if (.not. self%scans(i)%d(det)%accept) cycle
-         n = numsamp(i); k1 = k2+1; k2 = k2+n
-         
-         ! Apply ADC to voltages
-         do j = 1, n
-            !tod_corr(j) = splint(self%adc(det)%p%F, real(s_volt(k1+j-1),dp))
-            tod_corr(j) = self%adc(det)%p%invF(nint(tod(k1+j-1)))
-         end do
-         
-!!$         if (self%myid == 0 .and. det==1) then
-!!$            do j = 1, n
-!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), tod(k1+j-1)-tod_corr(j), (tod(k1+j-1)-tod_corr(j))/sigma0(i), sigma0(i)
-!!$            end do
-!!$         end if
-         
-         ! Compute chisq
-         do j = 1, n
-            chisq_sub = chisq_sub + (tod_corr(j)-s_volt(k1+j-1))**2/sigma0(i)**2
-         end do
-      end do
-
-!!$      if (self%myid == 0 .and. det==1) close(58)
-      
-      call mpi_reduce(chisq_sub, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-      if (output_ndof) then
-         call mpi_reduce(ntot, ndof_tot, 1, MPI_INTEGER8, MPI_SUM, 0, self%comm, ierr)
-         if (self%myid == 0) ndof = ndof_tot
-      end if
-
-      if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
-
-    end function chisq_adc_lat
-
-  end subroutine sample_adc_and_baselines
-  
 
 end submodule comm_tod_lat_mod

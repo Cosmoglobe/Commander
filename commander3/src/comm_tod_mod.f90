@@ -1388,16 +1388,16 @@ contains
 
 
     ! Initialize Huffman key
-    call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        !TODO: this needs to be generalized to work for both floats and ints
-       call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp_int(hsymb,htree,self%todkey)
        deallocate(hsymb, htree)
     end if
