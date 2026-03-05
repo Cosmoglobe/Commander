@@ -9,12 +9,12 @@ import healpy
 from astropy.time import Time, TimeDelta
 
 """ 
-This module's purpose is to define the AKARICommanderDataAdapter, which is the
-link between the AKARI TOD reader code and the CommanderHDFWriter class. The
-latter class takes an instance of this class as its input.
+This module's purpose is to define the AKARICommanderDataAdapter, which is the link between the
+AKARI TOD reader code and the CommanderHDFWriter class. The latter class takes an instance of this
+class as its input.
 
-This is the file to change if there is to be any changes in the HDF file
-layout, such as flags, detector names etc.
+This is the file to change if there is to be any changes in the HDF file layout, such as flags,
+detector names etc.
 """
 
 BANDS = ['065', '090', '140', '160']
@@ -36,11 +36,11 @@ START_DET_INDS = { # These are the starting indices for each detector inside the
 BAND_DETS = {}
 
 
-# What follows are mappings between flag names and their position in the FITS files.
+# What follows are mappings between flag names and their position in the FITS files. Most of these
+# can be found in the Data User Manual, exceptions are noted.
 
 
-# These are the per-detector flags given in the first extension of the FITS
-# files.
+# These are the per-detector flags given in the first extension of the FITS files.
 PIX_FLAG_MAP = {
     'bad': 0,
     'undef_anom': 1,
@@ -76,8 +76,8 @@ PIX_FLAG_MAP = {
     'blank': 31
 }
 
-#These are the 'frame' flags that are true for all detectors simultaneously,
-#given in the first FITS extension.
+# These are the 'frame' flags that are true for all detectors simultaneously, given in the first
+# FITS extension.
 FRAME_FLAG_MAP = {
     'bad_frame': 0,
     'undef_anom_frame': 1,
@@ -87,8 +87,8 @@ FRAME_FLAG_MAP = {
     'untrusted_frame': 5,
 }
 
-# These are the 'status' flags that are true for all detectors simultaneously,
-# given in the first FITS extension.
+# These are the 'status' flags that are true for all detectors simultaneously, given in the first
+# FITS extension.
 STATUS_FLAG_MAP = {
     'creon': 0,
     'shtop': 1,
@@ -113,13 +113,11 @@ STATUS_FLAG_MAP = {
     'sinason': 20
 }
 
-
-# This dictionary indicates 1) which flags to include in the final HDF, and 2)
-# which bit the flag should be represented by (thus, a given bit should just be
-# covered by one of the desired flags). The ground-level keys are
-# 'frame_flags', 'pix_flags' and 'status_flags', each of which points to
-# another dict that contains the relevant flags. Each flag points to the bit
-# number corresponding to the flag.
+# This dictionary indicates 1) which flags to include in the final HDF, and 2) which bit the flag
+# should be represented by (thus, a given bit should just be covered by one of the desired flags).
+# The ground-level keys are 'frame_flags', 'pix_flags' and 'status_flags', each of which points to
+# another dict that contains the relevant flags. Each flag points to the bit number corresponding to
+# the flag.
 DESIRED_FLAGS = {
     'frame_flags': {
         'bad_frame': 0,
@@ -161,34 +159,33 @@ for band, ndets in NUM_DETECTORS.items():
         detname = f'AKARI_{band}-{i:02d}'
         BAND_DETS[band].append(detname)
 
-
-# This is a callback function to be used with the AKARITODReader. It formats
-# the output data from the TOD reader in a format that is useful for the HDF
-# file generation.
+# This is a callback function to be used with the AKARITODReader. It formats the output data from
+# the TOD reader in a format that is useful for the HDF file generation.
 def fits2output_formatter(file, start_index, end_index, band,
                           start_det_inds=START_DET_INDS,
                           num_detectors=NUM_DETECTORS, band_dets=BAND_DETS):
-    """Formats the data in an AKARI fits file in the way we need for the
-    Commander HDFs.
+    """Formats the data in an AKARI fits file in the way we need for the Commander HDFs.
 
     Arguments:
-        file (fitsio.FITS): an open fitsio.FITS file instance, pointing to a
-            TOD fits file.
-        start_index, end_index (int): The indices (relative to the start of the
-            file) to fetch.
-        band (str): The band in question (is needed because each fits file
-            contains data for two bands)
+        file (fitsio.FITS): an open fitsio.FITS file instance, pointing to a TOD fits file.
+        start_index, end_index (int): The indices (relative to the start of the file) to fetch.
+        band (str): The band in question (is needed because each fits file contains data for two
+                    bands)
 
     Returns:
         dictionary containing the data we want from each fits file.
     """
-
     out_data = {}
-    start_det_ind = START_DET_INDS[band]
-    end_det_ind = start_det_ind + NUM_DETECTORS[band]
-    for detname, detidx in zip(BAND_DETS[band], range(start_det_ind, end_det_ind)):
-        out_data[f'{detname}/tod'] = file[1]['FLUX'].read()[start_index:end_index, detidx]
-        out_data[f'{detname}/pixel_flag'] = file[1]['PIX_FLAG'].read()[start_index:end_index, detidx, :].astype(bool)
+    # There is an implicit assumption here that we only want contiguous detectors. This seems to be
+    # an okay assumption for now, but I just note it here.
+    start_det_ind = start_det_inds[band]
+    end_det_ind = start_det_ind + num_detectors[band]
+    tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    tot_pixflag = file[1]['PIX_FLAG'].read()[start_index:end_index,
+                                             start_det_ind:end_det_ind, :].astype(bool)
+    for local_det_idx, detname in enumerate(band_dets[band]):
+        out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
+        out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
     out_data['frame_flag'] = file[1]['FLAG'].read()[start_index:end_index].astype(bool)
     out_data['aftime'] = file[1]['AFTIME'].read()[start_index:end_index]
@@ -208,7 +205,6 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     All the non-underlined functions are defined as in that class.
     """
-
     def __init__(self, akari_fits_dir, nside, bands=BANDS,
                  num_detectors=NUM_DETECTORS, band_dets=BAND_DETS):
         self.bands = bands
@@ -233,13 +229,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         self.todreaders = {}
         self.akari_fits_dir = akari_fits_dir
         self.filelist = {}
-
         for band in self.bands:
-            self.todreaders[band] = AKARITODReader(akari_fits_dir, band,
-                                                   fits2output_formatter, 
-                                                   load_idx_file_mapping=True,
-                                                   save_idx_file_mapping=False,
-                                                   mapping_dir='/mn/stornext/u3/eirikgje/data/akari_analysis/')
+            self.todreaders[band] = AKARITODReader(
+                akari_fits_dir, band, fits2output_formatter, load_idx_file_mapping=True,
+                save_idx_file_mapping=False,
+                mapping_dir='/mn/stornext/u3/eirikgje/data/akari_analysis/')
             self.filelist[band] = self.todreaders[band].filelist
             self.detectors[band] = []
             for i in range(1, self.num_detectors[band]+1):
@@ -255,20 +249,18 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     def _calculate_chunk_files(self):
         """
-        Internal function that calculates a mapping between chunk index and
-        fits files. This is temporary, as we might want to do something more
-        sophisticated about how we define the chunks.
+        Internal function that calculates a mapping between chunk index and fits files. This is
+        temporary, as we might want to do something more sophisticated about how we define the
+        chunks.
         """
-        Calculates the 
         chunk_file_map = {}
         for band in self.bands:
             chunk_file_map[band] = {}
             curr_chunk_idx = 0
-            chunk_file_map[band][curr_chunk_idx] = []
             for file in self.filelist[band]:
+                chunk_file_map[band][curr_chunk_idx] =  []
                 chunk_file_map[band][curr_chunk_idx].append(file)
                 curr_chunk_idx += 1
-                chunk_file_map[band][curr_chunk_idx] =  []
         return chunk_file_map
 
     def get_num_segments(self, band: str):
@@ -280,7 +272,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     def get_experiment_name(self):
         return "AKARI"
 
-    def get_npsi(self): # Number of psi bins
+    # Number of psi bins. This is the default we seem to be using for experiments.
+    def get_npsi(self):
         return 64
 
     def get_nside(self, band: str):
@@ -309,8 +302,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return [i for i in range(start_idx, end_idx)]
 
     def _process_akari_tod_reader_data(self):
-        """Internal function to process the data coming from the AKARI TOD
-        reader and getting it into the format needed for the HDFwriter"""
+        """Internal function to process the data coming from the AKARI TOD reader and getting it
+        into the format needed for the HDFwriter"""
         todreader_data = {}
         for band in self.bands:
             todreader_data[band] = {}
@@ -320,12 +313,15 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             # within a file rather than at the beginning of the file.
             start_idx = self.todreaders[band].get_file_index_range(files[0])[0]
             end_idx = self.todreaders[band].get_file_index_range(files[-1])[1]
-            curr_data = self.todreaders[band].get_data(start_idx, end_idx, band)
+            curr_data = self.todreaders[band].get_data(start_idx, end_idx)
             mode = curr_data['packet_id']
             for det in self.band_dets[band]:
                 todreader_data[band][det] = {}
                 todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
-                todreader_data[band][det]['flag'] = self._process_akari_flags(curr_data[f'{det}/pixel_flag'], curr_data['frame_flag'], curr_data['status_flag'], mode)
+                todreader_data[band][det]['flag'] = self._process_akari_flags(
+                    curr_data[f'{det}/pixel_flag'],
+                    curr_data['frame_flag'],
+                    curr_data['status_flag'], mode)
             ra = curr_data['ra']
             dec = curr_data['dec']
             c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
@@ -344,14 +340,12 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return todreader_data
 
     
-    def _process_akari_flags(self, pixflag_array, frameflag_array,
-                             statusflag_array, mode,
-                             pixflagmap=PIX_FLAG_MAP,
-                             frameflagmap=FRAME_FLAG_MAP,
-                             statusflagmap=STATUS_FLAG_MAP,
-                             desired_flags=DESIRED_FLAGS):
-        """Internal function that takes the flags coming from the fits files
-        and turns them into the bitmasks needed for the HDF file"""
+    def _process_akari_flags(self, pixflag_array, frameflag_array, statusflag_array, mode,
+                             pixflagmap=PIX_FLAG_MAP, frameflagmap=FRAME_FLAG_MAP,
+                             statusflagmap=STATUS_FLAG_MAP, desired_flags=DESIRED_FLAGS):
+        """
+        Internal function that takes the flags coming from the fits files and turns them into the
+        bitmasks needed for the HDF file"""
         outflags = np.zeros(len(pixflag_array), dtype=int)
         for flagtype, flag_arr, flagmap in zip(('pix_flags',
                                                 'frame_flags', 
@@ -367,6 +361,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                 curr_mask = flag_arr[:, flag_idx]
                 outflags[curr_mask] += 2 ** int(target_bit)
         modeflags = desired_flags['mode']
+        # These numbers are the modes of the pixflag_array field, listed in the AKARI fits data user
+        # manual.
         is_cds = mode == 65
         is_coadd = mode == 66
         is_maneuver = mode == 82
@@ -397,8 +393,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     @get_chunk
     def get_chunk_data(self, band: str, det:str):
-        # The third entry is just zeroes - i.e. currently we're not operating
-        # with a 'psi'.
+        # The third entry is just zeroes - i.e. currently we're not operating with a 'psi'.
         return (self.all_chunk_data[band][det]['tod'],
                 self.all_chunk_data[band]['pix'],
                 np.zeros_like(self.all_chunk_data[band]['pix'], dtype=int),
@@ -406,11 +401,13 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     @get_chunk
     def get_chunk_start_time(self):
-        return self.reference_time + TimeDelta(self.all_chunk_data['start_time'], format="sec", scale="tai")
+        return (self.reference_time + TimeDelta(self.all_chunk_data['start_time'], format="sec",
+                                                scale="tai"))
 
     @get_chunk
     def get_chunk_end_time(self):
-        return self.reference_time + TimeDelta(self.all_chunk_data['end_time'], format="sec", scale="tai")
+        return (self.reference_time + TimeDelta(self.all_chunk_data['end_time'], format="sec",
+                                                scale="tai"))
 
     @get_chunk
     def get_chunk_start_satpos(self):
