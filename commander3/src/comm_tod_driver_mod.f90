@@ -65,7 +65,8 @@ contains
     sd%ntod     = tod%scans(scan)%ntod
     sd%ndet     = tod%ndet; if (present(det)) sd%ndet = 1
     sd%nhorn    = tod%nhorn
-    sd%bitmask0 = bitmask0
+    !sd%bitmask0 = bitmask0
+    sd%bitmask0 = 0
     sd%nbp   = 1; if (btest(oper, SD_SKY_PROP) .or. btest(oper,SD_BP_PROP)) &
          & sd%nbp = size(tod%pixcache%map_sky,4)
     sd%hmax     = 0; if (tod%nhorn > 1) sd%hmax = tod%nhorn
@@ -176,9 +177,10 @@ contains
     
     ! Construct mask
     if (btest(oper,SD_MASK)) then
-       call timer%start(TOD_PROJECT, tod%band)
-       call project_mask(tod, bitmask0, sd)
-       call timer%stop(TOD_PROJECT, tod%band)
+       !call timer%start(TOD_PROJECT, tod%band)
+       !call project_mask(tod, bitmask0, sd)
+       !call timer%stop(TOD_PROJECT, tod%band)
+       sd%mask = 1.0
 
        ! Disable broken detector-scans
 !!$       do j = 1, ndet

@@ -206,7 +206,7 @@ program commander
   ! Prepare chains
   call init_chain_file(cpar, first_sample)
   if (first_sample == -1) then
-     call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
+     !call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
   else
      ! Re-initialise seeds and reinitialize
@@ -527,28 +527,28 @@ contains
              call update_mixing_matrices(i, update_F_int=.true.)
 
           ! Evaluate sky for each detector given current bandpass
-          do j = 1, data(i)%tod%ndet
-             !s_sky(j,k)%p => comm_map(data(i)%info)
-             if (trim(data(i)%tod%tod_type) == 'DIRBE') then
-                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
-             else
-                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
-             end if
-             !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
-             !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
-          end do
+          !do j = 1, data(i)%tod%ndet
+          !   !s_sky(j,k)%p => comm_map(data(i)%info)
+          !   if (trim(data(i)%tod%tod_type) == 'DIRBE') then
+          !      call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
+          !   else
+          !      call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+          !   end if
+          !   !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
+          !   !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
+          !end do
 
-          ! Evaluate sky for each detector for absolute gain calibration
-          if (k == 1) then
-             do j = 1, data(i)%tod%ndet
-                if (associated(gainmap)) then
-                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
-                     & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
-                else
-                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false.) 
-                end if
-             end do
-          end if
+          !! Evaluate sky for each detector for absolute gain calibration
+          !if (k == 1) then
+          !   do j = 1, data(i)%tod%ndet
+          !      if (associated(gainmap)) then
+          !         call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
+          !           & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
+          !      else
+          !         call get_sky_signal(i, j, s_gain(j)%p, mono=.false.) 
+          !      end if
+          !   end do
+          !end if
 
        end do
 
@@ -606,12 +606,12 @@ contains
        call update_mixing_matrices(i, update_F_int=.true.)
 
        ! Clean up temporary data structures
-       do j = 1, data(i)%tod%ndet
-          do k = 1, ndelta
-             call s_sky(j,k)%p%dealloc
-          end do
-          call s_gain(j)%p%dealloc
-       end do
+       !!!! do j = 1, data(i)%tod%ndet
+       !!!!    do k = 1, ndelta
+       !!!!       call s_sky(j,k)%p%dealloc
+       !!!!    end do
+       !!!!    call s_gain(j)%p%dealloc
+       !!!! end do
        deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr

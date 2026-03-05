@@ -878,6 +878,7 @@ end subroutine bin_differential_TOD
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
        do i = 1, size(binmap%sA_map%a, 1)
+         write(*,*) "trying to bin", sum(binmap%sA_map%a(i,:)), size(binmap%sA_map%a, 2)
           call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
        end do
@@ -886,8 +887,10 @@ end subroutine bin_differential_TOD
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
       if (binmap%sb_map%myid_shared == 0) then
          do i = 1, size(binmap%sb_map%a, 1)
-            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+           do j = 1, size(binmap%sb_map%a, 2)
+            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, j, :), size(binmap%sb_map%a(1, j, :)), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+           end do
          end do
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)

@@ -301,13 +301,14 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    if (.false.) then ! Debug
+    sample_rel_bandpass   = .false.
+    if (.true.) then ! Debug
        ! Do data selection, then start sampling
-       sample_gain           = iter  > 0 !.true.                 
-       make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
+       sample_gain           = .false.
+       make_dyn_mask         = .false.
+       sample_ncorr          = .false.
        sample_xi_n      = .false.
-       select_data           = iter == 1
+       select_data           = .false.
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
@@ -331,8 +332,9 @@ contains
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
 
-    oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+    !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    oper_default = get_sd_operation_code([SD_TOT,SD_TOD])
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -346,6 +348,8 @@ contains
     end if
     if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
+    self%output_n_maps = 1
+
     call int2string(chain, ctext)
     call int2string(iter, samptext)
     call int2string(self%myid, myid_text)
@@ -353,7 +357,7 @@ contains
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Initialize index-based sky map and mask
-    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
+    !call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
 
 
@@ -410,10 +414,10 @@ contains
 
        
        ! Compute chisquare
-       do j = 1, sd%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_tod_chisq(sd, j)
-       end do
+       !! do j = 1, sd%ndet
+       !!    if (.not. self%scans(i)%d(j)%accept) cycle
+       !!    call self%compute_tod_chisq(sd, j)
+       !! end do
 
        ! Select data
        if (select_data) then
@@ -435,7 +439,11 @@ contains
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
-       call compute_calibrated_data(self, i, sd, d_calib)
+       !call compute_calibrated_data(self, i, sd, d_calib)
+       d_calib(1,:,:) = sd%tod
+       write(*,*) "hello you", sum(sd%tod), shape(sd%tod)
+       sd%flag = 1
+       sd%mask = 1
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -513,13 +521,13 @@ contains
        end if
     else
        if(self%nmaps > 1) then
-          call finalize_binned_map(self, binmap, rms_out, 1.d0)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0)
        else 
          call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
-        call update_status(status, "tod_binmap2"//ctext)
+    call update_status(status, "tod_binmap2"//ctext)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then

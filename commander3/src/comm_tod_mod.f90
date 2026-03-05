@@ -783,7 +783,6 @@ contains
              !do k = 2, self%scans(i)%ntod
              !   self%pix2ind(pix(k)) = -1
              !end do
-             if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
@@ -797,14 +796,15 @@ contains
              if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
              if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
-                pix = self%scans(i)%d(j)%pix(l)%p
+                !call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 !self%pix2ind(pix(1)) = -1
                 do k = 2, self%scans(i)%ntod
                    pix(k)  = pix(k-1)  + pix(k)
-                   if (pix(k) > 12*self%nside**2-1) then
+                   if (pix(k) > 12*self%nside**2-1 .or. pix(k) < 0) then
                        write(*,*) "Error: pixel number out of range for:"
-                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                       write(*,*) "scan id ", self%scanid(i), "pixel nr", pix(k), "scan index",  k, "pix 1", pix(1), "detector:", trim(self%label(j)), "chunk nr", self%scans(i)%chunk_num
+                       stop
                    end if
                    !self%pix2ind(pix(k)) = -1
                 end do
@@ -854,11 +854,9 @@ contains
 !!$    end if
 
     if (associated(self%pixcache)) then
-      write(*,*) 'About to sample pixcache'
        call self%pixcache%expand_storage(trim_unused=.true.)
-       write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
+       !write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
        call self%pixcache%precomp_aux(self%npsi)
-      write(*,*) 'Finished sampling pixcache'
     end if
 
 !!$    if (self%myid == 118) then
@@ -1390,16 +1388,16 @@ contains
 
 
     ! Initialize Huffman key
-    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+    call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        !TODO: this needs to be generalized to work for both floats and ints
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+       call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
        call hufmak_precomp_int(hsymb,htree,self%todkey)
        deallocate(hsymb, htree)
     end if

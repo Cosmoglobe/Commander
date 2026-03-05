@@ -221,7 +221,6 @@ contains
     call ecl_to_gal_rot_mat(rotation_matrix)
     do i = 1, self%nobs
        pix = self%ind2pix(i)
-       write(*,*) "What's my pixel", pix
        call ring2nest(self%nside, pix, self%ind2pix_nest(i))
        call pix2ang_ring(self%nside, pix, theta, phi)
        self%ind2ang(:,i) = [theta, phi]

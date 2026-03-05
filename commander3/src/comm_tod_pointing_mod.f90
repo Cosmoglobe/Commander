@@ -69,6 +69,7 @@ contains
 
      do_gain = btest(sd%oper,SD_GAIN) .and. allocated(tod%pixcache%map_gain)
      do_bp   = btest(sd%oper,SD_BP)
+     do_bp = .false.
      
      !if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
      
