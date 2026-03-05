@@ -333,8 +333,8 @@ contains
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-    !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT,SD_TOD])
+    !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_MASK])
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -442,8 +442,10 @@ contains
        !call compute_calibrated_data(self, i, sd, d_calib)
        d_calib(1,:,:) = sd%tod
        write(*,*) "hello you", sum(sd%tod), shape(sd%tod)
-       sd%flag = 1
+       sd%flag = 0
        sd%mask = 1
+
+       write(*,*) "Does this make sense?", shape(sd%pix)
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -594,7 +596,8 @@ contains
     integer(i4b),                        intent(in)    :: band
 
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
-    self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
+    !self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
+    self%pol_eff(band) = 1.0
 
   end subroutine load_instrument_lat
 

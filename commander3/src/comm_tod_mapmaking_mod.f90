@@ -215,7 +215,8 @@ contains
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
 
        ! polarization efficiency
-       eff = tod%pol_eff(det)
+       !eff = tod%pol_eff(det)
+       eff = 1.0
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
@@ -878,7 +879,6 @@ end subroutine bin_differential_TOD
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
        do i = 1, size(binmap%sA_map%a, 1)
-         write(*,*) "trying to bin", sum(binmap%sA_map%a(i,:)), size(binmap%sA_map%a, 2)
           call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
        end do

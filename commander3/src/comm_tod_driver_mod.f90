@@ -79,6 +79,7 @@ contains
     hmax  = sd%hmax
     nhorn = sd%nhorn
     nbp   = sd%nbp 
+    write(*,*) "Just checking", ntod, ndet, nhorn
                                 allocate(sd%det     (ndet))
     if (btest(oper,SD_IND))     allocate(sd%ind     (ntod, ndet, nhorn))
     if (btest(oper,SD_BASE))    allocate(sd%flag    (ntod, ndet))

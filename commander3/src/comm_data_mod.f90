@@ -218,23 +218,23 @@ contains
        call update_status(status, "data_tod")
 
        ! Initialize beam structures
-       allocate(data(n)%B(0:data(n)%ndet)) 
-       !select case (trim(cpar%ds_beamtype(i)))
-       !case ('b_l')
-       !   data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
-       !   do j = 1, data(n)%ndet
-       !      data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
-       !      ! MNG: I stripped mb_eff out of here to make it compile, if we need
-       !      ! this ever we need to introduce it back in somehow
-       !   end do
-       !case ('FIRAS')
-       !   data(n)%B(0)%p => comm_B_FIRAS(cpar, data(n)%info, n, i)
-       !   do j = 1, data(n)%ndet
-       !      data(n)%B(j)%p => comm_B_FIRAS(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
-       !   end do
-       !case default
-       !   call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
-       !end select
+       !! allocate(data(n)%B(0:data(n)%ndet)) 
+       !! select case (trim(cpar%ds_beamtype(i)))
+       !! case ('b_l')
+       !!    data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
+       !!    do j = 1, data(n)%ndet
+       !!       data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+       !!       ! MNG: I stripped mb_eff out of here to make it compile, if we need
+       !!       ! this ever we need to introduce it back in somehow
+       !!    end do
+       !! case ('FIRAS')
+       !!    data(n)%B(0)%p => comm_B_FIRAS(cpar, data(n)%info, n, i)
+       !!    do j = 1, data(n)%ndet
+       !!       data(n)%B(j)%p => comm_B_FIRAS(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+       !!    end do
+       !! case default
+       !!    call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
+       !! end select
        call update_status(status, "data_beam")
  
        ! Read default gain from instrument parameter file
