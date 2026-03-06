@@ -36,7 +36,6 @@ module comm_line_comp_mod
    contains
      procedure :: S    => evalSED_line
      procedure :: sampleSpecInd => sampleLineRatios
-   !   procedure :: updateMixmat => updateMixmatLineRatios
   end type comm_line_comp
 
   interface comm_line_comp
@@ -360,124 +359,6 @@ contains
 
   end subroutine sampleLineRatios
   
-!   ! update the mixing matrix, assumes only temperature and constant across the whole map
-!   subroutine updateMixmatLineRatios(self, theta, beta, band, df, par)
-!    implicit none
-!    class(comm_line_comp),                  intent(inout)           :: self
-!    class(comm_map),           dimension(:),   intent(in),    optional :: theta
-!    real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
-!    integer(i4b),                              intent(in),    optional :: band
-!    class(map_ptr), dimension(:),              intent(inout), optional :: df    ! Derivative of mixmat with respect to parameter par; for Jeffreys prior
-!    integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
-
-!    integer(i4b) :: i, j, l, p,  nmaps, ierr !,checkv, p_min, p_max, n, k, 
-!    real(dp)     :: t1, t2 !lat, lon,
-!    logical(lgt) :: mixmatnull ! NEW ,only_pol, , bad, precomp, 
-!    ! character(len=2) :: ctext
-!    real(dp),        allocatable, dimension(:)     :: buffer, buff2, theta_p_v ! s, nu,
-!    class(comm_mapinfo),          pointer          :: info => null() !, info_tp => null()
-!    ! class(map_ptr),  allocatable, dimension(:)     :: theta_prev
-
-!    ! call wall_time(t1)
-!    if (trim(self%type) == 'md') return
-
-!    call update_status(status, "mixupdate1 " // trim(self%label))
-   
-!    ! Copy over alms from input structure, and compute pixel-space parameter maps
-!    if (present(theta)) then
-!       do i = 1, self%npar
-!          ! write(*,*) 'Check 1'
-!          self%theta(i)%p%alm = theta(i)%alm          
-!       end do
-!    end if
-
-
-!    ! Compute mixing matrix
-!    do i = 1, numband
-
-!       ! Only update requested band if present
-!       if (present(band)) then
-!          if (i /= band) cycle
-!       end if
-
-!       ! Compute spectral parameters at the correct resolution for this channel
-!       ! only temperature can have a monopole, doesn't make sense for polarization - check with HKE and others about 
-!       ! procedure going forwards
-!       if (self%npar > 0) then
-!          nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-!          allocate(theta_p_v(self%npar))
-!          do j = 1,self%npar
-!             ! if self%theta(j)%p%info%lmax=0 constant on the sky
-!             theta_p_v(j) = self%theta(j)%p%alm(0,1)/sqrt(4.0d0*pi)
-!          end do
-!       end if
-!       ! write(*,*) 'id', self%x%info%myid
-
-!       call mpi_bcast(theta_p_v,size(theta_p_v),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-
-!       do l = 0, data(i)%ndet
-!          if (self%F_null(i,l)) then
-!             if (present(df)) df(i)%p%map = 0.d0
-!             cycle
-!          end if
-
-!          if (data(i)%comp_sens == "broadband") then
-!             ! If broadband, calculate mixing matrix
-!             mixmatnull = .false.
-!          else
-!             ! If component sensitivity, only calculate mixmat on that component.
-!             mixmatnull = .true.
-!             If (data(i)%comp_sens == self%label) then
-!                mixmatnull = .false.
-!             end if
-!          end if
-            
-!          ! Temperature
-!          if (self%npar > 0) then
-!             if (mixmatnull) then
-!                self%F(i,l)%p%map(:,1) = 0.0
-!             else
-!                self%F(i,l)%p%map(:,1) = self%F_int(1,i,l)%p%eval(theta_p_v(:)) * data(i)%gain * self%cg_scale(1)
-!                ! if (self%x%info%myid==0 .or. self%x%info%myid==1) then
-!                !    write(*,*) 'Check inside core', self%x%info%myid
-!                ! end if 
-!             end if
-!          else
-!             if (mixmatnull) then 
-!                self%F(i,l)%p%map(:,1) = 0.0
-!             else
-!                self%F(i,l)%p%map(:,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
-!             end if
-!          end if
-
-
-
-!          allocate(buffer(self%nmaps), buff2(self%nmaps))
-!          do j = 1, min(self%nmaps, data(i)%info%nmaps)
-!             self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
-!          end do
-!          buff2 = self%F_mean(i,l,:)
-!          !call mpi_barrier(mpi_comm_world, ierr)
-!          call mpi_allreduce(buff2, buffer, self%nmaps, &
-!               & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-!          self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
-!          deallocate(buffer,buff2)
-   
-!       end do
-!       if (allocated(theta_p_v)) deallocate(theta_p_v)
-!    end do
-
-!    call update_status(status, "mixupdate2 " // trim(self%label))
-
-!    ! Request preconditioner update
-!    recompute_diffuse_precond = .true.
-
-!    ! call wall_time(t2)
-!    ! if (self%x%info%myid == 0) write(*,*) '  Update line ratio mixing matrix time = ', t2-t1
-
-!  end subroutine updateMixmatLineRatios
- 
- 
 
  end module comm_line_comp_mod
  
