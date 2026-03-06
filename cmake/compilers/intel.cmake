@@ -84,7 +84,6 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-debug" "all"
     "-check" "all,nouninit,noarg_temp_created"
     "-warn" "all,nounused,noexternal"
-    "-fp-stack-check"
     "-fstack-protector-all"
 		"-traceback" 
 		"-qopenmp"

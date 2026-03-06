@@ -30,9 +30,10 @@ module comm_tod_LB_mod
   !   process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-   use comm_tod_mod
+  use comm_tod_mod
   use comm_tod_driver_mod
   use comm_conviqt_mod
+  use comm_tod_mapmaking_mod
   implicit none
 
   !private
@@ -131,7 +132,6 @@ contains
     c%nside_beam      = nside_beam
 
     ! Get detector labels
-
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
         call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
     else
@@ -160,9 +160,8 @@ contains
     ! Load the instrument file
     call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-
     ! Allocate sidelobe convolution data structures
-    allocate(c%slconv(c%ndet), c%orb_dp)
+    allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
     !c%orb_dp => comm_orbdipole(c%mbeam)
     c%orb_dp => comm_orbdipole(comm=info%comm)
 
@@ -217,20 +216,20 @@ contains
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-    type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+    type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
+    
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
+    integer(i4b)        :: i, j, k, l, h, ierr, ndelta, nside, npix, nmaps, oper_default
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2
+
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
@@ -238,12 +237,22 @@ contains
     call timer%start(TOD_TOT, self%band) 
 
     ! Toggle optional operations
+    sample_ncorr          = .false.
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     sample_gain           = .false.                ! Gain sampling, LB TOD sims have perfect gain
 
+    ! Define useful sd operation codes
+    if (sample_ncorr) then
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
+            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+    else
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
+            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+    end if
+    
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -261,17 +270,8 @@ contains
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
-    ! Distribute maps
-    allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
-    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
-
-    ! Distribute processing masks
-    allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-    call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-    call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-    deallocate(m_buf)
+    ! Initialize index-based sky map and mask
+    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain)
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -279,17 +279,11 @@ contains
        do i = 1, self%ndet
           !TODO: figure out why this is rotated
           call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-          self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+          self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
     end if
-
-!    (*,*) 'qqq', self%myid
-!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
     call update_status(status, "tod_init")
 
     !------------------------------------
@@ -299,11 +293,11 @@ contains
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
      if (sample_gain) then
        ! 'abscal': the global constant gain factor
-       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'abscal', oper_default, handle)
        ! 'relcal': the gain factor that is constant in time but varying between detectors
-       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'relcal', oper_default, handle)
        ! 'deltaG': the time-variable and detector-variable gain
-       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+       call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
     end if
 
     ! Prepare intermediate data structures
@@ -326,32 +320,23 @@ contains
        call wall_time(t1)
 
        ! Prepare data
-       if (sample_rel_bandpass) then
-!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
-       else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
-       else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
-       end if
+       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        allocate(s_buf(sd%ntod,sd%ndet))
-
 
        ! Sample correlated noise, or call Simulation Routine
        if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-       else
-          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-          sd%n_corr = 0.
+          !call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+       end if
+
+       if (sample_ncorr) then
+          call sample_n_corr(self, sd, handle)
+          !call sample_noise_psd(self, sd%tod, handle, chaindir, i, sd%mask, sd%s_tot, sd%n_corr)
        end if
       
-       ! Compute noise spectrum parameters
-       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+          call self%compute_tod_chisq(sd, j)
        end do
 
        ! Select data
@@ -393,7 +378,7 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S)
     else
        call finalize_binned_map(self, binmap, rms_out, 1.d6)
     end if
@@ -401,7 +386,7 @@ contains
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
-       call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+       call sample_bp(self, handle, chisq_S, delta)
        self%bp_delta = delta(:,:,1)
     end if
 
@@ -419,10 +404,11 @@ contains
     ! Clean up
     call binmap%dealloc()
     if (allocated(slist)) deallocate(slist)
-    deallocate(map_sky, procmask, procmask2)
     if (self%correct_sl) then
        do i = 1, self%ndet
-          call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
+          do h = 1, self%nhorn
+             call self%slconv(i,h)%p%dealloc(); deallocate(self%slconv(i,h)%p)
+          end do
        end do
     end if
 

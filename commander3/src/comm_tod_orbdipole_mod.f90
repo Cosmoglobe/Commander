@@ -28,10 +28,9 @@ module comm_tod_orbdipole_mod
     logical(lgt) :: beam_4pi
     real(dp),       dimension(:,:), allocatable :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term
     class(map_ptr), dimension(:),   allocatable :: beam
-    type(spline_type) :: s
   contains
     procedure :: precompute_orb_dp_s
-    procedure :: compute_CMB_dipole
+    procedure :: compute_orbital_dipole
     procedure :: compute_4pi_product
   end type comm_orbdipole
 
@@ -157,9 +156,9 @@ contains
 
   end subroutine precompute_orb_dp_s
 
-  subroutine compute_CMB_dipole(self, det, v_ref, nu, &
-       & relativistic, beam_4pi, P, s_dip, factor, v_ref_next)
-    ! Evaluates the CMB dipole as a function of time
+  subroutine compute_orbital_dipole(self, det, v_ref, v_ref_next, nu, &
+       & beam_4pi, P, s_dip, factor)
+    ! Evaluates the CMB orbital dipole as a function of time
     !
     !
     !   Arguments:
@@ -186,40 +185,34 @@ contains
     !   s_dip: real (sp)
     !        Array of dipole template timestreams for given detector
     implicit none
-    class(comm_orbdipole),                 intent(inout)  :: self
+    class(comm_orbdipole),                 intent(in)  :: self
     integer(i4b),                          intent(in)  :: det
-    real(dp),                              intent(in)  :: v_ref(3), nu
-    logical(lgt),                          intent(in)  :: relativistic 
+    real(dp),                              intent(in)  :: v_ref(3), v_ref_next(3), nu
     logical(lgt),                          intent(in)  :: beam_4pi
     real(dp),            dimension(1:,1:), intent(in)  :: P
     real(sp),            dimension(:),     intent(out) :: s_dip
     real(dp),                              intent(in), optional :: factor
-    real(dp),                              intent(in), optional :: v_ref_next(3)
 
     real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3)
     integer(i4b) :: i, j, k, s_len, ntod, subsample
+    type(spline_type) :: s
     real(dp), dimension(:), allocatable :: x_vec, y_vec
 
     subsample = 20
 
     f      = 1.d0; if (present(factor)) f = factor
     ntod   = size(s_dip)
-    if ((ntod - 1) == 0) stop '!!!!!!!ntod = 1, orb dipole bug!!!!!!!'
     x      = h * nu/(k_B * T_CMB)
     q      = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
-    vp_ref = v_ref; if (present(v_ref_next)) vp_ref = v_ref_next ! Velocity for next PID; for linear interpolation
 
     if (.not. beam_4pi) then
-       do i = 1, ntod !length of the tod
+       ! Pencil beam
+       do i = 1, ntod 
           xx       = real(i-1,dp)/real(ntod-1,dp)
-          v        = (1.d0-xx) * v_ref + xx*vp_ref
+          v        = (1.d0-xx) * v_ref + xx*v_ref_next
           b_dot    = dot_product(v, P(:,i))/c
-          s_dip(i) = b_dot
-          if (relativistic) then
-             b         = sqrt(sum(v**2))/c
-             s_dip(i)  = s_dip(i) + q*(b_dot**2  - b**2/3. )
-          end if
-          s_dip(i)  = f * T_CMB * s_dip(i)
+          b        = sqrt(sum(v**2))/c
+          s_dip(i) = f*T_CMB*(b_dot + q*(b_dot**2-b**2/3.))
        end do
     else 
        s_len = ntod/subsample
@@ -233,26 +226,25 @@ contains
        end do
        
        !spline the subsampled dipole to the full resolution
-       call spline_simple(self%s, x_vec, y_vec, regular=.true.)
-
+       call spline_simple(s, x_vec, y_vec, regular=.true.)
        do i = 1, s_len*subsample
-         s_dip(i) = splint_simple(self%s, real(i,dp))
+         s_dip(i) = splint_simple(s, real(i,dp))
        end do
 
        !handle the last irregular length bit of each chunk as a special case 
        !so that we can use regular=true in the spline code for speed; use end velocity for this bin
        do j=s_len*subsample+1, ntod
-         s_dip(j) = self%compute_4pi_product(det, q, P(:,j), vp_ref) 
+         s_dip(j) = self%compute_4pi_product(det, q, P(:,j), v_ref_next) 
        end do
 
        deallocate(x_vec, y_vec)
-       call free_spline(self%s)
+       call free_spline(s)
     end if
 
     ! HKE: HFI has v_sun in km/s right now!
     !s_dip = s_dip*1e3
     
-  end subroutine compute_CMB_dipole
+  end subroutine compute_orbital_dipole
 
 
   function compute_4pi_product(self, det, q, Pang, v_ref) result(prod)
