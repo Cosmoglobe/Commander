@@ -416,7 +416,7 @@ contains
                x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
                y(i+1) = log(1d-16)
                if (self%x%info%myid == 0) then
-                  write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
+                  write(*,*) 'Warning, dust spline value is very small, do you have unwanted zeros in your table? Possible unstable spline behaviour.'
                end if
             end if 
             !uncomment to debug if necessary
