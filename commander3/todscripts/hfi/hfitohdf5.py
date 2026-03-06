@@ -125,7 +125,7 @@ def main():
         pool.close()
         pool.join()
 
-    if ((in_args.ods[0] == 91 and in_args.ods[1] == 975) or in_args.produce_filelist) :
+    if ((in_args.ods[0] == 91 and in_args.ods[1] == 974) or in_args.produce_filelist) :
         comm_tod.make_filelists()
         #write file lists 
 
@@ -136,10 +136,34 @@ def make_warm_od(comm_tod, freq, od, args):
     
         comm_tod.init_file(freq, od, mode='w')
 
-        if(args.restart and comm_tod.exists):
-            comm_tod.finalize_file()
-            print('Skipping existing file ' + comm_tod.outName)
+        dataFileName = glob.glob(os.path.join(args.warm_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201508??.fits'))[0]
+
+        try:
+            exFile = fits.open(dataFileName)
+        except (OSError):
+            print("Failed to open file " + dataFileName)
             return
+
+        #make start and end time for warm chunks 
+        starttime = exFile[1].data['obt'][0]
+        endtime = exFile[1].data['obt'][-1]
+
+        #Make 24 chunks per day
+        chunks = []
+        chunksize = int((endtime-starttime)/24)
+        for i in np.arange(24): #make 24 chunks per day
+            chunks.append([268163+(od-975)*24 +i,starttime+i*chunksize, 0, 0,starttime-1+(i+1)*chunksize])
+
+        if(args.restart and comm_tod.exists):
+            print('Skipping existing file ' + comm_tod.outName)
+            #add each chunk to filelist
+            for chunk in chunks:
+                pid = int(chunk[0]/2)
+                comm_tod.finalize_chunk(pid)
+            comm_tod.finalize_file()
+            return
+
+
 
         rimo = fits.open(args.rimo)
         rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + hfi.dets[freq][0])
@@ -156,26 +180,8 @@ def make_warm_od(comm_tod, freq, od, args):
 
             detNames += str(freq) + '-' + det + ', '
 
-       #make detector names lookup
+        #make detector names lookup
         comm_tod.add_field(prefix + '/det', np.string_(detNames[0:-2]))
-
-        dataFileName = glob.glob(os.path.join(args.warm_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201508??.fits'))[0]
-
-        try:
-            exFile = fits.open(dataFileName)
-        except (OSError):
-            print("Failed to open file " + dataFileName)
-            return
-
-        #TODO: make start and end time for warm chunks 
-        starttime = exFile[1].data['obt'][0]
-        endtime = exFile[1].data['obt'][-1]
-
-        #Make a new list where the each short chunk is prepended to a long chunk
-        chunks = []
-        chunksize = int((endtime-starttime)/24)
-        for i in np.arange(24): #make 24 chunks per day
-            chunks.append([268163+(od-975)*24 +i,starttime+i*chunksize, 0, 0,starttime-1+(i+1)*chunksize])
 
         #per pid
         for chunk in chunks:
@@ -260,9 +266,57 @@ def make_od(comm_tod, freq, od, args):
 
         comm_tod.init_file(freq, od, mode='w')
 
+        try:
+            pointingFile = fits.open(os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+        except (OSError):
+            print("Failed to open file " + os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+            return
+
+        #open database with pid info in it
+        conn = sqlite3.connect(args.pid_database)
+        c = conn.cursor()
+
+        starttime = pointingFile[1].data['obt'][0]/1e9
+        endtime = pointingFile[1].data['obt'][-1]/1e9
+
+        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
+
+        #Make a new list where the each short chunk is prepended to a long chunk
+        chunks = []
+
+        start = True
+        for dbentry in dbs:
+            pid = dbentry[0]
+            start_time = dbentry[2]
+            end_time = dbentry[3]
+
+            if(pid%2 == 0 and start):
+                #file starts on an even chunk
+                continue
+
+            if(start):
+                curr_chunk = []
+                curr_chunk.append(pid)
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                start = False
+            else:
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                chunks.append(curr_chunk)
+                start = True
+
+        if(start): #we ended with an odd number of chunks
+            chunks.append(curr_chunk)
+
+
         if(args.restart and comm_tod.exists):
-            comm_tod.finalize_file()
             print('Skipping existing file ' + comm_tod.outName)
+            #add each chunk to filelist
+            for chunk in chunks:
+                pid = int(chunk[0]/2)
+                comm_tod.finalize_chunk(pid)
+            comm_tod.finalize_file()
             return
 
         rimo = fits.open(args.rimo)
@@ -329,54 +383,10 @@ def make_od(comm_tod, freq, od, args):
             return
 
         try:
-            pointingFile = fits.open(os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
-        except (OSError):
-            print("Failed to open file " + os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
-            return
-
-        try:
             extraFlagsFile = h5py.File(os.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
         except (OSError):
             print("Failed to open file " + s.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
             return
-
-
-        #open database with pid info in it
-        conn = sqlite3.connect(args.pid_database) 
-        c = conn.cursor()
-
-        starttime = pointingFile[1].data['obt'][0]/1e9
-        endtime = pointingFile[1].data['obt'][-1]/1e9
-
-        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
-
-        #Make a new list where the each short chunk is prepended to a long chunk
-        chunks = []
-
-        start = True
-        for dbentry in dbs:
-            pid = dbentry[0]
-            start_time = dbentry[2]
-            end_time = dbentry[3]
-
-            if(pid%2 == 0 and start):
-                #file starts on an even chunk
-                continue
-
-            if(start):
-                curr_chunk = []
-                curr_chunk.append(pid)
-                curr_chunk.append(start_time)
-                curr_chunk.append(end_time)
-                start = False
-            else:
-                curr_chunk.append(start_time)
-                curr_chunk.append(end_time)
-                chunks.append(curr_chunk)
-                start = True 
-
-        if(start): #we ended with an odd number of chunks
-            chunks.append(curr_chunk)
             
 
         #per pid

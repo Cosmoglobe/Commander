@@ -319,7 +319,10 @@ class commander_tod:
  
         self.raggedDict = {}
         self.huffDict = {}
-        self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
+        try:
+            self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
+        except ValueError: #load field already exists because we are just adding the file to the filelist
+            pass
         self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
 
     def compute_version(self):
