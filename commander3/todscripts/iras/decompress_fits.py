@@ -14,12 +14,12 @@ with multiprocessing support for parallel decompression.
 Reuses decompression logic from extract_timestream.py for consistency.
 
 Usage:
-    python decompress_fits.py [--sop SOP_NUM] [--output-dir DIR] [--format FORMAT] [--workers N]
+    python decompress_fits.py [--output-dir DIR] [--sop SOP_NUM] [--format FORMAT] [--workers N]
     
+    --output-dir DIR:     Output directory for decompressed files. Required.
     --sop SOP_NUM:        Only decompress specific SOP (e.g., 29). Default: all
-    --output-dir DIR:     Output directory for decompressed files. Default: ./decompressed/
-    --format FORMAT:      Output format: 'fits' (FITS with detector values) or 'npy' (numpy binary)
-    --raw-root PATH:      Path to raw data root. Default: /home/dwatts/IRAS/disk*
+    --format FORMAT:      Output format: 'fits' (FITS with detector values) or 'npy' (numpy binary). Default: fits
+    --raw-root PATH:      Path to raw data root. Default: /mn/stornext/d23/cmbco/globe/orig/iras/kester_rawdb/disk*
     --workers N:          Number of parallel workers. Default: CPU count
 
 Examples:
@@ -195,7 +195,7 @@ def decompress_worker(args):
     return decompress_fits_file(input_path, Path(output_path), output_format)
 
 
-def decompress_sop(sop_num=None, output_dir=None, output_format='fits', raw_root=None, workers=None):
+def decompress_sop(output_dir=None, sop_num=None, output_format='fits', raw_root=None, workers=None):
     """
     Decompress all FITS files for a given SOP (or all SOPs).
     
@@ -207,7 +207,9 @@ def decompress_sop(sop_num=None, output_dir=None, output_format='fits', raw_root
         workers: Number of parallel workers (default: CPU count)
     """
     if output_dir is None:
-        output_dir = Path("./decompressed/")
+        # Placeholder. Will add a default output_dir later. 
+        # output_dir = Path("default/path/to/be/set")
+        raise ValueError("Invalid output directory")
     else:
         output_dir = Path(output_dir)
     
@@ -309,8 +311,8 @@ def decompress_sop(sop_num=None, output_dir=None, output_format='fits', raw_root
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Decompress IRAS FITS files")
+    parser.add_argument("-o", "--output-dir", type=str, required=True, help="Output directory")
     parser.add_argument("--sop", type=int, default=None, help="SOP number (e.g., 29)")
-    parser.add_argument("--output-dir", default="./decompressed/", help="Output directory")
     parser.add_argument("--format", choices=['fits', 'npy'], default='fits', help="Output format")
     parser.add_argument("--raw-root", default=None, help="Raw data root directory")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers (default: CPU count)")
