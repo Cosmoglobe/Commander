@@ -48,7 +48,7 @@ BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_LEVEL&&&              = L2
 
 BAND_MAPFILE&&&                = akari/maps/akari_160_1_2048.fits
-BAND_NOISEFILE&&&              = akari/maps/akari_160_temprms_2048.fits
+BAND_NOISEFILE&&&              = akari/rms/akari_160_temprms_2048.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none

@@ -3875,10 +3875,10 @@ contains
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
                & self%mono_prior_gaussian_rms*self%cg_scale(1) 
-          write(*,fmt='(a,f14.3,f14.3)') '   New value             ', &
+          write(*,fmt='(a,f14.3)') '   New value             ', &
                & mean_intersect*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
+          write(*,fmt='(a,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
+          write(*,fmt='(a,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
           write(*,fmt='(a)') ' | '
        end if
 
