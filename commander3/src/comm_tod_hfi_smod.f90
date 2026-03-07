@@ -478,7 +478,7 @@ contains
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              ! fill gaps and deconvolve rolloff
-             call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j,0,1), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
+             !call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j,0,1), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
                             !& ps_output = 'init_' // itertext // '_' // scantext)
              call deconvolve_rolloff(self, sd, j, handle) !sd%tod(:,j), i, j, sd%s_tot(:,j,0,1), sd%mask(:,j), nomono=.true.)!,&
                                      !& ps_output = itertext // '_' // scantext)
