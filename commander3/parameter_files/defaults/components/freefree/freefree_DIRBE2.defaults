@@ -8,10 +8,11 @@ COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        = 1
 COMP_CG_SAMP_GROUP_MAXITER&&  = 150
 COMP_NSIDE&&                  = 1024
-COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU.fits  mask_ff_mono_tr5_others_tr40_radio_tr30_chisq_tr5_n1024_TQU.fits mask_lat_70deg_n1024_TQU.fits none
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:common/mask/mask_ff_monoprior_bp10_n1024_TQU.fits  mask_ff_mono_tr5_others_tr40_radio_tr30_chisq_tr5_n1024_TQU.fits mask_lat_70deg_n1024_TQU.fits none
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
 COMP_LMAX_IND&&               = 0 -1       # Use input map as is
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_OUTPUT_FWHM&&            = 15         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0
@@ -37,7 +38,7 @@ COMP_CL_DEFAULT_THETA_B&&     = 90.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 1500
-COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_comm3/common/init_ff_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits none
 COMP_AMP_PRIOR_LMAX&&         = -1
 
@@ -53,7 +54,7 @@ COMP_EM_NU_MIN&&              = 0.        # Lowest frequency for index estimatio
 COMP_EM_NU_MAX&&              = 80.        # Highest frequency for index estimation in GHz
 
 COMP_T_E_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_T_E_INPUT_MAP&&           = COM_CompMap_freefree-commander_1024_R2.00_Te.fits  ff_Te_c0001_k000007_n1024.fits
+COMP_T_E_INPUT_MAP&&           = common/maps/COM_CompMap_freefree-commander_1024_R2.00_Te.fits  ff_Te_c0001_k000007_n1024.fits
 COMP_T_E_SMOOTHING_SCALE&&     = 0
 COMP_T_E_DEFAULT&&             = 7000.
 COMP_T_E_PRIOR_UNI_LOW&&       = 1200.
@@ -71,3 +72,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

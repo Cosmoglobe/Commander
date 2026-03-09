@@ -17,7 +17,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_OUTPUT    =  11
 
   ! Channel specific parameters
-  integer(i4b), parameter, public :: NUM_TOD       = 26
+  integer(i4b), parameter, public :: NUM_TOD       = 32
   integer(i4b), parameter, public :: TOD_TOT       =  1
   integer(i4b), parameter, public :: TOD_INIT      =  2
   integer(i4b), parameter, public :: TOD_SL_PRE    =  3
@@ -44,6 +44,12 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_ALLOC     = 24
   integer(i4b), parameter, public :: TOD_INSTCORR  = 25
   integer(i4b), parameter, public :: TOD_WRITE     = 26
+  integer(i4b), parameter, public :: TOD_PIX2IND   = 27
+  integer(i4b), parameter, public :: TOD_NONLIN    = 28
+  integer(i4b), parameter, public :: TOD_OBJCTR    = 29
+  integer(i4b), parameter, public :: TOD_DYNMASK   = 30
+  integer(i4b), parameter, public :: TOD_PIXHIST   = 31
+  integer(i4b), parameter, public :: TOD_MAPSYN    = 32
 
 !  private
 !  public comm_timing
@@ -242,17 +248,22 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sky-to-tod projection    = ', t(b+TOD_PROJECT)  / self%numsamp(band), 100*t(b+TOD_PROJECT)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD orbital dipole           = ', t(b+TOD_ORBITAL)  / self%numsamp(band), 100*t(b+TOD_ORBITAL)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD decompression            = ', t(b+TOD_DECOMP)   / self%numsamp(band), 100*t(b+TOD_DECOMP)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD pix2ind                  = ', t(b+TOD_PIX2IND)   / self%numsamp(band), 100*t(b+TOD_PIX2IND)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD nonlin                   = ', t(b+TOD_NONLIN)   / self%numsamp(band), 100*t(b+TOD_NONLIN)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD absolute calibration     = ', t(b+TOD_ABSCAL)   / self%numsamp(band), 100*t(b+TOD_ABSCAL)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD relative calibration     = ', t(b+TOD_RELCAL)   / self%numsamp(band), 100*t(b+TOD_RELCAL)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD delta G calibration      = ', t(b+TOD_DELTAG)   / self%numsamp(band), 100*t(b+TOD_DELTAG)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD transmission imbalance   = ', t(b+TOD_IMBAL)    / self%numsamp(band), 100*t(b+TOD_IMBAL)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD baseline sampling        = ', t(b+TOD_BASELINE)  /  self%numsamp(band),   100*t(b+TOD_BASELINE)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD dynamic mask             = ', t(b+TOD_DYNMASK)  /  self%numsamp(band),   100*t(b+TOD_DYNMASK)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD pixel histogram          = ', t(b+TOD_PIXHIST)  /  self%numsamp(band),   100*t(b+TOD_PIXHIST)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD 1 Hz spikes              = ', t(b+TOD_1HZ)    / self%numsamp(band), 100*t(b+TOD_1HZ)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD correlated noise         = ', t(b+TOD_NCORR)    / self%numsamp(band), 100*t(b+TOD_NCORR)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD corr noise PSD           = ', t(b+TOD_XI_N)     / self%numsamp(band), 100*t(b+TOD_XI_N)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binning                  = ', t(b+TOD_MAPBIN)   / self%numsamp(band), 100*t(b+TOD_MAPBIN)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD chisq                    = ', t(b+TOD_CHISQ)   / self%numsamp(band), 100*t(b+TOD_CHISQ)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD bandpass                 = ', t(b+TOD_BP)   / self%numsamp(band), 100*t(b+TOD_BP)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binmap synchronization   = ', t(b+TOD_MAPSYN) / self%numsamp(band), 100*t(b+TOD_MAPSYN)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp(band), 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD load-balancing           = ', t(b+TOD_WAIT)  /  self%numsamp(band),   100*t(b+TOD_WAIT)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD MPI operations           = ', t(b+TOD_MPI)  /  self%numsamp(band),   100*t(b+TOD_MPI)/t(b+TOD_TOT)

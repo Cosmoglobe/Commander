@@ -76,6 +76,7 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=2048) :: MJysr_convention
      character(len=2048) :: fft_magic_number_file
+     character(len=2048) :: ephemerides_file
      character(len=2048) :: output_comps
      logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
@@ -250,6 +251,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)     :: cs_mask
      character(len=2048), allocatable, dimension(:)     :: cs_mono_prior
      real(dp),           allocatable, dimension(:)     :: cs_latmask
+     logical(lgt),       allocatable, dimension(:)     :: cs_apply_dust_ext
      character(len=2048), allocatable, dimension(:)     :: cs_indmask
      character(len=2048), allocatable, dimension(:)     :: cs_defmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
@@ -540,6 +542,7 @@ contains
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
+       call get_parameter_hashtable(htbl, 'EPHEMERIDES_FILE',   par_string=cpar%ephemerides_file, path=.true.)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
        if (cpar%tod_freq .eq. 0) cpar%tod_freq = cpar%num_gibbs_iter + 1
@@ -750,7 +753,7 @@ contains
                   & par_string=cpar%ds_tod_map_type(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_flag(i))
-             cpar%ds_tod_flag(i) = cpar%ds_tod_flag(i) + 2**30  ! Always Enable dynamic flagging in Commander
+             if (iand(cpar%ds_tod_flag(i),2**30) .eq. 0) cpar%ds_tod_flag(i) = cpar%ds_tod_flag(i) + 2**30  ! Always Enable dynamic flagging in Commander
              !call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
              !     & par_lgt=cpar%ds_tod_orb_abscal(i))
              if (cpar%include_TOD_zodi) then
@@ -852,6 +855,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
+    allocate(cpar%cs_apply_dust_ext(n))
     allocate(cpar%cs_pixreg_init_theta(MAXPAR,n))
     allocate(cpar%cs_almsamp_init(MAXPAR,n),cpar%cs_theta_prior(2,3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
@@ -888,6 +892,7 @@ contains
     
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
+    cpar%cs_apply_dust_ext=.false.
 
     do i = 1, n
        call int2string(i, itext)
@@ -915,6 +920,7 @@ contains
        ! Break up the diffuse parameter reading into something a bit more legible
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call read_diffuse_gen_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+          call get_parameter_hashtable(htbl, 'COMP_APPLY_DUST_EXTINCTION'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_dust_ext(i))
           select case (trim(cpar%cs_type(i)))
           case ('cmb')
              call read_cmb_params_hash(htbl,cpar)
@@ -3553,15 +3559,6 @@ end subroutine read_zodi_params_hash
 
     chaindir = trim(cpar%outdir) // '/'
 
-#ifdef USE_INTEL   
-    !verify that the output directory exists
-    inquire(directory=cpar%outdir, exist=exist) 
-    if (.not. exist) then
-       write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
-       stop
-    end if
-#endif
-
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') then
           call validate_file(trim(cpar%cg_samp_group_mask(i)), 'CG_SAMPLING_GROUP_MASK'//itext)
@@ -4138,48 +4135,47 @@ end subroutine read_zodi_params_hash
     ! Add user specified sample groups
     cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
     
+    ! COMMENTING OUT FOR NOW -- THIS SEEMS TO BE USELESS LEGACY CODE
     ! Add one sample group per component
-    do i = 1, cpar%cs_ncomp_tot
-       if (cpar%cs_include(i)) then
-          cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
-          cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
-          cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
-          if (trim(cpar%cs_class(i)) == 'diffuse') then
-             if (trim(cpar%cs_type(i)) == 'cmb') then
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-             else
-                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
-             end if
-          else
-             cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-          end if
-       end if
-    end do
+!     do i = 1, cpar%cs_ncomp_tot
+!        if (cpar%cs_include(i)) then
+!           cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
+!           cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
+!           cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
+!           if (trim(cpar%cs_class(i)) == 'diffuse') then
+!              if (trim(cpar%cs_type(i)) == 'cmb') then
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!              else
+!                 cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
+!              end if
+!           else
+!              cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+!           end if
+!        end if
+!     end do
+!     cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
+!     do i = 1, cpar%cg_num_samp_groups
+!        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+!        do j = 1, n
+!           if (trim(comp_label(j)) == 'md') then
+!              if (n==1 .and. cpar%cg_samp_group_md < 0) then
+!                 cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+!              else
+!              end if
+!              do k = 1, cpar%numband
+!                 if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
+!              end do
+!           end if
+!        end do
+!     end do
     
-    ! Expand md type if present
-    cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
-    do i = 1, cpar%cg_num_samp_groups
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(comp_label(j)) == 'md') then
-             if (n==1 .and. cpar%cg_samp_group_md < 0) then
-                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
-             else
-             end if
-             do k = 1, cpar%numband
-                if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
-             end do
-          end if
-       end do
-    end do
-    
-    ! More groups may be defined here
+!     ! More groups may be defined here
     
     
-    if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
-       write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
-       stop
-    end if
+!     if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
+!        write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
+!        stop
+!     end if
 
 
     ! Temporary
