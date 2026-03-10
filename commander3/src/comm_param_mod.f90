@@ -67,98 +67,100 @@ module comm_param_mod
      integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
 
      ! Global parameters
-     character(len=24)  :: operation
-     logical(lgt)       :: resamp_CMB
-     integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
-     integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
-     integer(i4b)       :: num_gibbs_iter, thinning, num_init_chains
+     character(len=24)   :: operation
+     logical(lgt)        :: resamp_CMB
+     integer(i4b)        :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
+     integer(i4b)        :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
+     integer(i4b)        :: num_gibbs_iter, thinning, num_init_chains
      character(len=2048) :: chain_status, init_chain_prefix
-     real(dp)           :: T_CMB
+     real(dp)            :: T_CMB
      character(len=2048) :: MJysr_convention
      character(len=2048) :: fft_magic_number_file
      character(len=2048) :: ephemerides_file
      character(len=2048) :: output_comps
-     logical(lgt)       :: only_pol, only_I
-     logical(lgt)       :: enable_TOD_analysis
-     logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
-     integer(i4b)       :: tod_freq
-     integer(i4b)       :: resamp_hard_gain_prior_nth_iter
-     integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
-     logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
-     integer(i4b)       :: zodi_solar_nside
-     logical(lgt)       :: sample_solar_maps, sample_moon_maps, sample_earth_maps
+     logical(lgt)        :: only_pol, only_I
+     logical(lgt)        :: enable_TOD_analysis
+     logical(lgt)        :: enable_TOD_simulations !< make and write sims to disc and then quit
+     logical(lgt)        :: on_the_fly_tod_sim     !< make sims in memory and continue analysing them
+     integer(i4b)        :: tod_freq
+     integer(i4b)        :: resamp_hard_gain_prior_nth_iter
+     integer(i4b)        :: output_4D_map_nth_iter, output_aux_maps
+     logical(lgt)        :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
+     integer(i4b)        :: zodi_solar_nside
+     logical(lgt)        :: sample_solar_maps, sample_moon_maps, sample_earth_maps
      character(len=2048) :: zodi_solar_initmap, zodi_moon_initmap, zodi_earth_initmap, zodi_static_bands
-     real(dp),           allocatable, dimension(:)     :: fwhm_smooth
-     real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
-     integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
-     integer(i4b),       allocatable, dimension(:)     :: nside_smooth
+     character(len=2048) :: sims_output_dir !< simulations directory
+     real(dp),            allocatable, dimension(:)     :: fwhm_smooth
+     real(dp),            allocatable, dimension(:)     :: fwhm_postproc_smooth
+     integer(i4b),        allocatable, dimension(:)     :: lmax_smooth
+     integer(i4b),        allocatable, dimension(:)     :: nside_smooth
      character(len=2048), allocatable, dimension(:)     :: pixwin_smooth
      character(len=2048), allocatable, dimension(:)     :: init_chain_prefixes
-     character(len=2048)                                :: sims_output_dir !< simulations directory
 
      ! alm-sampler
-     integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
-     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
+     integer(i4b)        :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
+     logical(lgt)        :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
 
      ! Output parameters
      character(len=2048) :: outdir
-     integer(i4b)       :: nside_chisq, nmaps_chisq
-     logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
-     integer(i4b)       :: output_cg_freq
-     logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec
+     integer(i4b)        :: nside_chisq, nmaps_chisq
+     logical(lgt)        :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
+     integer(i4b)        :: output_cg_freq
+     logical(lgt)        :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
+     logical(lgt)        :: sample_signal_amplitudes, sample_specind, sample_powspec
 
      ! Numerical parameters
      character(len=2048) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
-     logical(lgt)       :: cg_init_zero, set_noise_to_mean
-     real(dp)           :: cg_tol
-     integer(i4b)       :: num_bp_prop
+     integer(i4b)        :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups
+     integer(i4b)        :: cg_miniter, cg_check_conv_freq, cg_samp_group_md
+     logical(lgt)        :: cg_init_zero, set_noise_to_mean
+     real(dp)            :: cg_tol
+     integer(i4b)        :: num_bp_prop
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
-     integer(i4b),       dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
+     integer(i4b),        dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_bands
 
      ! Data parameters
-     integer(i4b)       :: numband
+     integer(i4b)        :: numband
      character(len=2048) :: datadir, ds_sourcemask, ds_procmask
-     logical(lgt),       allocatable, dimension(:)   :: ds_active
-     integer(i4b),       allocatable, dimension(:)   :: ds_period
-     logical(lgt),       allocatable, dimension(:)   :: ds_polarization
-     integer(i4b),       allocatable, dimension(:)   :: ds_nside
-     integer(i4b),       allocatable, dimension(:)   :: ds_lmax
+     logical(lgt),        allocatable, dimension(:)   :: ds_active
+     integer(i4b),        allocatable, dimension(:)   :: ds_period
+     logical(lgt),        allocatable, dimension(:)   :: ds_polarization
+     integer(i4b),        allocatable, dimension(:)   :: ds_nside
+     integer(i4b),        allocatable, dimension(:)   :: ds_lmax
      character(len=2048), allocatable, dimension(:)   :: ds_label
      character(len=2048), allocatable, dimension(:)   :: ds_instlabel
      character(len=2048), allocatable, dimension(:)   :: ds_unit
      character(len=2048), allocatable, dimension(:)   :: ds_noise_format
-     integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
+     integer(i4b),        allocatable, dimension(:)   :: ds_noise_lcut
      character(len=2048), allocatable, dimension(:)   :: ds_mapfile
      character(len=2048), allocatable, dimension(:)   :: ds_noisefile
      character(len=2048), allocatable, dimension(:)   :: ds_regnoise
      character(len=2048), allocatable, dimension(:,:) :: ds_noise_rms_smooth
-     real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
+     real(dp),            allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=2048), allocatable, dimension(:)   :: ds_maskfile
      character(len=2048), allocatable, dimension(:)   :: ds_maskfile_calib
      character(len=2048), allocatable, dimension(:)   :: ds_beamtype
      character(len=2048), allocatable, dimension(:)   :: ds_blfile
      character(len=2048), allocatable, dimension(:)   :: ds_btheta_file
      character(len=2048), allocatable, dimension(:)   :: ds_pixwin
-     logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
+     logical(lgt),        allocatable, dimension(:)   :: ds_samp_noiseamp
      character(len=2048), allocatable, dimension(:)   :: ds_bptype
      character(len=2048), allocatable, dimension(:)   :: ds_bpfile
      character(len=2048), allocatable, dimension(:)   :: ds_bpmodel
-     real(dp),           allocatable, dimension(:)   :: ds_nu_c
-     logical(lgt),       allocatable, dimension(:)   :: ds_sample_gain
-     real(dp),           allocatable, dimension(:,:) :: ds_gain_prior
+     real(dp),            allocatable, dimension(:)   :: ds_nu_c
+     logical(lgt),        allocatable, dimension(:)   :: ds_sample_gain
+     real(dp),            allocatable, dimension(:,:) :: ds_gain_prior
      character(len=2048), allocatable, dimension(:)   :: ds_gain_calib_comp
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmin
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
+     integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmin
+     integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmax
      character(len=2048), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=2048), allocatable, dimension(:)   :: ds_gain_fwhm
-     real(dp),           allocatable, dimension(:,:) :: ds_defaults
+     real(dp),            allocatable, dimension(:,:) :: ds_defaults
      character(len=2048), allocatable, dimension(:)   :: ds_component_sensitivity
-     real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
-     logical(lgt),       allocatable, dimension(:)   :: ds_zodi_reference_band
+     real(dp),            allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
+     logical(lgt),        allocatable, dimension(:)   :: ds_zodi_reference_band
 
      !TOD data parameters
      character(len=2048), allocatable, dimension(:)   :: ds_tod_type
@@ -174,13 +176,13 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_initHDF
      character(len=2048), allocatable, dimension(:)   :: ds_tod_level
      character(len=2048), allocatable, dimension(:)   :: ds_tod_abscal
-     integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
+     integer(i4b),        allocatable, dimension(:,:) :: ds_tod_scanrange
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_tot_numscan
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_flag
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_halfring
+     logical(lgt),        allocatable, dimension(:)   :: ds_tod_orb_abscal
+     logical(lgt),        allocatable, dimension(:)   :: ds_tod_subtract_zodi
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_freq
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_mask
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_model
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_init
@@ -194,20 +196,20 @@ module comm_param_mod
      ! Component parameters
      character(len=2048) :: cs_inst_parfile
      character(len=2048) :: cs_init_inst_hdf
-     integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
-     logical(lgt)       :: cs_output_localsamp_maps
-     real(dp)           :: cmb_dipole_prior(3)
+     integer(i4b)        :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
+     logical(lgt)        :: cs_output_localsamp_maps
+     real(dp)            :: cmb_dipole_prior(3)
      character(len=2048) :: cmb_dipole_prior_mask
-     logical(lgt),       allocatable, dimension(:)     :: cs_include
+     logical(lgt),        allocatable, dimension(:)     :: cs_include
      character(len=2048), allocatable, dimension(:)     :: cs_initHDF
      character(len=2048), allocatable, dimension(:)     :: cs_label
      character(len=2048), allocatable, dimension(:)     :: cs_type
      character(len=2048), allocatable, dimension(:)     :: cs_class
-     logical(lgt),       allocatable, dimension(:)     :: cs_polarization
-     real(dp),           allocatable, dimension(:,:)   :: cs_cg_scale
-     integer(i4b),       allocatable, dimension(:)     :: cs_nside
-     integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
-     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
+     logical(lgt),        allocatable, dimension(:)     :: cs_polarization
+     real(dp),            allocatable, dimension(:,:)   :: cs_cg_scale
+     integer(i4b),        allocatable, dimension(:)     :: cs_nside
+     integer(i4b),        allocatable, dimension(:,:)   :: cs_poltype
+     integer(i4b),        allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
      character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
      character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_pixreg
      character(len=2048), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
@@ -221,13 +223,13 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mono_type
      character(len=2048), allocatable, dimension(:,:)   :: cs_almsamp_init
      character(len=2048), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
-     real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
-     real(dp),           allocatable, dimension(:,:)   :: cs_spec_corr_limit
-     real(dp),           allocatable, dimension(:,:,:,:) :: cs_theta_prior
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
+     integer(i4b),        allocatable, dimension(:,:,:) :: cs_spec_nprop_init
+     real(dp),            allocatable, dimension(:,:,:) :: cs_spec_proplen_init
+     real(dp),            allocatable, dimension(:,:)   :: cs_spec_corr_limit
+     real(dp),            allocatable, dimension(:,:,:,:) :: cs_theta_prior
+     integer(i4b),        allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
+     logical(lgt),        allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
+     logical(lgt),        allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
      logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_mono_combined
      logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_corr_convergence
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
@@ -533,8 +535,12 @@ contains
     !----------------------------------------------------------------------------------
     ! Commander3 simulations parameters
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
-    if (cpar%enable_TOD_simulations) cpar%num_gibbs_iter = 1
+    ! for this option commander write sims to disc and then quit
+    if (cpar%enable_TOD_simulations) cpar%num_gibbs_iter = 1 
     call get_parameter_hashtable(htbl, 'SIMS_OUTPUT_DIRECTORY',    par_string=cpar%sims_output_dir)
+    ! in on-the-fly mode, commander generates sims in memory in the begining of the first iteration, and then
+    ! continue to analyze them (as data) for the number of gibbs iternations specified in the param file
+    call get_parameter_hashtable(htbl, 'ON_THE_FLY_TOD_SIM',       par_lgt=cpar%on_the_fly_tod_sim)
     !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)

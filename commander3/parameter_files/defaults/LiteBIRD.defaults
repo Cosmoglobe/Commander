@@ -28,9 +28,10 @@ TOD_INCLUDE_ZODI              = .false.
 FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
 EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
 
+ON_THE_FLY_TOD_SIM            = .false. # make on-the-fly tod sims and continue analyzing them
+ENABLE_TOD_SIMULATIONS        = .false. # make and write sims to disk and exit
+SIMS_OUTPUT_DIRECTORY         = none
 NSKIP_FILELIST                = 0
-ENABLE_TOD_SIMULATIONS        = .false.
-SIMS_OUTPUT_DIRECTORY         = chains
 
 # Options for CMB resampling (for constrained realization production)
 RESAMPLE_CMB                  = .false.

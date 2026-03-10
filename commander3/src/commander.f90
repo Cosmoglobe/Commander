@@ -115,7 +115,9 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
-     else
+    else if (cpar%on_the_fly_tod_sim) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime: on-the-fly tod sims followed by standard data processing', '|'
+    else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
      write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'

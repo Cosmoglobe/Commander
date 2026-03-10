@@ -15,7 +15,8 @@ TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
 FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
 
-ENABLE_TOD_SIMULATIONS        = .false.
+ON_THE_FLY_TOD_SIM            = .false. # make on-the-fly tod sims and continue analyzing them
+ENABLE_TOD_SIMULATIONS        = .false. # make and write sims to disk and exit
 SIMS_OUTPUT_DIRECTORY         = none
 
 # Options for CMB resampling (for constrained realization production)

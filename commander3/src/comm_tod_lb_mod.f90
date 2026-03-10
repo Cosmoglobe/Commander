@@ -32,6 +32,7 @@ module comm_tod_LB_mod
   !
   use comm_tod_mod
   use comm_tod_driver_mod
+  use comm_tod_simulations_mod
   use comm_conviqt_mod
   use comm_tod_mapmaking_mod
   implicit none
@@ -241,7 +242,7 @@ contains
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
     ! Toggle optional operations
-    sample_ncorr          = .false.
+    sample_ncorr          = .true.
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
@@ -279,7 +280,9 @@ contains
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Initialize index-based sky map and mask
-    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain)
+    ! OBS: input sky maps are in uK as usual, while LiteBIRD tods are in K
+    ! Therefore we are scaling sky maps to K, using the optional scale parameter
+    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain, scale=1e-6)  
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -331,11 +334,18 @@ contains
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        allocate(s_buf(sd%ntod,sd%ndet))
 
-       ! Sample correlated noise, or call Simulation Routine
+       ! call simulate_tod if we want to make and output tod sims
        if (self%enable_tod_simulations) then
-          !call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+          call simulate_tod(self, i, sd%s_tot(:,:,0,1), sd%n_corr, handle)
        end if
 
+       ! call simulate_tod_on_the_fly if we want to make tod sim in memory and continue analyzing it
+       ! but only if this is the first sample
+       if (self%on_the_fly_tod_sim .and. self%first_call) then
+          call simulate_tod_on_the_fly(self, sd, handle)
+       end if
+
+       ! sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           !call sample_noise_psd(self, sd%tod, handle, chaindir, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -420,7 +430,7 @@ contains
        end do
     end if
 
-    ! Parameter to check if this is first time routine has been
+    ! Parameter to check if this is first time routine has been called
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)

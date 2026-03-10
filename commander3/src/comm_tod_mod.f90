@@ -166,6 +166,7 @@ module comm_tod_mod
      character(len=512) :: noise_psd_model  
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
+     logical(lgt) :: on_the_fly_tod_sim !< if you want to make simulated tods in memory during first sample
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: L2_exist
@@ -565,6 +566,7 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%on_the_fly_tod_sim = cpar%on_the_fly_tod_sim
     self%level         = cpar%ds_tod_level(id_abs)
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
