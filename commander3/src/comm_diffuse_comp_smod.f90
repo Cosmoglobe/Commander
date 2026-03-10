@@ -3794,11 +3794,11 @@ contains
           write(*,fmt='(a,f14.3,f14.3)') ' |    Drawing intersect to subtract from prior (mu,RMS)  ', &
                & mean_intersect*self%cg_scale(1), &
                & std_intersect*self%cg_scale(1) 
-          write(*,fmt='(a,f14.3,f14.3)') ' |    New value             ', &
+          write(*,fmt='(a,f14.3)') ' |    New value             ', &
                & (mean_intersect-mu(0))*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') ' |    Old value             ', &
+          write(*,fmt='(a,f14.3)') ' |    Old value             ', &
                & mean_intersect*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') ' |    Difference            ', &
+          write(*,fmt='(a,f14.3)') ' |    Difference            ', &
                & -mu(0)*self%cg_scale(1)
           write(*,fmt='(a)') ' |  '
 

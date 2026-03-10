@@ -116,8 +116,14 @@ contains
 
     do i = 1, size(nu)
        x = h*nu(i) / (k_B*T_CMB)
-       compute_bnu_prime_array(i) = (2.d0*h*nu(i)**3/(c**2*(exp(x)-1.d0))) * &
+       if (x < 700.d0) then
+         compute_bnu_prime_array(i) = (2.d0*h*nu(i)**3/(c**2*(exp(x)-1.d0))) * &
             & (exp(x) / (exp(x)-1.d0)) * h*nu(i)/(k_B*T_CMB**2)
+       else
+         ! try to avoid overflow here but should probably have the comp_nu_max such that you don't 
+         ! need this
+         compute_bnu_prime_array(i)= (2.d0*h*nu(i)**3/(c**2)) * exp(-x) * h*nu(i)/(k_B*T_CMB**2)
+       endif
     end do
     
   end function compute_bnu_prime_array

@@ -232,12 +232,12 @@ contains
     case ('uK_RJ') 
        c%RJ2data = 1.d0
     case ('K km/s')
-       write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
+       if(cpar%myid == 0) write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
        c%RJ2data = 1.d0
     case default
        c%RJ2data = 1.d0
     end select
-    
+
   end function constructor_bp
   
 
@@ -281,9 +281,10 @@ contains
     do i = 1, n
        if (trim(self%type) == 'DIRBE' .or. trim(self%type) == 'AKARI') then
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          ! These overflow in exp(x) due to large x
-          bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
-          sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
+          ! The CMB comp_mu_max should be set to avoid carrying around bands without
+          ! much CMB
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i)) 
+          sz(i)           = comp_sz_thermo(self%nu(i)) 
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
