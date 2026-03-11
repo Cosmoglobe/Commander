@@ -1,3 +1,5 @@
+@DEFAULT global.defaults
+
 # Monte Carlo options
 BASE_SEED                     = 163425  # Seed for random number generator
 

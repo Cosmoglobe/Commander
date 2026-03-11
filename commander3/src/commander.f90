@@ -520,6 +520,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)

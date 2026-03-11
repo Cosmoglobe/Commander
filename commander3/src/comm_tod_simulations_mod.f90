@@ -606,7 +606,7 @@ contains
     ndet   = sd%ndet              ! number of detectors                = self%ndet
     ntod   = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
 
-    write(*,*) 'sim', scan, self%scans(scan)%d%accept
+    !write(*,*) 'sim', scan, self%scans(scan)%d%accept
     
     ! Simulating 1/f noise
     nfft = 2 * ntod
