@@ -35,6 +35,7 @@ module comm_tod_LB_mod
   use comm_tod_simulations_mod
   use comm_conviqt_mod
   use comm_tod_mapmaking_mod
+  use comm_hdf_mod
   implicit none
 
   !private
@@ -234,6 +235,8 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
+    type(hdf_file) :: tod_file
+    
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band) 
@@ -242,7 +245,7 @@ contains
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
     ! Toggle optional operations
-    sample_ncorr          = .true.
+    sample_ncorr          = .false. !.true. OBS
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
@@ -367,6 +370,34 @@ contains
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
 
+       ! For debugging: write TOD to hdf
+       if (.true.) then
+          ! scan id appears to be the worst chi2
+          if (self%scanid(i) == 1) then 
+             !print *, self%scanid(i)
+             call int2string(self%scanid(i), scantext)
+             call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
+             call write_hdf(tod_file, '/tod', sd%tod)
+             call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+             call write_hdf(tod_file, '/flag', sd%flag)
+             call write_hdf(tod_file, '/caltod', d_calib(1, :, :))
+             call write_hdf(tod_file, '/s_sky', sd%s_sky)
+             !call write_hdf(tod_file, '/s_inst', sd%s_inst)
+             call write_hdf(tod_file, '/n_corr', sd%n_corr)
+             !call write_hdf(tod_file, '/s_sl', sd%s_sl)
+             !call write_hdf(tod_file, '/s_orb', sd%s_orb)
+             call write_hdf(tod_file, '/res', d_calib(2, :, :))
+             !call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
+             call write_hdf(tod_file, '/mask', sd%mask)
+             !call write_hdf(tod_file, '/accept', real(self%scans(i)%d(:)%accept,dp))
+             call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
+             call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
+             call close_hdf_file(tod_file)
+          end if
+         end if
+
+
+       
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
        
