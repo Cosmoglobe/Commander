@@ -100,9 +100,9 @@ class EphemerisGenerator:
         )
 
         self.jpl_horizons_query_limit = 90024
-        self.number_of_query_batches = max(1, int(
-            np.ceil(self.time_arr.size / self.jpl_horizons_query_limit)
-        ))
+        self.number_of_query_batches = max(
+            1, int(np.ceil(self.time_arr.size / self.jpl_horizons_query_limit))
+        )
         self.batch_size = int(
             np.ceil(self.time_arr.size / self.number_of_query_batches)
         )
@@ -359,7 +359,9 @@ class EphemerisGenerator:
                         grp["position_au"].attrs["units"] = "au"
                         grp["position_au"].attrs["frame"] = "heliocentric_mean_ecliptic"
             else:
-                print(f"Warning: Unknown format '{fmt}'. Skipping. Valid formats: txt, hdf5, h5, both")
+                print(
+                    f"Warning: Unknown format '{fmt}'. Skipping. Valid formats: txt, hdf5, h5, both"
+                )
 
 
 def parse_commandline_args():
@@ -451,12 +453,103 @@ def parse_commandline_args():
     return parser.parse_args()
 
 
+def pretty_terminal_print():
+    """Print a cool stylized string saying "Ephemeris Gen" in ASCII art with rainbow colors."""
+    import colorsys
+
+    saturn_string = """                                                        
+                                    ▒▒▒▒▒▒▓▓▓▓                                   
+                                ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓               ░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒
+                                ░▒▒░░░░░░░░░░░░▒▒▒▒▒▒▓▓▓     ░▓▓▓▓█▓█▓▓▓▓▓▓▓▓░▓▓▓▓▒█
+                            ░░░░░░░░░░░░░░░░░░░░▒▒▒▒▓█▓▓▓██▓▓▒▒▒▓▓▓▓██▓▓▓▓░█▓▓▓█ 
+                            ░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒▓▓█     ░░▒░▒▓▓▓▓▓▓▓▒█▓▓▓   
+                            ░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▓██    ░▒░▓▓▓▓▓▓▓░▓▓▓▒░    
+                            ░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▓█   ▒░▓▓▓▓▓▓▓▒▓▓▓▓       
+                        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▓██▒▒▓▓▓▓██░█▓▓▒█         
+                        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▓████▓█▓▓▒▓▓▓▓█            
+                        ░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓███████▒▓▓▓▓▓               
+                        ░░░░░░░░░░░░░░░░░░░░░░░▒▓▓████████▓▓▓▓█                  
+                        ▓▒▓▓░░░░░░░░░░░     ░░░▒▓▓██████████▓▓▓                     
+                    ▓▒█▓▒░ ░░░░░░░    ░░░▒▒▒▓███▓███▓██████                        
+                ▒▓▓█▓▒░    ░░░░░░░░▒▒▒▒▓███████▓█████████                         
+                ▓▒▓▓▓▒▒░      ░▒▒▓▓▓▓████████▓██████▓▓███                           
+            ▓▓▒█▓▓▓▓▒░▒▒▒▒▒▒▒▓▓████████▓▓██████▓▓▓▓████                            
+        ▓▓▒█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓████████▓▒▒▒▓▓████                               
+        ▓▓▓░█▓▓▓▓▓▓▓▓▓█▓▓▓▓█▒░▓▓▓▓▓▓█░▓▓▓▓██████                                   
+        ▓▓▓█▓░▒▓█▓██▓▒░░▒▓▓▓▓▓▓▓█                                                   
+    ▓▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒█░                                                        
+        ██▓▒▒▒▒▒▒▓█▓                                                                
+    """
+    # Write a cool stylized string saying "Ephemeris Gen" in ASCII art, and print it to the terminal.
+    pretty_string_art = r"""
+     /$$$$$$$$           /$$                                /$$$$$$                     
+    | $$_____/          | $$                               /$$__  $$                    
+    | $$        /$$$$$$ | $$$$$$$   /$$$$$$  /$$$$$$/$$$$ | $$  \__/  /$$$$$$  /$$$$$$$ 
+    | $$$$$    /$$__  $$| $$__  $$ /$$__  $$| $$_  $$_  $$| $$ /$$$$ /$$__  $$| $$__  $$
+    | $$__/   | $$  \ $$| $$  \ $$| $$$$$$$$| $$ \ $$ \ $$| $$|_  $$| $$$$$$$$| $$  \ $$
+    | $$      | $$  | $$| $$  | $$| $$_____/| $$ | $$ | $$| $$  \ $$| $$_____/| $$  | $$
+    | $$$$$$$$| $$$$$$$/| $$  | $$|  $$$$$$$| $$ | $$ | $$|  $$$$$$/|  $$$$$$$| $$  | $$
+    |________/| $$____/ |__/  |__/ \_______/|__/ |__/ |__/ \______/  \_______/|__/  |__/
+            | $$                                                                      
+            | $$                                                                      
+            |__/                                                                        
+                                                                                    
+    """
+
+    def _supports_truecolor() -> bool:
+        colorterm = os.environ.get("COLORTERM", "").casefold()
+        if "truecolor" in colorterm or "24bit" in colorterm:
+            return True
+        term = os.environ.get("TERM", "").casefold()
+        return "-direct" in term or "truecolor" in term
+
+    def _rgb_to_256(r: int, g: int, b: int) -> int:
+        r6 = int(round(r / 255 * 5))
+        g6 = int(round(g / 255 * 5))
+        b6 = int(round(b / 255 * 5))
+        return 16 + 36 * r6 + 6 * g6 + b6
+
+    def print_rainbow(text: str) -> None:
+        if os.environ.get("NO_COLOR") is not None:
+            print(text)
+            return
+
+        use_truecolor = _supports_truecolor()
+        chars: list[str] = []
+
+        for line in text.splitlines(keepends=True):
+            line_has_newline = line.endswith("\n")
+            line_content = line[:-1] if line_has_newline else line
+            count = max(len(line_content), 1)
+
+            for i, ch in enumerate(line_content):
+                hue = i / count
+                r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+                r_i, g_i, b_i = int(r * 255), int(g * 255), int(b * 255)
+                if use_truecolor:
+                    color = f"\x1b[38;2;{r_i};{g_i};{b_i}m"
+                else:
+                    color = f"\x1b[38;5;{_rgb_to_256(r_i, g_i, b_i)}m"
+                chars.append(f"{color}{ch}")
+
+            chars.append("\x1b[0m")
+            if line_has_newline:
+                chars.append("\n")
+
+        print("".join(chars))
+
+    print_rainbow(saturn_string)
+    print_rainbow(pretty_string_art)
+
+
 def main() -> None:
     """Main entry point for ephemeris generation workflow.
 
     Parses command-line arguments, creates an EphemerisGenerator instance,
     runs the ephemeris generation pipeline, and saves results to disk.
     """
+
+    pretty_terminal_print()
 
     args = parse_commandline_args()
 
