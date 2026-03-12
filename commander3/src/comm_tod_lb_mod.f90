@@ -223,7 +223,7 @@ contains
     
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, h, ierr, ndelta, nside, npix, nmaps, oper_default
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr, sample_xi_n
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
@@ -246,6 +246,7 @@ contains
     
     ! Toggle optional operations
     sample_ncorr          = .false. !.true. OBS
+    sample_xi_n           = .false.
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
@@ -348,10 +349,16 @@ contains
           call simulate_tod_on_the_fly(self, sd, handle)
        end if
 
-       ! sample correlated noise
+       ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
-          !call sample_noise_psd(self, sd%tod, handle, chaindir, i, sd%mask, sd%s_tot, sd%n_corr)
+          if (sample_xi_n) then
+             call sample_noise_psd(self, sd, handle, chaindir)
+          else
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+          end if
+       else
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
        end if
       
        ! Compute chisquare
