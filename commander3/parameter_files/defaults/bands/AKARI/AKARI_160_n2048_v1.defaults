@@ -1,7 +1,7 @@
-# AKARI WIDE-L default parameters
+# AKARI 160 default parameters
 
-BAND_LABEL&&&                  = AKARI_WIDE-L
-BAND_INSTRUMENT_LABEL&&&       = AKARI_WIDE-L
+BAND_LABEL&&&                  = AKARI_160
+BAND_INSTRUMENT_LABEL&&&       = AKARI_160
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 2048
@@ -12,7 +12,7 @@ BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0
 BAND_MASKFILE&&&               = common/mask/mask_fullsky_n2048.fits 
 BAND_MASKFILE_CALIB&&&         = common/mask/mask_fullsky_n2048.fits 
 BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
-BAND_BEAM_B_L_FILE&&&          = akari/beam/AKARI_WIDE-L_beam_58arcsec.fits
+BAND_BEAM_B_L_FILE&&&          = akari/beam/AKARI_160_beam_61arcsec.fits
 BAND_BEAM_B_PTSRC_FILE&&&      = none
 BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n2048.fits
 BAND_SAMP_NOISE_AMP&&&         = .false.
@@ -23,7 +23,7 @@ BAND_SAMP_BANDPASS&&&          = .false.
 BAND_BANDPASSFILE&&&           = akari/bp/AKARI_instrument_v02.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
-BAND_GAIN_PRIOR_RMS&&&          = 0
+BAND_GAIN_PRIOR_RMS&&&          = 1
 BAND_GAIN_CALIB_COMP&&&        = all
 BAND_GAIN_LMIN&&&              = -1
 BAND_GAIN_LMAX&&&              = -1
@@ -38,16 +38,16 @@ BAND_TOD_TYPE&&&               = AKARI
 BAND_TOD_BP_INIT_PROP&&&       = dirbe/bp/bp_init_DIRBE_01.dat
 BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 1
-BAND_TOD_END_SCANID&&&         = 1
-BAND_TOD_TOT_NUMSCAN&&&        = 24
+BAND_TOD_END_SCANID&&&         = 11978
+BAND_TOD_TOT_NUMSCAN&&&        = 11978
 BAND_TOD_FLAG&&&               = 2147483647   # Apply all flags
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-BAND_TOD_DETECTOR_LIST&&&      = akari/tod/w140/AKARI_WIDE-L_detlist.txt
+BAND_TOD_DETECTOR_LIST&&&      = akari/tod/160/AKARI_160_detlist.txt
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_LEVEL&&&              = L2
 
-BAND_MAPFILE&&&                = akari/maps/akari_160_1_2048.fits
+BAND_MAPFILE&&&                = akari/rms/akari_160_1_2048.fits
 BAND_NOISEFILE&&&              = akari/rms/akari_160_temprms_2048.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_NOISE_RMS&&&_SMOOTH01     = none
@@ -57,8 +57,6 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_TOD_MAIN_PROCMASK&&&      = common/mask/mask_common_dx12_n2048.fits
 BAND_TOD_SMALL_PROCMASK&&&     = common/mask/mask_common_dx12_n2048.fits
 BAND_TOD_RIMO&&&               = akari/bp/AKARI_instrument_v02.h5
-# BAND_TOD_FILELIST&&&           = /mn/stornext/d23/cmbco/cg/AKARI/ryosukem/filelist_test_1d.txt
-BAND_TOD_FILELIST&&&           = filelist_AKARI_N60_n2048_v03.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
 

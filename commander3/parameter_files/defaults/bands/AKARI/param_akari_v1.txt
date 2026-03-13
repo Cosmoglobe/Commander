@@ -42,18 +42,18 @@ DATA_DIRECTORY                 = /mn/stornext/d5/data/metins/dirbe/data
 NUMBAND                        =  4
 
 # TOD channels
-INCLUDE_BAND001                = .true.     # N60
-INCLUDE_BAND002                = .false.    # WIDE-S
-INCLUDE_BAND003                = .false.    # WIDE-L
-INCLUDE_BAND004                = .false.    # N160
+INCLUDE_BAND001                = .true.     # 065
+INCLUDE_BAND002                = .false.    # 090
+INCLUDE_BAND003                = .false.    # 140
+INCLUDE_BAND004                = .false.    # 160
 
 @START 001
-@DEFAULT bands/AKARI/AKARI_N60_v1.defaults
-BAND_LABEL&&&                      = AKARI_N60
+@DEFAULT bands/AKARI/AKARI_065_v1.defaults
+BAND_LABEL&&&                      = AKARI_065
 BAND_LMAX&&&                       = 1000
 BAND_MAPFILE&&&                    = akari_160_1_8192.fits        # Official map
 BAND_NOISEFILE&&&                  = akari_160_temprms_8192.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = filelist_AKARI_N60_v00.txt
+BAND_TOD_FILELIST&&&               = filelist_AKARI_065_v00.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 1
 BAND_TOD_TYPE&&&                   = AKARI
@@ -66,11 +66,11 @@ BAND_TOD_INIT_FROM_HDF&&&          = none  default
 @END 001
 
 @START 002
-@DEFAULT bands/AKARI/AKARI_WIDE-S_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-S
+@DEFAULT bands/AKARI/AKARI_090_v1.defaults
+BAND_LABEL&&&                      = AKARI_090
 BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
 BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = filelist_AKARI_WIDE-S_v1.txt
+BAND_TOD_FILELIST&&&               = filelist_AKARI_090_v1.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 1
 BAND_TOD_TYPE&&&                   = AKARI
@@ -83,11 +83,11 @@ BAND_TOD_INIT_FROM_HDF&&&          = none  default
 @END 002
 
 @START 003
-@DEFAULT bands/AKARI/AKARI_WIDE-L_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-L
+@DEFAULT bands/AKARI/AKARI_140_v1.defaults
+BAND_LABEL&&&                      = AKARI_140
 BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
 BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = filelist_AKARI_WIDE-L_v1.txt
+BAND_TOD_FILELIST&&&               = filelist_AKARI_140_v1.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 1
 BAND_TOD_TYPE&&&                   = AKARI
@@ -100,11 +100,11 @@ BAND_TOD_INIT_FROM_HDF&&&          = none  default
 @END 003
 
 @START 004
-@DEFAULT bands/AKARI/AKARI_N160_v1.defaults
-BAND_LABEL&&&                      = AKARI_N160
+@DEFAULT bands/AKARI/AKARI_160_v1.defaults
+BAND_LABEL&&&                      = AKARI_160
 BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
 BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = filelist_AKARI_N160_v1.txt
+BAND_TOD_FILELIST&&&               = filelist_AKARI_160_v1.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 1
 BAND_TOD_TYPE&&&                   = AKARI
