@@ -3,6 +3,7 @@ from cosmoglobe.tod_tools import CommanderDataAdapter
 import glob
 from commander_tools.tod_tools.akari_native_tod_reader import AKARITODReader
 from astropy.coordinates import SkyCoord
+import astropy.coordinates as coords
 import astropy.units as u
 import numpy as np
 import healpy
@@ -153,6 +154,8 @@ DESIRED_FLAGS = {
 # How many FITS files should be included in a single HDF file
 NUM_FITS_FILES_PER_SEGMENT=200
 
+REFERENCE_TIME = Time("2000-01-01", format="isot", scale="utc")
+
 for band, ndets in NUM_DETECTORS.items():
     BAND_DETS[band] = []
     for i in range(1, ndets+1):
@@ -163,7 +166,8 @@ for band, ndets in NUM_DETECTORS.items():
 # the TOD reader in a format that is useful for the HDF file generation.
 def fits2output_formatter(file, start_index, end_index, band,
                           start_det_inds=START_DET_INDS,
-                          num_detectors=NUM_DETECTORS, band_dets=BAND_DETS):
+                          num_detectors=NUM_DETECTORS, band_dets=BAND_DETS,
+                          reftime=REFERENCE_TIME):
     """Formats the data in an AKARI fits file in the way we need for the Commander HDFs.
 
     Arguments:
@@ -192,10 +196,10 @@ def fits2output_formatter(file, start_index, end_index, band,
     out_data['ra'] = file[5]['RA'].read()[start_index:end_index]
     out_data['dec'] = file[5]['DEC'].read()[start_index:end_index]
     out_data['packet_id'] = file[1]['PACKETID'].read()[start_index:end_index].astype(int)
-    out_data['start_satpos'] = 0
-    out_data['end_satpos'] = 0
-    out_data['start_earthpos'] = 0
-    out_data['end_earthpos'] = 0
+#    out_data['start_satpos'] = 0
+#    out_data['end_satpos'] = 0
+#    out_data['start_earthpos'] = 0
+#    out_data['end_earthpos'] = 0
 
     return out_data
 
@@ -206,7 +210,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     All the non-underlined functions are defined as in that class.
     """
     def __init__(self, akari_fits_dir, nside, bands=BANDS,
-                 num_detectors=NUM_DETECTORS, band_dets=BAND_DETS):
+                 num_detectors=NUM_DETECTORS, band_dets=BAND_DETS,
+                 reference_time=REFERENCE_TIME):
         self.bands = bands
         self.num_detectors = num_detectors
         self.band_dets = band_dets
@@ -244,7 +249,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         self.nchunks = {}
         for band in bands: 
             self.nchunks[band] = len(self.chunk_file_map[band])
-        self.reference_time = Time("1981-01-01", format="isot", scale="utc")
+        self.reference_time = reference_time
 
 
     def _calculate_chunk_files(self):
@@ -330,12 +335,24 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                                                          c.galactic.b.value,
                                                          lonlat=True)
             if 'start_time' not in todreader_data:
-                todreader_data['start_time'] = curr_data[f'aftime'][0]
-                todreader_data['end_time'] = curr_data[f'aftime'][-1]
-                todreader_data['start_satpos'] = curr_data['start_satpos']
-                todreader_data['end_satpos'] = curr_data['end_satpos']
-                todreader_data['start_earthpos'] = curr_data['start_earthpos']
-                todreader_data['end_earthpos'] = curr_data['end_earthpos']
+                starttime = curr_data['aftime'][0]
+                endtime = curr_data['aftime'][-1]
+                todreader_data['start_time'] = (self.reference_time +
+                                                TimeDelta(curr_data[f'aftime'][0], format='sec',
+                                                          scale='tai'))
+                todreader_data['end_time'] = (self.reference_time +
+                                                TimeDelta(curr_data[f'aftime'][-1], format='sec',
+                                                          scale='tai'))
+                earthpos_start = coords.get_body(
+                    'earth', todreader_data['start_time'],
+                    ephemeris='builtin').transform_to(coords.HeliocentricMeanEcliptic).cartesian.xyz.to_value(u.AU)
+                earthpos_end = coords.get_body(
+                    'earth', todreader_data['end_time'],
+                    ephemeris='builtin').transform_to(coords.HeliocentricMeanEcliptic).cartesian.xyz.to_value(u.AU)
+                todreader_data['start_satpos'] = earthpos_start
+                todreader_data['end_satpos'] = earthpos_end
+                todreader_data['start_earthpos'] = earthpos_start
+                todreader_data['end_earthpos'] = earthpos_end
 
         return todreader_data
 
@@ -401,13 +418,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     @get_chunk
     def get_chunk_start_time(self):
-        return (self.reference_time + TimeDelta(self.all_chunk_data['start_time'], format="sec",
-                                                scale="tai"))
+        return self.all_chunk_data['start_time']
 
     @get_chunk
     def get_chunk_end_time(self):
-        return (self.reference_time + TimeDelta(self.all_chunk_data['end_time'], format="sec",
-                                                scale="tai"))
+        return self.all_chunk_data['end_time']
 
     @get_chunk
     def get_chunk_start_satpos(self):
