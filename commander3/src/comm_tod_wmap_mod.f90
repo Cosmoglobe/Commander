@@ -337,11 +337,7 @@ contains
                           & 53957,54322,54688,55053,55418/)
 
       ! Choose absolute bandpass sampling
-      if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%sample_abs_bp   = .false.
-      else
-         constructor%sample_abs_bp   = .true.
-      end if
+      constructor%sample_abs_bp   = .false.
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
