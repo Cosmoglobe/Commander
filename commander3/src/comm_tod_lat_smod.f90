@@ -394,9 +394,6 @@ contains
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
 
-       ! Horrible hack;
-       sd%tod = abs(sd%tod)
-
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking

@@ -205,18 +205,20 @@ contains
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq, eff
     nout = size(data,1)
+
+    inv_sigmasq = 1d0
+    eff = 1d0
  
     call timer%start(TOD_MAPBIN, tod%band)
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = tod%output_n_maps + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
-       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
+       !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
 
        ! polarization efficiency
        !eff = tod%pol_eff(det)
-       eff = 1.0
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
