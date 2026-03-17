@@ -262,15 +262,6 @@ contains
             binmap%A_map(off+2,pix_) = binmap%A_map(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
             binmap%A_map(off+3,pix_) = binmap%A_map(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
          end if
-
-!        if(pix_ == 1 .and. det==2) then
-!          write(*,*) "Id", tod%myid
-!          write(*,*) "A"
-!          write(*,*) binmap%A_map(:,pix_)
-!          write(*,*) "B"
-!          write(*,*) binmap%b_map(1, :, pix_)
-!        end if
-
        end do
     end do
 

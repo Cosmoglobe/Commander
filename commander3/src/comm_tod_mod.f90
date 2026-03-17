@@ -3306,17 +3306,6 @@ contains
         ncut = 0
         if (output_scan == self%scanid(scan)) open(58, file='flag_stage2.dat')
         do iter = 1, 1
-!!$           ! Compute full-scan, masked rms0
-!!$           rms0 = 0.d0
-!!$           n   = 0
-!!$           do i = 1, ntod
-!!$              if (mask(i) == 1.) then
-!!$                 rms0 = rms0 + res(i)**2
-!!$                 n   = n   + 1
-!!$              end if
-!!$           end do
-!!$           rms0 = 0.; if (n > 1) rms0 = sqrt(rms0/(n-1))
-!!$           !write(*,*) 'iter = ', iter, ' -- rms0 = ', rms0
            
            do i = 1, ntod
               cut(i) = (mask(i) == 1. .and. abs(res(i)) > threshold(3))
