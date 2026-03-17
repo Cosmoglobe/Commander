@@ -1,3 +1,5 @@
+@DEFAULT bands/LiteBIRD/bands_common.defaults
+
 BAND_LABEL&&&                 = LB_100_M1
 BAND_INSTRUMENT_LABEL&&&                 = LB_100_M1
 BAND_OBS_PERIOD&&&            = 1
