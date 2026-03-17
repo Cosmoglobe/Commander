@@ -59,7 +59,7 @@ contains
     implicit none
     class(comm_N_rms),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
-    type(comm_mapinfo), target,         intent(in)    :: info
+    type(comm_mapinfo), target,         intent(inout) :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
@@ -108,7 +108,7 @@ contains
        else
           tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
           info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-               & constructor%nmaps, constructor%pol)
+               & constructor%nmaps, constructor%pol, distribute_type=info%distribute_type, rms=.true.)
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
           constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
@@ -143,7 +143,7 @@ contains
   subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
     class(comm_N_rms),                   intent(inout)          :: self
-    class(comm_mapinfo),                 intent(in)             :: info
+    class(comm_mapinfo),                 intent(inout)          :: info
     type(planck_rng),                    intent(inout)          :: handle
     class(comm_map),                     intent(in),   optional :: mask
     real(dp),          dimension(0:,1:), intent(out),  optional :: regnoise
@@ -157,11 +157,12 @@ contains
     class(comm_mapinfo), pointer :: info_lowres => null()
 
     call update_status(status, "update_N_rms")
+    info%rms = .true.
 
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       self%rms0     => comm_map(info)
+       if (.not. associated(self%rms0)) self%rms0     => comm_map(info)
        self%rms0%map = map%map
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')
@@ -173,6 +174,9 @@ contains
     end if
     if (associated(self%rms_reg)) then
        self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
+    end if
+    if(.not. present(mask)) then
+      write(*,*) "Mask not provided in update_N_rms"
     end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
     self%siN%map = self%siN%map * mask%map ! Apply mask
@@ -251,7 +255,7 @@ contains
 
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
+       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol, rms=.true.)
        self%siN_lowres => comm_map(info_lowres)
     end if
     iN => comm_map(self%siN)

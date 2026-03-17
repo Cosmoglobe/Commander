@@ -12,6 +12,7 @@ COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
 COMP_LMAX_IND&&               = 0 -1       # Use input map as is
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_OUTPUT_FWHM&&            = 30         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0

@@ -36,6 +36,10 @@ import traceback
 import cProfile
 import glob
 from scipy.spatial.transform import Rotation as rot
+import pickle
+import codecs
+
+import matplotlib.pyplot as plt
 
 def main():
 
@@ -50,6 +54,9 @@ def main():
     parser.add_argument('--pid-database', type=str, action='store', help='path to the sql database storing the PID info', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_raw_rings_v3.db')
 
     parser.add_argument('--extra-flags', type=str, action='store', help='path to extra flagging in txt file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_bad_intervals_15s_elephants.txt')
+
+    #https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
+    parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hficalibparams.dat')
 
     parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
 
@@ -101,7 +108,14 @@ def main():
 def make_od(comm_tod, freq, od, args):
 
     try:
-        
+      
+        #load housekeeping imo from file 
+        calibfile = open(args.calib_params, mode='r')
+        calibparams = calibfile.read()
+        calibfile.close()
+        calibparams = bytes(calibparams, encoding='utf-8')
+        hsk = pickle.loads(codecs.decode(bytes(calibparams), 'base64'), fix_imports=True, encoding='bytes')
+ 
         nside = hfi.nsides[freq]
 
         comm_tod.init_file(freq, od, mode='w')
@@ -178,14 +192,39 @@ def make_od(comm_tod, freq, od, args):
         starttime = pointingFile[1].data['obt'][0]/1e9
         endtime = pointingFile[1].data['obt'][-1]/1e9
 
-        #per pid
-        for dbentry in c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime)):
+        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
+
+        #Make a new list where the each short chunk is prepended to a long chunk
+        chunks = []
+
+        start = True
+        for dbentry in dbs:
             pid = dbentry[0]
             start_time = dbentry[2]
-            end_time = dbentry[3]        
+            end_time = dbentry[3]
+
+            if(start):
+                curr_chunk = []
+                curr_chunk.append(pid)
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                start = False
+            else:
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                chunks.append(curr_chunk)
+                start = True 
+
+        #per pid
+        for chunk in chunks:
+            pid = chunk[0]
+
+            start_time = chunk[1]
+            end_time = chunk[4]        
 
             startIndex = np.where(exFile[1].data['obt']/1e9 > start_time)
             endIndex = np.where(exFile[1].data['obt']/1e9 > end_time)
+
             if len(startIndex[0]) > 0:
                 pid_start = startIndex[0][0]
             else:#catch days with no pids
@@ -196,6 +235,11 @@ def make_od(comm_tod, freq, od, args):
                 pid_end = len(exFile[1].data['obt'])
             if pid_start == pid_end:#catch chunks with no data like od 1007
                 continue
+
+            #There are some samples that are not included in either chunk...
+            garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[2])[0][0]
+            garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[3])[0][0]
+            ngarbage = garbageEnd - garbageStart
 
             #common fields per pid
             prefix = str(pid).zfill(6) + '/common'
@@ -234,8 +278,9 @@ def make_od(comm_tod, freq, od, args):
 
             r_boresight = rot.from_quat(quat_arr)
 
-            extra_flags = extraFlagsFile[str(pid).zfill(6) + '/flag_extra']
-
+            extra_flags = extraFlagsFile[str(pid).zfill(6) + '/flag_extra'][()]
+            extra_flags = np.append(extra_flags, np.ones(ngarbage, dtype='uint16'))
+            extra_flags = np.append(extra_flags, extraFlagsFile[str(pid+1).zfill(6) + '/flag_extra'][()])
 
             #per detector fields
             for det in hfi.dets[freq]:
@@ -248,14 +293,23 @@ def make_od(comm_tod, freq, od, args):
                 data_i = exFile.index_of(str(freq) + '-' + det)        
             
                 #make flag data
-                flagArray = exFile[data_i].data.field('flag')[pid_start:pid_end]
+                flagArray = np.array(exFile[data_i].data.field('flag')[pid_start:pid_end], dtype='uint16')
 
                 #add extra flagging from txt files
                 ex_flags = extra_flags
                 if(det == '353-1'):
-                    ex_flags = extraFlagsFile[str(pid).zfill(6) + '/flags_extra_353-1']
+                    #add extra flags and a bit for the repointing period
+                    ex_flags = extraFlagsFile[str(pid).zfill(6) + '/flags_extra_353-1'] + 256
+                    #add flags for garbage data
+                    ex_flags = np.append(ex_flags, np.zeros(ngarbage, dtype=uint16))
+
+                    #add flags from scanning chunk
+                    ex_flags = np.append(extraFlagsFile[str(pid+1).zfill(6) + '/flags_extra_353-1'])
                 flagArray += ex_flags
-                    
+
+                #with np.printoptions(threshold=np.inf):
+                #    print(flagArray)
+    
                 if (len(flagArray) > 0):
                     comm_tod.add_field(prefix + '/flag', flagArray, compArr)
 
@@ -265,31 +319,57 @@ def make_od(comm_tod, freq, od, args):
                 # Follows this npipe function: 
                 # https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/utilities.py#L1503-L1575            
 
-                phi = math.radians(rimo[1].data.field('phi_uv')[rimo_i])
-                theta = math.radians(rimo[1].data.field('theta_uv')[rimo_i])
-                psi = math.radians(rimo[1].data.field('psi_uv')[rimo_i] + rimo[1].data.field('psi_pol')[rimo_i]) - phi
+                phi = float(math.radians(rimo[1].data.field('phi_uv').ravel()[rimo_i]))
+                theta = float(math.radians(rimo[1].data.field('theta_uv').ravel()[rimo_i]))
+                psi = float(math.radians(rimo[1].data.field('psi_uv').ravel()[rimo_i])) + float(rimo[1].data.field('psi_pol').ravel()[rimo_i]) - phi
+                #print(phi)
+                #print(theta)
+                #print(psi, float(math.radians(rimo[1].data.field('psi_uv').ravel()[rimo_i])), float(rimo[1].data.field('psi_pol').ravel()[rimo_i]))
 
-                det_s = np.cos(0.5 * theta) * np.cos(0.5 * (phi + psi))
-                # vector part
-                det_x = -np.sin(0.5 * theta) * np.sin(0.5 * (phi - psi))
-                det_y = np.sin(0.5 * theta) * np.cos(0.5 * (phi - psi))
-                det_z = np.cos(0.5 * theta) * np.sin(0.5 * (phi + psi))
+                #ZYZ
+                r_det = rot.from_euler('ZYZ', [phi, theta, psi])
 
-                #convert from boresight pointing to per detector pointing
-                r_det = rot.from_quat([det_x, det_y, det_z, det_s])
+                #rotation due to spin angle
+                r_spin = rot.from_euler('Y', np.pi/2 - math.radians(85))
 
-                r_total = r_boresight * r_det
+                r_total = r_boresight *r_spin * r_det
 
                 #convert to theta, phi, psi
-                angs = r_total.as_euler('zxz') # could also be 'ZXZ' if we are supposed to be using intrinsic rotations instead of extrinsic
-                # idk what the difference is
+                angs = r_total.as_euler('ZYZ')
 
-                theta_array = angs[:,0]
-                phi_array = angs[:,1]
+                phi_array = angs[:,0]
+                theta_array = angs[:,1]
                 psi_array = angs[:,2]
+               
+                # additional psi rotation due to ecliptic/galactic rotation 
+                r = hp.rotator.Rotator(coord=['E', 'G'], deg=False)
+                angle = r.angle_ref([theta_array, phi_array])
 
                 galTheta, galPhi = r(theta_array, phi_array)
+                
                 pixels = hp.pixelfunc.ang2pix(nside, galTheta, galPhi)
+
+                '''
+                if(pid == 25083):
+
+                    plt.figure()
+                    x = np.arange(0, 20000)
+
+                    theta_, phi_ = hp.pix2ang(nside, pixels)
+
+                    print('theta, phi, psi=', np.rad2deg(theta), np.rad2deg(phi), np.rad2deg(psi))
+                    #print('x, y, z, x=', det_x, det_y, det_z, det_s)
+                    plt.plot(x, theta_[-20000:], label='theta')
+                    plt.plot(x, phi_[-20000:], label='phi')
+                    plt.plot(x, quat_x[-20000:], label='x')
+                    plt.plot(x, quat_y[-20000:], label='y')
+                    plt.plot(x, quat_z[-20000:], label='z')
+                    plt.plot(x, quat_s[-20000:], label='s')
+                    plt.legend(loc='best')
+
+                    plt.savefig('quat_test.pdf')
+                    #sys.exit()
+                '''
 
                 if len(pixels > 0):
                     #compute average outer product
@@ -303,6 +383,7 @@ def make_od(comm_tod, freq, od, args):
 
                 #make pol angle
                 if(len(psi_array) > 0):
+                    psi_array += angle
                     psi_array = np.where(psi_array < 0, 2*np.pi + psi_array, psi_array)
                     psi_array = np.where(psi_array >= 2*np.pi, psi_array - 2*np.pi, psi_array)
                     compArray = None
@@ -327,17 +408,23 @@ def make_od(comm_tod, freq, od, args):
                 gainFile = fits.open(os.path.join(args.gains_dir, 'npipe5_gains_' + str(freq) + '.fits'))
                 gain = gainFile[gainFile.index_of(str(freq) +'-' + det)].data[0][0]
 
-             
+                gain1, offset = hfi.compute_l1_gain(str(freq) + '-' + det, exFile[1].data['obt'][pid_start:pid_end], hsk)
+
+
+                #print(gain, gain1, offset, gain/gain1)
+
+                gain = gain/gain1[0]
+
                 #make white noise
                 sigma0 = rimo[1].data.field('net')[rimo_i][0] * math.sqrt(fsamp)
 
                 #make f_knee
                 #fknee = rimo[1].data.field('f_knee')[rimo_i][0]
-		fknee = 0.5
+                fknee = 0.5
 
                 #make 1/f noise exponent 
                 #alpha = rimo[1].data.field('alpha')[rimo_i][0]
-		alpha = -1		
+                alpha = -1		
 
                 #print(gain, sigma0, fknee, alpha)
                 comm_tod.add_field(prefix + '/scalars', np.array([gain, sigma0, fknee, alpha]).flatten())
@@ -346,7 +433,17 @@ def make_od(comm_tod, freq, od, args):
                 #make psd noise
                    
                 #make tod data
-                tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end]
+                tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end] #- offset
+
+                #fout1 = open("output.dat","w")
+                #for i in range(len(tod)):
+                #    fout1.write(str(tod[i])+"\n")
+                #fout1.close()
+
+                #print(tod)
+                #print(offset)
+                #ghj
+
                 #compArray = [hfi.todDtype, hfi.rice]
                 compArray = [hfi.todDtype, hfi.huffTod]
                 if(args.no_compress):

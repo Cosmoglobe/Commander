@@ -26,14 +26,13 @@ import numpy as np
 import healpy as hp
 import random
 import math
-
 class hfi(object):   
  
     freqs = [100, 143, 217, 353, 545, 857]
     dets = {100:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b'], 143:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5', '6', '7'], 217:['1', '2', '3', '4', '5a', '5b', '6a', '6b', '7a', '7b', '8a', '8b'], 353:['1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', '7', '8'], 545:['1', '2', '4'], 857:['1', '2', '3', '4']}
     npsi = 4096
     ntodsigma = 100
-    nsides = {100:1024, 143:1024, 217:1024, 353:1024, 545:2048, 857:2048}
+    nsides = {100:1024, 143:2048, 217:2048, 353:2048, 545:2048, 857:2048}
     #compression arrays 
     huffman = ['huffman', {'dictNum':1}]
     huffTod = ['huffman', {'dictNum':2}]
@@ -100,6 +99,56 @@ class hfi(object):
                 outFlags[np.logical_and(times > entry[0],times < entry[1])] = 128
         return outFlags
 
+    #computes the pre-differencing gains from the insturment calibration params
+    #at a given time
+    #heavily based on https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
+
+    def compute_l1_gain(detector, time, hsk):
+        if(type(time) == np.int64):
+            time = np.array([time])
+        params = hsk[detector.encode()]  # python 3
+
+        # Fixed IMO params
+        GC_bc = params[b'GC_bc']
+        F1_bc = params[b'F1_bc']
+        HFI_REU_ETAL = params[b'HFI_REU_ETAL']
+        REU_bc_offset = params[b'REU_bc_offset'] 
+        
+        gamp = hfi.expand_hsk(hsk, params[b'gamp'], time)
+        nsamp = hfi.expand_hsk(hsk, params[b'nsamp'], time)
+        nblanck = hfi.expand_hsk(hsk, params[b'nblanck'], time)
+
+        nsamp[nsamp == 0] = 45
+        nsamp[nsamp == 1] = 40
+        nsamp[nsamp == 2] = 36
+        nsamp[nsamp == 3] = 45
+
+        #print(GC_bc, F1_bc, HFI_REU_ETAL, REU_bc_offset)
+        #print(gamp, nsamp, nblanck)
+
+        return F1_bc * GC_bc[gamp] * (nsamp - nblanck).astype(np.float64)/GC_bc[HFI_REU_ETAL], (nsamp - nblanck).astype(np.float64) * REU_bc_offset
+
+    #produces a housekeeping estimate at time(s) t
+    def expand_hsk(hsk, field, time):
+        grp, obj = field.split(b'/')
+        t, x = hsk[grp][obj]
+
+        i0 = len(time) // 2
+
+        if time[i0] < 1e10:
+            # from nanoseconds to seconds
+            tt = t.astype(np.float64) * 1e-9
+        elif time[i0] < 1e18:
+            # from nanoseconds to OBT ticks
+            tt = t.astype(np.float64) * 1e-9 * 2.**16.
+        else:
+            tt = t
+
+        # interpolate
+
+        ind = np.searchsorted(tt, time)
+        return x[ind - 1]
+
     @staticmethod
     def instrument_filename(version):
         return 'HFI_instrument_v' + str(version) + '.h5'
@@ -137,5 +186,12 @@ class hfi(object):
         if version == 1:
             print("Should check the version here")
 
-        if version > 1:
+        if version == 2:
+            print("I don't know how this is supposed to be different than 1")
+
+        if version == 3:
+            if f['545-1/sllmax'] != 0:
+                print("HFI instrument file doesn't contain sidelobes for 545")
+
+        if version > 3:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")

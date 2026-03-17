@@ -1,6 +1,7 @@
 #WMAP Ka TOD default parameters
 
 BAND_LABEL&&&                  = 090-WMAP_W3
+BAND_INSTRUMENT_LABEL&&&       = 090-WMAP_W3
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512
@@ -54,3 +55,14 @@ BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = W313,W314,W323,W324
 BAND_TOD_INIT_FROM_HDF&&&      = default
 N_GIBBS_PER_TOD&&&             = 1
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&   = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&    = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&& = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
+BAND_TOD_MOON_CENTRIC_MASK&&&     = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&    = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none

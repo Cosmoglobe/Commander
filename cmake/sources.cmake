@@ -80,7 +80,7 @@ set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 # FFTW
 #------------------------------------------------------------------------------
 #set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
-set(fftw_url "http://fftw.org/fftw-3.3.9.tar.gz")
+set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
 #set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
 #------------------------------------------------------------------------------
@@ -104,7 +104,10 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 #------------------------------------------------------------------------------
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
-set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
+set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
+#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.6.2.tar.gz")
+# See https://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html for latest
+# versions
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------

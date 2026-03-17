@@ -5,7 +5,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo
+   public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
    public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
    public band_monopole, band_update_monopole
 
@@ -19,27 +19,27 @@ module comm_zodi_mod
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
-      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
+      character(len=24) :: phasefunc_type, bandpass_type
+      integer(i4b) :: n_comps, n_common_params, n_general_params, n_phase_params, numband
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
+      real(dp)     :: nu_min_scatter, nu_max_thermal
       real(dp)     :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
-      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+      real(dp), allocatable, dimension(:) :: par_phase
 
       integer(i4b) :: npar_tot
       integer(i4b), allocatable, dimension(:,:) :: theta_stat
       logical(lgt), allocatable, dimension(:,:) :: sampgroup_active_band
       integer(i4b), allocatable, dimension(:)   :: theta2band
       real(dp),     allocatable, dimension(:,:) :: theta_prior
-      real(dp),     allocatable, dimension(:)   :: theta_scale
+      real(dp),     allocatable, dimension(:,:) :: theta_scale
 
       ! Stationary model
 !      real(dp), allocatable, dimension(:)   :: amp_static
 !      real(dp), allocatable, dimension(:,:) :: map_static
     contains
-      procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales
+      procedure :: init_comps, init_general_params, model_to_chain, params_to_model, model_to_params, comp_from_chain, get_par_ind, init_general_priors_and_scales, get_phase_function
    end type ZodiModel
 
    type(ZodiModel), target :: zodi_model
@@ -56,12 +56,17 @@ module comm_zodi_mod
    real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
    type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
    type(spline_type) :: earth_pos_spl_obj(3)
+
+   real(dp), dimension(10) :: C0_K98 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
+   real(dp), dimension(10) :: C1_K98 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
+   real(dp), dimension(10) :: C2_K98 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+
    
 contains
   subroutine initialize_zodi_mod(cpar)
     implicit none
     type(comm_params), intent(in) :: cpar
-    integer(i4b) :: i, j, k, ierr, ind, npar, ntok, gauss_degree
+    integer(i4b) :: i, j, k, ierr, ind, npar, ntok, gauss_degree, band
     real(dp) :: min_temp = 40.0, max_temp = 550.0
     integer(i4b) :: n_interp_points = 100
     character(len=256) :: file_path
@@ -71,79 +76,117 @@ contains
     
     
       ! Find number of bands and labels
-      numband         = count(cpar%ds_active)
-      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband),band_monopole(numband),band_update_monopole(numband,0:cpar%zs_num_samp_groups))
-      band_labels     = pack(cpar%ds_label, cpar%ds_active)
-      band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
-      band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
-      band_nu_c       = pack(cpar%ds_nu_c, cpar%ds_active)
-      zodi_refband    = cpar%zs_refband
+    numband         = count(cpar%ds_active)
+    zodi_model%numband = numband
+    allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband),band_monopole(numband),band_update_monopole(numband,0:cpar%zs_num_samp_groups))
+    band_labels     = pack(cpar%ds_label, cpar%ds_active)
+    band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
+    band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
+    band_nu_c       = pack(cpar%ds_nu_c, cpar%ds_active)
+    zodi_refband    = cpar%zs_refband
       
-      ! Set model and zodi_mod parameters from cpar
-      zodi_model%n_comps = cpar%zs_ncomps
-      allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
-      zodi_model%general_labels   = cpar%zodi_param_labels%general
-      zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
-      zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
-      zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
-      zodi_model%joint_mono       = cpar%zs_joint_mono
+    ! Set model and zodi_mod parameters from cpar
+    zodi_model%nu_min_scatter   = cpar%zs_nu_min_scatter * 1d9
+    zodi_model%nu_max_thermal   = cpar%zs_nu_max_thermal * 1d9
+    zodi_model%phasefunc_type   = cpar%zs_phasefunc
+    zodi_model%bandpass_type    = cpar%zs_bandpass
+    zodi_model%n_comps          = cpar%zs_ncomps
+    allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
+    zodi_model%general_labels   = cpar%zodi_param_labels%general
+    zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
+    zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
+    zodi_model%joint_mono       = cpar%zs_joint_mono
+    
+    if (trim(zodi_model%phasefunc_type) == 'K98') then
+       zodi_model%n_phase_params   = 3*numband
+       zodi_model%n_general_params = 2 + zodi_model%n_phase_params
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
+       do i  = 1, numband
+          read(band_instlabels(i),*) band
+          if (band >= 1 .and. band <= 10) then
+             zodi_model%par_phase(band+0*numband) = C0_K98(band)
+             zodi_model%par_phase(band+1*numband) = C1_K98(band)
+             zodi_model%par_phase(band+2*numband) = C2_K98(band)
+          else
+             write(*,*) 'Invalid band label for K98 phase function = ', band_instlabels(i)
+          end if
+       end do
+    else if (trim(zodi_model%phasefunc_type) == 'Wright') then
+       zodi_model%n_phase_params   = 2
+       zodi_model%n_general_params = 2 + zodi_model%n_phase_params
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
+       zodi_model%par_phase(1) = -0.3133d0 ! p20
+       zodi_model%par_phase(2) =  0.5749d0 ! p21
+    else if (trim(zodi_model%phasefunc_type) == 'Hong') then
+       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+       zodi_model%n_phase_params   = 5
+       allocate(zodi_model%par_phase(zodi_model%n_phase_params))
+       zodi_model%par_phase(1) =  0.700d0 ! g_1
+       zodi_model%par_phase(2) = -0.200d0 ! g_2       
+       zodi_model%par_phase(3) = -0.810d0 ! g_3
+       zodi_model%par_phase(4) =  0.330d0 ! w_2
+       zodi_model%par_phase(5) =  0.005d0 ! w_3       
+    else
+       write(*,*) 'Unsupported zodi phase function type:', trim(zodi_model%phasefunc_type)
+       stop
+    end if
       
-      comp_params = cpar%zs_comp_params(:, :, 1)
-      do i = 1, zodi_model%n_comps
-         if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
-            call zodi_model%comp_from_chain(cpar, comp_params, i)
-         end if
-      end do
-      call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
-      call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
+    comp_params = cpar%zs_comp_params(:, :, 1)
+    do i = 1, zodi_model%n_comps
+       if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
+          call zodi_model%comp_from_chain(cpar, comp_params, i)
+       end if
+    end do
+    call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
+    call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
 
-      ! Find total number of free parameters, and set up parameter mapping
-      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
-      zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
-      do i = 1, zodi_model%n_comps
-         zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
-         if (i < zodi_model%n_comps) then
-            zodi_model%comps(i+1)%start_ind = zodi_model%comps(i)%start_ind + &
-                 & zodi_model%comps(i)%npar + 2*numband
-         end if
-      end do
-
-      ! stat =  0  -> sample freely
-      ! stat = -1  -> fix to input
-      ! stat = -2  -> fix to zero
-      ! stat = -3  -> fix to unity
-      ! stat >  0  -> set equal to parameter stat
-      allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
-      allocate(zodi_model%theta2band(zodi_model%npar_tot))
-      allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
-      allocate(zodi_model%theta_scale(zodi_model%npar_tot))
-      allocate(zodi_model%par_labels(zodi_model%npar_tot))
-      allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
+    ! Find total number of free parameters, and set up parameter mapping
+    zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
+    zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
+    do i = 1, zodi_model%n_comps
+       zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
+       if (i < zodi_model%n_comps) then
+          zodi_model%comps(i+1)%start_ind = zodi_model%comps(i)%start_ind + &
+               & zodi_model%comps(i)%npar + 2*numband
+       end if
+    end do
       
-      ! Set up sampling groups
-      allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
-      zodi_model%sampgroup_active_band = .false.
-      do i = 1, cpar%zs_num_samp_groups
-         call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
-         do j = 1, ntok
-            k = get_string_index(band_labels, tokens(j))
-            zodi_model%sampgroup_active_band(k,i) = .true.
-         end do
-         call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
-      end do
-      do i = 1, zodi_model%npar_tot
-         zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
-      end do
-      do i = 1, numband
-         band_update_monopole(i,0) = any(band_update_monopole(i,1:cpar%zs_num_samp_groups))
-      end do
+    ! stat =  0  -> sample freely
+    ! stat = -1  -> fix to input
+    ! stat = -2  -> fix to zero
+    ! stat = -3  -> fix to unity
+    ! stat >  0  -> set equal to parameter stat
+    allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
+    allocate(zodi_model%theta2band(zodi_model%npar_tot))
+    allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
+    allocate(zodi_model%theta_scale(zodi_model%npar_tot,2))
+    allocate(zodi_model%par_labels(zodi_model%npar_tot))
+    allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
+      
+    ! Set up sampling groups
+    allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
+    zodi_model%sampgroup_active_band = .false.
+    do i = 1, cpar%zs_num_samp_groups
+       call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
+       do j = 1, ntok
+          k = get_string_index(band_labels, tokens(j))
+          zodi_model%sampgroup_active_band(k,i) = .true. 
+       end do
+       call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
+    end do
+    do i = 1, zodi_model%npar_tot
+       zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
+    end do
+    do i = 1, numband
+       band_update_monopole(i,0) = any(band_update_monopole(i,1:cpar%zs_num_samp_groups))
+    end do
 
       ! Initialize parameter-band mapping
       zodi_model%theta2band(1:zodi_model%n_general_params) = 0 ! General parameters affect all bands
       do i = 1, zodi_model%n_comps
          ind  = zodi_model%comps(i)%start_ind
          npar = zodi_model%comps(i)%npar
-         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape paraneters affect all band
+         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape parameters affect all bands
          do j = 1, numband
             zodi_model%theta2band(ind+npar+j-1) = j   ! Emissivity only affect band j
             zodi_model%theta2band(ind+npar+numband+j-1) = j ! The same for albedo
@@ -153,10 +196,20 @@ contains
       ! Initialize priors and scale factors
       call zodi_model%init_general_priors_and_scales(zodi_model%theta_prior, &
            & zodi_model%theta_scale)
-      zodi_model%par_labels(1:zodi_model%n_general_params) = &
-           & zodi_model%general_labels
-      zodi_model%par_labels_full(1:zodi_model%n_general_params) = &
-           & zodi_model%par_labels(1:zodi_model%n_general_params) 
+
+      if (trim(zodi_model%phasefunc_type) == 'Hong') then
+         zodi_model%par_labels(1:zodi_model%n_general_params) = &
+              & zodi_model%general_labels
+         zodi_model%par_labels_full(1:zodi_model%n_general_params) = &
+              & zodi_model%par_labels(1:zodi_model%n_general_params)
+      else
+         zodi_model%par_labels(1:2) = zodi_model%general_labels(1:2)
+         zodi_model%par_labels_full(1:2) = zodi_model%par_labels(1:2)
+         do i = 3, zodi_model%n_general_params
+            zodi_model%par_labels(i)      = 'skip'
+            zodi_model%par_labels_full(i) = 'skip'
+         end do
+      end if
       do i = 1, zodi_model%n_comps
          ! Shape parameters
          ind = zodi_model%comps(i)%start_ind
@@ -165,29 +218,34 @@ contains
          zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
               & zodi_model%comps(i)%labels
          do j = ind, ind+zodi_model%comps(i)%npar-1
-            zodi_model%par_labels(j) = &
+            zodi_model%par_labels_full(j) = &
               & trim(zodi_model%comp_labels(i))//':'//trim(zodi_model%par_labels(j))
          end do
             
          ! Emissivity and albedo
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
-            zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
-            zodi_model%theta_scale(ind+j)   = 1.d0
+            zodi_model%theta_prior(:,ind+j) = [0.d0, 10.d0, 1.d0, -1.d0] ! Emissivity
+            zodi_model%theta_scale(ind+j,:)   = [1.d0,0.1d0]
             zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+j)  = trim(zodi_model%comp_labels(i))//':em@'//trim(band_labels(j))
             
             zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
-            zodi_model%theta_scale(ind+numband+j)   = 1.d0
+            zodi_model%theta_scale(ind+numband+j,:)   = [1.d0, 0.01d0]
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+numband+j) = trim(zodi_model%comp_labels(i))//':al@'//trim(band_labels(j))
+
+            ! Set DIRBE emissivity rms by hand
+            if (trim(band_instlabels(j)) == '06') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.01d0]
+            if (trim(band_instlabels(j)) == '07') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.02d0]
+            if (trim(band_instlabels(j)) == '08') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.03d0]
          end do
       end do
       ! Monopoles
       do j = 1, numband
          ind = zodi_model%npar_tot - numband + j
          zodi_model%theta_prior(:,ind) = [0.d0, 1d30, 0.d0, -1.d0] ! Priors
-         zodi_model%theta_scale(ind)   = 1.d0
+         zodi_model%theta_scale(ind,:) = [1.d0,0.01d0]
          zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
          zodi_model%par_labels_full(ind) = 'm@'//trim(band_labels(j))
       end do
@@ -251,25 +309,40 @@ contains
    subroutine init_general_params(self, general_params)
       class(ZodiModel), intent(inout) :: self
       real(dp), intent(in) :: general_params(:)
-      self%T_0 = general_params(1)
+      self%T_0   = general_params(1)
       self%delta = general_params(2)
+      if (self%phasefunc_type == 'Hong') then
+         self%par_phase(1:5)   = general_params(3:7)
+      end if
    end subroutine
 
     subroutine init_general_priors_and_scales(self, prior, scale)
       implicit none
       class(ZodiModel),           intent(in)    :: self
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
-      prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
-      scale(1)   = 286.d0
-      prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
-      scale(2)   = 0.4d0      
+      prior(:,1) = [250.d0, 330.d0, 286.d0, 5.d0] ! T_0
+      scale(1,:) = [286.d0, 3.d0]
+      prior(:,2) = [0.3d0, 0.5d0, 0.467d0, 0.004d0] ! delta
+      scale(2,:) = [0.4d0, 0.01d0]
+      prior(:,3) = [-1d0, 1d0, 0.70d0, 0.1d0] ! g_1
+      scale(3,:) = [1d0, 0.01d0]
+      prior(:,4) = [-1d0, 1d0, -0.20d0, 0.1d0] ! g_2
+      scale(4,:) = [1d0, 0.01d0]
+      prior(:,5) = [-1d0, 1d0, -0.81d0, 0.1d0] ! g_3
+      scale(5,:) = [1d0, 0.01d0]
+      prior(:,6) = [0d0, 1d0, 0.330d0, 0.1d0] ! w_2
+      scale(6,:) = [1d0, 0.01d0]
+      prior(:,7) = [0d0, 1d0, 0.005d0, 0.0001d0] ! w_3
+      scale(7,:) = [1d0, 0.0005d0]
+
     end subroutine init_general_priors_and_scales
 
 
 
-   subroutine init_comps(self, params, comp_types, param_labels)
+    subroutine init_comps(self, params, comp_types, param_labels)
+      implicit none
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
       real(dp), intent(in) :: params(:, :)
@@ -277,7 +350,6 @@ contains
       class(InterplanetaryDustParamLabels), intent(in) :: param_labels
       integer(i4b) :: i, ierr
       allocate (self%comps(self%n_comps))
-      self%n_params = self%n_general_params
       ! NOTE: The order of the parameters in the `params` array must match the below order of readin
       do i = 1, self%n_comps
          !self%comps(i)%labels = [param_labels%common]
@@ -395,92 +467,122 @@ contains
                  &)
             allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%comet]
+         case ('wrightcloudring')
+            allocate (ZodiWrightCloudRing::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightCloudRing(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & p1=params(i, 7), &
+                & p3=params(i, 8), &
+                & p4=params(i, 9), &
+                & p5=params(i, 10), &
+                & p6=params(i, 11), &
+                & p7=params(i, 12), &
+                & p8=params(i, 13), &
+                & p9=params(i, 14), &
+                & p10=params(i, 15), &
+                & p13=params(i, 16), &
+                & p14=params(i, 17), &
+                & p15=params(i, 18), &
+                & p16=params(i, 19), &
+                & p17=params(i, 20), &
+                & p18=params(i, 21), &
+                & p19=params(i, 22) &
+                &)
+            allocate(self%comps(i)%labels(22))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightcloudring]
+         case ('wrightband')
+            allocate (ZodiWrightBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightBand(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & q1=params(i, 7), &
+                & q5=params(i, 8), &
+                & q6=params(i, 9), &
+                & q7=params(i, 10), &
+                & q8=params(i, 11), &
+                & R_1=params(i, 12) &
+                &)
+            allocate(self%comps(i)%labels(12))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightband]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
          end select
          self%comps(i)%npar = size(self%comps(i)%labels)
          call self%comps(i)%c%init()
-         self%n_params = self%n_params + size(self%comps(i)%labels)
 
          ! Initialize emissivity and albedo
          allocate(self%comps(i)%c%emissivity(numband),self%comps(i)%c%albedo(numband))
          self%comps(i)%c%emissivity(numband) = 1.d0
          self%comps(i)%c%albedo(numband)     = 0.d0
       end do
-   end subroutine
+
+    end subroutine init_comps
 
 
+   subroutine model_to_params(self, x, samp_group, labels)
+     implicit none
+     class(ZodiModel),               intent(in)           :: self
+     real(dp),         dimension(:), intent(out)          :: x
+     integer(i4b),                   intent(in), optional :: samp_group
+     character(len=*), allocatable, optional, intent(inout) :: labels(:)
 
-    subroutine model_to_params2(self, x, labels)
-      ! Dumps a zodi model to a parameter vector `x`. If `labels` is present, it is populated with
-      ! the corresponding parameter labels.
-      class(ZodiModel), intent(in) :: self
-      real(dp), intent(out) :: x(:)
-      character(len=*), allocatable, optional, intent(inout) :: labels(:)
-      character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
-      integer(i4b) :: i, j, running_idx
+     integer(i4b) :: i, j, idx
+     real(dp), allocatable, dimension(:) :: z
+     character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
+     
+     allocate(z(self%npar_tot))
 
-      if (size(x) /= self%n_params) stop "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`"
-      if (present(labels)) then
-         if (allocated(labels)) stop "`labels` must not be allocated at the time of passing it in to `model_to_params`"
-         allocate(comp_label_upper(self%n_comps))
-      end if
+     if (present(labels)) then
+        if (allocated(labels)) stop "`labels` must not be allocated at the time of passing it in to `model_to_params`"
+        allocate(comp_label_upper(self%n_comps))
+     end if
+     
+     ! General parameters
+     z(1) = self%T_0
+     z(2) = self%delta
+     if (trim(self%phasefunc_type) == 'Hong') then
+        z(3:7) = self%par_phase(1:5)
+     end if
+     if (present(labels)) then
+        if (trim(self%phasefunc_type) == 'Hong') then
+           labels = self%general_labels
+        else
+           labels = self%general_labels(1:2)
+           do i = 1, self%n_phase_params
+              labels = [labels, "SKIP"]
+           end do
+        end if
+     end if
+     idx = self%n_general_params
+     
+     ! Component parameters
+     do i = 1, self%n_comps
+        ! Shape parameters
+        call self%comps(i)%c%model2param(z(idx+1:idx+self%comps(i)%npar))
+        idx = idx + self%comps(i)%npar
 
-      running_idx = 0
-      do i = 1, self%n_comps
-         x(running_idx + 1) = self%comps(i)%c%n_0
-         x(running_idx + 2) = self%comps(i)%c%incl
-         x(running_idx + 3) = self%comps(i)%c%Omega
-         x(running_idx + 4) = self%comps(i)%c%x_0
-         x(running_idx + 5) = self%comps(i)%c%y_0
-         x(running_idx + 6) = self%comps(i)%c%z_0
-         running_idx = running_idx + self%n_common_params
-         select type (comp => self%comps(i)%c)
-         class is (ZodiCloud)
-            x(running_idx + 1) = comp%alpha
-            x(running_idx + 2) = comp%beta
-            x(running_idx + 3) = comp%gamma
-            x(running_idx + 4) = comp%mu
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiBand)
-            x(running_idx + 1) = comp%delta_zeta
-            x(running_idx + 2) = comp%delta_r
-            x(running_idx + 3) = comp%v
-            x(running_idx + 4) = comp%p
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiRing)
-            x(running_idx + 1) = comp%R_0
-            x(running_idx + 2) = comp%sigma_r
-            x(running_idx + 3) = comp%sigma_z
-            x(running_idx + 4) = comp%theta_0
-            x(running_idx + 5) = comp%sigma_theta
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFeature)
-            x(running_idx + 1) = comp%R_0
-            x(running_idx + 2) = comp%sigma_r
-            x(running_idx + 3) = comp%sigma_z
-            x(running_idx + 4) = comp%theta_0
-            x(running_idx + 5) = comp%sigma_theta
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiInterstellar)
-            x(running_idx + 1) = comp%R
-            x(running_idx + 2) = comp%alpha
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFan)
-            x(running_idx + 1) = comp%Q
-            x(running_idx + 2) = comp%P
-            x(running_idx + 3) = comp%gamma
-            x(running_idx + 4) = comp%Z_midplane_0
-            x(running_idx + 5) = comp%R_outer
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-            class is (ZodiComet)
-            x(running_idx + 1) = comp%P
-            x(running_idx + 2) = comp%Z_midplane_0
-            x(running_idx + 3) = comp%R_inner
-            x(running_idx + 4) = comp%R_outer
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         end select
+        ! Emissivity and albedo
+        do j = 1, numband
+           if (band_todtype(j) == "none") then
+              z(idx        +j) = 0.d0
+              z(idx+numband+j) = 0.d0
+           else
+              z(idx        +j) = self%comps(i)%c%emissivity(j)
+              z(idx+numband+j) = self%comps(i)%c%albedo(j)
+           end if
+        end do
+        idx = idx + 2*numband
+
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
             comp_label_upper(i) = self%comp_labels(i)
@@ -488,88 +590,113 @@ contains
             do j = 1, size(labels_copy)
                labels_copy(j) = trim(adjustl(comp_label_upper(i)))//'_'//trim(adjustl(labels_copy(j))) 
             end do
-               labels = [labels, labels_copy]
+            labels = [labels, labels_copy]
+            ! Add placeholders for emissivity and albedo
+            do j = 1, numband
+               labels = [labels, ["skip","skip"]]
+            end do
          end if
-      end do
-      x(running_idx + 1) = self%T_0
-      x(running_idx + 2) = self%delta
-      if (present(labels)) then
-         labels = [labels, self%general_labels]
-      end if
-    end subroutine model_to_params2
+     end do
 
-   subroutine params_to_model2(self, x)
-      ! Dumps a zodi model to a parameter vector `x`.
-      class(ZodiModel), intent(inout) :: self
-      real(dp), intent(in) :: x(:)
-      integer(i4b) :: i, running_idx
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (band_todtype(i) /= "none") then
+           z(idx) = band_monopole(i) !get_monopole_amp(data(i)%label)
+           !write(*,*) 'get', i, trim(data(i)%label), z(idx)
+        else
+           z(idx) = 0.d0
+        end if
+        if (present(labels)) labels = [labels, "skip"]
+     end do
+     
+     if (present(samp_group)) then
+        x = pack(z, self%theta_stat(:,samp_group)==0)
+        if (present(labels)) labels = pack(labels, self%theta_stat(:,samp_group)==0)
+     else
+        x = z
+     end if
+     deallocate(z)     
+     
+   end subroutine model_to_params
 
-      if (size(x) /= self%n_params) then
-         write(*,*) "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`", size(x), self%n_params
-         stop
-      end if
+   subroutine params_to_model(self, x, samp_group)
+     implicit none
+     class(ZodiModel),               intent(inout)        :: self
+     real(dp),         dimension(:), intent(in)           :: x
+     integer(i4b),                   intent(in), optional :: samp_group
 
-      running_idx = 0
-      do i = 1, self%n_comps
-         self%comps(i)%c%n_0 = x(running_idx + 1)
-         self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
-         self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
-         self%comps(i)%c%x_0 = x(running_idx + 4)
-         self%comps(i)%c%y_0 = x(running_idx + 5)
-         self%comps(i)%c%z_0 = x(running_idx + 6)
-         running_idx = running_idx + self%n_common_params
-         
-         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
-         select type (comp => self%comps(i)%c)
-         class is (ZodiCloud)
-            comp%alpha = x(running_idx + 1)
-            comp%beta = x(running_idx + 2)
-            comp%gamma = x(running_idx + 3)
-            comp%mu = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiBand)
-            comp%delta_zeta = mod(x(running_idx + 1), 360.) ! degree prior
-            comp%delta_r = x(running_idx + 2)
-            comp%v = x(running_idx + 3)
-            comp%p = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiRing)
-            comp%R_0 = x(running_idx + 1)
-            comp%sigma_r = x(running_idx + 2)
-            comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
-            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFeature)
-            comp%R_0 = x(running_idx + 1)
-            comp%sigma_r = x(running_idx + 2)
-            comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
-            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiInterstellar)
-            comp%R = x(running_idx + 1)
-            comp%alpha = x(running_idx + 2)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiFan)
-            comp%Q = x(running_idx + 1)
-            comp%P = x(running_idx + 2)
-            comp%gamma = x(running_idx + 3)
-            comp%Z_midplane_0 = x(running_idx + 4)
-            comp%R_outer = x(running_idx + 5)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         class is (ZodiComet)
-            comp%P = x(running_idx + 1)
-            comp%Z_midplane_0 = x(running_idx + 2)
-            comp%R_inner = x(running_idx + 3)
-            comp%R_outer = x(running_idx + 4)
-            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-         end select
-         call self%comps(i)%c%init()
-      end do
-      self%T_0 = x(running_idx + 1)
-      self%delta = x(running_idx + 2)
-    end subroutine params_to_model2
+     integer(i4b) :: i, j, idx
+     real(dp), allocatable, dimension(:) :: z, z_prev
+     
+     allocate(z(self%npar_tot))
+
+     ! Initialize full parameter vector
+     if (present(samp_group)) then
+        allocate(z_prev(self%npar_tot))
+        call self%model_to_params(z_prev)
+        idx = 1
+        do i = 1, self%npar_tot
+           if (self%theta_stat(i,samp_group) == 0) then
+              z(i) = x(idx)
+              idx = idx+1
+           else if (self%theta_stat(i,samp_group) == -1) then
+              z(i) = z_prev(i)
+           else if (self%theta_stat(i,samp_group) == -2) then
+              z(i) = 0.d0
+           else if (self%theta_stat(i,samp_group) == -3) then
+              z(i) = 1.d0
+           end if
+        end do
+        do i = 1, self%npar_tot
+           if (self%theta_stat(i,samp_group) > 0) then
+              z(i) = z(self%theta_stat(i,samp_group))
+           end if
+        end do
+        deallocate(z_prev)
+     else
+        z = x
+     end if
+     
+     ! General parameters
+     self%T_0   = z(1) 
+     self%delta = z(2)
+     if (trim(self%phasefunc_type) == 'Hong') then
+        self%par_phase(1:5) = z(3:7) 
+     end if
+     
+     ! Component parameters
+     idx = self%n_general_params
+     do i = 1, self%n_comps
+        ! Shape parameters
+        call self%comps(i)%c%param2model(z(idx+1:idx+self%comps(i)%npar))
+        call self%comps(i)%c%init()
+
+        ! Emissivity and albedo
+        idx = idx + self%comps(i)%npar
+        do j = 1, numband
+           if (band_todtype(j) /= "none") then
+              self%comps(i)%c%emissivity(j) = z(idx+j)
+              self%comps(i)%c%albedo(j)     = z(idx+numband+j)
+           end if
+        end do
+        idx = idx + 2*numband
+     end do
+
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (band_todtype(i) /= "none") then
+           band_monopole(i) = z(idx) 
+        end if
+     end do
+
+     deallocate(z)
+     
+   end subroutine params_to_model
+
+
+
 
    subroutine model_to_chain(self, cpar, iter)
       ! Dumps the zodi model to the chain file
@@ -606,10 +733,16 @@ contains
       comp_group_path = trim(adjustl(zodi_path))//'/comps'
       call create_hdf_group(file, trim(adjustl(comp_group_path)))
 
-      allocate(params(self%n_params))
-      call self%model_to_params2(params, labels)
-      
-      param_idx = 0 
+      allocate(params(self%npar_tot))
+      call self%model_to_params(params, labels=labels)
+
+      do i = 1, self%n_general_params
+         if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
+         param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
+         call write_hdf(file, trim(adjustl(param_label)), params(i))
+      end do
+
+      param_idx = self%n_general_params      
       do i = 1, self%n_comps
          comp_path = trim(adjustl(comp_group_path))//'/'//trim(adjustl(self%comp_labels(i)))//'/'
          call create_hdf_group(file, trim(adjustl(comp_path)))
@@ -621,11 +754,6 @@ contains
          param_idx = param_idx + n_comp_params
          call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', self%comps(i)%c%emissivity)
          call write_hdf(file, trim(adjustl(comp_path))//'/albedo', self%comps(i)%c%albedo)
-      end do
-      if (param_idx + self%n_general_params /= self%n_params) stop "Error: param_idx + self%n_general_params /= self%n_params"
-      do i = 1, self%n_general_params
-         param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
-         call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
       end do
 
       ! Static component
@@ -652,7 +780,7 @@ contains
       type(hdf_file) :: file
 
       character(len=32), allocatable :: param_labels(:)
-      character(len=512) :: chainfile, group_name
+      character(len=2048) :: chainfile, group_name
 
       if (cpar%myid == cpar%root) then
          if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
@@ -735,41 +863,45 @@ contains
 
    ! end subroutine model_from_chain
 
-   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
-      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-      ! integrated thermal zodiacal emission and scattered zodiacal light.
-      !
-      ! Parameters:
-      ! -----------
-      ! s_scat :
-      !     Integrated contribution from scattered sunlight light.
-      ! s_therm :
-      !     Integrated contribution from thermal interplanetary dust emission.
-      ! s_zodi :
-      !     Zodiacal signal.
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-     !     Albedo of the zodiacal components.
-     implicit none
-     integer(i4b),                  intent(in)  :: band
-     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
-     real(sp),     dimension(:),    intent(out) :: s_zodi
-     integer(i4b),                  intent(in), optional :: comp_id
-     
-     integer(i4b) :: i, first
-     real(dp)     :: al, em
-
-     first = 1; if (present(comp_id)) first = comp_id
-     
-     s_zodi = 0.
-     do i = first, first+size(s_therm,2)-1
-        al     = zodi_model%comps(i)%c%albedo(band)
-        em     = zodi_model%comps(i)%c%emissivity(band)
-        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
-     end do
-   end subroutine get_s_zodi
+!!$   subroutine get_s_zodi(band, s_therm, s_scat, s_zodi, comp_id)
+!!$      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
+!!$      ! integrated thermal zodiacal emission and scattered zodiacal light.
+!!$      !
+!!$      ! Parameters:
+!!$      ! -----------
+!!$      ! s_scat :
+!!$      !     Integrated contribution from scattered sunlight light.
+!!$      ! s_therm :
+!!$      !     Integrated contribution from thermal interplanetary dust emission.
+!!$      ! s_zodi :
+!!$      !     Zodiacal signal.
+!!$      ! emissivity :
+!!$      !     Emissivity of the zodiacal components.
+!!$      ! albedo :
+!!$     !     Albedo of the zodiacal components.
+!!$     implicit none
+!!$     integer(i4b),                  intent(in)  :: band
+!!$     real(sp),     dimension(:, :), intent(in)  :: s_scat, s_therm
+!!$     real(sp),     dimension(:),    intent(out) :: s_zodi
+!!$     integer(i4b),                  intent(in), optional :: comp_id
+!!$     
+!!$     integer(i4b) :: i, first
+!!$     real(dp)     :: al, em
+!!$
+!!$     first = 1; if (present(comp_id)) first = comp_id
+!!$     
+!!$     s_zodi = 0.
+!!$     do i = first, first+size(s_therm,2)-1
+!!$        al     = zodi_model%comps(i)%c%albedo(band)
+!!$        em     = zodi_model%comps(i)%c%emissivity(band)
+!!$        !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
+!!$        if (trim(zodi_model%phasefunc_type) == 'Wright') then
+!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) +             em * s_therm(:,i-first+1))
+!!$        else
+!!$           s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
+!!$        end if
+!!$     end do
+!!$   end subroutine get_s_zodi
 
    
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
@@ -836,7 +968,7 @@ contains
      integer(i4b),     dimension(:), intent(inout) :: stat
 
      integer(i4b) :: i, c, j, k, first, last, n_params, n, m, ind, em_global, al_global, c_to, c_from, band
-     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2)
+     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2), al_from(2), al_to(2)
      character(len=2048) :: str
      
      ! Default: Fix everything at input
@@ -856,7 +988,7 @@ contains
            label = comp_param(1)
            call get_tokens(label, '@', comp_param, num=n)
            if (n == 1) then
-              ! General parameter
+              ! General 
               ind = zodi_model%get_par_ind(param=comp_param(1))
               stat(ind) = 0
            else if (n == 2) then
@@ -866,6 +998,8 @@ contains
                  if (active(band) .and. band_todtype(band) /= 'none') then
                     !ind       = zodi_model%get_par_ind(mono_band=band)
                     band_update_monopole(band,samp_group) = .true.
+                    ind = zodi_model%get_par_ind(mono_band=band)
+                    stat(ind) = 0
                  end if
                  cycle
               else
@@ -919,7 +1053,7 @@ contains
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
                  stat(ind) = 0
               end if
-           else if (trim(label(1:2)) == 'al') then
+           else if (trim(label(1:2)) == 'al' .and. trim(label) /= 'alpha') then
               ! Albedo
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
@@ -945,12 +1079,12 @@ contains
      end do
 
      ! Set up monopoles
-     do i = 1, numband
-        if (active(i) .and. band_todtype(i) /= 'none') then
-           ind = zodi_model%get_par_ind(mono_band=i)
-           stat(ind) = 0
-        end if
-     end do
+!!$     do i = 1, numband
+!!$        if (active(i) .and. band_todtype(i) /= 'none') then
+!!$           ind = zodi_model%get_par_ind(mono_band=i)
+!!$           stat(ind) = 0
+!!$        end if
+!!$     end do
 
      ! Apply explicit parameter wiring
      call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
@@ -993,6 +1127,26 @@ contains
               if (.not. active(j) .or. .not. active(k)) cycle
               c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_string=em_from(2))
               c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_string=em_to(2))
+              stat(c_from) = c_to
+           end if
+        else if (trim(wire_from(2)(1:2)) == 'al') then
+           call get_tokens(wire_from(2), '@', al_from, num=n)
+           call get_tokens(wire_to(2), '@', al_to, num=n)
+           if (n == 1) then
+              ! Attach all bands
+              do c = 1, numband
+                 if (.not. active(c)) cycle
+                 c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_band=c)
+                 c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_band=c)
+                 stat(c_from) = c_to
+              end do
+           else
+              ! Attach specified band
+              j = get_string_index(band_labels, al_from(2))
+              k = get_string_index(band_labels, al_to(2))
+              if (.not. active(j) .or. .not. active(k)) cycle
+              c_from = zodi_model%get_par_ind(comp_str=wire_from(1), al_string=al_from(2))
+              c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   al_string=al_to(2))
               stat(c_from) = c_to
            end if
         else
@@ -1093,7 +1247,8 @@ contains
 
 
 
-   subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering, use_lowres_pointing, comp)
+   subroutine get_zodi_emission(tod, pix, scan, det, model, s_zodi, use_lowres_pointing, comp)
+     implicit none
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       !
       ! Parameters
@@ -1112,8 +1267,6 @@ contains
       !     Contribution from thermal interplanetary dust emission.
       ! model : type(ZodiModel)
       !     The zodiacal emission model.
-      ! always_scattering : logical(lgt), optional
-      !     If present, this overrides the default behavior of only including scattering when the albedo is non-zero.
       ! use_lowres_pointing : logical(lgt), optional
       !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
       ! comp : integer(i4b), optional
@@ -1126,105 +1279,84 @@ contains
       ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
       !     Contribution from thermal interplanetary dust emission.
       !
-      class(comm_tod), intent(inout) :: tod
-      integer(i4b), intent(in) :: pix(:), scan, det
-      real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
-      type(ZodiModel), intent(in) :: model
-      logical(lgt), intent(in), optional :: always_scattering, use_lowres_pointing
-      integer(i4b), intent(in), optional :: comp
+      class(comm_tod),               intent(inout)        :: tod
+      integer(i4b),    dimension(:), intent(in)           :: pix
+      integer(i4b),                  intent(in)           :: scan, det
+      type(ZodiModel),               intent(in)           :: model
+      real(sp),        dimension(:), intent(out)          :: s_zodi
+      logical(lgt),                  intent(in), optional :: use_lowres_pointing
+      integer(i4b),                  intent(in), optional :: comp
 
-      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
-      logical(lgt) :: scattering, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2, lat, lon
+      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr
+      logical(lgt) :: scattering, thermal, use_lowres
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
-      !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+      real(dp), allocatable, dimension(:)   :: b_nu
 
-      s_zodi_scat = 0.
-      s_zodi_therm = 0.
-      n_tod = size(pix, dim=1)
+      integer(i4b) :: cache_hits
+      real(sp), allocatable, dimension(:,:)     :: cache
+      real(dp)                                  :: cache_time, init_cache_time
+      
+      use_lowres = .false.; if (present(use_lowres_pointing)) use_lowres = use_lowres_pointing
+      n_tod      = size(pix)
+      dt_tod     = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+      obs_pos    = tod%scans(scan)%x0_obs
+      earth_pos  = tod%scans(scan)%x0_earth
+      R_obs      = norm2(obs_pos)
+      obs_time   = tod%scans(scan)%t0(1)
+      earth_lon  = atan(earth_pos(2), earth_pos(1))
+      scattering = tod%central_freq >= model%nu_min_scatter
+      thermal    = tod%central_freq <= model%nu_max_thermal
 
-      dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-      obs_pos = tod%scans(scan)%x0_obs
-      earth_pos = tod%scans(scan)%x0_earth
-      R_obs = norm2(obs_pos)
-      obs_time = tod%scans(scan)%t0(1)
-      earth_lon = atan(earth_pos(2), earth_pos(1))
-
-      C0 = zodi_model%C0(tod%zodiband)
-      C1 = zodi_model%C1(tod%zodiband)
-      C2 = zodi_model%C2(tod%zodiband)
-      phase_normalization = get_phase_normalization(C0, C1, C2)
-      if (present(always_scattering)) then
-         scattering = always_scattering
+      ! Initialize cache
+      if (use_lowres) then
+         allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
       else
-         scattering = .false.
-         do i = 1, zodi_model%n_comps
-            if (zodi_model%comps(i)%c%emissivity(tod%id) > EPS) then
-               scattering = .true.
-               exit
-            end if
-         end do
+         allocate(cache(tod%nobs,                   tod%ndet))
       end if
-      ! select the correct cache
-      if (present(use_lowres_pointing)) then
-         if (tod%nside == zodi_nside) then
-            use_lowres = .false.
-         else
-            if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
-            if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then
-               print *, tod%zodiband, scan, "lowres obs_time not allocated"
-               stop
-            end if
-            use_lowres = .true.
-         end if
-      else
-         use_lowres = .false.
-      end if
-      !use_lowres = .false.
-
+      cache_time = tod%scans(1)%t0(1)
+      cache      = -1
+      
       cache_hits = 0
 !!$      open(58,file="zodi.dat",recl=1024)
       do i = 1, n_tod
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
          if (use_lowres) then
-            obs_time = tod%scans(scan)%downsamp_obs_time(i)
+            obs_time = tod%scans(scan)%d(det)%downsamp_obs_time_full(i)
          else
             obs_time = obs_time + dt_tod ! assumes a time continuous TOD
          end if
-         if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then
+
+         ! Reset cache
+         if ((obs_time - cache_time) >= delta_t_reset) then
             do j = 1, 3
                earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
-               obs_pos(j) = splint_simple(tod%x_obs_spline(j), obs_time)
+               obs_pos(j)   = splint_simple(tod%x_obs_spline(j),   obs_time)
             end do
-            R_obs = norm2(obs_pos)
-            earth_lon = atan(earth_pos(2), earth_pos(1))
-            call tod%clear_zodi_cache(obs_time)
+            R_obs      = norm2(obs_pos)
+            earth_lon  = atan(earth_pos(2), earth_pos(1))
+            cache      = -1
+            cache_time =  obs_time
          end if
 
          ! Get lookup index for cache. If the pixel is already cached, used that value.
          if (use_lowres) then
-            lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
-            if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
-               s_zodi_therm(i, :) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
-               cache_hits = cache_hits + 1
-               cycle
-            end if
+            lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
             unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
          else
-            lookup_idx = tod%pix2ind(pix(i))
-            !write(*,*) 'q1', tod%scanid(scan), lookup_idx
-            !write(*,*) 'q2', tod%scanid(scan), lookup_idx, pix(i), det, tod%zodi_therm_cache(lookup_idx, 1, det)
-            if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
-               s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
-               cache_hits = cache_hits + 1
-               cycle
-            end if
+            lookup_idx  = tod%pix2ind(pix(i))
             unit_vector = tod%ind2vec_ecl(:, lookup_idx)
          end if
+         
+         if (cache(lookup_idx, det) > 0.d0) then
+            s_zodi(i)  = cache(lookup_idx, det)
+            cache_hits = cache_hits + 1
+            cycle
+         end if
 
+         ! If not present in cache, compute signal for each zodi component from scratch, and add signals together
+         s_tot = 0.
          do k = 1, model%n_comps
             ! If comp is present we only evaluate the zodi emission for that component.
             ! If comp == 0 then we evaluate the zodi emission for all components.
@@ -1238,9 +1370,9 @@ contains
 
             do l = 1, 3
                ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-               comp_LOS(k)%X_unit(l, :) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
-               comp_LOS(k)%X_unit(l, :) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
-               comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
+               comp_LOS(k)%X_unit(l,:) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+               comp_LOS(k)%X_unit(l,:) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+               comp_LOS(k)%X(l,:)      = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
             end do
             comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
 !!$            do l = 1, size(comp_LOS(k)%R)
@@ -1252,34 +1384,54 @@ contains
 !!$                  write(*,*) 'X_unit', comp_LOS(k)%X_unit(:,l)
 !!$               end if
 !!$            end do
-            
+
+            ! Compute phase function if scattering is included
             if (scattering) then
-               comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               if (trim(model%phasefunc_type) == 'Wright') then
+                  allocate(b_nu(size(tod%bp(0)%p%nu)))
+                  call get_blackbody_emission(tod%bp(0)%p%nu, 5772.d0, b_nu) 
+                  comp_LOS(k)%F_sol = tsum(tod%bp(0)%p%nu, tod%bp(0)%p%tau*b_nu)/comp_LOS(k)%R**2
+                  deallocate(b_nu)
+               else
+                  comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
+               end if
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
-               call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
+               call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
             end if
 
-            call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+            ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
+            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
+               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+            else
+               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+            end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
+!!$            ! Compute density along line of sight
+!!$            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+            
+            ! Compute predicted signal in MJy/sr; store computed signal in cache
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
-            if (scattering) then
-               s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
-               if (use_lowres) then
-                  tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
-               else
-                  tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
-               end if
-            end if
-            s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
-            if (use_lowres) then
-               tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
+            s_scat = 0.; s_therm = 0.
+            if (scattering) s_scat  = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5d0*(R_max-R_MIN)*1d20
+            if (thermal)    s_therm = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights)                  * 0.5d0*(R_max-R_MIN)*1d20
+
+            al = zodi_model%comps(k)%c%albedo(tod%id)
+            em = zodi_model%comps(k)%c%emissivity(tod%id)
+            if (trim(zodi_model%phasefunc_type) == 'Wright') then
+               s_tot = s_tot + al*s_scat + em          *s_therm
             else
-               tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
+               s_tot = s_tot + al*s_scat + em*(1.d0-al)*s_therm
             end if
          end do
+
+         ! Return total zodi signal, and store final value in cache for later use
+         s_zodi(i)              = s_tot
+         cache(lookup_idx, det) = s_tot
+
+         
 !!$         call vec2ang(unit_vector, lat, lon)
-!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:))!, sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
+!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
 !!$
 !!$         write(*,*) "X", comp_LOS(1)%X(1,:)
 !!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
@@ -1291,109 +1443,208 @@ contains
 !!$         !write(*,*) "F", comp_LOS(1)%F_sol*1.d20
 !!$         !write(*,*) "Phi", comp_LOS(1)%Phi
 !!$         !write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0
+!!$         write(*,*) "T_0, delta", model%T_0, model%delta
+!!$         write(*,*) "T", comp_LOS(1)%T
 !!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
-
       end do
 
-!!$      close(58)
-!!$      call mpi_finalize(i)
-!!$      stop
-
+      deallocate(cache)
+      
     end subroutine get_zodi_emission
 
-   ! Functions for evaluating the zodiacal emission
-   ! -----------------------------------------------------------------------------------
-   subroutine get_sphere_intersection(unit_vector, obs_pos, R_obs, R_cutoff, R_intersection)
-      ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
+   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s_zodi_tot, pix_dynamic, exclude_static, comp)
+      implicit none
+      class(ZodiModel),                 intent(in)               :: zodi_model
+      class(comm_tod),                  intent(inout)            :: tod
+      integer(i4b),                     intent(in)               :: det, scan
+      real(sp),         dimension(:),   intent(out)              :: s_zodi_tot
+      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic
+      character(len=*),                 intent(in),     optional :: exclude_static
+      integer(i4b),                     intent(in),     optional :: comp
+      
+      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
+      real(sp)     :: w
+      real(dp)     :: t1, t2
+      real(sp),     allocatable, dimension(:)   :: s_zodi
+      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
 
-      real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
-      real(dp), intent(in) :: R_obs, R_cutoff
-      real(dp), intent(out) :: R_intersection
-      real(dp) :: lon, lat, cos_lat, b, d, q
+      ntod  = size(s_zodi_tot)
+      ncomp = zodi_model%n_comps
+      band  = tod%id
 
-      if (R_obs > R_cutoff) then
-         R_intersection = EPS
-         return
+      ! Initialize
+      s_zodi_tot = 0.
+      
+      ! Compute non-stationary zodi TOD through line-of-sight integration for each horn, and add together
+      call wall_time(t1)
+      if (present(pix_dynamic)) then
+         allocate(s_zodi(ntod))
+         do h = 1, size(pix_dynamic,2)
+            call get_zodi_emission(tod, pix_dynamic(:,h), scan, det, zodi_model, s_zodi, comp=comp)
+            w = 1.d0; if (h > 1) w = -1.d0
+            s_zodi_tot = s_zodi_tot  + w * s_zodi
+         end do
+         deallocate(s_zodi)
+      end if
+      call wall_time(t2)
+      
+      ! Add solar component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_sol(i,h)
+               if (tod%map_solar(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_solar(j,1)
+               end if
+            end do
+         end do
+      end if
+      return
+
+      ! Add Moon component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'moon') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j    = tod%scans(scan)%d(det)%pix_moon(i,h)
+               if (tod%map_moon(j,1) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_moon(j,1)
+               end if
+            end do
+         end do
       end if
 
-      lon = atan(unit_vector(2), unit_vector(1))
-      lat = asin(unit_vector(3))
-      cos_lat = cos(lat)
-      b = 2.*(obs_pos(1)*cos_lat*cos(lon) + obs_pos(2)*cos_lat*sin(lon))
-      d = R_obs**2 - R_cutoff**2
-      q = -0.5*b*(1.+sqrt(b**2 - (4.*d))/abs(b))
-      R_intersection = max(q, d/q)
+      ! Add Earth component by Healpix map lookup
+      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'earth') then
+         do h = 1, tod%nhorn 
+            do i = 1, ntod
+               j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
+               if (tod%map_earth(j) > -1.d30) then
+                  w    = 1.d0; if (h > 1) w = -1.d0
+                  s_zodi_tot(i) = s_zodi_tot(i) + w * tod%map_earth(j)
+               end if
+            end do
+         end do
+      end if
+
+    end subroutine get_s_tot_zodi
+    
+   ! Functions for evaluating the zodiacal emission
+   ! -----------------------------------------------------------------------------------
+    ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
+   subroutine get_sphere_intersection(unit_vector, obs_pos, R_obs, R_cutoff, R_intersection)
+     implicit none
+     real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
+     real(dp), intent(in) :: R_obs, R_cutoff
+     real(dp), intent(out) :: R_intersection
+     
+     real(dp) :: lon, lat, cos_lat, b, d, q
+     
+     if (R_obs > R_cutoff) then
+        R_intersection = EPS
+        return
+     end if
+     
+     lon     = atan(unit_vector(2), unit_vector(1))
+     lat     = asin(unit_vector(3))
+     cos_lat = cos(lat)
+     b       = 2.d0*(obs_pos(1)*cos_lat*cos(lon) + obs_pos(2)*cos_lat*sin(lon))
+     d       = R_obs**2 - R_cutoff**2
+     q       = -0.5d0*b*(1.d0+sqrt(b**2 - (4.d0*d))/abs(b))
+     R_intersection = max(q, d/q)
    end subroutine get_sphere_intersection
 
-   subroutine get_dust_grain_temperature(R, T_out, T_0, delta)
-      real(dp), dimension(:), intent(in) :: R
-      real(dp), dimension(:), intent(out) :: T_out
-      real(dp), intent(in) :: T_0, delta
-      T_out = T_0*R**(-delta)
-   end subroutine get_dust_grain_temperature
-
    subroutine get_blackbody_emission(nus, T, b_nu)
-      real(dp), intent(in) :: nus(:), T
-      real(dp), dimension(:), intent(out) :: b_nu
-      integer(i4b) :: i
-      real(dp) :: x
-      do i = 1, size(nus)
-         x = h*nus(i)/(k_B*T)
-         if (x < 0.001d0) then
-            ! Use RJ approximation
-            b_nu(i) = 2.d0*nus(i)**2*k_B*T/c**2
-         else if (x > 50.d0) then
-            ! Use Wien approximation
-            b_nu(i) = 2.d0*h*nus(i)**3/c**2 * exp(-x)
-         else
-            ! Use exact expression
-            b_nu(i) = 2.d0*h*nus(i)**3/c**2 / (exp(x) - 1.d0)
-         end if
-      end do
-      !b_nu = b_nu * 1d20 ! Convert from W/(m^2*sr*Hz) to MJy/sr
+     implicit none
+     real(dp),               intent(in)  :: nus(:), T
+     real(dp), dimension(:), intent(out) :: b_nu
+     
+     integer(i4b) :: i
+     real(dp) :: x
+     do i = 1, size(nus)
+        x = h*nus(i)/(k_B*T)
+        if (x < 0.001d0) then
+           ! Use RJ approximation
+           b_nu(i) = 2.d0*nus(i)**2*k_B*T/c**2
+        else if (x > 50.d0) then
+           ! Use Wien approximation
+           b_nu(i) = 2.d0*h*nus(i)**3/c**2 * exp(-x)
+        else
+           ! Use exact expression
+           b_nu(i) = 2.d0*h*nus(i)**3/c**2 / (exp(x) - 1.d0)
+        end if
+     end do
+     !b_nu = b_nu * 1d20 ! Convert from W/(m^2*sr*Hz) to MJy/sr
    end subroutine get_blackbody_emission
 
    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
-      real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
-      real(dp), dimension(:), intent(out) :: scattering_angle
-      real(dp), allocatable, dimension(:) :: cos_theta, R_LOS
+     implicit none
+     real(dp),               intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
+     real(dp), dimension(:), intent(out) :: scattering_angle
+     
+     real(dp), allocatable, dimension(:) :: cos_theta, R_LOS
 
-      allocate(cos_theta(size(X_vec_LOS, dim=1)))
-      allocate(R_LOS(size(X_vec_LOS, dim=1)))
-
-      R_LOS = norm2(X_vec_LOS, dim=1)
-      if (any(abs(R_LOS*R_helio_LOS) < 1e-6)) then
-         write(*,*) 'Error in get_scattering_angle'
-         write(*,*) 'X_vec_LOS = ', X_vec_LOS
-         write(*,*) 'R_LOS = ', R_LOS
-         write(*,*) 'helio = ', R_helio_LOS
-      end if
-      cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
-      ! clip cos(theta) to [-1, 1]
-      where (cos_theta > 1)
-         cos_theta = 1
-      elsewhere(cos_theta < -1)
-         cos_theta = -1
-      end where
-      scattering_angle = acos(-cos_theta)
+     allocate(cos_theta(size(X_vec_LOS, dim=1)))
+     allocate(R_LOS(size(X_vec_LOS, dim=1)))
+     
+     R_LOS = norm2(X_vec_LOS, dim=1)
+     if (any(abs(R_LOS*R_helio_LOS) < 1e-6)) then
+        write(*,*) 'Error in get_scattering_angle'
+        write(*,*) 'X_vec_LOS = ', X_vec_LOS
+        write(*,*) 'R_LOS = ', R_LOS
+        write(*,*) 'helio = ', R_helio_LOS
+     end if
+     cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
+     ! clip cos(theta) to [-1, 1]
+     where (cos_theta > 1.d0)
+        scattering_angle = 0.d0
+     elsewhere(cos_theta < -1.d0)
+        scattering_angle = pi
+     elsewhere
+        scattering_angle = acos(-cos_theta)
+     end where
+     deallocate(cos_theta, R_LOS)
    end subroutine get_scattering_angle
 
-   subroutine get_phase_function(Theta, C0 , C1 , C2, N, phase_function)
-      real(dp), intent(in) :: Theta(:), C0, C1, C2, N
-      real(dp), intent(out) :: phase_function(:)
-      phase_function = N *  (C0 + (C1 * Theta) + exp(C2 * Theta))
-   end subroutine
+   subroutine get_phase_function(self, Theta, band, Phi)
+     implicit none
+     class(ZodiModel), intent(in)           :: self
+     real(dp),         intent(in)           :: Theta(:)
+     integer(i4b),     intent(in)           :: band
+     real(dp),         intent(out)          :: Phi(:)
 
-   function get_phase_normalization(C0, C1, C2) result(N)
-      real(dp), intent(in) :: C0, C1, C2
-      real(dp) :: term1, term2, term3, term4, N
+     real(dp) :: C0, C1, C2, p20, p21, g1, g2, g3, w1, w2, w3, norm
+     integer(i4b) :: n
+     
+     if (trim(self%phasefunc_type) == 'K98') then
+        n    = self%numband
+        C0   = self%par_phase(band+0*n)
+        C1   = self%par_phase(band+1*n)
+        C2   = self%par_phase(band+2*n)
+        norm =  1.d0 / (2.d0*pi * (2.d0*C0 + pi*C1 + (exp(C2 * pi) + 1.d0)/(C2**2 + 1.d0)))
+        Phi = norm * (C0 + (C1 * Theta) + exp(C2 * Theta))
+     else if (trim(self%phasefunc_type) == 'Wright') then
+        p20  = self%par_phase(1)
+        p21  = self%par_phase(2)
+        Phi = exp(-p20*cos(Theta) + p21*cos(Theta)**2)
+     else if (trim(self%phasefunc_type) == 'Hong') then
+        g1  = self%par_phase(1)
+        g2  = self%par_phase(2)
+        g3  = self%par_phase(3)
+        w1  = 1.d0-sum(self%par_phase(4:5))
+        w2  = self%par_phase(4)
+        w3  = self%par_phase(5)
+        Phi =       w1 * (1d0-g1**2)/(1.d0+g1**2-2d0*g1*cos(Theta))**1.5d0
+        Phi = Phi + w2 * (1d0-g2**2)/(1.d0+g2**2-2d0*g2*cos(Theta))**1.5d0
+        Phi = Phi + w3 * (1d0-g3**2)/(1.d0+g3**2-2d0*g3*cos(Theta))**1.5d0 
+        Phi = Phi / (4.d0*pi)
+     else
+        write(*,*) 'Unsupported zodi phase function type:', trim(self%phasefunc_type)
+        stop
+     end if
 
-      term1 = 2.*pi
-      term2 = 2.*C0
-      term3 = pi*C1
-      term4 = (exp(C2 * pi) + 1.)/(C2**2 + 1.)
-      N = 1. / (term1 * (term2 + term3 + term4))
-   end function
+   end subroutine get_phase_function
 
    subroutine initialize_earth_pos_spline(cpar)
       ! Returns the spline object which is used to evaluate the earth position
@@ -1419,31 +1670,31 @@ contains
    end subroutine initialize_earth_pos_spline
 
    subroutine update_zodi_splines(tod, bandpass, det, model)
-      ! Updates the spectral spline objects in the TOD object.
-      !
-      ! In the K98 model, several spectral parameters are tabulated at individual frequencies,
-      ! which we need to evaluate over the bandpass. In a future version, we may want to fit
-      ! a modified blackbody which would allow us to drop using some of these spline objects.
-      !
-      !  -----------------------------------------------------------------------------------------
-      ! | The difficulty with this functino is that it needs the access to the bandpass, so is is |
-      ! | very limited in where it can be excecuted in commander.                                 |
-      !  -----------------------------------------------------------------------------------------
-      !
-      ! Parameters
-      ! ----------
-      ! tod : class(comm_tod)
-      !     The TOD object holding the spline objects to update.
-      ! bandpass : class(comm_bp_ptr)
-      !   The bandpass object holding the bandpass frequencies, and the SED2F function
-      !   (bandpass integration).
-      ! det : integer(i4b)
-      !   The detector to update the spline objects for.
-
-      class(comm_tod), intent(inout) :: tod
-      class(comm_bp_ptr), intent(in) :: bandpass
-      integer(i4b), intent(in) :: det
-      type(ZodiModel), intent(inout) :: model
+     implicit none
+     ! Updates the spectral spline objects in the TOD object.
+     !
+     ! In the K98 model, several spectral parameters are tabulated at individual frequencies,
+     ! which we need to evaluate over the bandpass. In a future version, we may want to fit
+     ! a modified blackbody which would allow us to drop using some of these spline objects.
+     !
+     !  -----------------------------------------------------------------------------------------
+     ! | The difficulty with this functino is that it needs the access to the bandpass, so is is |
+     ! | very limited in where it can be excecuted in commander.                                 |
+     !  -----------------------------------------------------------------------------------------
+     !
+     ! Parameters
+     ! ----------
+     ! tod : class(comm_tod)
+     !     The TOD object holding the spline objects to update.
+     ! bandpass : class(comm_bp_ptr)
+     !   The bandpass object holding the bandpass frequencies, and the SED2F function
+     !   (bandpass integration).
+     ! det : integer(i4b)
+     !   The detector to update the spline objects for.
+      class(comm_tod),    intent(inout) :: tod
+      class(comm_bp_ptr), intent(in)    :: bandpass
+      integer(i4b),       intent(in)    :: det
+      type(ZodiModel),    intent(inout) :: model
 
       real(dp), allocatable :: b_nu(:)
       integer(i4b) :: i, j
@@ -1451,11 +1702,19 @@ contains
 
       allocate (b_nu(bandpass%p%n))
       do i = 1, size(B_nu_integrals)
-         call get_blackbody_emission( bandpass%p%nu,    T_grid(i), b_nu)
-         call get_blackbody_emission([bandpass%p%nu_c], T_grid(i), Inu0) ! Center frequency for color correction
-         K     = tsum(bandpass%p%nu, bandpass%p%tau * b_nu/Inu0(1)) / tsum(bandpass%p%nu, bandpass%p%tau * bandpass%p%nu_c/bandpass%p%nu) ! Color correction
-         B_nu_integrals(i) = K * Inu0(1)
-         !B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+         call get_blackbody_emission( bandpass%p%nu,    T_grid(i), b_nu) ! MJy/sr
+         if (trim(model%bandpass_type) == 'DIRBE') then
+            call get_blackbody_emission([bandpass%p%nu_c], T_grid(i), Inu0) ! Center frequency for color correction
+            K     = tsum(bandpass%p%nu, bandpass%p%tau * b_nu/Inu0(1)) / tsum(bandpass%p%nu, bandpass%p%tau * bandpass%p%nu_c/bandpass%p%nu) ! Color correction
+            B_nu_integrals(i) = K * Inu0(1)
+         else if (trim(model%bandpass_type) == 'Wright') then
+            B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+         else if (trim(model%bandpass_type) == 'default') then
+            b_nu = 1.d0/(2.d0*bandpass%p%nu**2*k_b/c**2 * 1d14) * b_nu ! uK_RJ
+            B_nu_integrals(i) = tod%bp(det)%p%SED2F(b_nu)              ! Converts to data units
+         else
+            write(*,*) 'Update_zodi_splines -- unknown bandpass type = ', trim(model%bandpass_type)
+         end if
       end do
       call spline_simple(tod%zodi_b_nu_spl_obj(det), T_grid, B_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines
@@ -1524,7 +1783,7 @@ contains
       type(hdf_file) :: file
       real(dp) :: lambda, lambda_min, lambda_max
       real(dp), allocatable :: emissivity(:), albedo(:)
-      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
+      character(len=2048) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
 
       !allocate(tod%zodi_emissivity(tod%zodi_n_comps))
       !allocate(tod%zodi_albedo(tod%zodi_n_comps))
@@ -1579,78 +1838,9 @@ contains
       !call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
    end subroutine read_tod_zodi_params
 
+   ! Get total zodi for a given TOD, including (optionally) both dynamic and static components, and accounting for horns
 
-   subroutine get_s_tot_zodi(zodi_model, tod, det, scan, s, pix_dynamic, pix_static, s_therm, s_scat)
-      implicit none
-      class(ZodiModel),                 intent(in)               :: zodi_model
-      class(comm_tod),                  intent(inout)            :: tod
-      integer(i4b),                     intent(in)               :: det, scan
-      real(sp),         dimension(:),   intent(out)              :: s
-      integer(i4b),     dimension(:,:), intent(in),     optional :: pix_dynamic,  pix_static
-      real(sp),         dimension(:,:), intent(out),    optional :: s_therm, s_scat
-      
-      integer(i4b) :: i, j, h, ntod, nhorn, ncomp, band
-      real(sp)     :: w
-      real(sp),     allocatable, dimension(:)   :: s_zodi
-      real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
-
-      ntod  = size(s,1)
-      ncomp = zodi_model%n_comps
-      band  = tod%id
-
-      s = 0.      
-      if (present(pix_dynamic)) then
-         ! Get pointing
-         nhorn = size(pix_dynamic,2)      
-         allocate(s_scat_(ntod,ncomp), s_therm_(ntod,ncomp), s_zodi(ntod))
-                  
-         ! Compute non-stationary zodi TOD through line-of-sight integration
-         do h = 1, nhorn
-            call get_zodi_emission(tod=tod, pix=pix_dynamic(:,h), scan=scan, &
-                 & det=det, s_zodi_scat=s_scat_, s_zodi_therm=s_therm_, model=zodi_model)
-            call get_s_zodi(band, s_therm=s_therm_, s_scat=s_scat_, s_zodi=s_zodi)
-            w = 1.d0; if (h > 1) w = -1.d0
-            s = s  + w * s_zodi
-            if (present(s_scat))  s_scat  = s_scat_ ! Only works for nhorn=1
-            if (present(s_therm)) s_therm = s_therm_
-         end do
-
-         deallocate(s_scat_, s_therm_, s_zodi)
-      end if
-
-      ! Add static zodi component by Healpix map lookup
-      if (present(pix_static) .and. associated(tod%map_solar)) then
-         nhorn = size(pix_static,2)      
-         do h = 1, nhorn
-            do i = 1, ntod
-               j    = pix_static(i,h)
-               if (tod%map_solar(j,1) > -1.d30) then
-                  w    = 1.d0; if (h > 1) w = -1.d0
-                  !s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
-                  s(i) = s(i) + w * tod%map_solar(j,1)
-               end if
-            end do
-         end do
-      end if
-
-    end subroutine get_s_tot_zodi
-
-    subroutine get_zodi_emissivity_albedo(zodi, band, emissivity, albedo)
-     implicit none
-     class(ZodiModel),               intent(in)            :: zodi
-     integer(i4b),                   intent(in)            :: band
-     real(dp),         dimension(:), intent(out), optional :: emissivity, albedo
-
-     integer(i4b) :: i
-
-     do i = 1, zodi%n_comps
-        if (present(emissivity)) emissivity(i) = zodi%comps(i)%c%emissivity(band)
-        if (present(albedo))     albedo(i)     = zodi%comps(i)%c%albedo(band)
-     end do
-
-   end subroutine get_zodi_emissivity_albedo
-
-   subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
+    subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
       ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
       class(ZodiModel), target, intent(in) :: model
       type(comm_params), intent(in) :: cpar
@@ -1678,18 +1868,27 @@ contains
       end if
 
       open(newunit=io, file=trim(adjustl(filename)), action="write")
-      allocate(params(model%n_params))
-      call model%model_to_params2(params, labels=labels)
+      allocate(params(model%npar_tot))
+      call model%model_to_params(params, labels=labels)
 
-      allocate(comp_switch_indices(model%n_comps))
+      allocate(comp_switch_indices(0:model%n_comps))
 
-      running_idx = 0
+      ! Newline after general parameters
+      if (trim(model%phasefunc_type) == 'Hong') then
+         comp_switch_indices(0) = model%n_general_params
+      else
+         comp_switch_indices(0) = 2
+      end if
+
+      ! Newline after each component
+      running_idx = model%n_general_params
       do i = 1, model%n_comps
          running_idx = running_idx + size(model%comps(i)%labels)
          comp_switch_indices(i) = running_idx
       end do
 
-      do i = 1, model%n_params
+      do i = 1, model%npar_tot
+         if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
          if (any(comp_switch_indices == i)) then
                write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
             else
@@ -1734,87 +1933,93 @@ contains
    end subroutine
 
    subroutine ascii_to_zodi_model(cpar, model, filename)
-      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(inout) :: model
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-      type(hash_tbl_sll) :: htbl
+     implicit none
+     ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
+     class(ZodiModel), target, intent(inout) :: model
+     type(comm_params), intent(in) :: cpar
+     character(len=*), intent(in) :: filename
+     type(hash_tbl_sll) :: htbl
+     
+     integer(i4b) :: i, j, io, io_status, ierr, n_comps
+     logical(lgt) :: exists
+     character(len=512) :: key, val, line
+     character(len=128), allocatable :: labels(:)
+     characteR(len=128) :: toks(100)
+     characteR(len=512) :: concatenated_string
+     real(dp), allocatable :: params(:)
+     
+     allocate(params(model%npar_tot))
+     !if (cpar%myid_chain == cpar%root) then
+     inquire(file=trim(adjustl(filename)), exist=exists)
+     if (.not. exists) then
+        print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+        stop
+     end if
+     
+     call init_hash_tbl_sll(htbl, tbl_len=500)
+     
+     open(newunit=io, file=trim(adjustl(filename)), action="read")
+     io_status = 0
+     do while (io_status == 0)
+        read(io, "(a)", iostat=io_status) line
+        if (io_status == 0 .and. line /= "") then
+           j = index(line, "=")
+           if (j == 0) then
+              print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
+              close(io)
+              stop
+           end if
+           
+           key = trim(adjustl(line(:j-1)))
+           val = trim(adjustl(line(j+1:)))
+           call tolower(key)
+           call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val)))
+        end if
+     end do
+     close(io)
+     
+     call model%model_to_params(params, labels=labels)
+     params = 0.
+     if (size(labels) /= size(params)) then
+        write(*,*) labels
+        write(*,*) params
+        write(*,*) size(labels), size(params)
+        stop "Error: size of labels and params do not match"
+     end if
+     do i = 1, size(labels)
+        if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
+        call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
+     end do
+     !end if
 
-      integer(i4b) :: i, j, io, io_status, ierr, n_comps
-      logical(lgt) :: exists
-      character(len=512) :: key, val, line
-      character(len=128), allocatable :: labels(:)
-      characteR(len=128) :: toks(100)
-      characteR(len=512) :: concatenated_string
-      real(dp), allocatable :: params(:)
-
-      allocate(params(model%n_params))
-      !if (cpar%myid_chain == cpar%root) then
-         inquire(file=trim(adjustl(filename)), exist=exists)
-         if (.not. exists) then
-            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-            stop
-         end if
-         
-         call init_hash_tbl_sll(htbl, tbl_len=500)
-         
-         open(newunit=io, file=trim(adjustl(filename)), action="read")
-         io_status = 0
-         do while (io_status == 0)
-            read(io, "(a)", iostat=io_status) line
-            if (io_status == 0 .and. line /= "") then
-               j = index(line, "=")
-               if (j == 0) then
-                  print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
-                  close(io)
-                  stop
-               end if
-
-               key = trim(adjustl(line(:j-1)))
-               val = trim(adjustl(line(j+1:)))
-               call tolower(key)
-               call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val))) 
-            end if
-         end do
-         close(io)
-
-         call model%model_to_params2(params, labels)
-         params = 0.
-         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
-         do i = 1, size(labels)
-            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
-         end do
-      !end if
-
-      !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call model%params_to_model2(params)
-
-      do i = 1, numband
-         if (trim(band_todtype(i)) == 'none') cycle
-         !if (.not. data(i)%tod%subtract_zodi) cycle
-         !if (cpar%myid == 0) then
-            call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%emissivity(i)
-            end do
-
-            call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%albedo(i)
-            end do
-            
-!            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
-         !end if
-         !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-         !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      end do
-   end subroutine
-
-
+     !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     call model%params_to_model(params)
+     
+     do i = 1, numband
+        if (trim(band_todtype(i)) == 'none') cycle
+        !if (.not. data(i)%tod%subtract_zodi) cycle
+        !if (cpar%myid == 0) then
+        call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
+        call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+        if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
+        do j = 1, n_comps
+           read(toks(j), *) model%comps(j)%c%emissivity(i)
+        end do
+        
+        call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(band_labels(i))))), par_string=concatenated_string)
+        call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+        if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
+        do j = 1, n_comps
+           read(toks(j), *) model%comps(j)%c%albedo(i)
+        end do
+        
+        !            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
+        !end if
+        !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+        !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     end do
+   end subroutine ascii_to_zodi_model
+   
    subroutine print_zodi_model(theta, samp_group)
      implicit none
      real(dp),     allocatable, intent(in) :: theta(:)

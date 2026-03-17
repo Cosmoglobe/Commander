@@ -9,6 +9,7 @@ COMP_CG_SAMPLE_GROUP&&        = 1
 COMP_CG_SAMP_GROUP_MAXITER&&  = 35
 COMP_NSIDE&&                  = 2048
 COMP_L_APOD&&                 = 6000
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 6000
 COMP_OUTPUT_FWHM&&            = 9.5         # arcmin

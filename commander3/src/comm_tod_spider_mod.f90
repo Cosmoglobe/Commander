@@ -31,6 +31,7 @@ module comm_tod_SPIDER_mod
    !       Routine which processes the time ordered data
    !
    use comm_tod_driver_mod
+   use comm_conviqt_mod
    implicit none
  
    private

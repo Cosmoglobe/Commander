@@ -20,6 +20,8 @@ owl2528="$prefix+(2[5-8])+$suffix"
 owl2930="$prefix+(29|30)+$suffix"
 owl3135="$prefix+(3[1-5])+$suffix"
 owl3637="$prefix+(3[6-7])+$suffix"
+owl38="$prefix+(38)+$suffix"
+owl4246="$prefix+(4[2-6])+$suffix"
 # Using regex to figure out which beehive I am on.
 prefix="beehive"
 bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
@@ -94,6 +96,10 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl4246 ]]; then
+    build_dir="build_owl4246_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
+    build_dir="build_owl38_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
     build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
@@ -152,15 +158,16 @@ then
 	elif [[ "$toolchain" =~ "oneapi" ]]
 	then
 		# Compilers
-		fc="ifort"
-		cc="icc"
-		cxx="icpc"
+		fc="ifx"
+		cc="icx"
+		cxx="icpx"
 		# MPI compilers
-		mpifc="mpiifort" 
-		mpicc="mpiicc"
-		mpicxx="mpiicpc"
+		mpifc="mpiifx" 
+		mpicc="mpiicx"
+		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+    #module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+    module load intel/oneapi compiler/latest mpi/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -172,8 +179,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load gcc/13.1
-    module load openmpi/gcc13/5.0.2
+    module load gcc/13.3.1
+    module load openmpi/gcc13/5.0.5
 		printf "\n"
 		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]

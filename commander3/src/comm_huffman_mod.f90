@@ -80,6 +80,8 @@ contains
              j = 7
           end if
        end do
+       !call hcode%get_symbol(node, buf)
+       !x_out(k) = buf
        x_out(k) = hcode%int_symbs(node)
        if (k > 1)         x_out(k) = x_out(k-1) + x_out(k)
        if (present(imod)) x_out(k) = iand(x_out(k),imod)
@@ -339,43 +341,6 @@ contains
     call hcode%set_symbols(1, symbols)
     hcode%left(n+1:2*n-1)   = tree(2:n)
     hcode%iright(n+1:2*n-1) = tree(n+1:2*n-1)
-
-    !   ! Reconstructing icode, ncode from left and right
-    !   allocate(iup(size(hcode%left)))
-    !   iup = 0
-    !   do i = 1, hcode%nch
-    !      k = i
-    !      do
-    !        j = findloc(hcode%left, k, dim=1)
-    !        if (j == 0) then
-    !            j = findloc(hcode%iright, k, dim=1)
-    !            iup(k) = -1*j
-    !        else
-    !            iup(k) = j
-    !        end if
-    !        k = j
-    !        if (k .eq. size(hcode%left)) exit
-    !      end do
-    !   end do
-
-    !   do j = 1, hcode%nch
-    !      n = 0
-    !      ibit = 0
-    !      node = iup(j)
-    !      do
-    !         if (node == 0 .or. abs(node) > hcode%nodemax) exit
-    !         if (node < 0) then
-    !            n = ibset(n, ibit)
-    !            node = -node
-    !         end if
-    !         node = iup(node)
-    !         ibit = ibit + 1
-    !     end do
-    !     hcode%icode(j) = n
-    !     hcode%ncode(j) = ibit
-    !   end do
-
-    !   deallocate(iup)
 
 
   end subroutine hufmak_precomp_sp

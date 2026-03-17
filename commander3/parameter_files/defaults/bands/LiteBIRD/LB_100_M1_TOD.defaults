@@ -52,3 +52,5 @@ BAND_TOD_INIT_FROM_HDF&&&     = default
 BAND_TOD_LEVEL&&&             = L1
 BAND_TOD_ZODI_SUBTRACTION&&&  = .false.
 N_GIBBS_PER_TOD&&&            = 1
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned

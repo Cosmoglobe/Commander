@@ -60,6 +60,15 @@ class commander_instrument:
 
         self.add_field(det + '/bandpassx', freqs)
         self.add_field(det + '/bandpass', response)
+
+    #add bandpass data for detector det
+    def add_hfi_bandpass(self, det, freqs, response):
+        if len(freqs) != len(response):
+            raise ValueError('Bandpass frequency x and f(x) must be the same length, len(freqs): ' + str(len(freqs)) + ' len(f(x)): ' + str(len(response)))
+        det = self.parse_det(det)
+
+        self.add_field(det + '/bandpassx', freqs * 1e-7 * 299792458.)
+        self.add_field(det + '/bandpass', response)
        
     def add_alms(self, det, almType, lmax, mmax, T, E, B):
        

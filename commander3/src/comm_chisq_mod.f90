@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -36,6 +36,7 @@ contains
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
     character(len=512),             intent(in),    optional :: maskpath
     integer(i4b), dimension(:),     intent(in),    optional :: band_list
+    integer(i4b),                   intent(out),   optional :: ndof
 
     integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
     integer(i4b), dimension(:), allocatable :: bandlist
@@ -78,6 +79,7 @@ contains
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
+       if (present(ndof))          ndof          = 0
        do p = 1, nbands
           i = bandlist(p)
           if (i == 0) cycle
@@ -98,6 +100,11 @@ contains
             res%map = res%map * mask(i)%p%map
           else if (present(maskpath)) then
             mask_tmp => comm_map(data(i)%info, trim(maskpath), udgrade=.true.)
+            where(mask_tmp%map < 0.5d0)
+               mask_tmp%map = 0.d0
+            elsewhere
+               mask_tmp%map = 1.d0
+            end where
             res%map = res%map * mask_tmp%map
             call mask_tmp%dealloc(); deallocate(mask_tmp)
           end if
@@ -138,8 +145,11 @@ contains
           if (present(chisq_fullsky)) then
              if (lowres) then
                 chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
+                if (present(ndof)) ndof = ndof + count(res_lowres%map /= 0.)
              else
                 chisq_fullsky = chisq_fullsky + sum(res%map)
+                if (present(ndof)) ndof = ndof + count(res%map /= 0.)
+                !write(*,*) trim(data(i)%label), sum(res%map), chisq_fullsky
              end if
           end if
 
@@ -153,6 +163,7 @@ contains
 
     if (present(chisq_fullsky)) then
        call mpi_allreduce(MPI_IN_PLACE, chisq_fullsky, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+       if (present(ndof)) call mpi_allreduce(MPI_IN_PLACE, ndof, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
     end if
 
   end subroutine compute_chisq
@@ -448,7 +459,7 @@ contains
     character(len=512), intent(in), optional :: abscal_comps
     class(comm_map), pointer, intent(inout), optional    :: gainmap
 
-    integer(i4b) :: i, j, k, n
+    integer(i4b) :: i, j, k, n, nmaps
     logical(lgt) :: skip, mono_, calmap
     real(dp)     :: rms_EE2_prior
     class(comm_map),  pointer :: map_diff, cmbmap_band, gaindiff
@@ -456,12 +467,23 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     character(len=16),         dimension(100) :: abscal_labels
-    
+    class(comm_mapinfo), pointer              :: info_pol => null()
+
     mono_ = .true.; if (present(mono)) mono_=mono 
 
     ! Allocate map
-    map_out  => comm_map(data(band)%info)  
-    map_diff => comm_map(data(band)%info)
+    nmaps = data(band)%info%nmaps
+    if(nmaps > 3) nmaps = 3
+
+    if(data(band)%distribute_type == 'nplus2') then
+      info_pol => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, data(band)%info%pol, & 
+                &distribute_type=data(band)%info%distribute_type)
+      map_out  => comm_map(info_pol)
+      map_diff => comm_map(info_pol)
+    else
+      map_out  => comm_map(data(band)%info)  
+      map_diff => comm_map(data(band)%info)
+    end if
 
     if (present(cmbmap)) then
        cmbmap_band => comm_map(data(band)%info)
@@ -504,7 +526,7 @@ contains
           else
              alm     = c%getBand(band, alm_out=.true., det=det)
           end if
-          map_diff%alm = map_diff%alm + alm
+          map_diff%alm = map_diff%alm + alm(:,1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -516,7 +538,7 @@ contains
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -528,7 +550,7 @@ contains
        class is (comm_template_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
