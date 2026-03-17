@@ -47,10 +47,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ipaccal as ip
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-NSIDE = 512        # HEALPix resolution (~6.9 arcmin pixels)
+NSIDE = 1024
 M2R   = np.pi / (180.0 * 60.0)   # arcmin → radians
 
-ROOT     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT     = os.path.dirname('/mn/stornext/d23/cmbco/globe/orig/iras/kester_rawdb/')
 IPAC_DIR = os.path.join(ROOT, 'diskrog10androg11/rog11/IPAC')
 CTYPE2   = os.path.join(IPAC_DIR, 'tables/ctype2')
 VFET     = os.path.join(IPAC_DIR, 'tables/vfetsg')
@@ -1058,24 +1058,25 @@ def main():
         vals   = signal_map[mask]
         finite = vals[np.isfinite(vals)]
         vmin, vmax = np.percentile(finite, 1), np.percentile(finite, 99)
+        vmin, vmax = 1, 100
         fig, axes = plt.subplots(1, 2, figsize=(16, 5))
         fig.suptitle(
             f'IRAS {_bcfg["name"]} -- all {len(BAND_DETS)} detectors -- calibrated map (nside={NSIDE})',
             fontsize=13)
         plt.sca(axes[0])
         hp.mollview(signal_map, title='Signal (MJy/sr)', unit='MJy/sr',
-                    min=vmin, max=vmax, coord='G', cmap='inferno', hold=True)
+                    min=vmin, max=vmax, coord='G', cmap='inferno', hold=True,
+                    norm='log')
         hp.graticule(dpar=30, dmer=60, alpha=0.4)
         plt.sca(axes[1])
         hp.mollview(hits_map.astype(float), title='Hits per pixel',
                     coord='G', cmap='Blues', hold=True,
-                    min=0, max=np.percentile(hits_map[mask], 99))
+                    min=0, max=50)
         hp.graticule(dpar=30, dmer=60, alpha=0.4)
         plt.tight_layout()
         out_png = os.path.join(OUT_DIR, f'fullsurvey_{btag}_alldet_cal_map_nside{NSIDE}{mask_sfx}.png')
         plt.savefig(out_png, dpi=150)
         print(f'Saved: {out_png}')
-        plt.show()
 
 
 if __name__ == '__main__':
