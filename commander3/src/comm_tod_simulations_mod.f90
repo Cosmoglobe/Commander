@@ -644,7 +644,7 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        call timer%stop(TOT_FFT)
        dt = dt / sqrt(1.d0*nfft)
-
+            
        ! getting parameters for tod simulations
        gain   = self%scans(scan)%d(j)%gain
        sigma0 = self%scans(scan)%d(j)%N_psd%sigma0
@@ -663,9 +663,18 @@ contains
        end do
        !write(*,*) "tod after ", j, self%scans(scan)%d(j)%tod(1), self%scans(scan)%d(j)%tod(ntod)
 
+!       if (self%myid==0 .and. j==1) then
+!!          filename='dt_'//trim(int2string(j))//'.dat'
+!          open(18, file='dt.dat')
+!          do i = 1, ntod
+!             write(18,*) i, gain *sd%s_tot(i,j,0,1), dt(i), self%scans(scan)%d(j)%tod(i) - gain *sd%s_tot(i,j,0,1) - dt(i),  self%scans(scan)%d(j)%tod(i)
+!          end do
+!          close(18)
+!          write(*,*) 'written to file dt.dat'
+!       end if
+       
     end do
-    deallocate(dv)
-    deallocate(dt)
+    deallocate(dv, dt)
     call sfftw_destroy_plan(plan_back)
     
   end subroutine simulate_tod_on_the_fly

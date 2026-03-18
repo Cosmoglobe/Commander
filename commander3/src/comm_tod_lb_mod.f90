@@ -97,17 +97,20 @@ contains
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
-    
-    c%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
-    if (.true.) then
-       c%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
-       c%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
-       c%xi_n_P_uni(2,:) = [0.00001, 0.45]  ! fknee
-       c%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-    else
-       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(c%freq)
-       stop
-    end if
+
+    ! Correlated noise parameters
+    c%xi_n_nu_fit(1,:) = [1.d0, 8.5d0]   ! Freq range for sigma0 in Hz
+    c%xi_n_nu_fit(2,:) = [1d-3, 1.d0]    ! Freq range for fknee in Hz
+    c%xi_n_nu_fit(3,:) = [1d-3, 1.d0]    ! Freq range for alpha in Hz
+      
+    c%xi_n_P_uni(1,:)  = [1d-6, 1d-3]     ! Uniform prior for sigma0
+    c%xi_n_P_uni(2,:)  = [1d-6, 1.d0]     ! Uniform prior for fknee
+    c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+      
+    ! Set rms of all parameters to 0.05 for initial test phase. 
+    c%xi_n_P_rms(1)    = 1.00d0           ! Prior rms for sigma0
+    c%xi_n_P_rms(2)    = 0.1d0            ! Prior rms for fknee
+    c%xi_n_P_rms(3)    = 0.2d0            ! Prior rms for alpha
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -151,8 +154,9 @@ contains
     end do
 
     ! Read the actual TOD
-    call c%read_tod(c%label)  ! obs good place to overwrite sigma0
-    if (c%on_the_fly_tod_sim .and. .true.) call overwrite_sigma0(c, cpar)
+    call c%read_tod(c%label)
+    ! option to set noise parameters by hand for on-the-fly litebird sims
+    if (c%on_the_fly_tod_sim .and. .true.) call overwrite_noisepar(c, cpar)
     
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
@@ -348,26 +352,22 @@ contains
        ! but only if this is the first sample
        if (self%on_the_fly_tod_sim .and. self%first_call) then
           call simulate_tod_on_the_fly(self, sd, handle)
+          ! we have now overwritten tod in self, and also have to update uncompresses data in sd
+          call dealloc_scan_data(sd)
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        end if
 
        ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
-             write(*,*) 'a1', self%myid
              call sample_noise_psd(self, sd, handle, chaindir)
-             write(*,*) 'a2', self%myid
           else
-             if (self%myid==0) write(*,*) 'a3', self%myid
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
-             if (self%myid==0) write(*,*) 'a4', self%myid
           end if
        else
-          if (self%myid==0) write(*,*) 'a5', self%myid
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
-          if (self%myid==0) write(*,*) 'a6', self%myid
        end if
-       write(*,*) 'a7', self%myid
        
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -484,9 +484,10 @@ contains
     call timer%stop(TOD_TOT, self%band) 
   end subroutine process_LB_tod   
 
-  subroutine overwrite_sigma0(self, cpar)
-    ! overwriting sigma0 for on-the-fly litebird sims
-    ! assuming 11-13 specific litebird channels
+  subroutine overwrite_noisepar(self, cpar)
+    ! setting noise parameters sigma0, fknee and alpha by hand for on-the-fly litebird sims
+    ! hardcoded sigma0 values for 11-13 specific litebird channels
+    ! overwriting existing values in memory for self%scans(k)%d(j)%N_psd%xi_n
     implicit none
     class(comm_LB_tod),   intent(inout) :: self
     type(comm_params),    intent(in)    :: cpar
@@ -498,15 +499,16 @@ contains
     sim_sigma0 = .true.
     if (.not. sim_sigma0) return
 
-    if (self%myid==0) write(*,*) 'band ', self%band, trim(self%freq) 
-    if (self%myid==0) write(*,*) 'sigma0 before ', self%scans(1)%d(1)%N_psd%sigma0 
-    if (self%myid==0) write(*,*) 'fknee  before ', self%scans(1)%d(1)%N_psd%xi_n(2) 
-    if (self%myid==0) write(*,*) 'alpha  before ', self%scans(1)%d(1)%N_psd%xi_n(3)
+    !if (self%myid==0) write(*,*) 'band ', self%band, trim(self%freq) 
+    !if (self%myid==0) write(*,*) 'sigma0 before ', self%scans(1)%d(1)%N_psd%sigma0 
+    !if (self%myid==0) write(*,*) 'fknee  before ', self%scans(1)%d(1)%N_psd%xi_n(2) 
+    !if (self%myid==0) write(*,*) 'alpha  before ', self%scans(1)%d(1)%N_psd%xi_n(3)
 
     numband = count(cpar%ds_active)
     allocate(sigma0(numband))
-    
-    ! sigma0 unit uk_cmb_sqrt(s)
+
+    ! table of sigma0 values to pick from for different litebird configurations
+    ! unit uk_cmb*sqrt(s)
     !         L1-40  L2-50  L1-61  L2-77  M1-94  M2-118 M1-145 M2-182 H1-217 H2-280 H1-334 H2-402 H3-570
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62,   0.0] !postKTP
     sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessLF2
@@ -515,21 +517,23 @@ contains
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93,  0.00, 233.1] !noHF2
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93, 29.13, 233.1] !newHF2
     
-    numdet = real(self%ndet,dp)
-    
+    numdet = real(self%ndet,dp) ! number of detectors per band
+    ! loop over scans and set new noise parameters
     do k = 1, self%nscan
        do j = 1, self%ndet !4
-          self%scans(k)%d(j)%N_psd%sigma0 = sigma0(self%band) * sqrt(self%samprate) * sqrt(numdet) * 1e-6 !tods are in K
-          self%scans(k)%d(j)%N_psd%xi_n(2) = 0.0001 !0.05                 ! 50 mHz f_knee
+          ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*sqrt(s)
+          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%band) * sqrt(self%samprate) * sqrt(numdet) * 1e-6 
+          self%scans(k)%d(j)%N_psd%xi_n(2) = 0.05                 ! fknee = 50 mHz
           self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
        end do
     end do
     deallocate(sigma0)
+
+    if (self%myid==0) write(*,*) '|> Put sigma0 =', self%scans(1)%d(1)%N_psd%sigma0 !, self%band, trim(self%freq) 
+    !if (self%myid==0) write(*,*) 'sigma0 after  ', self%scans(1)%d(1)%N_psd%sigma0 
+    !if (self%myid==0) write(*,*) 'fknee  after  ', self%scans(1)%d(1)%N_psd%xi_n(2) 
+    !if (self%myid==0) write(*,*) 'alpha  after  ', self%scans(1)%d(1)%N_psd%xi_n(3)
     
-    if (self%myid==0) write(*,*) 'sigma0 after  ', self%scans(1)%d(1)%N_psd%sigma0 
-    if (self%myid==0) write(*,*) 'fknee  after  ', self%scans(1)%d(1)%N_psd%xi_n(2) 
-    if (self%myid==0) write(*,*) 'alpha  after  ', self%scans(1)%d(1)%N_psd%xi_n(3)
-    
-  end subroutine overwrite_sigma0
+  end subroutine overwrite_noisepar
     
 end module comm_tod_LB_mod

@@ -626,7 +626,7 @@ contains
        end do
 
        !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1000) then
+       if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -647,7 +647,7 @@ contains
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
-             !write(*,*) "psd", k, j
+             !if (self%myid==0) write(*,*) "psd", k, j, self%myid
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
@@ -662,12 +662,12 @@ contains
              xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-             if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
+             !if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
           end do
        end do
 
        !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1000) then
+       if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
