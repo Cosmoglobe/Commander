@@ -102,7 +102,7 @@ contains
     if (.true.) then
        c%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
        c%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
-       c%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+       c%xi_n_P_uni(2,:) = [0.00001, 0.45]  ! fknee
        c%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
     else
        write(*,*) 'Invalid LiteBIRD frequency label = ', trim(c%freq)
@@ -151,8 +151,9 @@ contains
     end do
 
     ! Read the actual TOD
-    call c%read_tod(c%label)
-
+    call c%read_tod(c%label)  ! obs good place to overwrite sigma0
+    if (c%on_the_fly_tod_sim .and. .true.) call overwrite_sigma0(c, cpar)
+    
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
@@ -245,8 +246,8 @@ contains
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
     ! Toggle optional operations
-    sample_ncorr          = .false. !.true. OBS
-    sample_xi_n           = .false.
+    sample_ncorr          = .true. !.true. OBS
+    sample_xi_n           = .true. !.false. ! OBS
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
@@ -353,14 +354,21 @@ contains
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
+             write(*,*) 'a1', self%myid
              call sample_noise_psd(self, sd, handle, chaindir)
+             write(*,*) 'a2', self%myid
           else
+             if (self%myid==0) write(*,*) 'a3', self%myid
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+             if (self%myid==0) write(*,*) 'a4', self%myid
           end if
        else
+          if (self%myid==0) write(*,*) 'a5', self%myid
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+          if (self%myid==0) write(*,*) 'a6', self%myid
        end if
-      
+       write(*,*) 'a7', self%myid
+       
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -378,7 +386,8 @@ contains
        call compute_calibrated_data(self, i, sd, d_calib)    
 
        ! For debugging: write TOD to hdf
-       if (.true.) then
+       !if (.true.) then
+       if (self%on_the_fly_tod_sim .and. self%first_call) then
           ! scan id appears to be the worst chi2
           if (self%scanid(i) == 1) then 
              !print *, self%scanid(i)
@@ -401,7 +410,7 @@ contains
              call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
              call close_hdf_file(tod_file)
           end if
-         end if
+       end if
 
 
        
@@ -475,5 +484,52 @@ contains
     call timer%stop(TOD_TOT, self%band) 
   end subroutine process_LB_tod   
 
+  subroutine overwrite_sigma0(self, cpar)
+    ! overwriting sigma0 for on-the-fly litebird sims
+    ! assuming 11-13 specific litebird channels
+    implicit none
+    class(comm_LB_tod),   intent(inout) :: self
+    type(comm_params),    intent(in)    :: cpar
+    real(sp), allocatable, dimension(:) :: sigma0
+    real(dp)                            :: numdet
+    integer(i4b)                        :: i, j, k, numband
+    logical(lgt)                        :: sim_sigma0
 
+    sim_sigma0 = .true.
+    if (.not. sim_sigma0) return
+
+    if (self%myid==0) write(*,*) 'band ', self%band, trim(self%freq) 
+    if (self%myid==0) write(*,*) 'sigma0 before ', self%scans(1)%d(1)%N_psd%sigma0 
+    if (self%myid==0) write(*,*) 'fknee  before ', self%scans(1)%d(1)%N_psd%xi_n(2) 
+    if (self%myid==0) write(*,*) 'alpha  before ', self%scans(1)%d(1)%N_psd%xi_n(3)
+
+    numband = count(cpar%ds_active)
+    allocate(sigma0(numband))
+    
+    ! sigma0 unit uk_cmb_sqrt(s)
+    !         L1-40  L2-50  L1-61  L2-77  M1-94  M2-118 M1-145 M2-182 H1-217 H2-280 H1-334 H2-402 H3-570
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62,   0.0] !postKTP
+    sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessLF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  8.05,  4.71,  4.94,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF1 
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  5.15,  4.41,  3.73,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93,  0.00, 233.1] !noHF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93, 29.13, 233.1] !newHF2
+    
+    numdet = real(self%ndet,dp)
+    
+    do k = 1, self%nscan
+       do j = 1, self%ndet !4
+          self%scans(k)%d(j)%N_psd%sigma0 = sigma0(self%band) * sqrt(self%samprate) * sqrt(numdet) * 1e-6 !tods are in K
+          self%scans(k)%d(j)%N_psd%xi_n(2) = 0.0001 !0.05                 ! 50 mHz f_knee
+          self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
+       end do
+    end do
+    deallocate(sigma0)
+    
+    if (self%myid==0) write(*,*) 'sigma0 after  ', self%scans(1)%d(1)%N_psd%sigma0 
+    if (self%myid==0) write(*,*) 'fknee  after  ', self%scans(1)%d(1)%N_psd%xi_n(2) 
+    if (self%myid==0) write(*,*) 'alpha  after  ', self%scans(1)%d(1)%N_psd%xi_n(3)
+    
+  end subroutine overwrite_sigma0
+    
 end module comm_tod_LB_mod
