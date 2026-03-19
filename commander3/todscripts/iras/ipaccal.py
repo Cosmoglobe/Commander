@@ -90,8 +90,11 @@ _ESAD_RAW = np.array([
 ESAD = _ESAD_RAW * 1.0e-7  # steradians
 
 # DC stimulator flash #5 intensity per detector (amps) from ccstim.f
-# Indexed by ciseqn(det)-1 in the original code; here stored as 62-element
-# array indexed by calibration sequence (0-based).  ccstim = st5[det] * acdc[det]
+# Stored in PHYSICAL DETECTOR ORDER (indexed 0-based by det-1, NOT by ciseqn).
+# In the original Fortran ccstim.f the lookup was ccstim(ciseqn(det)), but
+# the values here were rearranged into physical order so the Python lookup is
+# simply CCSTIM[det-1].  Dead detectors (17, 20, 36) are 0.
+# ccstim = st5[det] * acdc[det]
 _ST5 = np.array([
     0.838254e-12, 0.904365e-12, 0.864749e-12, 0.811226e-12,
     0.832986e-12, 0.957989e-12, 0.971139e-12,
@@ -431,22 +434,139 @@ def subtract_baseline(volts, det, utcs_samples, utc_table, vfets_table,
 
     alpha = _GXN_ALPHA[det - 1]
     tau   = _GXN_TAU[det - 1]
-    # kpar=0 always, so gxnc = (kpar + alpha*bbd)*exp(-dt/tau) simplifies
-    # but cioffs uses: kab = kappa + alpha*bbd  (and kappa=0 always)
-    # and gxnc = kab * exp(dbutc * (-1/tau))
-    # For simplicity without the bias-boost duration: gxnc ≈ alpha*exp(-utmbb/tau)
+    # The full Fortran cioffs formula is:
+    #   kab   = kappa_d + alpha_d * bbd          (bbd = bias-boost firing duration)
+    #   gxnc  = kab * exp(-utmbb / tau_d)
+    # kpar (kappa_d) is zero for all IRAS detectors, so the kappa term drops.
+    # bbd (bias-boost duration) is NOT loaded here; the field comes from cigbbi
+    # in the Fortran code.  Setting bbd=0 gives:
+    #   gxnc = alpha_d * exp(-utmbb / tau_d)
+    # This is an approximation: when bbd > 0 the B3/B4 correction will be
+    # slightly underestimated.  The effect is small (bbd is typically a few
+    # seconds; alpha_d is ~1e-6 A/s), but it is an undocumented omission.
     gxnc = alpha * np.exp(-np.asarray(utmbb_samples, dtype=float) / tau)
 
     return volts - vfetc - gxnc
 
 
 # ---------------------------------------------------------------------------
+# PRHF (Photon Response History File) — ciprec.f / ciprhf.f
+# ---------------------------------------------------------------------------
+
+def read_prhf(prhf_dir, sop, obs):
+    """
+    Read one PRHF binary file (IR.PRHF.D0{sop:03d}{obs:03d}).
+
+    Format: Fortran big-endian unformatted sequential.
+    Each record: [deltut(f4), dtr[31](f4), lambda(f4), beta(f4)] = 34 floats.
+    Records where lambda < -1000 AND beta < -1000 are EOF sentinels.
+
+    Parameters
+    ----------
+    prhf_dir : str   path to the IPAC/P/ directory
+    sop, obs : int
+
+    Returns
+    -------
+    deltut : ndarray (N,) float64  time since last bias boost (UTC seconds)
+    dtr    : ndarray (N, 31) float32  fractional responsivity depression,
+             0-indexed by prhf_idx = CISEQN[det-1] - 32  (≥0 only for B3/B4)
+    """
+    fname = os.path.join(prhf_dir, f'IR.PRHF.D0{sop:03d}{obs:03d}')
+    with open(fname, 'rb') as fh:
+        raw = fh.read()
+
+    N_FLOATS = 34          # deltut + 31 dtr + lambda + beta
+    PAYLOAD  = N_FLOATS * 4
+    STRIDE   = PAYLOAD + 8  # 4-byte FRL before + after
+
+    deltut_list = []
+    dtr_list    = []
+    offset = 0
+    while offset + STRIDE <= len(raw):
+        # Fortran record-length markers (should both equal PAYLOAD = 136)
+        offset += 4                            # skip leading FRL
+        vals = np.frombuffer(raw[offset:offset + PAYLOAD], dtype='>f4')
+        offset += PAYLOAD
+        offset += 4                            # skip trailing FRL
+
+        lambda_ = float(vals[32])
+        beta    = float(vals[33])
+        if lambda_ < -1000.0 and beta < -1000.0:
+            continue                            # dummy/padding record — skip, keep reading
+
+        deltut_list.append(float(vals[0]))
+        dtr_list.append(vals[1:32].astype(np.float32))
+
+    if not deltut_list:
+        return np.empty(0, dtype=np.float64), np.empty((0, 31), dtype=np.float32)
+
+    return (np.array(deltut_list, dtype=np.float64),
+            np.array(dtr_list,   dtype=np.float32))
+
+
+# PRHF Python index for each detector:  CISEQN[det-1] - 32  (>=0 for B3/B4)
+# Negative values → no PRHF correction for that detector.
+_PRHF_IDX = (CISEQN - 32).astype(int)   # shape (62,); index 0-30 for B3/B4
+
+
+def apply_prhf_correction(flamp, det, utmbb_samples, prhf_deltut, prhf_dtr):
+    """
+    Apply PRHF photon-response-history correction to flash amplitudes.
+
+    Implements ciprhf.f / ciprec.f logic, vectorised over samples.
+
+    For each sample at time utmbb_t (seconds since last bias boost):
+        delt = utmbb_t - 4                              # SLW convention
+        find record j: prhf_deltut[j] ∈ (delt-4, delt+4]
+                                       = (utmbb_t-8,   utmbb_t]
+        flamp[sample] /= 1 - prhf_dtr[j, prhf_idx]
+
+    Only applied when prhf_idx = CISEQN[det-1] - 32 ≥ 0  (Bands 3 & 4).
+    If no record falls in the 8-second window the correction is skipped
+    (matches ciprec ierr=3 "no correction for this case" path).
+
+    Parameters
+    ----------
+    flamp         : ndarray (N,) float64  modified in-place
+    det           : int  1-based detector number
+    utmbb_samples : ndarray (N,) float64  seconds since last bias boost
+    prhf_deltut   : ndarray (M,) float64  UTC-since-BB time tags (ascending)
+    prhf_dtr      : ndarray (M, 31) float32  responsivity depression fractions
+    """
+    prhf_idx = int(_PRHF_IDX[det - 1])
+    if prhf_idx < 0 or len(prhf_deltut) == 0:
+        return                                      # not a B3/B4 detector, or no data
+
+    t = np.asarray(utmbb_samples, dtype=np.float64)
+
+    # Largest j such that prhf_deltut[j] ≤ t  (time-ordered records)
+    j = np.searchsorted(prhf_deltut, t, side='right') - 1
+
+    # Valid: record must be within 8 s behind current time
+    # (mirrors ciprec's acceptance window: curdut ∈ (delt-4, delt+4] with delt=t-4)
+    in_bounds = j >= 0
+    in_bounds[in_bounds] &= prhf_deltut[j[in_bounds]] > t[in_bounds] - 8.0
+    if not in_bounds.any():
+        return
+
+    deltr = prhf_dtr[j[in_bounds], prhf_idx].astype(np.float64)
+    # Guard: deltr must be < 1 (fractional depression; typically 0–0.05)
+    safe  = deltr < 1.0
+    flamp[in_bounds] = np.where(safe,
+                                flamp[in_bounds] / (1.0 - deltr),
+                                flamp[in_bounds])
+
+
+# ---------------------------------------------------------------------------
 # ciwpm2 — amps → W/m²  (flash-model responsivity)
 # ---------------------------------------------------------------------------
 
-def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl):
+def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl,
+                prhf_deltut=None, prhf_dtr=None):
     """
-    Convert baseline-corrected amplitudes to W/m² using the SRHF responsivity.
+    Convert baseline-corrected amplitudes to W/m² using the SRHF responsivity,
+    optionally applying the PRHF photon-response-history correction (ciprhf.f).
 
     Responsivity R(t) = F(t) / ccstim(det)    [A · m² / W]
     Output S(t) = amps(t) / R(t)              [W/m²]
@@ -460,6 +580,10 @@ def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl):
     det : int, 1-based
     utmbb_samples : ndarray, seconds since last bias boost for each sample
     apl, bpl, tpl : from read_srhf(), length-62, ciseqn-indexed
+    prhf_deltut : ndarray (M,) or None.  If provided together with prhf_dtr,
+        the PRHF photon-response correction is applied to the flash amplitude
+        before computing responsivity.  Only affects Band 3 & 4 detectors.
+    prhf_dtr : ndarray (M, 31) or None.  PRHF correction fractions.
 
     Returns
     -------
@@ -467,6 +591,11 @@ def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl):
     """
     t = np.asarray(utmbb_samples, dtype=float)
     flamp = srhf_flash_amplitude(t, apl, bpl, tpl, det)
+
+    # Optional PRHF correction (bands 3 & 4 only; no-op for bands 1 & 2)
+    if prhf_deltut is not None and prhf_dtr is not None and len(prhf_deltut) > 0:
+        apply_prhf_correction(flamp, det, t, prhf_deltut, prhf_dtr)
+
     dcflux = CCSTIM[det - 1]
     if dcflux == 0.0:
         return np.full_like(amps, np.nan)
@@ -509,6 +638,97 @@ def wm2_to_jy(wm2, det):
 
 
 # ---------------------------------------------------------------------------
+# E1 — Per-snip polynomial destripe  (Kester, IPAC IOM 701-039-89(1))
+# ---------------------------------------------------------------------------
+
+def poly_destripe(mjy_sr, bad, degree=1, n_iter=3, sigma=5.0):
+    """
+    Fit and subtract a robust polynomial baseline from one detector-snip.
+
+    Implements the per-snip polynomial destripe step (E1) described in the
+    pipeline notes (§ todq_destripe), corresponding to the GIPSY IMAGE task's
+    ``destripe / tune = offset drift`` mode with a Tukey M-estimator.
+
+    The IPAC IMAGE task performed this against map residuals (snip − map).
+    This implementation fits directly to the TOD, using provided flags to
+    exclude outliers (glitches, ICF events, bright sources, corrupted samples)
+    so that the polynomial tracks the thermal / vfet drift baseline rather
+    than sky signal.  This is appropriate before map-making; Commander3
+    handles the map-residual version.
+
+    Algorithm
+    ---------
+    1. Build an initial fit mask: all *un*-flagged, finite samples.
+    2. For *n_iter* iterations:
+       a. Fit a degree-*k* polynomial (``numpy.polyfit``) on the masked samples.
+       b. Compute residuals for those samples; estimate noise via MAD / 0.6745
+          (robust against the point sources that remain in early iterations).
+       c. Reject samples with |residual| > *sigma* × rms from the next iteration.
+    3. Take a final ``polyfit`` on the surviving samples; subtract the evaluated
+       polynomial from **all** samples (flagged and source samples included —
+       they receive the baseline correction but play no part in fitting it).
+
+    Parameters
+    ----------
+    mjy_sr : ndarray, shape (N,)
+        Calibrated signal in MJy sr⁻¹ (the destripe step operates in sky units).
+    bad : bool ndarray, shape (N,)
+        True = exclude from baseline fitting (but the subtraction is still
+        applied).  Typical content: ``corrupt | flash_trim | icf_flag | spike |
+        tail | source``.  NaN samples are also excluded regardless of this mask.
+    degree : int
+        Polynomial degree.  0 = DC offset only, 1 = offset + linear drift
+        (the recommended choice for most survey and AO data), 2 = quadratic.
+    n_iter : int
+        Number of sigma-clip iterations.  3 is sufficient for typical data.
+    sigma : float
+        Rejection threshold in units of the robust RMS (MAD / 0.6745).
+
+    Returns
+    -------
+    clean    : ndarray, shape (N,) — baseline-subtracted signal; NaN positions
+               on input are NaN on output.
+    baseline : ndarray, shape (N,) — the subtracted polynomial (zero if the
+               fit could not be performed due to insufficient clean samples).
+    """
+    N = len(mjy_sr)
+    # Normalised time axis on [-0.5, 0.5]; avoids numerical ill-conditioning
+    # in polyfit for large N.
+    t = np.linspace(-0.5, 0.5, N)
+    baseline = np.zeros(N, dtype=np.float64)
+
+    # Initial fit mask: flagged samples and NaN are excluded from fitting.
+    use = (~np.asarray(bad, dtype=bool)) & np.isfinite(mjy_sr)
+    if use.sum() < degree + 1:
+        return mjy_sr.copy(), baseline
+
+    for _ in range(n_iter):
+        if use.sum() < degree + 1:
+            break
+        coeffs = np.polyfit(t[use], mjy_sr[use], degree)
+        fit = np.polyval(coeffs, t)
+        resid = mjy_sr[use] - fit[use]
+        # Robust RMS via MAD so that bright sources still inside the fit
+        # window do not inflate the noise estimate and widen the rejection band.
+        mad = np.median(np.abs(resid - np.median(resid)))
+        rms = mad / 0.6745
+        if rms <= 0.0:
+            break
+        use = use & (np.abs(mjy_sr - fit) <= sigma * rms)
+
+    if use.sum() < degree + 1:
+        return mjy_sr.copy(), baseline
+
+    # Final polynomial on surviving clean samples.
+    coeffs = np.polyfit(t[use], mjy_sr[use], degree)
+    baseline = np.polyval(coeffs, t)
+    clean = mjy_sr - baseline
+    # Preserve NaN at positions that were NaN on entry.
+    clean[~np.isfinite(mjy_sr)] = np.nan
+    return clean, baseline
+
+
+# ---------------------------------------------------------------------------
 # Full calibration pipeline
 # ---------------------------------------------------------------------------
 
@@ -522,7 +742,7 @@ def calibrate(raw_dn, det, sop, obs,
               gain_setting='standard',
               output_units='MJy/sr'):
     """
-    Full IPACCAL calibration pipeline for one detector snip.
+    Full IPACCAL calibration pipeline for one detector observation segment.
 
     Parameters
     ----------
@@ -539,7 +759,7 @@ def calibrate(raw_dn, det, sop, obs,
     utcs_inc : float
         UTC-1981 seconds per sample increment.
     utmbb_start : float
-        Seconds since the last bias boost at the start of the snip.
+        Seconds since the last bias boost at the start of the observation segment.
     ctype2_path : str
         Path to the IPAC/tables/ctype2 file.
     vfet_path : str
@@ -627,9 +847,17 @@ def calibrate_with_prhf(raw_dn, det, sop, obs,
     """
     Simplified calibration using only PRHF responsivities (for B4 detectors).
 
-    This bypasses the full ciical/ciwpm2 chain and directly uses the
-    tabulated responsivity from the PRHF files (which already encode the
-    combined gain, electronic baseline, and flash-model response).
+    .. WARNING::
+        This function uses ``python/read_prhf.py``, which incorrectly
+        interprets PRHF binary records: it reads floats at positions [17:32]
+        as direct Jy/ADU responsivities, but those bytes are actually
+        ``dtr[16:31]`` — fractional responsivity depressions (0–0.05,
+        dimensionless).  Multiplying raw DN by these values does not produce
+        flux in Jy.  Use ``calibrate()`` instead, which applies the correct
+        ``ciprhf.f`` correction via ``apply_prhf_correction()``.
+
+        This function is preserved for reference but should NOT be used for
+        science.
 
     Only valid for Band 4 detectors (1-7, 55-62).
 
@@ -696,6 +924,400 @@ def calibrate_with_prhf(raw_dn, det, sop, obs,
 
     flux[flags] = np.nan
     return flux, flags, utcs
+
+
+# ---------------------------------------------------------------------------
+# ZODYCAL position-dependent gain correction
+# (IRZC_GAIN / IRZC_DETMODEL / IRZC_ZEM / IRZC_INTSKY from zodycal.src)
+# ---------------------------------------------------------------------------
+
+# Per-detector photoconductor model parameters (IRZC_DETMODEL, zodycal.src).
+# Three values per detector: (Gmin, t=exp(-Δt/τ), b=increment).
+# Indexed 0-based by det-1; ordering matches _BAND (B4×7, B3×8, B2×7, B1×8,
+# B3×8, B2×8, B1×8, B4×8).  Bands 1 & 2 use gain=1.0 regardless of these
+# stored values (t=b=0 is already the no-effect case).
+_IRZC_DETPAR = np.array([
+    # dets 1-7  (B4 module B)
+    [0.4437, 0.9900, 2.612e-4], [0.4670, 0.9900, 2.537e-4],
+    [0.9713, 0.9900, 2.779e-4], [0.4256, 0.9900, 2.443e-4],
+    [0.4950, 0.9900, 2.055e-4], [0.6701, 0.9900, 2.593e-4],
+    [0.7070, 0.9900, 3.548e-4],
+    # dets 8-15 (B3 module B)
+    [1.024,  0.8824, 4.553e-4], [0.8665, 0.8484, 2.587e-4],
+    [0.8497, 0.9102, 5.356e-4], [0.2923, 0.8785, 1.057e-4],
+    [0.7586, 0.9149, 5.371e-4], [0.9753, 0.8749, 5.750e-4],
+    [0.9756, 0.9084, 5.819e-4], [1.757,  0.9101, 8.486e-4],
+    # dets 16-22 (B2 module B — gain=1.0, t and b unused)
+    [3.158, 0.0, 0.0], [1.000, 0.0, 0.0], [3.309, 0.0, 0.0],
+    [3.480, 0.0, 0.0], [1.000, 0.0, 0.0], [3.220, 0.0, 0.0],
+    [2.827, 0.0, 0.0],
+    # dets 23-30 (B1 module B — gain=1.0)
+    [1.128, 0.0, 0.0], [1.331, 0.0, 0.0], [1.224,  0.0, 0.0],
+    [0.3352,0.0, 0.0], [0.8626,0.0, 0.0], [0.7178, 0.0, 0.0],
+    [1.180, 0.0, 0.0], [1.294, 0.0, 0.0],
+    # dets 31-38 (B3 module A)
+    [0.3372, 0.9011, 1.554e-4], [1.061, 0.9003, 7.980e-4],
+    [1.037,  0.9006, 5.888e-4], [1.072, 0.9338, 5.256e-4],
+    [1.226,  0.9020, 7.758e-4], [1.000, 0.9000, 0.000   ],
+    [0.9921, 0.9060, 7.272e-4], [0.6422,0.9254, 3.214e-4],
+    # dets 39-46 (B2 module A — gain=1.0)
+    [2.155, 0.0, 0.0], [3.870, 0.0, 0.0], [3.914, 0.0, 0.0],
+    [4.050, 0.0, 0.0], [3.915, 0.0, 0.0], [3.686, 0.0, 0.0],
+    [4.025, 0.0, 0.0], [2.075, 0.0, 0.0],
+    # dets 47-54 (B1 module A — gain=1.0)
+    [0.4628, 0.0, 0.0], [1.736, 0.0, 0.0], [1.845, 0.0, 0.0],
+    [1.880,  0.0, 0.0], [1.625, 0.0, 0.0], [1.708, 0.0, 0.0],
+    [1.769,  0.0, 0.0], [1.306, 0.0, 0.0],
+    # dets 55-62 (B4 module A)
+    [0.2225, 0.9900, 1.004e-4], [0.4359, 0.9900, 2.634e-4],
+    [0.4347, 0.9900, 1.921e-4], [0.4376, 0.9900, 2.426e-4],
+    [0.4123, 0.9900, 1.893e-4], [0.3103, 0.9900, 1.357e-4],
+    [0.4356, 0.9900, 2.461e-4], [0.2744, 0.9900, 1.572e-4],
+], dtype=np.float64)   # shape (62, 3)
+
+# Zodiacal emission model parameters per band (IRZC_ZEM, zodycal.src).
+# Columns: power_p, ellip_e, offset_alfa_rad, node_rad, scale_MJy_sr.
+# Band index 0-based (band-1).
+_IRZC_ZEMPAR = np.array([
+    [1.779, 3.073, -0.03112, 1.184, 100.0],   # Band 1
+    [1.300, 3.198, -0.02939, 1.296, 100.0],   # Band 2
+    [1.046, 3.950, -0.02996, 1.275,  81.81],  # Band 3
+    [1.000, 4.500, -0.01380, 0.994,  54.36],  # Band 4
+], dtype=np.float64)
+
+# Gauss-Legendre nodes and weights mapped to [0, 1] (for ZEM integration).
+_GL_X, _GL_W = np.polynomial.legendre.leggauss(20)
+_IRZC_GL_T  = (_GL_X + 1.0) / 2.0          # (20,) on [0, 1]
+_IRZC_GL_WT = _GL_W / 2.0                   # (20,) weight scaled for [0, 1]
+
+# IRCO_SUNLONG constants (irco_sunlong.shl)
+_IRZC_SUNLONG_SUN0   = np.radians(279.10303475)
+_IRZC_SUNLONG_SUN1   = np.radians(  0.98564735)
+_IRZC_SUNLONG_EARTH0 = np.radians(356.45501990)
+_IRZC_SUNLONG_EARTH1 = np.radians(  0.98560026)
+_IRZC_SUNLONG_EQOC0  = np.radians(  1.915476)
+_IRZC_SUNLONG_EQOC1  = np.radians(  0.020010)
+
+
+def irco_sunlong(satcal):
+    """
+    Approximate ecliptic longitude of the sun (radians) from SATCAL tick.
+
+    Port of irco_sunlong.shl.  Accuracy ~30 arcsec.
+
+    Parameters
+    ----------
+    satcal : int or float — SATCAL clock ticks (seconds since IRAS epoch)
+    """
+    # Ephemeris time in days since 0 Jan 1983 0hr ET
+    et     = (satcal + 53) * 1.0000526 / 86400.0 + 26.0
+    slong  = _IRZC_SUNLONG_SUN0   + _IRZC_SUNLONG_SUN1   * et
+    anom   = _IRZC_SUNLONG_EARTH0 + _IRZC_SUNLONG_EARTH1 * et
+    eqoc   = (_IRZC_SUNLONG_EQOC0 * np.sin(anom)
+            + _IRZC_SUNLONG_EQOC1 * np.sin(2.0 * anom))
+    slong  = (slong + eqoc) % (2.0 * np.pi)
+    return slong
+
+
+def load_zodycal_map(maps_dir, band):
+    """
+    Load the galactic background sky map used by IRZC_INTSKY.
+
+    The MAPS directory contains two FITS files (file000001.mt for Band 3,
+    file000002.mt for Band 4).  GIPSY reads exactly MX×MY = 361×181 floats
+    from each file (first 181 rows of NAXIS2=363).  The undefined value is
+    identified as the value found in the first all-blank row and replaced
+    with np.nan.
+
+    Parameters
+    ----------
+    maps_dir : str — path to the MAPS directory (contains file*.mt)
+    band     : int, 1-4 — IRAS band number
+
+    Returns
+    -------
+    sky_map : float64 ndarray, shape (181, 361), values in MJy/sr (or
+              NaN for unobserved pixels)
+    """
+    import fitsio
+    skip = band - 3    # 0 for B3, 1 for B4
+    fname = os.path.join(maps_dir, f'file{skip + 1:06d}.mt')
+    with fitsio.FITS(fname) as ff:
+        data = ff[0].read()[:181, :].astype(np.float64)  # (181, 361)
+    # Identify blank value: row 181 is entirely blank in the source file.
+    # Use the most common value in the extra rows as the sentinel.
+    with fitsio.FITS(fname) as ff:
+        extra = ff[0].read()[181, :]
+    blank_val = float(extra[0])
+    data[data == blank_val] = np.nan
+    return data
+
+
+def irzc_zem(psi_rad, theta_rad, lambda_rad, band):
+    """
+    Zodiacal emission model (IRZC_ZEM, zodycal.src).
+
+    Integrates the ellipsoidal ZEM model along the line of sight for each
+    of nz sample positions.  Integration performed via 20-point Gauss-
+    Legendre quadrature, which is accurate to machine precision for the
+    smooth 1/r^p integrand.
+
+    Parameters
+    ----------
+    psi_rad   : (nz,) radians — scan position angle
+    theta_rad : float radians — solar aspect angle (constant within one observation)
+    lambda_rad: float radians — ecliptic longitude of the sun
+    band      : int, 1-4
+
+    Returns
+    -------
+    zem : (nz,) float64, zodiacal emission in MJy/sr
+    """
+    nz   = len(psi_rad)
+    par  = _IRZC_ZEMPAR[band - 1]      # [p, e, alfa, node_rad, scale]
+    p, e, alfa, node_rad, scale = par
+
+    ecsun  = 0.016722       # Earth orbit eccentricity (IRZC_ZEM constant)
+    perige = -1.374975      # perihelion angle in radians
+
+    orbit  = 1.0 / (1.0 + ecsun * np.cos(lambda_rad - perige))
+    orb2   = orbit * orbit
+    e2     = e * e
+    emin   = 1.0 - e2
+    sunode = lambda_rad - node_rad
+    sinsn  = np.sin(sunode)
+    cossn  = np.cos(sunode)
+    snor   = sinsn * orbit
+
+    sinth  = np.sin(theta_rad)
+    costh  = np.cos(theta_rad)
+    ct2    = costh * costh
+    st2    = sinth * sinth
+
+    aest   = alfa * emin * sinth
+    ssct   = sinsn * costh      # sin(sunode)*cos(theta)
+    csst   = cossn * sinth      # cos(sunode)*sin(theta)
+    orct   = orbit * costh
+    aestsn = aest * snor
+
+    sinp   = np.sin(psi_rad)    # (nz,)
+    cosp   = np.cos(psi_rad)    # (nz,)
+    cp2    = cosp * cosp
+    sp2    = 1.0 - cp2
+    cprot  = 2.0 * cosp * (sinp * csst - ssct)
+
+    # Quadratic coefficients of the ZEM integrand denominator D(x) = a*x²-b*x+c
+    # before the boundary shift from (0,∞) to (1,∞).
+    a_orig = ct2 + st2 * (sp2 + e2 * cp2) + aest * cprot  # (nz,)
+    b_orig = orct - aestsn * cosp                           # (nz,) — but see note
+    c_orig = np.full(nz, orb2)                              # (nz,)
+
+    # Boundary shift: x → y+1 (integral from y=0 to ∞ instead of x=1 to ∞).
+    # New coefficients after y = x-1 substitution (see IRZC_MIDINF comments):
+    a_sh = a_orig
+    b_sh = 2.0 * (a_orig + b_orig)
+    c_sh = a_orig + 2.0 * b_orig + c_orig
+
+    # 20-point Gauss-Legendre quadrature of MIDINF integrand over [0, 1]:
+    #   f(t) = scale * t² / (a_sh*t² - b_sh*t + c_sh)^p
+    # with t = 1/y (so this covers y: 1 → ∞, x: 2 → ∞ + boundary shift).
+    t  = _IRZC_GL_T[np.newaxis, :]   # (1, 20)
+    wt = _IRZC_GL_WT[np.newaxis, :]  # (1, 20)
+    a  = a_sh[:, np.newaxis]          # (nz, 1)
+    b  = b_sh[:, np.newaxis]
+    c  = c_sh[:, np.newaxis]
+    denom     = np.abs(a * t**2 - b * t + c) ** p
+    integrand = scale * t**2 / np.where(denom > 0, denom, 1e-30)
+    zem = np.sum(integrand * wt, axis=1)   # (nz,)
+    return np.maximum(zem, 0.0)
+
+
+def irzc_intsky(psi_rad, theta_rad, lambda_rad, sky_map):
+    """
+    Interpolate the sky galactic background map at scan positions (IRZC_INTSKY).
+
+    Converts sun-reference (psi, theta) to ecliptic (lon, lat) using the
+    solar longitude rotation (IRCO_TRANSFORM SUNREF→ECLIP), then performs
+    bilinear interpolation in the 181×361 sinusoidal-projection sky map.
+
+    Parameters
+    ----------
+    psi_rad   : (nz,) radians
+    theta_rad : float radians (constant within one observation)
+    lambda_rad: float radians — solar longitude
+    sky_map   : (181, 361) float64 — galactic background map, NaN=undefined
+
+    Returns
+    -------
+    sky : (nz,) float64, sky brightness in MJy/sr (≥ 0)
+    """
+    nz   = len(psi_rad)
+    # Sun-reference unit vector (identical to pointing_det without det offsets)
+    xx   = np.cos(psi_rad) * np.sin(theta_rad)  # (nz,)
+    yy   = np.sin(psi_rad) * np.sin(theta_rad)
+    zz   = np.cos(theta_rad) * np.ones(nz)       # broadcast to (nz,)
+
+    # Rotate to ecliptic (IRCO_TRANSFORM SUNREF→ECLIP):
+    # ex = sin(L)*yy + cos(L)*zz, ey = -cos(L)*yy + sin(L)*zz, ez = xx
+    sL = np.sin(lambda_rad); cL = np.cos(lambda_rad)
+    ex = sL * yy + cL * zz   # ecliptic x
+    ey = -cL * yy + sL * zz  # ecliptic y
+    ez = xx                   # ecliptic z = sin(eclat)
+
+    eclon_deg = np.degrees(np.arctan2(ey, ex))   # (-180, 180]
+    eclat_deg = np.degrees(np.arcsin(np.clip(ez, -1.0, 1.0)))
+
+    # Map coordinates: MY=181 rows (lat -90 to +90), MX=361 cols (lon -180 to +180)
+    # Sinusoidal projection: column compressed by cos(lat) at each row.
+    HMX, HMY = 181, 91   # Fortran 1-based centres (Python: HMX=180, HMY=90)
+    FF = 180.0            # Fortran normalisation for lonf
+
+    # Row index (0-based): bb = 90 + eclat_deg, ib = floor(bb)
+    bb   = 90.0 + eclat_deg   # (nz,)
+    ib   = np.clip(np.floor(bb).astype(int), 0, 179)
+
+    # Longitude compression factor at row ib (matches Fortran nint rounding)
+    lonf = np.round(np.cos(np.radians(ib - 90)) * FF) / FF   # (nz,)
+
+    # Column index (0-based): ll = 180 - eclon_deg * lonf
+    ll   = 180.0 - eclon_deg * lonf   # (nz,)
+    il   = np.clip(np.floor(ll).astype(int), 0, 359)
+
+    # Bilinear weights
+    frac_lon = ll - np.floor(ll)   # along-longitude weight for il+1 col
+    frac_lat = bb - ib             # along-latitude weight for ib+1 row
+    il1  = np.minimum(il + 1, 360)
+    ib1  = np.minimum(ib + 1, 180)
+
+    def _lookup(row, col):
+        v = sky_map[row, col]
+        return np.where(np.isfinite(v), v, 0.0)   # treat undefined as 0
+
+    v00 = _lookup(ib,  il )   # (nz,) lower-row, left-col
+    v01 = _lookup(ib,  il1)   # lower-row, right-col
+    v10 = _lookup(ib1, il )   # upper-row, left-col
+    v11 = _lookup(ib1, il1)
+    sky = ((1.0 - frac_lat) * ((1.0 - frac_lon) * v00 + frac_lon * v01) +
+                  frac_lat  * ((1.0 - frac_lon) * v10 + frac_lon * v11))
+    return np.maximum(sky, 0.0)
+
+
+def irzc_detmodel(stim, det):
+    """
+    IIR photoconductor gain filter (IRZC_DETMODEL, zodycal.src).
+
+    For bands 3 & 4: models the history-dependent gain of stressed Ge:Ga
+    photoconductors.  The IIR recursion is:
+        bug  = b * stim[k] + Gmin       (equilibrium gain at current stimulus)
+        g[k] = bug + (g[k-1] - bug) * t (exponential decay toward equilibrium)
+    For bands 1 & 2: gain = 1.0 (no memory effect).
+
+    Parameters
+    ----------
+    stim : (nz,) float64 — sky stimulus (ZEM + galactic sky, MJy/sr)
+    det  : int, 1-based detector number
+
+    Returns
+    -------
+    g : (nz,) float64 — detector gain at each model time step
+    """
+    band = _BAND[det - 1]
+    nz   = len(stim)
+    if band <= 2:
+        return np.ones(nz, dtype=np.float64)
+
+    gmin, t, b = _IRZC_DETPAR[det - 1]
+    g_arr = np.empty(nz, dtype=np.float64)
+    g = gmin + b * stim[0]
+    for k in range(nz):
+        bug  = b * stim[k] + gmin
+        g    = bug + (g - bug) * t
+        g_arr[k] = g
+    return g_arr
+
+
+def irzc_gain(det, psi0_deg, psirate_deg_pt, theta_deg, lambda_rad,
+              cdelt, ng, sky_map, yloc_arcmin=0.0, zloc_arcmin=0.0):
+    """
+    Compute per-sample photoconductor gain correction (IRZC_GAIN, zodycal.src).
+
+    Builds a coarse sky-trajectory grid at TIMESTEP=15-tick intervals, looks
+    up ZEM + galactic sky stimulus at each point, runs the IRZC_DETMODEL IIR
+    filter, then interpolates to the full sample rate.
+
+    The gain values are normalised to g[0] so the correction is purely
+    relative: samples at higher gain state (scanning a bright region) are
+    divided by a factor > 1, reducing their apparent brightness.
+
+    Parameters
+    ----------
+    det             : int, 1-based detector number
+    psi0_deg        : float — PSI angle at observation start (degrees)
+    psirate_deg_pt  : float — PSI rate in deg/SATCAL-tick
+    theta_deg       : float — solar aspect angle at observation start (degrees)
+    lambda_rad      : float — solar ecliptic longitude (radians)
+    cdelt           : float — SATCAL ticks per sample (e.g. 0.25 for B4 survey)
+    ng              : int   — number of samples in the observation
+    sky_map         : (181, 361) ndarray or None — galactic background map.
+                      If None, only the ZEM component is used.
+    yloc_arcmin     : float — detector focal-plane cross-scan offset (arcmin)
+    zloc_arcmin     : float — detector focal-plane in-scan offset (arcmin)
+
+    Returns
+    -------
+    gain_norm : (ng,) float64 — gain relative to observation start (1.0 = unchanged).
+                Divide calibrated MJy/sr by this to correct for gain variation.
+    """
+    TIMESTEP = 15        # model time step in SATCAL ticks (zodycal.src MZ grid)
+    M2R      = np.pi / (180.0 * 60.0)    # arcminutes to radians
+
+    # Focal-plane offsets: dth = yloc (cross-scan, theta direction)
+    #                      dpsi = zloc (in-scan, psi direction)
+    dth_rad  = yloc_arcmin * M2R
+    dpsi_rad = zloc_arcmin * M2R
+    theta_rad = np.radians(theta_deg)
+    psi0_rad  = np.radians(psi0_deg)
+
+    # Detector centre angles (mirrors IRZC_GAIN: IRCC_MASK adjustment)
+    th0 = theta_rad - dth_rad
+    ps0 = psi0_rad  + dpsi_rad / max(np.sin(th0), 1e-6)
+
+    # Number of model time steps (crval=0: observation starts at its own origin)
+    nz     = int(round(cdelt * ng)) // TIMESTEP + 1
+    nz     = max(2, min(nz, 200))   # clamp to MZ=200
+
+    # Build position trajectory at TIMESTEP intervals, backing up 7 ticks
+    # (matches ps0 = ps0 + 7 * psirate in Fortran)
+    psdot  = np.radians(psirate_deg_pt) * TIMESTEP
+    ps_arr = ps0 + 7.0 * np.radians(psirate_deg_pt) + np.arange(nz) * psdot
+    th_arr = np.full(nz, th0)
+
+    # Sky stimulus at each model time step
+    zem  = irzc_zem(ps_arr, th0, lambda_rad, _BAND[det - 1])
+    if sky_map is not None:
+        sky  = irzc_intsky(ps_arr, th_arr, lambda_rad, sky_map)
+    else:
+        sky  = np.zeros(nz)
+    stim = zem + sky
+
+    # IIR photoconductor gain filter
+    g = irzc_detmodel(stim, det)
+
+    # Interpolate gain from nz model points to ng samples
+    # start = (crval - 7) / TIMESTEP = -7/15 ≈ -0.467 with crval=0
+    start_arr = -(7.0 / TIMESTEP) + np.arange(ng) * (cdelt / TIMESTEP)
+    # Fortran 1-indexed: ks = int(start); Python: ks_py = int(start) - 1
+    ks_float  = start_arr - 1.0          # fractional index into g[0..]
+    ks_py     = np.clip(np.floor(ks_float).astype(int), 0, nz - 2)
+    frac      = np.clip(ks_float - np.floor(ks_float), 0.0, 1.0)
+    gain_ng   = np.where(start_arr < 1.0,
+                         g[0],
+                         (1.0 - frac) * g[ks_py] + frac * g[np.minimum(ks_py + 1, nz - 1)])
+
+    # Normalise to the first sample so we only correct the RELATIVE gain change
+    # (the absolute calibration level is already handled by the SRHF flash model)
+    g0 = gain_ng[0] if gain_ng[0] > 0.0 else 1.0
+    return gain_ng / g0
 
 
 # ---------------------------------------------------------------------------
