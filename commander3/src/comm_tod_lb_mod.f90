@@ -156,7 +156,7 @@ contains
     ! Read the actual TOD
     call c%read_tod(c%label)
     ! option to set noise parameters by hand for on-the-fly litebird sims
-    if (c%on_the_fly_tod_sim .and. .true.) call overwrite_noisepar(c, cpar)
+    if (c%on_the_fly_tod_sim .and. cpar%sim_noisepar) call overwrite_noisepar(c, cpar)
     
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
@@ -492,12 +492,10 @@ contains
     class(comm_LB_tod),   intent(inout) :: self
     type(comm_params),    intent(in)    :: cpar
     real(sp), allocatable, dimension(:) :: sigma0
-    real(dp)                            :: numdet
-    integer(i4b)                        :: i, j, k, numband
-    logical(lgt)                        :: sim_sigma0
+    real(dp)                            :: root_nsamp_per_arcmin
+    integer(i4b)                        :: i, j, k, numband, nband
 
-    sim_sigma0 = .true.
-    if (.not. sim_sigma0) return
+    if (self%nscan == 0) return
 
     !if (self%myid==0) write(*,*) 'band ', self%band, trim(self%freq) 
     !if (self%myid==0) write(*,*) 'sigma0 before ', self%scans(1)%d(1)%N_psd%sigma0 
@@ -508,21 +506,57 @@ contains
     allocate(sigma0(numband))
 
     ! table of sigma0 values to pick from for different litebird configurations
-    ! unit uk_cmb*sqrt(s)
+    ! unit uK_cmb*root(arcmin ^2)  (not uK_cmb*sqrt(s))
+    ! sensitivity for Q and U separately
     !         L1-40  L2-50  L1-61  L2-77  M1-94  M2-118 M1-145 M2-182 H1-217 H2-280 H1-334 H2-402 H3-570
-    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62,   0.0] !postKTP
-    sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessLF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62,   0.0] !postKDP2
+    !sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessLF2
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  8.05,  4.71,  4.94,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF1 
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  5.15,  4.41,  3.73,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF2
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93,  0.00, 233.1] !noHF2
     !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93, 29.13, 233.1] !newHF2
+
+    if (trim(cpar%noisepar_ver) == 'postKDP2') then
+       nband = 12
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62]
+    else if (trim(cpar%noisepar_ver) == 'lessLF2') then
+       nband = 13
+       sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'lessMF1') then
+       nband = 13
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  8.05,  4.71,  4.94,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'lessMF2') then
+       nband = 13
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  5.15,  4.41,  3.73,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'noHF2') then
+       nband = 11
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 14.93, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'newHF2') then
+       nband = 12
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 14.93, 29.13, 233.1]
+    end if
+
+    if (numband /= nband) then
+       write(*,*) trim(cpar%noisepar_ver), ' assumes', nband ,' bands, not', numband
+    end if
+
+    ! num arcmin_square on a sphere: 41252.96 degree_square * 3600 arcmin_square/degree_square
+    ! numsamp for a frequency band: 65536 samples per scan * 9142 number of scans * numdets per band
+    ! (all litebird sim scans has the same number of samples (ntod))
+    ! nsamp_per_arcmin_square = 65536*9142*4/41252.96/3600.d0
+    root_nsamp_per_arcmin = sqrt( self%scans(1)%ntod * real(self%nscan_tot * self%ndet,dp)/41252.96/3600.d0 )
+ 
+    !write(*,*) 'root_nsamp_per_arcmin', root_nsamp_per_arcmin 
+    !write(*,*) 'root_nsamp_per_arcmin', sqrt(65536*9142/41252.96/3600.d0*4)
+    !write(*,*) 'ntod, nscan_tot, ndet', self%scans(1)%ntod, self%nscan_tot, self%ndet
+
     
-    numdet = real(self%ndet,dp) ! number of detectors per band
     ! loop over scans and set new noise parameters
     do k = 1, self%nscan
-       do j = 1, self%ndet !4
-          ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*sqrt(s)
-          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%band) * sqrt(self%samprate) * sqrt(numdet) * 1e-6 
+       do j = 1, self%ndet
+          ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*arcmin
+          ! given sigma0 is for Q and U so the total sensitivity is sqrt(2) higher
+          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%band) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0)
           self%scans(k)%d(j)%N_psd%xi_n(2) = 0.05                 ! fknee = 50 mHz
           self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
        end do

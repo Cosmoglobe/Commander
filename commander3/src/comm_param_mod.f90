@@ -306,17 +306,22 @@ module comm_param_mod
 
 
      ! MH spectral index sampling parameters
-     integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
-     integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
-     character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
+     integer(i4b)                                :: mcmc_num_user_samp_groups   ! NUM_MCMC_SAMPLING_GROUPS
+     integer(i4b)                                :: mcmc_num_samp_groups        ! NUM_MCMC_SAMPLING_GROUPS
+     character(len=2048), allocatable            :: mcmc_samp_groups(:)         ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
      character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
      character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
-     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
-                                                                                                  ! Sample using specificed cg
-                                                                                                  ! groups. If none, skip amplitude
-                                                                                                  ! sampling
+     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups      ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
+                                                                                ! Sample using specificed cg
+                                                                                ! groups. If none, skip amplitude
+                                                                                ! sampling
      integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
      integer(i4b), allocatable, dimension(:)     :: mcmc_samp_group_numstep
+
+     ! on-the-fly sims parameters
+     logical(lgt)        :: sim_noisepar
+     character(len=24)   :: noisepar_ver
+
   end type comm_params
 
 
@@ -541,6 +546,12 @@ contains
     ! in on-the-fly mode, commander generates sims in memory in the begining of the first iteration, and then
     ! continue to analyze them (as data) for the number of gibbs iternations specified in the param file
     call get_parameter_hashtable(htbl, 'ON_THE_FLY_TOD_SIM',       par_lgt=cpar%on_the_fly_tod_sim)
+    if (cpar%on_the_fly_tod_sim) then
+       call get_parameter_hashtable(htbl, 'SIMULATE_NOISE_PARAMS', par_lgt=cpar%sim_noisepar)
+       if (cpar%sim_noisepar) then
+          call get_parameter_hashtable(htbl, 'NOISEPAR_VERSION',   par_string=cpar%noisepar_ver)
+       end if
+    end if
     !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)

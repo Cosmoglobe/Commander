@@ -31,6 +31,10 @@ FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
 EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
 
 ON_THE_FLY_TOD_SIM            = .false. # make on-the-fly tod sims and continue analyzing them
+# parameters that need to exist only when ON_THE_FLY_TOD_SIM = .true.
+SIMULATE_NOISE_PARAMS         = .false. # simulate sigma0, fknee and alpha
+#NOISEPAR_VERSION              = noHF2 #postKDP2, lessLF2, lessMF1, lessMF2, noHF2, newHF2
+
 ENABLE_TOD_SIMULATIONS        = .false. # make and write sims to disk and exit
 SIMS_OUTPUT_DIRECTORY         = none
 NSKIP_FILELIST                = 0
@@ -48,7 +52,7 @@ CG_MAXITER                    = 500
 CG_MINITER                    = 5
 CG_TOLERANCE                  = 1.d-8
 CG_CONV_CHECK_FREQUENCY       = 1
-CG_PRECOND_TYPE               = pseudoinv
+CG_PRECOND_TYPE               = diagonal
 CG_INIT_AMPS_ON_ZERO          = .false.
 SET_ALL_NOISE_MAPS_TO_MEAN    = .false.
 NUM_INDEX_CYCLES_PER_ITERATION = 1
