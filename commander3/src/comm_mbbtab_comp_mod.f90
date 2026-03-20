@@ -36,6 +36,7 @@ module comm_MBBtab_comp_mod
      !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
+
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
@@ -190,6 +191,10 @@ contains
 
     integer(i4b) :: i
     real(dp) :: x, x_ref, beta, T,maxnu,minnu, val
+
+    logical, save :: spline_warning_printed = .false. !! flag to avoid printing multiple times the
+                                                      !! same warning about spline stability
+
     
    ! nu, pol and theta are not in fact optional for this code so we should check we actually are getting those
     if (.not. present(nu)) then
@@ -245,9 +250,10 @@ contains
             if (val > EXP_OVERFLOW) then
                evalSED_mbbtab = HUGE(0.d0)
                if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is huge, possible unstable spline behaviour.'
-            else if (val < -16) then
+            else if (val < -16 .and. .not. spline_warning_printed) then
                evalSED_mbbtab = 0.d0
                if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is very small, possible unstable spline behaviour.'
+               spline_warning_printed = .true.
             else
                evalSED_mbbtab = self%posneg*exp(val) 
             end if 
@@ -416,7 +422,7 @@ contains
                x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
                y(i+1) = log(1d-16)
                if (self%x%info%myid == 0) then
-                  write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
+                  write(*,*) 'Warning, dust spline value is very small, do you have unwanted zeros in your table? Possible unstable spline behaviour.'
                end if
             end if 
             !uncomment to debug if necessary
@@ -473,6 +479,7 @@ contains
       real(dp),                intent(in) :: beta, T
       integer(i4b), optional,  intent(in) :: npts
       real(dp),    optional,   intent(in) :: nu_min, nu_max
+
 
       integer(i4b) :: unit, i, N
       real(dp) :: nu1, nu2, dlognu, nu, sed

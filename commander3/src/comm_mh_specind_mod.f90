@@ -435,7 +435,11 @@ contains
                  write(*,fmt='(a,a12)',advance='no') ' |   ', trim(c%label)
                  do i = 1, c%ntab
                     if (c%theta_steplen(c%npar+i,l) > 0) then
-                       write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(3,i)
+                       if (i == 1) then
+                        write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(3,i)
+                       else
+                        write(*,fmt='(a,i4,a,f16.8)',advance='no') ' |                 bin = ', i, ', old = ', c%SEDtab(3,i)
+                       end if
                        do j = 3, size(c%SEDtab(:,i))
                           c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l) * mh_scale(l)
                        end do
