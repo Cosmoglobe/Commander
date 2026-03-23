@@ -142,7 +142,10 @@ DESIRED_FLAGS = {
     'status_flags': {
         'calalon': 15,
         'calason': 16,
-        'shtop': 17,
+        'shtop': 17, # Shutter open flag. NB!!!!! This is inverted! When 1 in the FITS files, should
+                     # be 0 in the Commander HDF files (i.e. in the Commander HDF the interpretation
+                     # is 'the shutter closed flag'
+    },
     },
     'mode': {  #Special type of flag defined by the packet_id data.
         'cds': 21,
@@ -191,6 +194,9 @@ def fits2output_formatter(file, start_index, end_index, band,
         out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
         out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
+    # NB! This is necessary because we interpret the shtop flag inversely internally in commander
+    shtop_idx = STATUS_FLAG_MAP['shtop']
+    out_data['status_flag'][:, shtop_idx] = ~out_data['status_flag'][:, shtop_idx]
     out_data['frame_flag'] = file[1]['FLAG'].read()[start_index:end_index].astype(bool)
     out_data['aftime'] = file[1]['AFTIME'].read()[start_index:end_index]
     out_data['ra'] = file[5]['RA'].read()[start_index:end_index]
