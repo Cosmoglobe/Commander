@@ -343,10 +343,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return self.detectors[band]
 
     def get_chunk_indices(self, band: str, segment:int):
-        start_idx = (segment-1) * NUM_FITS_FILES_PER_SEGMENT
-        end_idx = segment * NUM_FITS_FILES_PER_SEGMENT
-        if end_idx > self.nchunks[band]:
-            end_idx = self.nchunks[band]
+        start_idx = (segment-1) * NUM_FITS_FILES_PER_SEGMENT + 1
+        end_idx = segment * NUM_FITS_FILES_PER_SEGMENT + 1
+        if end_idx > self.nchunks[band] + 1:
+            end_idx = self.nchunks[band] + 1
         return [i for i in range(start_idx, end_idx)]
 
     def _process_akari_tod_reader_data(self):
