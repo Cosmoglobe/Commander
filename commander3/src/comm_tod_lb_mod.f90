@@ -534,6 +534,9 @@ contains
     else if (trim(cpar%noisepar_ver) == 'newHF2') then
        nband = 12
        sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 14.93, 29.13, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'debug570') then
+       nband = 1
+       sigma0 = [233.1]
     end if
 
     if (numband /= nband) then
@@ -563,11 +566,11 @@ contains
     end do
     deallocate(sigma0)
 
-    if (self%myid==0) write(*,*) '|> Put sigma0 =', self%scans(1)%d(1)%N_psd%sigma0 !, self%band, trim(self%freq) 
-    !if (self%myid==0) write(*,*) 'sigma0 after  ', self%scans(1)%d(1)%N_psd%sigma0 
-    !if (self%myid==0) write(*,*) 'fknee  after  ', self%scans(1)%d(1)%N_psd%xi_n(2) 
-    !if (self%myid==0) write(*,*) 'alpha  after  ', self%scans(1)%d(1)%N_psd%xi_n(3)
-    
+    if (self%myid==0) then
+       write(*,*) '|> Put sigma0 =', self%scans(1)%d(1)%N_psd%sigma0
+       write(*,*) '|       fknee =', self%scans(1)%d(1)%N_psd%xi_n(2)
+    end if
+       
   end subroutine overwrite_noisepar
     
 end module comm_tod_LB_mod
