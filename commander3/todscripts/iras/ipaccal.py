@@ -837,96 +837,6 @@ def calibrate(raw_dn, det, sop, obs,
 
 
 # ---------------------------------------------------------------------------
-# Convenience: batch calibration using PRHF responsivity (alternative path)
-# ---------------------------------------------------------------------------
-
-def calibrate_with_prhf(raw_dn, det, sop, obs,
-                         utcs_start, utcs_inc,
-                         prhf_dir, bbt,
-                         output_units='MJy/sr'):
-    """
-    Simplified calibration using only PRHF responsivities (for B4 detectors).
-
-    .. WARNING::
-        This function uses ``python/read_prhf.py``, which incorrectly
-        interprets PRHF binary records: it reads floats at positions [17:32]
-        as direct Jy/ADU responsivities, but those bytes are actually
-        ``dtr[16:31]`` — fractional responsivity depressions (0–0.05,
-        dimensionless).  Multiplying raw DN by these values does not produce
-        flux in Jy.  Use ``calibrate()`` instead, which applies the correct
-        ``ciprhf.f`` correction via ``apply_prhf_correction()``.
-
-        This function is preserved for reference but should NOT be used for
-        science.
-
-    Only valid for Band 4 detectors (1-7, 55-62).
-
-    Parameters
-    ----------
-    raw_dn : array-like  raw decompressed ADU
-    det : int, 1-based (must be a B4 detector)
-    sop, obs : int
-    utcs_start, utcs_inc : float  (UTC-1981 seconds)
-    prhf_dir : str  path to IPAC/P/ directory
-    bbt : ndarray (M,2) or None  ICF flash event table
-    output_units : 'MJy/sr' | 'Jy' | 'W/m2'
-
-    Returns
-    -------
-    flux : ndarray
-    flags : ndarray, bool
-    utcs : ndarray
-    """
-    from python.read_prhf import get_resp_for_sop, B4_DETS
-    import importlib, sys
-
-    # Allow import from same directory
-    sys.path.insert(0, os.path.dirname(__file__))
-    rp = importlib.import_module('read_prhf')
-
-    if _BAND[det - 1] != 4:
-        raise ValueError(f"calibrate_with_prhf only supports Band 4; det={det} is Band {_BAND[det-1]}")
-
-    raw_dn = np.asarray(raw_dn, dtype=float)
-    N = len(raw_dn)
-
-    utcs = utcs_start + np.arange(N) * utcs_inc
-
-    # ICF flagging
-    flags = icf_flag(utcs, bbt) if bbt is not None else np.zeros(N, dtype=bool)
-
-    # Load PRHF time series for this SOP
-    prhf_t, prhf_r = rp.get_resp_for_sop(prhf_dir, sop, obs_type=0)
-
-    # Determine det_index in the B4 PRHF array
-    if det not in rp.B4_DETS:
-        raise ValueError(f"det {det} not in B4_DETS")
-    det_idx = rp.B4_DETS.index(det)
-
-    # Get orbit-relative time for each sample: need utcs → orbit-relative seconds
-    # PRHF times are orbit-relative; approximate: subtract first PRHF time's utcs mapping
-    # Since we don't have the absolute PRHF→UTC mapping here, use the PRHF interpolation
-    # with orbit-relative UTC difference  (assumes utcs_start corresponds to prhf_t[0])
-    resp = rp.interp_responsivity(utcs - utcs_start,
-                                   prhf_t, prhf_r, det_index=det_idx)
-
-    # resp is in Jy/ADU (approx); this is already the full responsivity
-    # raw_dn here must be decompressed ADU before any DC offset subtraction
-    flux = raw_dn * resp  # Jy
-
-    # Convert units
-    if output_units == 'MJy/sr':
-        omega = ESAD[det - 1]
-        if omega > 0:
-            flux = flux * 1e-6 / omega   # Jy → MJy → MJy/sr
-    elif output_units == 'W/m2':
-        flux = flux * 1e-26
-
-    flux[flags] = np.nan
-    return flux, flags, utcs
-
-
-# ---------------------------------------------------------------------------
 # ZODYCAL position-dependent gain correction
 # (IRZC_GAIN / IRZC_DETMODEL / IRZC_ZEM / IRZC_INTSKY from zodycal.src)
 # ---------------------------------------------------------------------------
@@ -1326,7 +1236,7 @@ def irzc_gain(det, psi0_deg, psirate_deg_pt, theta_deg, lambda_rad,
 
 if __name__ == '__main__':
     import sys
-    ROOT = '/home/dwatts/IRAS'
+    ROOT = '/mn/stornext/d23/cmbco/globe/orig/iras/kester_rawdb'
     IPAC = os.path.join(ROOT, 'diskrog10androg11/rog11/IPAC')
 
     ctype2_path = os.path.join(IPAC, 'tables/ctype2')

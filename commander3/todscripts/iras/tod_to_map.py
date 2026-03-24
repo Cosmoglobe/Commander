@@ -521,11 +521,11 @@ def main():
     # Save FITS
     btag     = _bcfg['survey_tag']
     mask_sfx = '' if MASK else '_nomask'
-    ao_sfx   = '' if INCLUDE_AO else '_noao'
+    ao_sfx   = '_withao' if INCLUDE_AO else ''
     out_sig  = os.path.join(OUT_DIR,
-        f'IRAS_{btag}_alldet_cal_map_nside{NSIDE}{mask_sfx}{ao_sfx}.fits')
+            f'IRAS_{btag}_alldet_cal_map_n{NSIDE:04}{mask_sfx}{ao_sfx}.fits')
     out_hits = os.path.join(OUT_DIR,
-        f'IRAS_{btag}_alldet_cal_hits_nside{NSIDE}{mask_sfx}{ao_sfx}.fits')
+            f'IRAS_{btag}_alldet_cal_hits_n{NSIDE:04}{mask_sfx}{ao_sfx}.fits')
     hp.write_map(out_sig, signal_map, nest=False, dtype=np.float64, coord='G',
                  extra_header=[
                      ('NSIDE',    NSIDE,              'HEALPix nside'),
@@ -560,10 +560,9 @@ def main():
         hp.graticule(dpar=30, dmer=60, alpha=0.4)
         plt.tight_layout()
         out_png = os.path.join(OUT_DIR,
-            f'IRAS_{btag}_map_nside{NSIDE}{mask_sfx}{ao_sfx}.png')
+                f'IRAS_{btag}_map_n{NSIDE:04}{mask_sfx}{ao_sfx}.png')
         plt.savefig(out_png, dpi=150)
         print(f'Saved: {out_png}')
-        plt.show()
 
 
 if __name__ == '__main__':
