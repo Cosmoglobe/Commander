@@ -236,16 +236,22 @@ def calibrate_tod(det, obs, cal):
 
     Returns
     -------
-    mjy_sr : float64 array (NOBS,).
-        ICF-flagged samples are set to NaN. If LEVEL1_PARITY_MASK=1, also
-        applies PLATE-like pre-map masking:
+        mjy_sr : float64 array (NOBS,).
+                ICF-flagged samples are set to NaN. If LEVEL1_PARITY_MASK=1, also
+                applies PLATE-like pre-map masking at the wm2 stage:
           - flash_trim (survey scan-edge FLASHTIMES)
           - outage/corrupt windows (per-detector by default, or all-detector
             if OUTAGE_ALLDET=1 to emulate legacy IRPL_UNTAB behavior).
+                    - legacy raw blank semantics for overflow/blank samples
+                        (raw > 65534.9 or non-finite input DN).
     """
     flags    = ip.icf_flag(obs.utcs, cal.bbt)
 
     if LEVEL1_PARITY_MASK:
+        raw = np.asarray(obs.dn[det], dtype=np.float64)
+        legacy_blank = (~np.isfinite(raw)) | (raw > 65534.9)
+        flags = flags | legacy_blank
+
         flags = flags | obs.flash_trim
         if OUTAGE_ALLDET:
             all_corrupt = np.zeros_like(flags)
@@ -264,8 +270,8 @@ def calibrate_tod(det, obs, cal):
                                obs.apl, obs.bpl, obs.tpl,
                                prhf_deltut=obs.prhf_deltut,
                                prhf_dtr=obs.prhf_dtr)
+    wm2[flags] = np.nan
     mjy_sr   = ip.wm2_to_mjy_sr(wm2, det)
-    mjy_sr[flags] = np.nan
     return mjy_sr
 
 
