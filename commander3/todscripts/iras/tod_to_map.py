@@ -62,6 +62,8 @@ MAX_SEG    = os.environ.get('MAX_SEG', None)
 NPROC      = int(os.environ.get('NPROC', '1'))
 DESTRIPE        = int(os.environ.get('DESTRIPE',         '0'))
 DESTRIPE_DEGREE = int(os.environ.get('DESTRIPE_DEGREE',  '1'))
+LEVEL1_PARITY_MASK = int(os.environ.get('LEVEL1_PARITY_MASK', '0'))
+OUTAGE_ALLDET      = int(os.environ.get('OUTAGE_ALLDET', '0'))
 
 # Band-specific derived constants (use BAND_CFG from iras_tod)
 _bcfg      = tod.BAND_CFG[BAND]
@@ -234,9 +236,25 @@ def calibrate_tod(det, obs, cal):
 
     Returns
     -------
-    mjy_sr : float64 array (NOBS,).  ICF-flagged samples are set to NaN.
+    mjy_sr : float64 array (NOBS,).
+        ICF-flagged samples are set to NaN. If LEVEL1_PARITY_MASK=1, also
+        applies PLATE-like pre-map masking:
+          - flash_trim (survey scan-edge FLASHTIMES)
+          - outage/corrupt windows (per-detector by default, or all-detector
+            if OUTAGE_ALLDET=1 to emulate legacy IRPL_UNTAB behavior).
     """
     flags    = ip.icf_flag(obs.utcs, cal.bbt)
+
+    if LEVEL1_PARITY_MASK:
+        flags = flags | obs.flash_trim
+        if OUTAGE_ALLDET:
+            all_corrupt = np.zeros_like(flags)
+            for dmask in obs.corrupt.values():
+                all_corrupt |= dmask
+            flags = flags | all_corrupt
+        else:
+            flags = flags | obs.corrupt.get(det, np.zeros_like(flags))
+
     volts, _ = ip.dn_to_volts(obs.dn[det], det, cal.a2dc, cal.gains,
                                cal.offsets, 'standard')
     volts    = ip.subtract_baseline(volts, det, obs.utcs,
