@@ -768,8 +768,8 @@ def poly_destripe(mjy_sr, bad, degree=1, n_iter=3, sigma=5.0):
 def calibrate(raw_dn, det, sop, obs,
               utcs_start, utcs_inc,
               utmbb_start,
-              ctype2_path,
-              vfet_path,
+              a2dc, gains, offsets,
+              utc_table, vfets_table,
               srhf_dir,
               bbt,
               gain_setting='standard',
@@ -793,10 +793,8 @@ def calibrate(raw_dn, det, sop, obs,
         UTC-1981 seconds per sample increment.
     utmbb_start : float
         Seconds since the last bias boost at the start of the observation segment.
-    ctype2_path : str
-        Path to the IPAC/tables/ctype2 file.
-    vfet_path : str
-        Path to the appropriate vfethg/vfetlg/vfetsg file.
+    a2dc, gains, offsets : from load_ctype2() — pre-loaded calibration constants
+    utc_table, vfets_table : from load_vfet() — pre-loaded vfet baseline
     srhf_dir : str
         Directory containing IR.SRHF.D* files (IPAC/S/).
     bbt : ndarray, shape (M, 2)
@@ -834,10 +832,8 @@ def calibrate(raw_dn, det, sop, obs,
     else:
         flags = np.zeros(N, dtype=bool)
 
-    # --- Load calibration tables (cached by caller or re-loaded here) ---
-    a2dc, gains, offsets = load_ctype2(ctype2_path)
-    utc_table, vfets_table = load_vfet(vfet_path)
-
+    # --- Load SRHF file (specific to this observation) ---
+    # Calibration tables (a2dc, gains, offsets, vfet) are pre-loaded by caller
     srhf_utc1, srhf_utc2, apl, bpl, tpl = read_srhf(srhf_dir, sop, obs)
     # Reorder SRHF arrays from ciseqn order to physical det order (ciseqn-1 indexing)
     # apl[k] corresponds to calibration sequence k+1, i.e., detector with ciseqn=k+1
@@ -1327,8 +1323,8 @@ if __name__ == '__main__':
         raw_sig, det=1, sop=290, obs=3,
         utcs_start=utcs0, utcs_inc=utcs_inc,
         utmbb_start=utmbb0,
-        ctype2_path=ctype2_path,
-        vfet_path=vfet_path,
+        a2dc=a2dc, gains=gains, offsets=offsets,
+        utc_table=utc_tbl, vfets_table=vfet_tbl,
         srhf_dir=srhf_dir,
         bbt=bbt,
         gain_setting='standard',

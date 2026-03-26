@@ -826,6 +826,57 @@ def _raw_files_for_seg(band, seg_str, root, include_ao, source_kinds=None):
         glob.glob(g.format(seg=seg_str)) for g in globs)))
 
 
+# ── Calibration table loading ────────────────────────────────────────────────
+
+def load_cal_tables(ipac_dir=None, root=None, ctype2=None, vfet=None,
+                    bbtimes=None, srhf_dir=None, prhf_dir=None,
+                    utcs_refs=None, corrupt_times=None):
+    """
+    Load all calibration files and return a :class:`CalTables` instance.
+
+    All arguments are optional; unspecified paths fall back to the module-level
+    defaults in ``DEFAULT_PATHS``.  Use the keyword arguments to override
+    individual paths, e.g. for testing or alternative data sets.
+
+    Parameters
+    ----------
+    ipac_dir      : str, optional.  Override the entire IPAC directory.
+    root          : str, optional.  Override archive root (affects corrupt_times).
+    ctype2 … corrupt_times : str, optional.  Per-file path overrides.
+    """
+    p = dict(DEFAULT_PATHS)
+    if ipac_dir is not None:
+        p['ctype2']        = os.path.join(ipac_dir, 'tables/ctype2')
+        p['vfet']          = os.path.join(ipac_dir, 'tables/vfetsg')
+        p['bbtimes']       = os.path.join(ipac_dir, 'tables/bbtimes')
+        p['srhf_dir']      = os.path.join(ipac_dir, 'S')
+        p['prhf_dir']      = os.path.join(ipac_dir, 'P')
+        p['utcs_refs']     = os.path.join(ipac_dir, 'tables/utcs_satc.refs')
+    if root is not None:
+        p['corrupt_times'] = os.path.join(
+            root, 'diskrog10androg11/rog11/outage/corrupt_times')
+    for k, v in [('ctype2', ctype2), ('vfet', vfet), ('bbtimes', bbtimes),
+                 ('srhf_dir', srhf_dir), ('prhf_dir', prhf_dir),
+                 ('utcs_refs', utcs_refs), ('corrupt_times', corrupt_times)]:
+        if v is not None:
+            p[k] = v
+
+    a2dc, gains, offsets = ip.load_ctype2(p['ctype2'])
+    utc_tbl, vfets_tbl   = ip.load_vfet(p['vfet'])
+    bbt                   = ip.load_bbtimes(p['bbtimes'])
+    _utcs_refs            = load_utcs_refs(p['utcs_refs'])
+    _corrupt              = load_corrupt_times(p['corrupt_times'])
+    _all_srhfs            = load_all_srhfs(p['srhf_dir'])
+    _all_prhfs            = load_all_prhfs(p['prhf_dir'])
+
+    return CalTables(
+        a2dc=a2dc, gains=gains, offsets=offsets,
+        utc_tbl=utc_tbl, vfets_tbl=vfets_tbl, bbt=bbt,
+        utcs_refs=_utcs_refs, corrupt_table=_corrupt,
+        all_srhfs=_all_srhfs, all_prhfs=_all_prhfs,
+    )
+
+
 # ── Main TOD iterator ─────────────────────────────────────────────────────────
 
 def iter_obs(band=4, *, nside=512, cal, root=None, bphf_glob=None,
