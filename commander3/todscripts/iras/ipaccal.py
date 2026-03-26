@@ -124,25 +124,23 @@ CCSTIM = _ST5 * _ACDC  # in amps; indexed 0-based by det-1
 # Indexed 0-based by det-1.
 _GXN_ALPHA = np.array([
     -0.50660e-06,  0.38558e-06, -0.16187e-06, -0.12623e-06,
-    -0.51914e-06,  0.18098e-06,  0.70222e-06,
+    -0.51914e-06,  0.18098e-06,  0.70222e-06,              # dets  1-7   B4 mod B
     -0.23421e-06, -0.51040e-07,  0.13120e-07, -0.39730e-07,
-    -0.87980e-07, -0.33010e-07, -0.13913e-06,  0.19433e-06,
-    *([0.0] * 15),                           # B2 dets 16-22 (inactive)
-    *([0.0] * 8),                            # B1 dets 23-30 (inactive)
+    -0.87980e-07, -0.33010e-07, -0.13913e-06,  0.19433e-06, # dets  8-15  B3 mod B
+    *([0.0] * 15),                           # dets 16-30  B2+B1 mod B (inactive)
     -0.20943e-06,  0.21088e-06, -0.11521e-06,  0.13708e-06,
-     0.88130e-07,  0.00000e+00,  0.79650e-07, -0.17686e-06,
-    *([0.0] * 16),                           # B2+B1 dets 39-54 (inactive)
+     0.88130e-07,  0.00000e+00,  0.79650e-07, -0.17686e-06, # dets 31-38  B3 mod A
+    *([0.0] * 16),                           # dets 39-54  B2+B1 mod A (inactive)
     -0.12993e-07,  0.46260e-06, -0.38041e-06,  0.31724e-06,
-    -0.55873e-06,  0.00000e+00,  0.44439e-06,  0.15833e-06,
+    -0.55873e-06,  0.00000e+00,  0.44439e-06,  0.15833e-06, # dets 55-62  B4 mod A
 ])
 _GXN_TAU = np.array([
-    2100., 2820., 2520., 4080., 1980., 1920., 2940.,
-    2700., 4200.,  660., 4620., 4860., 1320., 2520., 2340.,
-    *([1.0] * 15),
-    *([1.0] * 8),
-    2520., 2340., 2220., 2940., 6900., 1000., 3720., 2940.,
-    *([1.0] * 16),
-    5400., 2460., 2580., 2340., 2580., 1000., 2520., 1680.,
+    2100., 2820., 2520., 4080., 1980., 1920., 2940.,         # dets  1-7   B4 mod B
+    2700., 4200.,  660., 4620., 4860., 1320., 2520., 2340.,  # dets  8-15  B3 mod B
+    *([1.0] * 15),                           # dets 16-30  B2+B1 mod B (tau=1 → alpha*0)
+    2520., 2340., 2220., 2940., 6900., 1000., 3720., 2940.,  # dets 31-38  B3 mod A
+    *([1.0] * 16),                           # dets 39-54  B2+B1 mod A (tau=1 → alpha*0)
+    5400., 2460., 2580., 2340., 2580., 1000., 2520., 1680.,  # dets 55-62  B4 mod A
 ])
 
 # Dead detectors (ESAD == 0 → cannot calibrate)
@@ -563,16 +561,14 @@ def apply_prhf_correction(flamp, det, utmbb_samples, prhf_deltut, prhf_dtr):
 # ---------------------------------------------------------------------------
 
 def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl,
-                prhf_deltut=None, prhf_dtr=None):
+                prhf_deltut=None, prhf_dtr=None,
+                ipac_quantize=False):
     """
     Convert baseline-corrected amplitudes to W/m² using the SRHF responsivity,
     optionally applying the PRHF photon-response-history correction (ciprhf.f).
 
     Responsivity R(t) = F(t) / ccstim(det)    [A · m² / W]
     Output S(t) = amps(t) / R(t)              [W/m²]
-
-    The per-sample responsivity is evaluated at the UTC since last bias boost
-    for each sample.
 
     Parameters
     ----------
@@ -584,21 +580,58 @@ def amps_to_wm2(amps, det, utmbb_samples, apl, bpl, tpl,
         the PRHF photon-response correction is applied to the flash amplitude
         before computing responsivity.  Only affects Band 3 & 4 detectors.
     prhf_dtr : ndarray (M, 31) or None.  PRHF correction fractions.
+    ipac_quantize : bool, default False.
+        If True, replicate the Fortran ciwpm2.f behaviour: evaluate the SRHF
+        flash amplitude once per satcal second (at the start of each 1-second
+        block) and apply it to all 32 samples in that block.  This matches
+        the IPAC Level-1 delivered files exactly but introduces a 1 Hz sawtooth
+        quantization artefact (~0.003%/sample) that aliases into the signal map.
+        The original 1 Hz granularity was a computational convenience (1990s Sun
+        workstations) with no physical basis; the SRHF time constants (τ~300–600 s)
+        change negligibly over 1 s.  Leave False for Commander3 use.
 
     Returns
     -------
     wm2 : ndarray, flux density in W/m²
     """
     t = np.asarray(utmbb_samples, dtype=float)
-    flamp = srhf_flash_amplitude(t, apl, bpl, tpl, det)
-
-    # Optional PRHF correction (bands 3 & 4 only; no-op for bands 1 & 2)
-    if prhf_deltut is not None and prhf_dtr is not None and len(prhf_deltut) > 0:
-        apply_prhf_correction(flamp, det, t, prhf_deltut, prhf_dtr)
-
+    N = len(t)
     dcflux = CCSTIM[det - 1]
     if dcflux == 0.0:
-        return np.full_like(amps, np.nan)
+        return np.full(N, np.nan)
+
+    if ipac_quantize and N > 0:
+        # Replicate ciwpm2.f: determine samples/second from the utmbb spacing,
+        # evaluate flamp at 1-second (satcal-tick) intervals, and hold it
+        # constant across each block of nsamp samples, exactly as the Fortran does.
+        #   nsamp = nint(1 / utcinc)   →   1 / spacing between samples
+        #   nsecs = N // nsamp
+        #   deltau_i = utmbb_start + i * nsamp * utcinc  (i = 0, 1, 2, ...)
+        utcinc = float(t[1] - t[0]) if N > 1 else 1.0 / 32.0
+        nsamp  = max(1, int(round(1.0 / utcinc)))   # samples per second
+        nsecs  = N // nsamp                          # complete 1-second blocks
+
+        # Evaluate flash amplitude at the start of each second block
+        t_secs = t[0] + np.arange(nsecs, dtype=np.float64) * (nsamp * utcinc)
+        flamp_secs = srhf_flash_amplitude(t_secs, apl, bpl, tpl, det)
+
+        if prhf_deltut is not None and prhf_dtr is not None and len(prhf_deltut) > 0:
+            # PRHF: pass per-second times; apply_prhf_correction operates in-place
+            apply_prhf_correction(flamp_secs, det, t_secs, prhf_deltut, prhf_dtr)
+
+        # Replicate each second's amplitude across its nsamp samples
+        flamp = np.repeat(flamp_secs, nsamp)        # length = nsecs * nsamp
+        # Remaining samples (< nsamp at the end) use the last complete block
+        if nsecs * nsamp < N:
+            tail = N - nsecs * nsamp
+            last = flamp_secs[-1] if nsecs > 0 else srhf_flash_amplitude(
+                np.array([t[0]]), apl, bpl, tpl, det)[0]
+            flamp = np.concatenate([flamp, np.full(tail, last)])
+    else:
+        flamp = srhf_flash_amplitude(t, apl, bpl, tpl, det)
+        if prhf_deltut is not None and prhf_dtr is not None and len(prhf_deltut) > 0:
+            apply_prhf_correction(flamp, det, t, prhf_deltut, prhf_dtr)
+
     resp = flamp / dcflux                   # A / (W/m²) = A·m²/W
     return np.asarray(amps, dtype=float) / resp
 

@@ -463,12 +463,17 @@ def utmbb_at_utc(utcs_start, bbt):
     """
     Return seconds elapsed since the last ICF bias-boost event before utcs_start.
     Returns 1e9 if no prior event is found (detector treated as fully relaxed).
+
+    The bbtimes file stores (utbb1, utbb2) = (start, end) of each bias-boost
+    window.  The Fortran cigbbi.shl stores bbt = utbb2 (the END) and returns
+    lastbb = utbb2, so the Fortran computes utmbb = snip_utc - utbb2.
+    We must use column 1 (the end time) to match.
     """
-    bbt_starts = bbt[:, 0]
-    idx = np.searchsorted(bbt_starts, utcs_start, side='right') - 1
+    bbt_ends = bbt[:, 1]   # utbb2 = end of bias-boost window (Fortran: lastbb)
+    idx = np.searchsorted(bbt_ends, utcs_start, side='right') - 1
     if idx < 0:
         return 1.0e9
-    return float(utcs_start - bbt[idx, 0])
+    return float(utcs_start - bbt[idx, 1])
 
 
 def load_cal_tables(ipac_dir=None, root=None, ctype2=None, vfet=None,
