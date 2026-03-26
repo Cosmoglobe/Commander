@@ -571,7 +571,7 @@ contains
        do j = 1, self%ndet
           ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*arcmin
           ! given sigma0 is for Q and U so the total sensitivity is sqrt(2) higher
-          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%id) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0)
+          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%id) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0) !*sqrt(3.d0) !obs ds
           self%scans(k)%d(j)%N_psd%xi_n(2) = 0.05                 ! fknee = 50 mHz
           self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
        end do
@@ -581,6 +581,7 @@ contains
     if (self%myid==0) then
        write(*,*) '|> Put sigma0 =', self%scans(1)%d(1)%N_psd%sigma0
        write(*,*) '|       fknee =', self%scans(1)%d(1)%N_psd%xi_n(2)
+       write(*,*) '|       alpha =', self%scans(1)%d(1)%N_psd%xi_n(3)
     end if
        
   end subroutine overwrite_noisepar
