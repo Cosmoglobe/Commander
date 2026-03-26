@@ -216,7 +216,7 @@ contains
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_LB_tod),                      intent(inout) :: self
+    class(comm_LB_tod),                       intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -235,7 +235,8 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
-
+    class(comm_map),                      pointer :: buffer
+    
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
@@ -456,8 +457,19 @@ contains
     end if
 
     ! Output maps to disk
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+    ! set missing pixels to healpix bad value before writing map and rms to disk
+    buffer => comm_map(map_out)
+    where (rms_out%map == 0.d0)
+       buffer%map = hpx_dbadval
+    end where
+    call buffer%writeFITS(trim(prefix)//'map'//trim(postfix))
+    buffer%map = rms_out%map
+    where (rms_out%map == 0.d0)
+       buffer%map = hpx_dbadval
+    end where
+    call buffer%writeFITS(trim(prefix)//'rms'//trim(postfix))
+    call buffer%dealloc
+    ! obs: not marking missing pixels in the remaining components
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
     !if (self%output_n_maps > 3) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
@@ -559,7 +571,7 @@ contains
        do j = 1, self%ndet
           ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*arcmin
           ! given sigma0 is for Q and U so the total sensitivity is sqrt(2) higher
-          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%band) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0)
+          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%id) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0)
           self%scans(k)%d(j)%N_psd%xi_n(2) = 0.05                 ! fknee = 50 mHz
           self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
        end do
