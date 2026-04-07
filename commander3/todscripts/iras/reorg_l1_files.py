@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Build band-1 SOP/OBS parallel dataset by scanning obs directories.
+Reorganize IRAS SOP/OBS dataset by scanning obs directories.
 Instead of iterating over millions of files, we iterate over obs directories
-and filter band-1 .tbl files within each obs.
+and filter .tbl files within each obs (by band or all detectors).
 
-Reorganizes /data/plate*/sop*/obs*/det*.tbl into /data_sopos_b1/sop*/obs*/plate*/det*.tbl
+Reorganizes /data/plate*/sop*/obs*/det*.tbl into /data_sopos_*/sop*/obs*/plate*/det*.tbl
 """
 
 import argparse
@@ -17,14 +17,57 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set
 
-# Band-1 detector IDs per IRAS Explanatory Supplement
-BAND1_DETS = {23, 24, 25, 26, 27, 28, 29, 30, 47, 48, 49, 50, 51, 52, 53, 54}
+# Detector band definitions per IRAS Explanatory Supplement
+BAND1_DETS = {23, 24, 25, 26, 27, 28, 29, 30, 47, 48, 49, 50, 51, 52, 53, 54}  # 100 µm
+BAND2_DETS = {9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}  # 60 µm
+BAND3_DETS = {1, 2, 3, 4, 5, 6, 7, 8, 35, 36, 37, 38, 39, 40, 41, 42}  # 25 µm
+BAND4_DETS = {31, 32, 33, 34, 43, 44, 45, 46}  # 12 µm
+
+BAND_DEFINITIONS = {
+    1: BAND1_DETS,
+    2: BAND2_DETS,
+    3: BAND3_DETS,
+    4: BAND4_DETS,
+}
+
+
+def get_active_detectors(args: argparse.Namespace) -> Set[int]:
+    """Determine which detectors to include based on band selection."""
+    if args.all_detectors:
+        return {i for i in range(1, 63)}  # All 62 IRAS detectors
+    elif args.band:
+        if args.band not in BAND_DEFINITIONS:
+            raise SystemExit(f"Invalid band: {args.band}. Must be 1, 2, 3, or 4.")
+        return BAND_DEFINITIONS[args.band]
+    else:
+        return BAND1_DETS  # Default to band-1
+
+
+def get_env_var_name(args: argparse.Namespace) -> str:
+    """Get the appropriate environment variable name based on selection."""
+    if args.all_detectors:
+        return "IRAS_ALL_REORG_ROOT"
+    elif args.band:
+        return f"IRAS_BAND{args.band}_REORG_ROOT"
+    else:
+        return "IRAS_BAND1_REORG_ROOT"
+
+
+def get_manifest_basename(args: argparse.Namespace) -> str:
+    """Get manifest base name based on detector selection."""
+    if args.all_detectors:
+        return "all_detectors"
+    elif args.band:
+        return f"band{args.band}"
+    else:
+        return "band1"
 
 
 def resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
     """Resolve path inputs with CLI > environment variable precedence."""
     data_root_str = args.data_root or os.getenv("IRAS_DATA_ROOT")
-    out_root_str = args.out_root or os.getenv("IRAS_BAND1_REORG_ROOT")
+    env_var_name = get_env_var_name(args)
+    out_root_str = args.out_root or os.getenv(env_var_name)
 
     if not data_root_str:
         raise SystemExit(
@@ -32,7 +75,7 @@ def resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
         )
     if not out_root_str:
         raise SystemExit(
-            "Missing output root. Provide --out-root or set IRAS_BAND1_REORG_ROOT."
+            f"Missing output root. Provide --out-root or set {env_var_name}."
         )
 
     data_root = Path(data_root_str).expanduser().resolve()
@@ -115,19 +158,28 @@ def find_obs_dirs(data_root: Path, sop: Optional[str] = None, obs: Optional[str]
     return []
 
 
-def is_band1_file(filepath: Path) -> bool:
-    """Check if a .tbl file belongs to band 1."""
+def is_selected_detector_file(filepath: Path, active_dets: Set[int]) -> bool:
+    """Check if a .tbl file belongs to the selected detector set."""
     det = parse_det_from_name(filepath.name)
     if det is None:
         return False
     
     # Quick check: detector ID membership
-    if det in BAND1_DETS:
+    if det in active_dets:
         return True
     
-    # Fallback: read header for jband metadata
+    # Fallback: read header for jband metadata (only if all detectors selected)
+    if len(active_dets) == 62:  # All detectors
+        return True
+    
     jband = parse_tbl_jband(filepath)
-    return jband == 1
+    if jband == -1:
+        return False
+    
+    # Map jband to BAND_DEFINITIONS and check membership
+    if jband in BAND_DEFINITIONS:
+        return det in BAND_DEFINITIONS[jband]
+    return False
 
 
 def ensure_link_or_copy(src: Path, dst: Path, mode: str) -> bool:
@@ -150,7 +202,7 @@ def ensure_link_or_copy(src: Path, dst: Path, mode: str) -> bool:
         return False
 
 
-def process_obs_dir(obs_dir: Path, data_root: Path, out_root: Path, mode: str) -> Tuple[List[Dict], Dict[Tuple[str, str], Dict]]:
+def process_obs_dir(obs_dir: Path, data_root: Path, out_root: Path, mode: str, active_dets: Set[int]) -> Tuple[List[Dict], Dict[Tuple[str, str], Dict]]:
     """Process a single obs directory. Returns (manifest_rows, coverage_data)."""
     manifest_rows: List[Dict] = []
     coverage_data: Dict[Tuple[str, str], Dict] = {}
@@ -175,11 +227,11 @@ def process_obs_dir(obs_dir: Path, data_root: Path, out_root: Path, mode: str) -
     sop_obs_key = (sop_name, obs_name)
     coverage_data[sop_obs_key] = {
         "det_present": set(),
-        "det_missing": set(BAND1_DETS)
+        "det_missing": set(active_dets)
     }
 
     for tbl_file in tbl_files:
-        if not is_band1_file(tbl_file):
+        if not is_selected_detector_file(tbl_file, active_dets):
             continue
 
         det = parse_det_from_name(tbl_file.name)
@@ -211,7 +263,7 @@ def process_obs_dir(obs_dir: Path, data_root: Path, out_root: Path, mode: str) -
 
 def main() -> None:
     p = argparse.ArgumentParser(
-        description="Build band-1 SOP/OBS parallel dataset from obs directories (parallelized)"
+        description="Reorganize IRAS SOP/OBS dataset from obs directories (by band or all detectors; parallelized)"
     )
     p.add_argument(
         "--data-root",
@@ -221,7 +273,19 @@ def main() -> None:
     p.add_argument(
         "--out-root",
         default=None,
-        help="Output root for reorganized band-1 data (or IRAS_BAND1_REORG_ROOT)"
+        help="Output root for reorganized data (or environment variable based on band selection)"
+    )
+    p.add_argument(
+        "--band",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=None,
+        help="Target band (1=100µm, 2=60µm, 3=25µm, 4=12µm). Defaults to band 1. Ignored if --all-detectors is set."
+    )
+    p.add_argument(
+        "--all-detectors",
+        action="store_true",
+        help="Include all 62 detectors (overrides --band selection)"
     )
     p.add_argument(
         "--mode",
@@ -254,13 +318,22 @@ def main() -> None:
     )
     args = p.parse_args()
 
+    # Determine active detectors and get manifest base name
+    active_dets = get_active_detectors(args)
+    manifest_base = get_manifest_basename(args)
+    
     data_root, out_root = resolve_roots(args)
     out_root.mkdir(parents=True, exist_ok=True)
 
     # Auto-detect worker count
     if args.workers is None:
         args.workers = os.cpu_count() or 4
+    
+    # Print selection info
+    selection_info = f"all {len(active_dets)} detectors" if args.all_detectors else f"band {args.band or 1}"
+    print(f"Reorganizing {selection_info}...", file=sys.stderr)
     print(f"Finding obs directories under {data_root}...", file=sys.stderr)
+    
     obs_dirs = find_obs_dirs(data_root, sop=args.sop, obs=args.obs)
     print(f"Found {len(obs_dirs)} obs directories", file=sys.stderr)
     print(f"Processing with {args.workers} workers...", file=sys.stderr)
@@ -273,7 +346,7 @@ def main() -> None:
     done = 0
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = {
-            executor.submit(process_obs_dir, obs_dir, data_root, out_root, args.mode): obs_dir
+            executor.submit(process_obs_dir, obs_dir, data_root, out_root, args.mode, active_dets): obs_dir
             for obs_dir in obs_dirs
         }
         
@@ -282,25 +355,25 @@ def main() -> None:
             manifest_data.extend(manifest_rows)
             done += 1
             if done % 1000 == 0 or done == total:
-                print(f"  [{done}/{total}] {len(manifest_data)} band-1 files so far...", file=sys.stderr, flush=True)
+                print(f"  [{done}/{total}] {len(manifest_data)} files so far...", file=sys.stderr, flush=True)
             
             # Merge coverage data
             for sop_obs_key, cov in cov_data.items():
                 if sop_obs_key not in coverage_data:
                     coverage_data[sop_obs_key] = {
                         "det_present": set(),
-                        "det_missing": set(BAND1_DETS)
+                        "det_missing": set(active_dets)
                     }
                 coverage_data[sop_obs_key]["det_present"].update(cov["det_present"])
                 coverage_data[sop_obs_key]["det_missing"].intersection_update(cov["det_missing"])
 
-    print(f"\nProcessed {len(obs_dirs)} obs directories, selected {len(manifest_data)} band-1 files",
+    print(f"\nProcessed {len(obs_dirs)} obs directories, selected {len(manifest_data)} files",
           file=sys.stderr)
     print(f"Unique SOP/OBS pairs: {len(coverage_data)}", file=sys.stderr)
 
-    # Write manifests
-    manifest_file = out_root / "band1_manifest.csv"
-    coverage_file = out_root / "band1_sopobs_coverage.csv"
+    # Write manifests with detector-specific names
+    manifest_file = out_root / f"{manifest_base}_manifest.csv"
+    coverage_file = out_root / f"{manifest_base}_sopobs_coverage.csv"
 
     if args.overwrite_index or not manifest_file.exists():
         with open(manifest_file, "w", newline="") as f:
