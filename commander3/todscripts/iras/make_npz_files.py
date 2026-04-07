@@ -407,18 +407,19 @@ def build_tasks(
 
     tasks: list[tuple[str, str, int, list[str], str, float, bool, float]] = []
     workers = min(max(len(obs_dirs), 1), os.cpu_count() or 4)
+    done = 0
+    progress_every = max(100, len(obs_dirs) // 20) if obs_dirs else 100
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {
             ex.submit(discover_tasks_for_obs, obs_dir, active_dets, out_dir, satcal, explicit_eps, overwrite): obs_dir
             for obs_dir in obs_dirs
         }
         for fut in as_completed(futs):
-            obs_dir = futs[fut]
             obs_tasks = fut.result()
             tasks.extend(obs_tasks)
-            if obs_tasks:
-                rel = obs_dir.relative_to(Path(data_root))
-                print(f"Discovered {len(obs_tasks)} detector tasks in {rel}")
+            done += 1
+            if done % progress_every == 0 or done == len(obs_dirs):
+                print(f"  Discovery progress: {done}/{len(obs_dirs)} obs dirs, {len(tasks)} tasks")
 
     return tasks
 
