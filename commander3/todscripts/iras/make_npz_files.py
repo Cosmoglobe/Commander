@@ -5,14 +5,13 @@ Writes one merged file per SOP/OBS/detector:
   <out-dir>/sopXXX/obsYYY/detNN_continuous.npz
 
 For each task (sop, obs, det):
-- read all matching plate files from data/plate*/sopXXX/obsYYY/detNN.tbl
+- read all matching plate files from data_sopos_*/sopXXX/obsYYY/plate*/detNN.tbl
 - compute per-sample UTC from utcs1/utcs2/npts
 - mask bad rows (ra == -999 or flux < -1e10)
 - sort by time and collapse near-duplicates within band-dependent dedup threshold
 """
 
 import argparse
-import glob
 import os
 import re
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -117,7 +116,84 @@ def resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
     if not data_root.is_dir():
         raise SystemExit(f"Data root is not a directory: {data_root}")
 
+    validate_reorganized_layout(data_root)
+
     return data_root, out_dir
+
+
+def validate_reorganized_layout(data_root: Path) -> None:
+    """
+    Validate that data_root follows the reorganized layout:
+      data_root/sopXXX/obsYYY/plateZZZZ/detNN.tbl
+    """
+    sop_dirs = sorted(p for p in data_root.glob("sop*") if p.is_dir())
+    if not sop_dirs:
+        plate_dirs = sorted(p for p in data_root.glob("plate*") if p.is_dir())
+        if plate_dirs:
+            raise SystemExit(
+                "Detected old plate-root layout (plate*/sop*/obs*/det*.tbl). "
+                "This script only supports reorganized layout (sop*/obs*/plate*/det*.tbl). "
+                "Point --data-root to reorg_l1_files.py output."
+            )
+        raise SystemExit(
+            "Could not find any sop* directories under data root. "
+            "Expected reorganized layout: sop*/obs*/plate*/det*.tbl"
+        )
+
+    found_obs = False
+    found_plate = False
+    for sop_dir in sop_dirs:
+        obs_dirs = [p for p in sop_dir.glob("obs*") if p.is_dir()]
+        if obs_dirs:
+            found_obs = True
+        for obs_dir in obs_dirs:
+            if any(p.is_dir() for p in obs_dir.glob("plate*")):
+                found_plate = True
+                break
+        if found_plate:
+            break
+
+    if not found_obs:
+        raise SystemExit(
+            "Found sop* directories, but no obs* directories beneath them. "
+            "Expected reorganized layout: sop*/obs*/plate*/det*.tbl"
+        )
+    if not found_plate:
+        raise SystemExit(
+            "Found sop*/obs* directories, but no plate* directories beneath obs*. "
+            "Expected reorganized layout: sop*/obs*/plate*/det*.tbl"
+        )
+
+
+def parse_det_from_name(filename: str) -> int | None:
+    """Extract detector number from detXX.tbl filename."""
+    if not filename.startswith("det") or not filename.endswith(".tbl"):
+        return None
+    try:
+        return int(filename[3:-4])
+    except ValueError:
+        return None
+
+
+def discover_obs_dirs(data_root: Path, sop: int | None, obs: int | None) -> list[Path]:
+    """
+    Discover observation directories in reorganized layout:
+      data_root/sopXXX/obsYYY/plateZZZZ/detNN.tbl
+    """
+    if sop is not None and obs is not None:
+        target = data_root / f"sop{sop:03d}" / f"obs{obs:03d}"
+        return [target] if target.is_dir() else []
+
+    if sop is not None:
+        sop_dir = data_root / f"sop{sop:03d}"
+        if not sop_dir.is_dir():
+            return []
+        return sorted(p for p in sop_dir.glob("obs*") if p.is_dir())
+
+    obs_dirs: list[Path] = []
+    for sop_dir in sorted(p for p in data_root.glob("sop*") if p.is_dir()):
+        obs_dirs.extend(sorted(p for p in sop_dir.glob("obs*") if p.is_dir()))
+    return obs_dirs
 
 
 def parse_header(path: Path) -> dict:
@@ -284,36 +360,34 @@ def run_task(task: tuple[str, str, int, list[str], str, float, bool, float]) -> 
     return sop, obs, det, len(files), n_raw, int(t_m.size), str(out_path)
 
 
-def discover_tasks_for_det(
-    data_root: str,
-    sop_pat: str,
-    obs_pat: str,
-    det: int,
+def discover_tasks_for_obs(
+    obs_dir: Path,
+    active_dets: set[int],
     out_dir: str,
     satcal: float,
     explicit_eps: float,
     overwrite: bool,
 ) -> list[tuple[str, str, int, list[str], str, float, bool, float]]:
-    """Discover (sop, obs, det) tasks for one detector."""
-    pattern = os.path.join(data_root, f"plate*/{sop_pat}/{obs_pat}/det{det:02d}.tbl")
-    det_files = [Path(p) for p in glob.glob(pattern)]
-    groups: dict[tuple[str, str], list[str]] = {}
+    """Discover all detector tasks for one sopXXX/obsYYY directory."""
+    parts = obs_dir.parts
+    try:
+        sop_name = next(p for p in parts if re.fullmatch(r"sop\d{3}", p))
+        obs_name = next(p for p in parts if re.fullmatch(r"obs\d{3}", p))
+    except StopIteration:
+        return []
 
-    for p in det_files:
-        sop_name = None
-        obs_name = None
-        for part in p.parts:
-            if sop_name is None and re.fullmatch(r"sop\d{3}", part):
-                sop_name = part
-            if obs_name is None and re.fullmatch(r"obs\d{3}", part):
-                obs_name = part
-        if sop_name is None or obs_name is None:
-            continue
-        groups.setdefault((sop_name, obs_name), []).append(str(p))
+    groups: dict[int, list[str]] = {}
+    plate_dirs = sorted(p for p in obs_dir.glob("plate*") if p.is_dir())
+    for plate_dir in plate_dirs:
+        for tbl in plate_dir.glob("det*.tbl"):
+            det = parse_det_from_name(tbl.name)
+            if det is None or det not in active_dets:
+                continue
+            groups.setdefault(det, []).append(str(tbl))
 
-    tasks = []
-    for (sop_name, obs_name), files in groups.items():
-        tasks.append((sop_name, obs_name, det, files, out_dir, satcal, overwrite, explicit_eps))
+    tasks: list[tuple[str, str, int, list[str], str, float, bool, float]] = []
+    for det in sorted(groups):
+        tasks.append((sop_name, obs_name, det, groups[det], out_dir, satcal, overwrite, explicit_eps))
     return tasks
 
 
@@ -327,38 +401,35 @@ def build_tasks(
     explicit_eps: float,
     overwrite: bool,
 ) -> list[tuple[str, str, int, list[str], str, float, bool, float]]:
-    sop_pat = f"sop{sop:03d}" if sop is not None else "sop*"
-    obs_pat = f"obs{obs:03d}" if obs is not None else "obs*"
+    active_dets = set(dets)
+    obs_dirs = discover_obs_dirs(Path(data_root), sop, obs)
+    print(f"Discovered {len(obs_dirs)} sop/obs directories")
 
-    # Discover each detector's task list concurrently.
-    per_det: dict[int, list] = {}
-    with ThreadPoolExecutor(max_workers=min(len(dets), os.cpu_count() or 4)) as ex:
+    tasks: list[tuple[str, str, int, list[str], str, float, bool, float]] = []
+    workers = min(max(len(obs_dirs), 1), os.cpu_count() or 4)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {
-            ex.submit(discover_tasks_for_det, data_root, sop_pat, obs_pat, det, out_dir, satcal, explicit_eps, overwrite): det
-            for det in dets
+            ex.submit(discover_tasks_for_obs, obs_dir, active_dets, out_dir, satcal, explicit_eps, overwrite): obs_dir
+            for obs_dir in obs_dirs
         }
         for fut in as_completed(futs):
-            det = futs[fut]
-            det_tasks = fut.result()
-            per_det[det] = det_tasks
-            print(f"Discovered det{det:02d}: {len(det_tasks)} sop/obs tasks")
+            obs_dir = futs[fut]
+            obs_tasks = fut.result()
+            tasks.extend(obs_tasks)
+            if obs_tasks:
+                rel = obs_dir.relative_to(Path(data_root))
+                print(f"Discovered {len(obs_tasks)} detector tasks in {rel}")
 
-    # Interleave tasks round-robin across detectors so all detectors
-    # make progress simultaneously rather than processing one detector
-    # at a time.
-    tasks = []
-    lists = [per_det[d] for d in dets if d in per_det]
-    max_len = max((len(l) for l in lists), default=0)
-    for i in range(max_len):
-        for l in lists:
-            if i < len(l):
-                tasks.append(l[i])
     return tasks
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Parallel multi-band IRAS SOP/OBS continuous timestream builder")
-    p.add_argument("--data-root", default=None, help="Root data directory (or IRAS_DATA_ROOT)")
+    p.add_argument(
+        "--data-root",
+        default=None,
+        help="Root reorganized data directory containing sop*/obs*/plate*/det*.tbl (or IRAS_DATA_ROOT)",
+    )
     p.add_argument(
         "--out-dir",
         default=None,
