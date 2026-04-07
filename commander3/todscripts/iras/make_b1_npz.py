@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parallel continuous timestream builder for IRAS band-1 detectors.
+"""Parallel continuous timestream builder for IRAS detectors (all bands or specific detectors).
 
 Writes one merged file per SOP/OBS/detector:
   <out-dir>/sopXXX/obsYYY/detNN_continuous.npz
@@ -8,7 +8,7 @@ For each task (sop, obs, det):
 - read all matching plate files from data/plate*/sopXXX/obsYYY/detNN.tbl
 - compute per-sample UTC from utcs1/utcs2/npts
 - mask bad rows (ra == -999 or flux < -1e10)
-- sort by time and collapse near-duplicates within dedup threshold
+- sort by time and collapse near-duplicates within band-dependent dedup threshold
 """
 
 import argparse
@@ -20,19 +20,93 @@ from pathlib import Path
 
 import numpy as np
 
+# Detector groups from ircc_const.c / BAND_CFG in iras_tod.py
+# Band numbering here follows IRAS convention (I..IV mapped to 1..4).
 BAND1_DETS = [23, 24, 25, 26, 27, 28, 29, 30, 47, 48, 49, 50, 51, 52, 53, 54]
+BAND2_DETS = [16, 17, 18, 19, 20, 21, 22, 39, 40, 41, 42, 43, 44, 45, 46]
+BAND3_DETS = [8, 9, 10, 11, 12, 13, 14, 15, 31, 32, 33, 34, 35, 36, 37, 38]
+BAND4_DETS = [1, 2, 3, 4, 5, 6, 7, 55, 56, 57, 58, 59, 60, 61, 62]
+
+ALL_DETS = sorted(BAND1_DETS + BAND2_DETS + BAND3_DETS + BAND4_DETS)
+
+BAND_DEFINITIONS = {
+    1: BAND1_DETS,
+    2: BAND2_DETS,
+    3: BAND3_DETS,
+    4: BAND4_DETS,
+}
+
+# Survey sample rates in samples per SATCAL tick.
+# Dedup threshold is the nominal inter-sample interval: satcal / rate.
+DEDUP_SATCAL_DIVISORS = {
+    1: 16,
+    2: 16,
+    3: 8,
+    4: 4,
+}
+
+
+def det_to_band(det: int) -> int | None:
+    """Map detector number to band (1-4), or None if unknown."""
+    for band, dets in BAND_DEFINITIONS.items():
+        if det in dets:
+            return band
+    return None
+
+
+def get_active_detectors(args: argparse.Namespace) -> list[int]:
+    """Determine which detectors to include based on band selection."""
+    if args.all_detectors:
+        return ALL_DETS
+    elif args.band:
+        if args.band not in BAND_DEFINITIONS:
+            raise SystemExit(f"Invalid band: {args.band}. Must be 1, 2, 3, or 4.")
+        return BAND_DEFINITIONS[args.band]
+    else:
+        return BAND1_DETS  # Default to band-1
+
+
+def get_env_var_name(args: argparse.Namespace) -> str:
+    """Get the appropriate environment variable name based on selection."""
+    if args.all_detectors:
+        return "IRAS_ALL_TIMESTREAM_ROOT"
+    elif args.band:
+        return f"IRAS_BAND{args.band}_TIMESTREAM_ROOT"
+    else:
+        return "IRAS_BAND1_TIMESTREAM_ROOT"
+
+
+def get_dedup_threshold(det: int, satcal: float, explicit_threshold: float | None) -> float:
+    """
+    Get the dedup threshold for a detector.
+    
+    If explicit_threshold is provided, use it.
+    Otherwise, use the band-dependent divisor.
+    """
+    if explicit_threshold is not None:
+        return explicit_threshold
+    
+    band = det_to_band(det)
+    if band is None:
+        # Unknown detector; use default divisor
+        divisor = DEDUP_SATCAL_DIVISORS.get(1, 16)
+    else:
+        divisor = DEDUP_SATCAL_DIVISORS.get(band, 16)
+    
+    return satcal / divisor
 
 
 def resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
     """Resolve path inputs with CLI > environment variable precedence."""
     data_root_str = args.data_root or os.getenv("IRAS_DATA_ROOT")
-    out_dir_str = args.out_dir or os.getenv("IRAS_BAND1_TIMESTREAM_ROOT")
+    env_var_name = get_env_var_name(args)
+    out_dir_str = args.out_dir or os.getenv(env_var_name)
 
     if not data_root_str:
         raise SystemExit("Missing data root. Provide --data-root or set IRAS_DATA_ROOT.")
     if not out_dir_str:
         raise SystemExit(
-            "Missing output root. Provide --out-dir or set IRAS_BAND1_TIMESTREAM_ROOT."
+            f"Missing output root. Provide --out-dir or set {env_var_name}."
         )
 
     data_root = Path(data_root_str).expanduser().resolve()
@@ -180,8 +254,9 @@ def merge_file_group(files: list[str], eps: float) -> tuple[np.ndarray, np.ndarr
     return t_m, ra_m, dec_m, flux_m, n_merged, int(t.size)
 
 
-def run_task(task: tuple[str, str, int, list[str], str, float, bool]) -> tuple[str, str, int, int, int, int, str]:
-    sop, obs, det, files, out_dir, eps, overwrite = task
+def run_task(task: tuple[str, str, int, list[str], str, float, bool, float]) -> tuple[str, str, int, int, int, int, str]:
+    sop, obs, det, files, out_dir, satcal, overwrite, explicit_eps = task
+    eps = get_dedup_threshold(det, satcal, explicit_eps)
     out_path = Path(out_dir) / sop / obs / f"det{det:02d}_continuous.npz"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -215,9 +290,10 @@ def discover_tasks_for_det(
     obs_pat: str,
     det: int,
     out_dir: str,
-    eps: float,
+    satcal: float,
+    explicit_eps: float,
     overwrite: bool,
-) -> list[tuple[str, str, int, list[str], str, float, bool]]:
+) -> list[tuple[str, str, int, list[str], str, float, bool, float]]:
     """Discover (sop, obs, det) tasks for one detector."""
     pattern = os.path.join(data_root, f"plate*/{sop_pat}/{obs_pat}/det{det:02d}.tbl")
     det_files = [Path(p) for p in glob.glob(pattern)]
@@ -237,11 +313,20 @@ def discover_tasks_for_det(
 
     tasks = []
     for (sop_name, obs_name), files in groups.items():
-        tasks.append((sop_name, obs_name, det, files, out_dir, eps, overwrite))
+        tasks.append((sop_name, obs_name, det, files, out_dir, satcal, overwrite, explicit_eps))
     return tasks
 
 
-def build_tasks(data_root: str, dets: list[int], sop: int | None, obs: int | None, out_dir: str, eps: float, overwrite: bool) -> list[tuple[str, str, int, list[str], str, float, bool]]:
+def build_tasks(
+    data_root: str,
+    dets: list[int],
+    sop: int | None,
+    obs: int | None,
+    out_dir: str,
+    satcal: float,
+    explicit_eps: float,
+    overwrite: bool,
+) -> list[tuple[str, str, int, list[str], str, float, bool, float]]:
     sop_pat = f"sop{sop:03d}" if sop is not None else "sop*"
     obs_pat = f"obs{obs:03d}" if obs is not None else "obs*"
 
@@ -249,7 +334,7 @@ def build_tasks(data_root: str, dets: list[int], sop: int | None, obs: int | Non
     per_det: dict[int, list] = {}
     with ThreadPoolExecutor(max_workers=min(len(dets), os.cpu_count() or 4)) as ex:
         futs = {
-            ex.submit(discover_tasks_for_det, data_root, sop_pat, obs_pat, det, out_dir, eps, overwrite): det
+            ex.submit(discover_tasks_for_det, data_root, sop_pat, obs_pat, det, out_dir, satcal, explicit_eps, overwrite): det
             for det in dets
         }
         for fut in as_completed(futs):
@@ -272,37 +357,78 @@ def build_tasks(data_root: str, dets: list[int], sop: int | None, obs: int | Non
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Parallel band-1 SOP/OBS continuous timestream builder")
+    p = argparse.ArgumentParser(description="Parallel multi-band IRAS SOP/OBS continuous timestream builder")
     p.add_argument("--data-root", default=None, help="Root data directory (or IRAS_DATA_ROOT)")
     p.add_argument(
         "--out-dir",
         default=None,
-        help="Output root (or IRAS_BAND1_TIMESTREAM_ROOT)",
+        help="Output root (or band-dependent IRAS_BAND*_TIMESTREAM_ROOT)",
     )
     p.add_argument("--workers", type=int, default=None, help="Worker processes (default: os.cpu_count())")
-    p.add_argument("--satcal", type=float, default=1.0, help="SATCAL seconds (dedup threshold default is satcal/16)")
-    p.add_argument("--dedup-seconds", type=float, default=None, help="Explicit dedup threshold in seconds")
-    p.add_argument("--dets", type=int, nargs="+", default=BAND1_DETS, help="Detector IDs (default: band-1 detectors)")
+    p.add_argument("--satcal", type=float, default=1.0, help="SATCAL tick period in seconds (default: 1.0)")
+    p.add_argument(
+        "--band",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=None,
+        help="Target IRAS band index (1..4). Defaults to band 1. Ignored if --all-detectors is set.",
+    )
+    p.add_argument(
+        "--all-detectors",
+        action="store_true",
+        help="Include all 62 detectors (overrides --band selection)",
+    )
+    p.add_argument(
+        "--dedup-seconds",
+        type=float,
+        default=None,
+        help="Explicit dedup threshold in seconds (overrides band-dependent defaults)",
+    )
     p.add_argument("--sop", type=int, default=None, help="Optional SOP filter")
     p.add_argument("--obs", type=int, default=None, help="Optional OBS filter")
     p.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     p.add_argument("--progress-every", type=int, default=200, help="Progress print cadence in completed tasks")
     args = p.parse_args()
 
-    eps = args.dedup_seconds if args.dedup_seconds is not None else (args.satcal / 16.0)
+    # Determine active detectors
+    active_dets = get_active_detectors(args)
+    
+    # Explicit dedup threshold overrides band-dependent defaults
+    explicit_eps = args.dedup_seconds if args.dedup_seconds is not None else None
+    
     workers = args.workers if args.workers is not None else (os.cpu_count() or 4)
 
     data_root, out_root = resolve_roots(args)
     out_root.mkdir(parents=True, exist_ok=True)
 
+    selection_info = f"all {len(active_dets)} detectors" if args.all_detectors else f"band {args.band or 1}"
+    print(f"Selection: {selection_info}")
+    
     print("Building task list...")
-    tasks = build_tasks(str(data_root), args.dets, args.sop, args.obs, str(out_root), eps, args.overwrite)
+    tasks = build_tasks(
+        str(data_root),
+        active_dets,
+        args.sop,
+        args.obs,
+        str(out_root),
+        args.satcal,
+        explicit_eps,
+        args.overwrite,
+    )
     if not tasks:
         raise SystemExit("No tasks found. Check filters and data-root.")
 
     print(f"Tasks               : {len(tasks)}")
     print(f"Workers             : {workers}")
-    print(f"Dedup threshold [s] : {eps:.9f}")
+    print(f"SATCAL              : {args.satcal:.9f} s")
+    if explicit_eps is not None:
+        print(f"Dedup threshold [s] : {explicit_eps:.9f} (explicit, fixed for all detectors)")
+    else:
+        print(f"Dedup threshold [s] : band-dependent (satcal / divisor)")
+        for band in [1, 2, 3, 4]:
+            divisor = DEDUP_SATCAL_DIVISORS.get(band, 16)
+            threshold = args.satcal / divisor
+            print(f"  Band {band}: rate={divisor} samples/tick -> satcal / {divisor} = {threshold:.9f}")
     print(f"Data root           : {data_root}")
     print(f"Output root         : {out_root}")
 
