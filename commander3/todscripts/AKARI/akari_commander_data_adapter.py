@@ -208,7 +208,8 @@ def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
 def fits2output_formatter(file, start_index, end_index, band,
                           start_det_inds=START_DET_INDS,
                           num_detectors=NUM_DETECTORS, band_dets=BAND_DETS,
-                          reftime=REFERENCE_TIME):
+                          reftime=REFERENCE_TIME,
+                          should_compress=False):
     """Formats the data in an AKARI fits file in the way we need for the Commander HDFs.
 
     Arguments:
@@ -225,13 +226,17 @@ def fits2output_formatter(file, start_index, end_index, band,
     # an okay assumption for now, but I just note it here.
     start_det_ind = start_det_inds[band]
     end_det_ind = start_det_ind + num_detectors[band]
-    tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
-    tot_adu = file[1]['DET'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    if should_compress:
+        tot_adu = file[1]['DET'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    else:
+        tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
     tot_pixflag = file[1]['PIX_FLAG'].read()[start_index:end_index,
                                              start_det_ind:end_det_ind, :].astype(bool)
     for local_det_idx, detname in enumerate(band_dets[band]):
-        out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
-        out_data[f'{detname}/todz'] = tot_adu[:, local_det_idx]
+        if should_compress:
+            out_data[f'{detname}/todz'] = tot_adu[:, local_det_idx]
+        else:
+            out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
         out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
     # NB! This is necessary because we interpret the shtop flag inversely internally in commander
@@ -262,6 +267,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         self.num_detectors = num_detectors
         self.band_dets = band_dets
         self.nside = nside
+
 
         self.fsamp = {
             '065': 25.28,  #N60
@@ -296,7 +302,6 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         for band in bands: 
             self.nchunks[band] = len(self.chunk_file_map[band])
         self.reference_time = reference_time
-
 
         self.should_compress = False
 
@@ -367,7 +372,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             # within a file rather than at the beginning of the file.
             start_idx = self.todreaders[band].get_file_index_range(files[0])[0]
             end_idx = self.todreaders[band].get_file_index_range(files[-1])[1]
-            curr_data = self.todreaders[band].get_data(start_idx, end_idx)
+            curr_data = self.todreaders[band].get_data(start_idx, end_idx,
+                    should_compress=self.should_compress)
             mode = curr_data['packet_id']
             if len(files) > 1:
                 raise NotImplementedError("""We currently don't support loading gads flags for several

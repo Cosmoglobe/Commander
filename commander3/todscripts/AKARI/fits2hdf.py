@@ -5,9 +5,12 @@ from cosmoglobe.tod_tools.commander_hdf_writer import CommanderHDFWriter
 
 AKARI_FITS_DIR = '/mn/stornext/d23/cmbco/akari/akari_TSD/www.ir.isas.jaxa.jp/~yamamura/DR2_decompressed/'
 
+OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/eirik_newhdf/'
 OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/duncan_testhdf/'
 NSIDE = 2048
 NUM_SEGMENT_PROCESSES = 60
+# Do this if you want error messages
+#NUM_SEGMENT_PROCESSES = None
 BANDS = ['160']
 
 def run_single_band_write(band):

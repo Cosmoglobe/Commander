@@ -120,7 +120,7 @@ class AKARITODReader:
         return [start_idx, end_idx]
 
 
-    def get_data(self, start_idx, end_idx):
+    def get_data(self, start_idx, end_idx, should_compress=False):
         """Given global indices, gets the contiguous data corresponding to that index range.
         
         The output data are formatted according to what's given by fits2output_formatter.
@@ -161,7 +161,8 @@ class AKARITODReader:
                     file_end_idx = currfile[1].get_nrows()
                 n_points = file_end_idx - file_start_idx
                 curr_data = self.fits2output_formatter(currfile, file_start_idx,
-                                                       file_end_idx, self.band)
+                                                       file_end_idx, self.band,
+                                                       should_compress=should_compress)
             if data is None:
                 data = {}
                 for field, field_data in curr_data.items():
