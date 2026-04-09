@@ -2,6 +2,7 @@ import functools
 from cosmoglobe.tod_tools import CommanderDataAdapter
 import glob
 from commander_tools.tod_tools.akari_native_tod_reader import AKARITODReader
+#from akari_commander_data_adapter import AKARITODReader
 from astropy.coordinates import SkyCoord
 import astropy.coordinates as coords
 import astropy.units as u
@@ -225,10 +226,12 @@ def fits2output_formatter(file, start_index, end_index, band,
     start_det_ind = start_det_inds[band]
     end_det_ind = start_det_ind + num_detectors[band]
     tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    tot_adu = file[1]['DET'].read()[start_index:end_index, start_det_ind:end_det_ind]
     tot_pixflag = file[1]['PIX_FLAG'].read()[start_index:end_index,
                                              start_det_ind:end_det_ind, :].astype(bool)
     for local_det_idx, detname in enumerate(band_dets[band]):
         out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
+        out_data[f'{detname}/todz'] = tot_adu[:, local_det_idx]
         out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
     # NB! This is necessary because we interpret the shtop flag inversely internally in commander
@@ -293,6 +296,9 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         for band in bands: 
             self.nchunks[band] = len(self.chunk_file_map[band])
         self.reference_time = reference_time
+
+
+        self.should_compress = False
 
 
     def _calculate_chunk_files(self):
@@ -370,7 +376,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 #            print(gads_flags)
             for detidx, det in enumerate(self.band_dets[band]):
                 todreader_data[band][det] = {}
-                todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
+                if self.should_compress:
+                    todreader_data[band][det]['todz'] = curr_data[f'{det}/todz']
+                else:
+                    todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
                 todreader_data[band][det]['flag'] = self._process_akari_flags(
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
@@ -463,7 +472,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     @get_chunk
     def get_chunk_data(self, band: str, det:str):
         # The third entry is just zeroes - i.e. currently we're not operating with a 'psi'.
-        return (self.all_chunk_data[band][det]['tod'],
+        if self.should_compress:
+            tod = self.all_chunk_data[band][det]['todz']
+        else:
+            tod = self.all_chunk_data[band][det]['tod']
+        return (tod,
                 self.all_chunk_data[band]['pix'],
                 np.zeros_like(self.all_chunk_data[band]['pix'], dtype=int),
                 self.all_chunk_data[band][det]['flag'])
@@ -497,7 +510,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return [0]*3
 
     def get_should_compress_tods(self):
-        return False
+        return self.should_compress
 
     def get_gain(self, band: str, detector: str):
         return 1
