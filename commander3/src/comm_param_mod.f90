@@ -267,6 +267,7 @@ module comm_param_mod
      !!!! RAELYN: is this the right thing to do? or should it just be a second column in the SED template??
      character(len=2048), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
+     real(dp),           allocatable, dimension(:)     :: cs_nu_join
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
@@ -872,7 +873,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
-    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n))
+    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n), cpar%cs_nu_join(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -2713,14 +2714,34 @@ contains
             & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
-              !!!!!! RAELYN TO DO !!!!!!!!!
-            !!!CHECK IF THIS WORKS?
        if (trim(cpar%cs_MBBtab_type(i)) == 'spline_astrodust') then
           ! call get_parameter_hashtable(htbl, 'COMP_ASTRODUST_TEMPLATE'//itext, len_itext=len_itext,  &
           !   & par_string=cpar%cs_astrodust_template(1,i), path=.true.)
             !or maybe should be 
-            call get_parameter_hashtable(htbl, 'COMP_ASTRODUST_TEMPLATE'//itext, len_itext=len_itext,  &
+            call get_parameter_hashtable(htbl, 'COMP_ADSED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(2,i), path=.true.)
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_DEFAULT'//itext, len_itext=len_itext, &
+            & par_dp=cpar%cs_theta_def(3,i))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_POLTYPE'//itext, len_itext=len_itext, &
+            & par_int=cpar%cs_poltype(3,i))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NU_MIN'//itext, len_itext=len_itext, &  
+            & par_dp=cpar%cs_nu_min_beta(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NU_MAX'//itext, len_itext=len_itext, & 
+            & par_dp=cpar%cs_nu_max_beta(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_INPUT_MAP'//itext, len_itext=len_itext,        &
+            & par_string=cpar%cs_input_ind(3,i), path=.true.)
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_UNI_LOW'//itext, len_itext=len_itext,    &
+            & par_dp=cpar%cs_p_uni(i,1,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_UNI_HIGH'//itext, len_itext=len_itext,   &
+            & par_dp=cpar%cs_p_uni(i,2,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+            & par_dp=cpar%cs_p_gauss(i,1,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_p_gauss(i,2,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_smooth_scale(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_NU_JOIN'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_nu_join(i))
        end if
     end if
 

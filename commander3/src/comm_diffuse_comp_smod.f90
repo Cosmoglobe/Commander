@@ -2796,6 +2796,8 @@ contains
          open(unit, file=trim(filename), status='replace')
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
+         nu2=self%SEDtab(2,self%ntab)
+
          if (allocated(self%astrotab)) then
             !!!RAELYN: GO TO END OF ASTROTAB AMOUNT if it exists 
             nu2=self%astrotab(1,self%nastrotab)
@@ -2811,12 +2813,16 @@ contains
             sed = self%S(nu=nu, pol=1, theta=theta)
             write(unit,'(2E20.10)') nu, sed
          end do
+         if (allocated(self%astrotab)) then
+            do i =1,self%nastrotab
+               write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
+            end do 
+         end if 
          close(unit)
        end if
        
        if (output_hdf .and. allocated(self%astrotab) .and. self%x%info%myid == 0) then
          call write_hdf(chainfile, trim(path)//'/astroDustTab', self%astrotab)
-         !!!RAELYN make sure to write the astrodust to the hdf
        end if
 
 
@@ -3214,11 +3220,11 @@ contains
 
     call invert_matrix(invM, cholesky=.true.)
 
-    if (self%x%info%myid == 0) then
-       do i = 0, 3
-!          write(*,*) real(invM(i,0:3),sp)
-       end do
-    end if
+!     if (self%x%info%myid == 0) then
+!        do i = 0, 3
+! !          write(*,*) real(invM(i,0:3),sp)
+!        end do
+!     end if
 
     ! Store matrix rows
     q = 0
