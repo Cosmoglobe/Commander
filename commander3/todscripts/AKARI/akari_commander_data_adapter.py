@@ -303,7 +303,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             self.nchunks[band] = len(self.chunk_file_map[band])
         self.reference_time = reference_time
 
-        self.should_compress = False
+        self.should_compress = True
 
 
     def _calculate_chunk_files(self):
