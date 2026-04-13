@@ -968,7 +968,7 @@ contains
 !!$    character(len=length) :: text, temp_text
 !!$
 !!$    if (length == 4) then
-!!$       writze(temp_text,'(I4)') number
+!!$       write(temp_text,'(I4)') number
 !!$       temp_text = adjustl(temp_text); temp_text = trim(temp_text)
 !!$       text = repeat('0',4-len_trim(temp_text)) // temp_text
 !!$    else if (length == 5) then
