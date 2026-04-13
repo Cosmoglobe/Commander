@@ -50,6 +50,7 @@ module comm_tod_hfi_mod
   type, extends(comm_tod) :: comm_hfi_tod
      integer(i4b) :: n_4k_lines
      real(sp) :: f_spin
+     type(planck_rng) :: handle
      real(sp), allocatable, dimension(:) :: nus_4k_lines ! (n_4k_lines)
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_dynmask), pointer :: dynmask
@@ -522,7 +523,7 @@ interface
     real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, sd, i_det, handle, ps_output, set_wn_level)
+  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -540,7 +541,6 @@ interface
     class(comm_hfi_tod),                       intent(inout) :: self
     class(comm_scandata),                      intent(inout) :: sd
     integer(i4b),                              intent(in)    :: i_det
-    type(planck_rng),                          intent(inout) :: handle
     character(len=*),                optional, intent(in)    :: ps_output
     logical(lgt),                    optional, intent(in)    :: set_wn_level
   end subroutine deconvolve_rolloff

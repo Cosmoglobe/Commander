@@ -150,13 +150,6 @@ contains
        else
           call tod%diode2tod_inst(sd)
        end if
-
-       ! Apply non-linearity corrections
-       if (nonlin_lvl > 0) then
-          call timer%start(TOD_NONLIN, tod%band)
-          call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle)
-          call timer%stop(TOD_NONLIN, tod%band)
-       end if
     end if
 
     ! Precompute pix2ind
@@ -242,14 +235,6 @@ contains
        !call tod%construct_jump_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
-    
-
-    ! Generate instrument-specific correction template
-    if (btest(oper,SD_INST) .and. spur_lvl>2 ) then
-       call timer%start(TOD_INSTCORR, tod%band)
-       call tod%construct_corrtemp_inst(sd, det)
-       call timer%stop(TOD_INSTCORR, tod%band)
-    end if
 
     ! Coadd optical components of total sky signal
     if (btest(oper,SD_TOT)) then
@@ -281,7 +266,21 @@ contains
           if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
        end do
     end if
+    
+    ! Apply non-linearity corrections
+    if (btest(oper,SD_TOD) .and. nonlin_lvl > 0) then
+       call timer%start(TOD_NONLIN, tod%band)
+       call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle)
+       call timer%stop(TOD_NONLIN, tod%band)
+    end if
 
+    ! Generate instrument-specific correction template
+    if (btest(oper,SD_INST) .and. spur_lvl>2) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_corrtemp_inst(sd, det)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+    
     ! Subtract spurious corrections from TOD according to spur_level
     call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
@@ -334,7 +333,7 @@ contains
   ! initializes a detector data structure for a single detector over the entire flight
   ! - Flagged data are omitted
   ! - nside_pix -> 0 = skip pix; >0 = ring; <0 = nest
-  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd)
+  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd, nonlin_level, spur_level)
     implicit none
     class(comm_tod),     intent(inout) :: tod
     integer(i4b),        intent(in)    :: det
@@ -343,6 +342,7 @@ contains
     integer(i4b),        intent(in)    :: nside_pix 
     logical(lgt),        intent(in)    :: init_mjd
     class(comm_detdata), intent(inout) :: dd
+    integer(i4b),        intent(in),   optional :: nonlin_level, spur_level
     
     integer(i4b) :: i, j, k, p, ntod, q
     type(comm_scandata) :: sd
@@ -367,7 +367,7 @@ contains
     k = 0 ! Number of unmasked samples
     do i = 1, tod%nscan
        if (.not. tod%scans(i)%d(det)%accept) cycle
-       call init_scan_data(tod, i, oper, bitmask0, sd, det=det)
+       call init_scan_data(tod, i, oper, bitmask0, sd, det=det, nonlin_level=nonlin_level, spur_level=spur_level)
 
        g = tod%scans(i)%d(det)%gain
        do j = 1, sd%ntod

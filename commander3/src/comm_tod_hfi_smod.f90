@@ -122,7 +122,7 @@ contains
     c%ndiode = 1
 
     ! Initialize common parameters
-    call c%tod_constructor(cpar, id, id_abs, info, tod_type)
+    !call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
@@ -148,8 +148,8 @@ contains
 
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
-       c%chisq_threshold  = 120.d0
-       c%sigma0_threshold = 100.d0
+       c%chisq_threshold  = 1.d30  ! 120d0
+       c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .false.
     else if (c%freq(1:3) == "353") then
@@ -255,16 +255,16 @@ contains
 
     ! Initialize dynamic mask
     c%dynmask => comm_dynmask(c, cpar)
-    c%dynmask%apply_pixhist           = .true.
-    c%dynmask%apply_solar_mask        = .true.
-    c%dynmask%remove_isolated_samples = .true.
+    !c%dynmask%apply_pixhist           = .true.
+    !c%dynmask%apply_solar_mask        = .true.
+    !c%dynmask%remove_isolated_samples = .true.
     if (c%freq(1:3) /= "353") then
        c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
        c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
-       c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
-       c%dynmask%window_excessRMS(1)    =    5  ! window size in number of samples
-       c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
-       c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
+       !c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
+       !c%dynmask%window_excessRMS(1)    =    5  ! window size in number of samples
+       !c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
+       !c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
     end if
     
     call timer%stop(TOD_INIT, id_abs)
@@ -323,7 +323,7 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_
+    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
     logical(lgt)        :: fit_4k_lines
@@ -345,6 +345,12 @@ contains
     ! file for saving tods
     type(hdf_file) :: tod_file
 
+    if (self%first_call) then
+       seed = rand_uni(handle) * 100000000
+       call rand_init(self%handle, seed)
+    end if
+       
+    
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band)
@@ -362,22 +368,22 @@ contains
        sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = .false.! iter  > 0 !.true.                 
+       sample_gain           = iter  > 0 !.true.                 
        make_dyn_mask         = iter == 2
        sample_ncorr          = .false. !iter  > 1 !.true.
-       sample_xi_n           = iter > 5 
-       select_data           = iter == 3 ! self%first_call  
+       sample_xi_n           = .false. ! iter > 5 
+       select_data           = .false. !iter == 3 ! self%first_call  
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = .false. !.true.                 
+       sample_gain           = iter > 1
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
-       sample_xi_n           = iter > 1 !.false.
-       select_data           = iter == 1 ! self%first_call  
+       sample_ncorr          = .false. !iter  > 0 !.true.
+       sample_xi_n           = .false. !iter > 1 !.false.
+       select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 1 !.true.
     end if
-    fit_4k_lines          = iter > 2
+    fit_4k_lines          = .false. !iter > 2
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -472,7 +478,7 @@ contains
 !!$          call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
 !!$       end do
        
-       if (.not. self%first_call) then
+       if (.false. .and. .not. self%first_call) then
           call int2string(iter, itertext)
           call int2string(self%scanid(i), scantext)
           do j = 1, self%ndet
@@ -480,7 +486,7 @@ contains
              ! fill gaps and deconvolve rolloff
              !call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j,0,1), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
                             !& ps_output = 'init_' // itertext // '_' // scantext)
-             call deconvolve_rolloff(self, sd, j, handle) !sd%tod(:,j), i, j, sd%s_tot(:,j,0,1), sd%mask(:,j), nomono=.true.)!,&
+             call deconvolve_rolloff(self, sd, j) !sd%tod(:,j), i, j, sd%s_tot(:,j,0,1), sd%mask(:,j), nomono=.true.)!,&
                                      !& ps_output = itertext // '_' // scantext)
           end do
        end if
@@ -545,7 +551,7 @@ contains
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', oper_default, handle)
        call sample_calibration(self, 'relcal', oper_default, handle)
-       !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
+       call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
        call update_status(status, "tod_calib"//ctext)
     end if
     
@@ -681,20 +687,20 @@ contains
 
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-      !  if (scanid(i) == 500) then
-      !    call int2string(self%scanid(i), scantext)
+       if (self%scanid(i) == 500) then
+          call int2string(self%scanid(i), scantext)
 
-      !    write(*,*) '| Writing tod to hdf'
-      !    call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
-      !    call write_hdf(tod_file, '/tod',      sd%tod)
-      !    call write_hdf(tod_file, '/todz',     d_calib(1,:,:))
-      !    call write_hdf(tod_file, '/res',      d_calib(2,:,:))
-      !    call write_hdf(tod_file, '/flag',     sd%flag)
-      !    call write_hdf(tod_file, '/s_tot',    sd%s_tot)
-      !    call write_hdf(tod_file, '/mask',     sd%mask)
-
-      !    call close_hdf_file(tod_file)
-      !  end if
+          write(*,*) '| Writing tod to hdf'
+          call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+          call write_hdf(tod_file, '/tod',      sd%tod)
+          call write_hdf(tod_file, '/calib',    d_calib(1,:,:))
+          call write_hdf(tod_file, '/res',      d_calib(2,:,:))
+          call write_hdf(tod_file, '/flag',     sd%flag)
+          call write_hdf(tod_file, '/psi',      sd%psi)
+          call write_hdf(tod_file, '/s_tot',    sd%s_tot)
+          call write_hdf(tod_file, '/mask',     sd%mask)
+          call close_hdf_file(tod_file)
+        end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -725,7 +731,7 @@ contains
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
        !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
-       call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
+       !call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
        
        if (self%symm_flags) then
           ! Remove partners for rejected scans
@@ -1267,7 +1273,7 @@ contains
     real(sp), allocatable, dimension(:,:)   :: phase
     real(sp), allocatable, dimension(:,:)   :: Q
 
-    allocate(base(self%last_scan,self%ndet,2), phase(self%last_scan,self%ndet))
+    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
     base  = 0.d0
     phase = 0.0
     do j = 1, self%ndet
@@ -1380,16 +1386,16 @@ contains
     end if
 
     ! Demodulate TOD
-    if (nonlin_lvl > 1 .and. present(handle)) then
-       call sample_hfi_baselines(sd, self, scan, handle)
+    if (nonlin_lvl > 1) then
+       !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
     
     ! Deconvolve high-frequency roll-off
-    if (nonlin_lvl > 2 .and. present(handle)) then
+    if (nonlin_lvl > 2) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          call deconvolve_rolloff(self, sd, i, handle) !sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
+          !call deconvolve_rolloff(self, sd, i) !sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
        end do
     end if
 
@@ -1398,7 +1404,7 @@ contains
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           !call remove_hfi_4k_lines(self, scan, i, sd%tod(:,i), sd%s_tot(:,i))
-          call estimate_hfi_4k_lines(self, sd, i)
+          !call estimate_hfi_4k_lines(self, sd, i)
        end do
     end if
 
@@ -1504,6 +1510,16 @@ contains
     gain = self%scans(scan)%d(i_det)%gain
     allocate(d_prime(ntod))
     d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
+
+    if (present(ps_output)) then
+       open(58,file=ps_output // '_start_tod.dat', recl=1024)
+       do l = 1, ntod
+          write(58,*) l, d_prime(l), sd%tod(l,i_det), gain*sd%s_tot(l,i_det,0,1)
+       end do
+       close(58)
+    end if
+
+
     if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
     dt(1:ntod)           = d_prime
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -1743,7 +1759,7 @@ contains
  
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, sd, i_det, handle, ps_output, set_wn_level) !tod, scan, i_det, s_sub, mask, flag, handle, ps_output, set_wn_level)
+  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level) !tod, scan, i_det, s_sub, mask, flag, handle, ps_output, set_wn_level)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -1770,7 +1786,6 @@ contains
     class(comm_hfi_tod),                       intent(inout) :: self
     class(comm_scandata),                      intent(inout) :: sd
     integer(i4b),                              intent(in)    :: i_det
-    type(planck_rng),                          intent(inout) :: handle
     character(len=*),                optional, intent(in)    :: ps_output
     logical(lgt),                    optional, intent(in)    :: set_wn_level
 
@@ -1860,7 +1875,7 @@ contains
     ! Gap fill tod with respect to flag array
     do i = 1, ntod
        if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then 
-          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(handle)
+          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
        end if
     end do
 

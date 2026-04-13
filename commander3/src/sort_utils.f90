@@ -667,7 +667,7 @@ contains
        itemp = numbers(i)
        numbers(i) = numbers(right-1)
        numbers(right-1) = itemp
-          
+
        call quick_sort_int(numbers, left, i-1, depth+1)
        call quick_sort_int(numbers, i+1, right, depth+1)
     end if
@@ -677,36 +677,36 @@ contains
        return
     end if
   
-    call median3_int(numbers, left, right, pivot)
-  
-    i = left
-    j = right - 1
-  
-    do
-       i = i + 1
-       do while (numbers(i) < pivot)
-          i = i + 1
-       end do
-  
-       j = j - 1
-       do while (numbers(j) > pivot)
-          j = j - 1
-       end do
-  
-       if (i >= j) exit
-  
-       itemp = numbers(i)
-       numbers(i) = numbers(j)
-       numbers(j) = itemp
-    end do
-  
-    ! Restore pivot
-    itemp = numbers(i)
-    numbers(i) = numbers(right-1)
-    numbers(right-1) = itemp
-  
-    call quick_sort_int(numbers, left, i-1, depth+1)
-    call quick_sort_int(numbers, i+1, right, depth+1)
+!!$    call median3_int(numbers, left, right, pivot)
+!!$  
+!!$    i = left
+!!$    j = right - 1
+!!$  
+!!$    do
+!!$       i = i + 1
+!!$       do while (numbers(i) < pivot)
+!!$          i = i + 1
+!!$       end do
+!!$  
+!!$       j = j - 1
+!!$       do while (numbers(j) > pivot)
+!!$          j = j - 1
+!!$       end do
+!!$  
+!!$       if (i >= j) exit
+!!$  
+!!$       itemp = numbers(i)
+!!$       numbers(i) = numbers(j)
+!!$       numbers(j) = itemp
+!!$    end do
+!!$  
+!!$    ! Restore pivot
+!!$    itemp = numbers(i)
+!!$    numbers(i) = numbers(right-1)
+!!$    numbers(right-1) = itemp
+!!$  
+!!$    call quick_sort_int(numbers, left, i-1, depth+1)
+!!$    call quick_sort_int(numbers, i+1, right, depth+1)
   end subroutine quick_sort_int
 
 
@@ -720,6 +720,8 @@ contains
 
     integer(i4b)                  :: center, itemp
 
+    if (left == right) return
+    
     center = (left+right)/2
 
     if (numbers(left) > numbers(center)) then
@@ -966,7 +968,7 @@ contains
 !!$    character(len=length) :: text, temp_text
 !!$
 !!$    if (length == 4) then
-!!$       write(temp_text,'(I4)') number
+!!$       writze(temp_text,'(I4)') number
 !!$       temp_text = adjustl(temp_text); temp_text = trim(temp_text)
 !!$       text = repeat('0',4-len_trim(temp_text)) // temp_text
 !!$    else if (length == 5) then

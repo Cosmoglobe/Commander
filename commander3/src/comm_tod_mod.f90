@@ -1483,7 +1483,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -1637,7 +1637,7 @@ contains
             do i = 1, n_tot
                proc(i) = mod(filenum(i),self%numprocs)
             end do
-         else
+         else 
             ! Compute symmetry axis
             v0 = 0.d0
             do i = 2, n_tot
@@ -1719,13 +1719,15 @@ contains
 !!$            write(*,*) '|'
 !!$            write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
+!         else
+!            deallocate(id, pweight, weight, sid, spinaxis)
          end if
 
-         ! Distribute according to consecutive PID
-         n_per_core = int(real(n_tot,sp)/np)+1
-         do i = 1, n_tot
-            proc(i) = (i-1)/n_per_core
-         end do
+!!$         ! Distribute according to consecutive PID
+!!$         n_per_core = int(real(n_tot,sp)/np)+1
+!!$         do i = 1, n_tot
+!!$            proc(i) = (i-1)/n_per_core
+!!$         end do
 
 !!$         write(*,*) '    Scan        Core'
 !!$         do k = 1, n_tot
@@ -1733,7 +1735,6 @@ contains
 !!$         end do
                   
          deallocate(filenum)
-
       end if
    end if
 
@@ -1785,8 +1786,8 @@ contains
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
-    allocate(output(self%last_scan,self%ndet,npar))
-    allocate(  mjds(self%last_scan))
+    allocate(output(self%nscan_tot,self%ndet,npar))
+    allocate(  mjds(self%nscan_tot))
 
 
     ! Collect all parameters

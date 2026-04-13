@@ -47,7 +47,7 @@ contains
     do det = 1, ndet
     
        ! Set up full-mission scan data
-       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd)
+       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd, nonlin_level=0, spur_level=0)
        call timer%start(TOD_PIXHIST, tod%band)
        
 !!$       if (tod%myid == 0 .and. det == 2) then
