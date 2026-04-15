@@ -15,19 +15,8 @@ module comm_tod_driver_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
   use comm_tod_dynmask_mod
-  !use comm_4d_map_mod
   use omp_lib
   implicit none
-
-!!$  ! Class for uncompressed data of a single detector over the full flight
-!!$  type :: comm_detdata
-!!$    integer(i4b) :: nscan
-!!$    integer(i4b), allocatable, dimension(:) :: ntod, scans
-!!$    real(sp), allocatable, dimension(:,:) :: tod
-!!$  contains
-!!$    procedure init_singlehorn => init_det_data_singlehorn
-!!$    procedure dealloc         => dealloc_det_data
-!!$  end type comm_detdata
 
 contains
 
@@ -46,6 +35,7 @@ contains
   !                   (1) = monopole
   !                   (2) = (1) + jumps
   !                   (3) = (2) + instrument-specific
+  !                   (4) = (3) + spikes
   subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
@@ -98,6 +88,7 @@ contains
     if (btest(oper,SD_MONO))    allocate(sd%s_mono  (ntod, ndet))
     if (btest(oper,SD_INST))    allocate(sd%s_inst  (ntod, ndet))
     if (btest(oper,SD_JUMP))    allocate(sd%s_jump  (ntod, ndet))
+    if (btest(oper,SD_SPIKE))   allocate(sd%s_spike (ntod, ndet))
     if (btest(oper,SD_DARK))    allocate(sd%dark    (ntod, tod%ndark))
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
@@ -228,7 +219,6 @@ contains
        end do
     end if
 
-
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
@@ -236,6 +226,13 @@ contains
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
 
+    ! Construct spike correction template
+    if (btest(oper,SD_SPIKE)) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_spike_corr(sd)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+    
     ! Coadd optical components of total sky signal
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
@@ -255,7 +252,7 @@ contains
     ! Coadd horn signals into detector signals; store result in 0th horn-row
     if (nhorn > 1) call tod%coadd_horns(sd)
 
-    ! Add non-optical components into a net spurious component; subtract from data
+    ! Add non-optical components into a net spurious component
     if (btest(oper,SD_SPUR)) then
        sd%s_spur = 0.
        do j = 1, ndet
@@ -264,6 +261,7 @@ contains
           if (btest(oper,SD_MONO))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_mono(:,d)
           if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
           if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
+          if (btest(oper,SD_SPIKE)) sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_spike(:,d)
        end do
     end if
     
@@ -286,9 +284,10 @@ contains
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
     
@@ -317,6 +316,7 @@ contains
     if (allocated(sd%s_bp))          deallocate(sd%s_bp)
     if (allocated(sd%s_mono))        deallocate(sd%s_mono)
     if (allocated(sd%s_jump))        deallocate(sd%s_jump)
+    if (allocated(sd%s_spike))       deallocate(sd%s_spike)
     if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
     if (allocated(sd%s_inst))        deallocate(sd%s_inst)
     if (allocated(sd%s_gain))        deallocate(sd%s_gain)

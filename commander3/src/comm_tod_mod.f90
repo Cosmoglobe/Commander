@@ -26,6 +26,7 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_tod_Tbol_mod
+  use comm_tod_spike_mod
   use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
@@ -81,7 +82,8 @@ module comm_tod_mod
      real(dp)          :: baseline1, baseline2
      integer(i4b)      :: nsamp_unmasked                    ! Number of unmasked samples
      logical(lgt)      :: accept
-     class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
+     class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
+     class(comm_tod_spike), pointer :: spike                             ! Spike object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -346,6 +348,7 @@ module comm_tod_mod
      procedure                           :: apply_nonlin_corr_inst
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
+     procedure                           :: construct_spike_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -413,6 +416,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_zodi        ! Zodiacal emission
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
+     real(sp),     allocatable, dimension(:,:)     :: s_spike       ! Spike correction [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
@@ -2335,6 +2339,38 @@ contains
 
   end subroutine construct_orbital_dipole
 
+  subroutine construct_spike_corr(self, sd, det)
+    ! construct spike correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output spike template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ntod, ndet, scan
+
+    scan         = sd%scan
+    ntod         = sd%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, self%ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
+    end do
+
+  end subroutine construct_spike_corr
+  
   
   subroutine output_scan_list(self, slist)
     implicit none
