@@ -2327,7 +2327,7 @@ contains
           end if
           
           call self%orb_dp%compute_orbital_dipole(d, v_ref, v_ref_next, self%nu_c(d), &
-               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f)
+               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f/self%bp(j)%p%unit_scale)
           !write(*,*) 'orb', d, j, sd%s_orb(1:5,j,hp)
        end do
     end do

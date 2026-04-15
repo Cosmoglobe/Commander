@@ -687,7 +687,7 @@ contains
 
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-       if (self%scanid(i) == 500) then
+       if (self%scanid(i) == 6528 .or. self%scanid(i) == 6605) then
           call int2string(self%scanid(i), scantext)
 
           write(*,*) '| Writing tod to hdf'
@@ -696,6 +696,7 @@ contains
           call write_hdf(tod_file, '/calib',    d_calib(1,:,:))
           call write_hdf(tod_file, '/res',      d_calib(2,:,:))
           call write_hdf(tod_file, '/flag',     sd%flag)
+          call write_hdf(tod_file, '/orb',      sd%s_orb)
           call write_hdf(tod_file, '/psi',      sd%psi)
           call write_hdf(tod_file, '/s_tot',    sd%s_tot)
           call write_hdf(tod_file, '/mask',     sd%mask)
