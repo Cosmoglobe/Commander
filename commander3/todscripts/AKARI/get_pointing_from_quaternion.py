@@ -1,5 +1,6 @@
 import argparse
 import csv
+import functools
 import pickle
 from pathlib import Path
 
@@ -8,12 +9,10 @@ import numpy as np
 
 try:
     import matplotlib.pyplot as plt
-    HAS_MATPLOTLIB = True
 except ImportError:
-    HAS_MATPLOTLIB = False
+    plt = None
 
 DEG2RAD = np.pi / 180.0
-RAD2DEG = 180.0 / np.pi
 
 # Obliquity of the ecliptic at MJD_J2000 = 51544.5 (jdcent = 0)
 # From coordinate.cc eps(): epsilon = 23.439292 deg  (IAU 1976 constant term)
@@ -49,7 +48,21 @@ def rotate_vectors_by_quat(v, q_xyzw):
     return v + qw[:, None] * t + np.cross(qv, t)
 
 
-def quat_to_roll_like_cpp(quat_xyzw):
+def rotate_unit_z_by_quat(q_xyzw):
+    """Rotate boresight unit vector [0,0,1] by quaternion(s), xyzw convention."""
+    x = q_xyzw[:, 0]
+    y = q_xyzw[:, 1]
+    z = q_xyzw[:, 2]
+    w = q_xyzw[:, 3]
+
+    out = np.empty((len(q_xyzw), 3), dtype=np.float64)
+    out[:, 0] = 2.0 * (x * z + y * w)
+    out[:, 1] = 2.0 * (y * z - x * w)
+    out[:, 2] = 1.0 - 2.0 * (x * x + y * y)
+    return out
+
+
+def quat_to_roll_euler(quat_xyzw):
     """Roll extraction matching Quaternion::GetEuler in C++.
 
     m23 = 2*q1*q2 + 2*q0*q3
@@ -65,6 +78,33 @@ def quat_to_roll_like_cpp(quat_xyzw):
     m23 = 2.0 * q1 * q2 + 2.0 * q0 * q3
     m33 = 2.0 * q3 * q3 + 2.0 * q2 * q2 - 1.0
     return np.arctan2(m23, m33)
+
+
+def quat_multiply_xyzw(q_left, q_right):
+    """Quaternion product q_left * q_right in xyzw convention.
+
+    q_left: (N, 4)
+    q_right: (N, 4) or (4,)
+    returns: (N, 4)
+    """
+    qx = q_left[:, 0]
+    qy = q_left[:, 1]
+    qz = q_left[:, 2]
+    qw = q_left[:, 3]
+
+    if q_right.ndim == 1:
+        rx, ry, rz, rw = q_right
+    else:
+        rx = q_right[:, 0]
+        ry = q_right[:, 1]
+        rz = q_right[:, 2]
+        rw = q_right[:, 3]
+
+    ox = qw * rx + qx * rw + qy * rz - qz * ry
+    oy = qw * ry - qx * rz + qy * rw + qz * rx
+    oz = qw * rz + qx * ry - qy * rx + qz * rw
+    ow = qw * rw - qx * rx - qy * ry - qz * rz
+    return np.stack((ox, oy, oz, ow), axis=1)
 
 
 def quat_to_matrix_xyzw(quat_xyzw):
@@ -86,26 +126,33 @@ def quat_to_matrix_xyzw(quat_xyzw):
     return r
 
 
+def quat_to_roll_like_pr_rad(quat_xyzw, ra_rad, dec_rad):
+    """PR-compatible roll from quaternion and boresight (radians input)."""
+    x = quat_xyzw[:, 0]
+    y = quat_xyzw[:, 1]
+    z = quat_xyzw[:, 2]
+    w = quat_xyzw[:, 3]
+
+    # Body X-axis in sky frame (first column of rotation matrix).
+    bx0 = 1.0 - 2.0 * (y * y + z * z)
+    bx1 = 2.0 * (x * y + z * w)
+    bx2 = 2.0 * (x * z - y * w)
+
+    sinra = np.sin(ra_rad)
+    cosra = np.cos(ra_rad)
+    sindec = np.sin(dec_rad)
+    cosdec = np.cos(dec_rad)
+
+    # Dot products with local East and North basis at boresight.
+    dot_east = bx0 * (-sinra) + bx1 * cosra
+    dot_north = bx0 * (-sindec * cosra) + bx1 * (-sindec * sinra) + bx2 * cosdec
+
+    return np.degrees(np.arctan2(dot_east, dot_north))
+
+
 def quat_to_roll_like_pr(quat_xyzw, ra_deg, dec_deg):
     """PR-compatible roll as sky position angle of body X-axis around boresight."""
-    r = quat_to_matrix_xyzw(quat_xyzw)
-    bx = r[:, :, 0]
-    bz = r[:, :, 2]
-
-    ra = np.radians(ra_deg)
-    dec = np.radians(dec_deg)
-
-    east = np.stack((-np.sin(ra), np.cos(ra), np.zeros_like(ra)), axis=1)
-    north = np.stack(
-        (-np.sin(dec) * np.cos(ra), -np.sin(dec) * np.sin(ra), np.cos(dec)), axis=1
-    )
-
-    v = bx - np.sum(bx * bz, axis=1, keepdims=True) * bz
-    vn = np.linalg.norm(v, axis=1)
-    good = vn > 0.0
-    v[good] /= vn[good, None]
-
-    return np.degrees(np.arctan2(np.sum(v * east, axis=1), np.sum(v * north, axis=1)))
+    return quat_to_roll_like_pr_rad(quat_xyzw, np.radians(ra_deg), np.radians(dec_deg))
 
 
 def equatorial_to_ecliptic_lon_lat(ra_deg, dec_deg):
@@ -168,8 +215,9 @@ def quat_from_xy_arcmin(x_arcmin, y_arcmin):
     return np.stack((qx, qy, qz, qw), axis=1)
 
 
-def load_pixel_positions(detector, pixelpos_dir):
-    pixelpos_dir = Path(pixelpos_dir).expanduser()
+@functools.lru_cache(maxsize=16)
+def _load_pixel_positions_cached(detector, pixelpos_dir_resolved):
+    pixelpos_dir = Path(pixelpos_dir_resolved)
     if detector == "SW":
         fn = pixelpos_dir / "ofsts_001_002.txt"
         n_det = 100
@@ -186,7 +234,30 @@ def load_pixel_positions(detector, pixelpos_dir):
     # Match fis_pixpos.cc: first column -> y, second -> x, both negated.
     y = -arr[:, 0]
     x = -arr[:, 1]
+    # Keep cached arrays immutable by convention.
+    x.setflags(write=False)
+    y.setflags(write=False)
     return x, y
+
+
+def load_pixel_positions(detector, pixelpos_dir):
+    """Load detector pixel offsets, using a process-local cache."""
+    resolved = str(Path(pixelpos_dir).expanduser().resolve())
+    x, y = _load_pixel_positions_cached(detector, resolved)
+    return x, y
+
+
+def infer_detector_type_from_filename(filename):
+    """Infer detector type from AKARI file naming convention.
+
+    Returns "SW"/"LW" when possible, otherwise None.
+    """
+    name = Path(filename).name.upper()
+    if "_SW_" in name:
+        return "SW"
+    if "_LW_" in name:
+        return "LW"
+    return None
 
 
 def apply_longcorrect_offsets(x, y, detector, packetid0):
@@ -231,8 +302,8 @@ def apply_longcorrect_offsets(x, y, detector, packetid0):
     return x, y, cds_active
 
 
-def get_idl_alignment_offsets_arcsec(detector, attitude_source):
-    """Return IDL pos_bs2detpix alignment offsets [crossW, inW, crossN, inN] in arcsec.
+def get_attitude_dependent_alignment_offsets_arcsec(detector, attitude_source):
+    """Return attitude-dependent alignment offsets [crossW, inW, crossN, inN] in arcsec.
 
     Values follow idl/ASTRO-F/reduction/position/pro/pos_bs2detpix.pro
     for default (non-FTS) operation.
@@ -248,8 +319,8 @@ def get_idl_alignment_offsets_arcsec(detector, attitude_source):
     return np.array([12.5, -112.5, 12.5, -112.5], dtype=np.float64)
 
 
-def apply_idl_alignment_offsets(x, y, detector, attitude_source):
-    """Apply IDL-style alignment offsets to detector positions.
+def apply_attitude_dependent_alignment_offsets(x, y, detector, attitude_source):
+    """Apply attitude-dependent alignment offsets to detector positions.
 
     x, y are arcmin detector offsets as loaded from CCF proxy tables.
     In pos_bs2detpix.pro these map to dx (in-scan) and dy (cross-scan) and are
@@ -258,7 +329,7 @@ def apply_idl_alignment_offsets(x, y, detector, attitude_source):
     dx = x.copy()
     dy = y.copy()
 
-    off = get_idl_alignment_offsets_arcsec(detector, attitude_source)
+    off = get_attitude_dependent_alignment_offsets_arcsec(detector, attitude_source)
     if detector == "SW":
         iw = np.arange(60)
         inr = np.arange(60, 100)
@@ -275,8 +346,8 @@ def apply_idl_alignment_offsets(x, y, detector, attitude_source):
     return dx, dy
 
 
-def compute_idl_aberration_arcsec(aftime, boresight_ra_deg, boresight_dec_deg):
-    """IDL pos_bs2detpix aberration model, returning (abx, aby) in arcsec.
+def compute_seasonal_aberration_arcsec(aftime, boresight_ra_deg, boresight_dec_deg):
+    """Compute the seasonal/AFTIME aberration model, returning (abx, aby) in arcsec.
 
     Follows the equations around aberration_x / aberration_y in:
     idl/ASTRO-F/reduction/position/pro/pos_bs2detpix.pro
@@ -305,56 +376,6 @@ def compute_idl_aberration_arcsec(aftime, boresight_ra_deg, boresight_dec_deg):
     return aberration_x, aberration_y
 
 
-def focal_plane_solution_idl(quat, aftime, x_arcmin, y_arcmin, detector, attitude_source):
-    """Emulate IDL pos_bs2detpix output path (equatorial lon/lat by default).
-
-    This reproduces the core IDL model steps:
-    1) Apply branch-dependent alignment offsets (PR vs GADS)
-    2) Compute boresight-based seasonal aberration_x/y
-    3) Apply per-sample aberration to detector offsets
-    4) Project detector vectors through spacecraft quaternion
-    """
-    nsamp = quat.shape[0]
-    ndet = len(x_arcmin)
-
-    dx0, dy0 = apply_idl_alignment_offsets(x_arcmin, y_arcmin, detector, attitude_source)
-
-    ra_bore, dec_bore = boresight_solution(quat)
-    aberr_x_arcsec, aberr_y_arcsec = compute_idl_aberration_arcsec(aftime, ra_bore, dec_bore)
-
-    out_ra = np.empty((nsamp, ndet), dtype=np.float64)
-    out_dec = np.empty((nsamp, ndet), dtype=np.float64)
-    out_roll = np.empty((nsamp, ndet), dtype=np.float64)
-
-    v0 = np.zeros((nsamp, 3), dtype=np.float64)
-    v0[:, 2] = 1.0
-
-    for j in range(ndet):
-        # IDL applies aberration_x/y (arcsec) as sample-dependent shifts to dx/dy.
-        x_samp = dx0[j] - aberr_x_arcsec / 60.0
-        y_samp = dy0[j] - aberr_y_arcsec / 60.0
-
-        q_det = quat_from_xy_arcmin(x_samp, y_samp)
-        v_step1 = rotate_vectors_by_quat(v0, q_det)
-        v_final = rotate_vectors_by_quat(v_step1, quat)
-
-        al = np.arctan2(v_final[:, 1], v_final[:, 0])
-        dl = np.arcsin(np.clip(v_final[:, 2], -1.0, 1.0))
-        out_ra[:, j] = wrap_360(np.degrees(al))
-        out_dec[:, j] = np.degrees(dl)
-
-        # Keep PR-like roll extraction for consistency in downstream diagnostics.
-        qj = q_det
-        qx = quat[:, 3] * qj[:, 0] + quat[:, 0] * qj[:, 3] + quat[:, 1] * qj[:, 2] - quat[:, 2] * qj[:, 1]
-        qy = quat[:, 3] * qj[:, 1] - quat[:, 0] * qj[:, 2] + quat[:, 1] * qj[:, 3] + quat[:, 2] * qj[:, 0]
-        qz = quat[:, 3] * qj[:, 2] + quat[:, 0] * qj[:, 1] - quat[:, 1] * qj[:, 0] + quat[:, 2] * qj[:, 3]
-        qw = quat[:, 3] * qj[:, 3] - quat[:, 0] * qj[:, 0] - quat[:, 1] * qj[:, 1] - quat[:, 2] * qj[:, 2]
-        q_full = np.stack((qx, qy, qz, qw), axis=1)
-        out_roll[:, j] = quat_to_roll_like_pr(q_full, out_ra[:, j], out_dec[:, j])
-
-    return out_ra, out_dec, out_roll
-
-
 def infer_detector_type(data):
     flux = data["FIS_OBS"]["FLUX"].read()
     n_det = flux.shape[1]
@@ -366,38 +387,37 @@ def infer_detector_type(data):
 
 
 def boresight_solution(quat):
-    v = np.zeros((len(quat), 3), dtype=np.float64)
-    v[:, 2] = 1.0
-    vrot = rotate_vectors_by_quat(v, quat)
+    vrot = rotate_unit_z_by_quat(quat)
     al = np.arctan2(vrot[:, 1], vrot[:, 0])
     dl = np.arcsin(np.clip(vrot[:, 2], -1.0, 1.0))
     return wrap_360(np.degrees(al)), np.degrees(dl)
 
 
-def focal_plane_solution_no_aberration(quat, q_fov):
-    """Return (ra, dec, roll) arrays with shape (nsamp, ndet), no aberration."""
+def _focal_plane_solution_no_aberration_qfov(quat, q_fov, compute_roll=True):
+    """Internal no-aberration kernel with precomputed detector quaternions."""
     nsamp = quat.shape[0]
     ndet = q_fov.shape[0]
 
     out_ra = np.empty((nsamp, ndet), dtype=np.float64)
     out_dec = np.empty((nsamp, ndet), dtype=np.float64)
-    out_roll = np.empty((nsamp, ndet), dtype=np.float64)
+    out_roll = np.empty((nsamp, ndet), dtype=np.float64) if compute_roll else None
+
+    # Rotate unit boresight by each fixed detector quaternion once.
+    v_det = rotate_unit_z_by_quat(q_fov)  # (ndet, 3)
+
+    # Apply time-dependent attitude rotation to all detectors at once.
+    r = quat_to_matrix_xyzw(quat)  # (nsamp, 3, 3)
+    vrot = np.einsum("sij,dj->sdi", r, v_det, optimize=True)  # (nsamp, ndet, 3)
+
+    al = np.arctan2(vrot[:, :, 1], vrot[:, :, 0])
+    dl = np.arcsin(np.clip(vrot[:, :, 2], -1.0, 1.0))
+    out_ra[:, :] = wrap_360(np.degrees(al))
+    out_dec[:, :] = np.degrees(dl)
+
+    if not compute_roll:
+        return out_ra, out_dec, None
 
     for j in range(ndet):
-        # Rotate boresight by fixed detector offset first.
-        v0 = np.array([[0.0, 0.0, 1.0]], dtype=np.float64)
-        v_det = rotate_vectors_by_quat(v0, q_fov[j : j + 1])[0]
-
-        # Then rotate by time-dependent attitude quaternion.
-        v = np.repeat(v_det[None, :], nsamp, axis=0)
-        vrot = rotate_vectors_by_quat(v, quat)
-
-        al = np.arctan2(vrot[:, 1], vrot[:, 0])
-        dl = np.arcsin(np.clip(vrot[:, 2], -1.0, 1.0))
-
-        out_ra[:, j] = wrap_360(np.degrees(al))
-        out_dec[:, j] = np.degrees(dl)
-
         # Compose: q_full = q_ads * q_fov  (attitude first, then detector offset).
         # This is the rotation mapping body frame -> sky frame: correct combined roll.
         qj = q_fov[j]
@@ -443,8 +463,8 @@ def parse_detector_spec(spec, n_det):
     return uniq
 
 
-def focal_plane_solution(quat, x_arcmin, y_arcmin):
-    """Focal-plane pointing matching LongCorrect's two-pass aberration correction.
+def _focal_plane_solution_with_aberration(quat, x_arcmin, y_arcmin, compute_roll=True):
+    """Internal focal-plane kernel matching LongCorrect's two-pass aberration correction.
 
     Replicates the LongCorrect.cc pointing loop:
       1. Preliminary pointing with QfovDet = QuatXY(x, y) (no aberration)
@@ -458,23 +478,20 @@ def focal_plane_solution(quat, x_arcmin, y_arcmin):
     """
     nsamp = quat.shape[0]
     ndet = len(x_arcmin)
+    # Precompute attitude rotation matrices once; reused for all detectors.
+    r_att = quat_to_matrix_xyzw(quat)  # (nsamp, 3, 3)
 
     out_ra = np.empty((nsamp, ndet), dtype=np.float64)
     out_dec = np.empty((nsamp, ndet), dtype=np.float64)
-    out_roll = np.empty((nsamp, ndet), dtype=np.float64)
-
-    v0 = np.zeros((nsamp, 3), dtype=np.float64)
-    v0[:, 2] = 1.0  # boresight [0, 0, 1]
+    out_roll = np.empty((nsamp, ndet), dtype=np.float64) if compute_roll else None
 
     for j in range(ndet):
         # ---- Step 1: preliminary no-aberration pointing ----
         q_fov_j = quat_from_xy_arcmin(
             np.array([x_arcmin[j]]), np.array([y_arcmin[j]])
         )  # (1, 4)
-        v_det = rotate_vectors_by_quat(np.array([[0.0, 0.0, 1.0]]), q_fov_j)[0]  # (3,)
-        v_pre = rotate_vectors_by_quat(
-            np.repeat(v_det[None, :], nsamp, axis=0), quat
-        )  # (nsamp, 3)
+        v_det = rotate_unit_z_by_quat(q_fov_j)[0]  # (3,)
+        v_pre = np.einsum("sij,j->si", r_att, v_det, optimize=True)  # (nsamp, 3)
         al_pre = np.arctan2(v_pre[:, 1], v_pre[:, 0])
         dl_pre = np.arcsin(np.clip(v_pre[:, 2], -1.0, 1.0))
 
@@ -490,25 +507,172 @@ def focal_plane_solution(quat, x_arcmin, y_arcmin):
         )  # (nsamp, 4)
 
         # ---- Step 4: final pointing ----
-        v_step1 = rotate_vectors_by_quat(v0, q_ab_j)   # (nsamp, 3): apply q_ab to boresight
-        v_final = rotate_vectors_by_quat(v_step1, quat) # (nsamp, 3): apply attitude
+        v_step1 = rotate_unit_z_by_quat(q_ab_j)   # (nsamp, 3): apply q_ab to boresight
+        v_final = np.einsum("sij,sj->si", r_att, v_step1, optimize=True)  # (nsamp, 3)
         al = np.arctan2(v_final[:, 1], v_final[:, 0])
         dl = np.arcsin(np.clip(v_final[:, 2], -1.0, 1.0))
         out_ra[:, j] = wrap_360(np.degrees(al))
         out_dec[:, j] = np.degrees(dl)
 
-        # ---- Step 5: roll from composed quaternion q_ads * q_ab ----
-        # Correct body-to-sky rotation is q_ads * q_ab (not q_ab * q_ads).
-        # q_ab_j is (nsamp, 4) here (per-sample aberration-adjusted detector quaternion).
-        qj = q_ab_j
-        qx = quat[:, 3] * qj[:, 0] + quat[:, 0] * qj[:, 3] + quat[:, 1] * qj[:, 2] - quat[:, 2] * qj[:, 1]
-        qy = quat[:, 3] * qj[:, 1] - quat[:, 0] * qj[:, 2] + quat[:, 1] * qj[:, 3] + quat[:, 2] * qj[:, 0]
-        qz = quat[:, 3] * qj[:, 2] + quat[:, 0] * qj[:, 1] - quat[:, 1] * qj[:, 0] + quat[:, 2] * qj[:, 3]
-        qw = quat[:, 3] * qj[:, 3] - quat[:, 0] * qj[:, 0] - quat[:, 1] * qj[:, 1] - quat[:, 2] * qj[:, 2]
-        q_full = np.stack((qx, qy, qz, qw), axis=1)
-        out_roll[:, j] = quat_to_roll_like_pr(q_full, out_ra[:, j], out_dec[:, j])
+        if compute_roll:
+            # ---- Step 5: roll from composed quaternion q_ads * q_ab ----
+            # Correct body-to-sky rotation is q_ads * q_ab (not q_ab * q_ads).
+            # q_ab_j is (nsamp, 4) here (per-sample aberration-adjusted detector quaternion).
+            q_full = quat_multiply_xyzw(quat, q_ab_j)
+            out_roll[:, j] = quat_to_roll_like_pr_rad(q_full, al, dl)
 
     return out_ra, out_dec, out_roll
+
+
+def normalize_offset_style(offset_style):
+    """Normalize public offset-style labels to internal canonical values."""
+    if offset_style is None:
+        return None
+    style = offset_style.lower()
+    if style in {"none", "raw"}:
+        return None
+    if style in {"long", "longcorrect", "static"}:
+        return "long"
+    if style in {"attitude", "seasonal-attitude", "idl"}:
+        return "attitude"
+    raise ValueError(f"offset_style must be one of 'long', 'attitude', or None; got {offset_style!r}")
+
+
+def normalize_aberration_style(aberration_style):
+    """Normalize public aberration-style labels to internal canonical values."""
+    if aberration_style is None:
+        return "long"
+    style = aberration_style.lower()
+    if style in {"long", "longcorrect", "ecliptic"}:
+        return "long"
+    if style in {"seasonal", "aftime", "idl"}:
+        return "seasonal"
+    raise ValueError(
+        f"aberration_style must be one of 'long' or 'seasonal'; got {aberration_style!r}"
+    )
+
+
+def focal_plane_solution(
+    quat,
+    x_arcmin,
+    y_arcmin,
+    aberration=True,
+    compute_roll=True,
+    offset_style=None,
+    detector=None,
+    packetid0=None,
+    attitude_source=None,
+    aberration_style=None,
+    aftime=None,
+):
+    """Unified focal-plane pointing solution.
+
+    Both the C++ (LongCorrect) and IDL (pos_bs2detpix) pipelines reduce to
+    this function with different flag combinations.  The results are
+    numerically identical when the same flags are used — all differences
+    between the two historical pipelines come entirely from the choice of
+    offset formula and/or aberration model.
+
+    Pipeline recipes
+    ----------------
+    **C++ / LongCorrect pipeline** (attitude-agnostic offsets, ecliptic-lat aberration)::
+
+        focal_plane_solution(
+            quat, x_arcmin, y_arcmin,
+            offset_style="long",  detector=detector, packetid0=packetid0,
+            aberration_style="long",
+        )
+
+    **Attitude-dependent / seasonal pipeline** (attitude-dependent offsets, seasonal AFTIME aberration)::
+
+        focal_plane_solution(
+            quat, x_arcmin, y_arcmin,
+            offset_style="attitude",  detector=detector, attitude_source=attitude_source,
+            aberration_style="seasonal", aftime=aftime,
+        )
+
+    Args
+    ----
+    quat : (nsamp, 4) attitude quaternion array in xyzw convention.
+    x_arcmin, y_arcmin : (ndet,) detector positions in arcmin.
+        When offset_style is None the positions must already have LongCorrect
+        offsets applied by the caller (legacy behaviour).  When offset_style
+        is set the positions must be raw CCF base positions (before any
+        alignment offset) and offsets are applied internally.
+    aberration : bool
+        If True, apply an aberration correction (style selected by
+        aberration_style).  If False, no aberration is applied regardless.
+    compute_roll : bool
+        If False, skip roll computation for speed.
+    offset_style : None | "long" | "attitude"
+        None   – positions used as-is (caller pre-applied Long offsets).
+        "long" – apply LongCorrect attitude-agnostic offsets; requires
+                 `detector` and `packetid0`.
+        "attitude" – apply pos_bs2detpix attitude-dependent offsets; requires
+                     `detector` and `attitude_source`.
+    detector : "SW" | "LW"
+        Required when offset_style is not None.
+    packetid0 : int
+        First PACKETID value.  Required when offset_style="long".
+    attitude_source : "PR" | "GADS"
+        Required when offset_style="attitude".
+    aberration_style : None | "long" | "seasonal"
+        None or "long" – LongCorrect two-pass ecliptic-latitude model (default).
+        "seasonal"     – seasonal/AFTIME model (both x and y components);
+                         requires `aftime`.
+    aftime : (nsamp,) array
+        AKARI mission time in seconds.  Required when aberration_style="seasonal".
+    """
+    offset_style = normalize_offset_style(offset_style)
+    aberration_style = normalize_aberration_style(aberration_style)
+
+    if offset_style is not None:
+        if offset_style == "long":
+            if detector is None or packetid0 is None:
+                raise ValueError("offset_style='long' requires detector and packetid0")
+            x_arcmin, y_arcmin, _ = apply_longcorrect_offsets(x_arcmin, y_arcmin, detector, packetid0)
+        elif offset_style == "attitude":
+            if detector is None or attitude_source is None:
+                raise ValueError("offset_style='attitude' requires detector and attitude_source")
+            x_arcmin, y_arcmin = apply_attitude_dependent_alignment_offsets(x_arcmin, y_arcmin, detector, attitude_source)
+
+    use_seasonal_aberration = aberration_style == "seasonal"
+
+    if not aberration:
+        q_fov = quat_from_xy_arcmin(x_arcmin, y_arcmin)
+        return _focal_plane_solution_no_aberration_qfov(quat, q_fov, compute_roll=compute_roll)
+
+    if use_seasonal_aberration:
+        if aftime is None:
+            raise ValueError("aberration_style='seasonal' requires aftime")
+        # Delegate to the IDL aberration path using already-offset positions
+        # (pass offset_style=None so no further offsets are applied).
+        ra_bore, dec_bore = boresight_solution(quat)
+        aberr_x_arcsec, aberr_y_arcsec = compute_seasonal_aberration_arcsec(aftime, ra_bore, dec_bore)
+        nsamp = quat.shape[0]
+        ndet = len(x_arcmin)
+        # Precompute attitude rotation matrices once; reused for all detectors.
+        r_att = quat_to_matrix_xyzw(quat)  # (nsamp, 3, 3)
+        out_ra = np.empty((nsamp, ndet), dtype=np.float64)
+        out_dec = np.empty((nsamp, ndet), dtype=np.float64)
+        out_roll = np.empty((nsamp, ndet), dtype=np.float64) if compute_roll else None
+        for j in range(ndet):
+            x_samp = x_arcmin[j] - aberr_x_arcsec / 60.0
+            y_samp = y_arcmin[j] - aberr_y_arcsec / 60.0
+            q_det = quat_from_xy_arcmin(x_samp, y_samp)
+            v_step1 = rotate_unit_z_by_quat(q_det)
+            v_final = np.einsum("sij,sj->si", r_att, v_step1, optimize=True)
+            al = np.arctan2(v_final[:, 1], v_final[:, 0])
+            dl = np.arcsin(np.clip(v_final[:, 2], -1.0, 1.0))
+            out_ra[:, j] = wrap_360(np.degrees(al))
+            out_dec[:, j] = np.degrees(dl)
+            if compute_roll:
+                q_full = quat_multiply_xyzw(quat, q_det)
+                out_roll[:, j] = quat_to_roll_like_pr_rad(q_full, al, dl)
+        return out_ra, out_dec, out_roll
+
+    # Default: LongCorrect two-pass aberration.
+    return _focal_plane_solution_with_aberration(quat, x_arcmin, y_arcmin, compute_roll=compute_roll)
 
 
 def run_sanity_checks(quat, ra_fp, dec_fp, roll_fp, plot_samples=5000):
@@ -530,7 +694,7 @@ def run_sanity_checks(quat, ra_fp, dec_fp, roll_fp, plot_samples=5000):
     # Check 1: identity quaternion → roll == boresight roll
     # ------------------------------------------------------------------ #
     q_identity = np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
-    _, _, roll_id = focal_plane_solution_no_aberration(quat, q_identity)
+    _, _, roll_id = _focal_plane_solution_no_aberration_qfov(quat, q_identity)
     max_id_diff = np.max(np.abs(wrap_pm180(roll_id[:, 0] - roll_bore)))
 
     print("\n=== Sanity check 1: identity (zero-offset) detector roll == boresight roll ===")
@@ -579,7 +743,7 @@ def run_sanity_checks(quat, ra_fp, dec_fp, roll_fp, plot_samples=5000):
     # Plot: roll vs scan PA
     # ------------------------------------------------------------------ #
     nplot = min(plot_samples, len(scan_pa))
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
+    _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
 
     axes[0].plot(roll_bore[:nplot], label="Boresight roll", alpha=0.9)
     axes[0].plot(scan_pa[:nplot] + 90.0, label="Scan PA + 90°", ls="--", alpha=0.8)
@@ -682,7 +846,7 @@ def compare_to_reference(ra_fp, dec_fp, lon_ref, lat_ref, det_indices=None, plot
     # Plot comparison for first few detectors
     if det_indices:
         nplot = min(plot_samples, dlon.shape[0])
-        fig, axes = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
+        _, axes = plt.subplots(2, 1, sharex=True, figsize=(10, 6))
         
         for idx in det_indices:
             axes[0].plot(wrap_pm180(dlon[:nplot, idx]), label=f"Det {idx+1}", alpha=0.8)
@@ -718,38 +882,33 @@ def run_pointing_model_for_config(
     det_type,
     pixelpos_dir,
     attitude,
-    use_offsets,
-    use_aberration,
-    model_type="longcorrect",
+    offset_style,
+    aberration_style,
+    use_aberration=True,
 ):
-    """Run focal-plane model for one configuration and return (ra, dec, roll, valid)."""
+    """Run the unified focal-plane model for one configuration."""
     quat_raw = data[attitude]["QUATERNION"].read().astype(np.float64)
     quat, valid = normalize_quat(quat_raw)
 
     x0, y0 = load_pixel_positions(det_type, pixelpos_dir)
+
+    packetid = data["FIS_OBS"]["PACKETID"].read()
+    packetid0 = int(packetid[0])
     aftime = data["FIS_OBS"]["AFTIME"].read().astype(np.float64)[valid]
 
-    if model_type == "idl":
-        # use_offsets/use_aberration are retained for interface compatibility.
-        if use_offsets:
-            x, y = x0, y0
-        else:
-            x, y = x0, y0
-        ra, dec, roll = focal_plane_solution_idl(quat, aftime, x, y, det_type, attitude)
-    else:
-        if use_offsets:
-            packetid = data["FIS_OBS"]["PACKETID"].read()
-            packetid0 = int(packetid[0])
-            x, y, _ = apply_longcorrect_offsets(x0, y0, det_type, packetid0)
-        else:
-            x = x0.copy()
-            y = y0.copy()
-
-        if use_aberration:
-            ra, dec, roll = focal_plane_solution(quat, x, y)
-        else:
-            q_fov = quat_from_xy_arcmin(x, y)
-            ra, dec, roll = focal_plane_solution_no_aberration(quat, q_fov)
+    ra, dec, roll = focal_plane_solution(
+        quat,
+        x0,
+        y0,
+        aberration=use_aberration,
+        compute_roll=False,
+        offset_style=offset_style,
+        detector=det_type,
+        packetid0=packetid0,
+        attitude_source=attitude,
+        aberration_style=aberration_style,
+        aftime=aftime,
+    )
 
     return ra, dec, roll, valid
 
@@ -773,14 +932,14 @@ def run_comparison_suite(data, filename, det_type, pixelpos_dir, suite_csv=None)
 
     available_ext = {h.get_extname() for h in data}
     configs = [
-        {"name": "PR_full", "attitude": "PR", "use_offsets": True, "use_aberration": True, "model": "longcorrect"},
-        {"name": "PR_noab", "attitude": "PR", "use_offsets": True, "use_aberration": False, "model": "longcorrect"},
-        {"name": "PR_nooffset_noab", "attitude": "PR", "use_offsets": False, "use_aberration": False, "model": "longcorrect"},
-        {"name": "GADS_full", "attitude": "GADS", "use_offsets": True, "use_aberration": True, "model": "longcorrect"},
-        {"name": "GADS_noab", "attitude": "GADS", "use_offsets": True, "use_aberration": False, "model": "longcorrect"},
-        {"name": "GADS_nooffset_noab", "attitude": "GADS", "use_offsets": False, "use_aberration": False, "model": "longcorrect"},
-        {"name": "IDL_PR", "attitude": "PR", "use_offsets": True, "use_aberration": True, "model": "idl"},
-        {"name": "IDL_GADS", "attitude": "GADS", "use_offsets": True, "use_aberration": True, "model": "idl"},
+        {"name": "PR_long_offset_long_ab", "attitude": "PR", "offset_style": "long", "aberration_style": "long", "use_aberration": True},
+        {"name": "PR_long_offset_noab", "attitude": "PR", "offset_style": "long", "aberration_style": "long", "use_aberration": False},
+        {"name": "PR_raw_noab", "attitude": "PR", "offset_style": None, "aberration_style": "long", "use_aberration": False},
+        {"name": "GADS_long_offset_long_ab", "attitude": "GADS", "offset_style": "long", "aberration_style": "long", "use_aberration": True},
+        {"name": "GADS_long_offset_noab", "attitude": "GADS", "offset_style": "long", "aberration_style": "long", "use_aberration": False},
+        {"name": "GADS_raw_noab", "attitude": "GADS", "offset_style": None, "aberration_style": "long", "use_aberration": False},
+        {"name": "PR_attitude_offset_seasonal_ab", "attitude": "PR", "offset_style": "attitude", "aberration_style": "seasonal", "use_aberration": True},
+        {"name": "GADS_attitude_offset_seasonal_ab", "attitude": "GADS", "offset_style": "attitude", "aberration_style": "seasonal", "use_aberration": True},
     ]
 
     qpr_raw = data["PR"]["QUATERNION"].read().astype(np.float64)
@@ -799,9 +958,9 @@ def run_comparison_suite(data, filename, det_type, pixelpos_dir, suite_csv=None)
             det_type,
             pixelpos_dir,
             attitude=cfg["attitude"],
-            use_offsets=cfg["use_offsets"],
+            offset_style=cfg["offset_style"],
+            aberration_style=cfg["aberration_style"],
             use_aberration=cfg["use_aberration"],
-            model_type=cfg.get("model", "longcorrect"),
         )
 
         if cfg["attitude"] == "PR":
@@ -828,9 +987,9 @@ def run_comparison_suite(data, filename, det_type, pixelpos_dir, suite_csv=None)
         row = {
             "config": cfg["name"],
             "attitude": cfg["attitude"],
-            "use_offsets": int(cfg["use_offsets"]),
+            "offset_style": cfg["offset_style"] or "none",
+            "aberration_style": cfg["aberration_style"],
             "use_aberration": int(cfg["use_aberration"]),
-            "model": cfg.get("model", "longcorrect"),
             "nsamp_valid": int(ra_fp.shape[0]),
             "nsamp_compared": int(np.sum(compare_mask)),
             "ndet_compared": int(ndet),
@@ -907,9 +1066,48 @@ def run_comparison_suite(data, filename, det_type, pixelpos_dir, suite_csv=None)
     return rows
 
 
+def describe_recipe(attitude, offset_style, aberration_style, use_aberration):
+    """Return a short user-facing label for the selected pointing recipe."""
+    offset_label = offset_style or "none"
+    aberration_label = "none" if not use_aberration else aberration_style
+
+    if offset_label == "long" and aberration_label == "long":
+        return "LongCorrect-equivalent recipe"
+    if attitude == "PR" and offset_label == "attitude" and aberration_label == "seasonal":
+        return "IDL/pos_bs2detpix-equivalent recipe"
+    if attitude == "GADS" and offset_label == "attitude" and aberration_label == "seasonal":
+        return "GADS + attitude-offset + seasonal-aberration recipe"
+    return f"Custom recipe ({attitude}, offset={offset_label}, aberration={aberration_label})"
+
+
+def maybe_print_pickle_reference_warning(args):
+    """Warn when selected flags are not expected to reproduce the pickle reference."""
+    if not args.compare_pickle:
+        return
+
+    selected_offset = args.offset_style
+    selected_aberration = "none" if args.mode != "focalplane" else args.aberration_style
+
+    if args.attitude != "PR" or selected_offset != "attitude" or selected_aberration != "seasonal":
+        print("WARNING: The downloaded pickle reference is PR-aligned and is reproduced by")
+        print("         --attitude PR --offset-style attitude --aberration-style seasonal")
+        if args.attitude == "GADS":
+            print("         The current GADS selection is not the recipe used to generate that reference.")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Get AKARI pointing from quaternion (boresight or focal-plane offsets only)."
+        description="Get AKARI pointing from quaternion (boresight or focal-plane offsets only).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Recipe equivalents:\n"
+            "  LongCorrect: --mode focalplane --offset-style long --aberration-style long\n"
+            "  IDL/pos_bs2detpix: --attitude PR --mode focalplane --offset-style attitude --aberration-style seasonal\n"
+            "\n"
+            "Pickle reference note:\n"
+            "  The downloaded lon/lat pickle files match the PR + attitude + seasonal recipe,\n"
+            "  even though the filenames end in _gads.pkl.\n"
+        ),
     )
     parser.add_argument(
         "fits_file",
@@ -930,8 +1128,20 @@ def main():
         help=(
             "boresight: quaternion boresight only; "
             "focalplane-noab: detector offsets, no aberration; "
-            "focalplane: full LongCorrect two-pass aberration correction"
+            "focalplane: focal-plane solution using the selected offset/aberration models"
         ),
+    )
+    parser.add_argument(
+        "--offset-style",
+        choices=["long", "attitude", "none"],
+        default="long",
+        help="Detector alignment model: long=LongCorrect, attitude=attitude-dependent pos_bs2detpix, none=raw detector positions",
+    )
+    parser.add_argument(
+        "--aberration-style",
+        choices=["long", "seasonal"],
+        default="long",
+        help="Aberration model: long=two-pass ecliptic-latitude, seasonal=seasonal/AFTIME",
     )
     parser.add_argument(
         "--detector-type",
@@ -971,7 +1181,11 @@ def main():
         "--compare-pickle",
         action="store_true",
         default=False,
-        help="Compare focal-plane results to reference pickle files (master's thesis data)",
+        help=(
+            "Compare focal-plane results to reference pickle files. "
+            "The downloaded reference is reproduced by --attitude PR --offset-style attitude "
+            "--aberration-style seasonal."
+        ),
     )
     parser.add_argument(
         "--comparison-suite",
@@ -995,6 +1209,7 @@ def main():
     print(f"Attitude source: {args.attitude}")
     print(f"Samples (total): {len(quat_raw)}")
     print(f"Samples (valid quaternion norm>0): {len(quat)}")
+    maybe_print_pickle_reference_warning(args)
 
     if args.comparison_suite:
         det_type_suite = args.detector_type or infer_detector_type(data)
@@ -1011,7 +1226,7 @@ def main():
 
     if args.mode == "boresight":
         ra_deg, dec_deg = boresight_solution(quat)
-        roll_cpp_deg = np.degrees(quat_to_roll_like_cpp(quat))
+        roll_cpp_deg = np.degrees(quat_to_roll_euler(quat))
         roll_prlike_deg = quat_to_roll_like_pr(quat, ra_deg, dec_deg)
 
         print(f"RA range [deg]:   {ra_deg.min():.6f} .. {ra_deg.max():.6f}")
@@ -1043,21 +1258,21 @@ def main():
             )
 
             nplot = min(args.plot_samples, len(pr_ra))
-            fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
+            _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
 
             axes[0].plot(pr_ra[:nplot], label="PR RA", alpha=0.8)
-            axes[0].plot(ra_deg[:nplot], label=f"{args.attitude} quat -> RA", alpha=0.8)
+            axes[0].plot(ra_deg[:nplot], label=f"{args.attitude} quat to RA", alpha=0.8)
             axes[0].set_ylabel("RA [deg]")
             axes[0].legend(loc="best")
 
             axes[1].plot(pr_dec[:nplot], label="PR Dec", alpha=0.8)
-            axes[1].plot(dec_deg[:nplot], label=f"{args.attitude} quat -> Dec", alpha=0.8)
+            axes[1].plot(dec_deg[:nplot], label=f"{args.attitude} quat to Dec", alpha=0.8)
             axes[1].set_ylabel("Dec [deg]")
             axes[1].legend(loc="best")
 
             axes[2].plot(pr_roll[:nplot], label="PR Roll", alpha=0.8)
             axes[2].plot(
-                roll_prlike_deg[:nplot], label=f"{args.attitude} quat -> Roll (PR-like)", alpha=0.8
+                roll_prlike_deg[:nplot], label=f"{args.attitude} quat to Roll (PR-like)", alpha=0.8
             )
             axes[2].set_ylabel("Roll [deg]")
             axes[2].set_xlabel("Sample")
@@ -1067,18 +1282,28 @@ def main():
             plt.show()
 
     else:
-        det_type = args.detector_type or infer_detector_type(data)
+        det_type = args.detector_type or infer_detector_type_from_filename(filename) or infer_detector_type(data)
         x0, y0 = load_pixel_positions(det_type, args.pixelpos_dir)
-
         packetid = data["FIS_OBS"]["PACKETID"].read()
         packetid0 = int(packetid[0])
-        x, y, cds_active = apply_longcorrect_offsets(x0, y0, det_type, packetid0)
+        aftime = data["FIS_OBS"]["AFTIME"].read().astype(np.float64)[valid]
+        offset_style = None if args.offset_style == "none" else args.offset_style
+        use_ab = args.mode == "focalplane"
+        ra_fp, dec_fp, roll_fp = focal_plane_solution(
+            quat,
+            x0,
+            y0,
+            aberration=use_ab,
+            compute_roll=True,
+            offset_style=offset_style,
+            detector=det_type,
+            packetid0=packetid0,
+            attitude_source=args.attitude,
+            aberration_style=args.aberration_style,
+            aftime=aftime,
+        )
 
-        if args.mode == "focalplane":
-            ra_fp, dec_fp, roll_fp = focal_plane_solution(quat, x, y)
-        else:
-            q_fov = quat_from_xy_arcmin(x, y)
-            ra_fp, dec_fp, roll_fp = focal_plane_solution_no_aberration(quat, q_fov)
+        cds_active = bool(offset_style == "long" and packetid0 == 0x41)
 
         ndet = ra_fp.shape[1]
         if args.plot_dets:
@@ -1090,7 +1315,10 @@ def main():
         det_idx = det_indices[0]
 
         print(f"\nMode: {args.mode}")
+        print(f"Recipe: {describe_recipe(args.attitude, args.offset_style, args.aberration_style, use_ab)}")
         print(f"Detector type: {det_type}")
+        print(f"Offset model: {args.offset_style}")
+        print(f"Aberration model: {'none' if not use_ab else args.aberration_style}")
         print(f"Channels: {ndet}")
         print(f"CDS offsets active: {cds_active} (packetid[0]={packetid0:#x})")
         print(f"RA(full) range [deg]:  {ra_fp.min():.6f} .. {ra_fp.max():.6f}")
@@ -1121,7 +1349,7 @@ def main():
         if args.sanity:
             run_sanity_checks(quat, ra_fp, dec_fp, roll_fp, plot_samples=nplot)
 
-        fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
+        _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
 
         axes[0].plot(ra_bore[:nplot], label="Boresight RA", alpha=0.8)
         for idx in det_indices:
@@ -1153,6 +1381,208 @@ def main():
                 lon_ref_valid = lon_ref[valid, :]
                 lat_ref_valid = lat_ref[valid, :]
                 compare_to_reference(ra_fp, dec_fp, lon_ref_valid, lat_ref_valid, det_indices=det_indices, plot_samples=nplot)
+
+
+# ---------------------------------------------------------------------------
+# Embedded unit tests
+# Run with: pytest -q get_pointing_from_quaternion.py
+# ---------------------------------------------------------------------------
+
+
+def _test_identity_quat(nsamp):
+    q = np.zeros((nsamp, 4), dtype=np.float64)
+    q[:, 3] = 1.0
+    return q
+
+
+def test_style_normalization_aliases():
+    assert normalize_offset_style(None) is None
+    assert normalize_offset_style("none") is None
+    assert normalize_offset_style("raw") is None
+    assert normalize_offset_style("longcorrect") == "long"
+    assert normalize_offset_style("idl") == "attitude"
+    assert normalize_offset_style("seasonal-attitude") == "attitude"
+
+    assert normalize_aberration_style(None) == "long"
+    assert normalize_aberration_style("longcorrect") == "long"
+    assert normalize_aberration_style("ecliptic") == "long"
+    assert normalize_aberration_style("idl") == "seasonal"
+    assert normalize_aberration_style("aftime") == "seasonal"
+
+
+def test_style_normalization_rejects_invalid_values():
+    import pytest
+
+    with pytest.raises(ValueError):
+        normalize_offset_style("bad-style")
+    with pytest.raises(ValueError):
+        normalize_aberration_style("bad-style")
+
+
+def test_required_arguments_for_styles():
+    import pytest
+
+    quat = _test_identity_quat(4)
+    x = np.array([0.0], dtype=np.float64)
+    y = np.array([0.0], dtype=np.float64)
+
+    with pytest.raises(ValueError, match="packetid0"):
+        focal_plane_solution(
+            quat,
+            x,
+            y,
+            offset_style="long",
+            detector="SW",
+            compute_roll=False,
+        )
+
+    with pytest.raises(ValueError, match="attitude_source"):
+        focal_plane_solution(
+            quat,
+            x,
+            y,
+            offset_style="attitude",
+            detector="SW",
+            compute_roll=False,
+        )
+
+    with pytest.raises(ValueError, match="aftime"):
+        focal_plane_solution(
+            quat,
+            x,
+            y,
+            aberration=True,
+            aberration_style="seasonal",
+            compute_roll=False,
+        )
+
+
+def test_boresight_identity_quaternion():
+    quat = _test_identity_quat(3)
+    ra, dec = boresight_solution(quat)
+
+    assert np.allclose(ra, 0.0, atol=1e-12)
+    assert np.allclose(dec, 90.0, atol=1e-12)
+
+
+def test_noab_matches_internal_kernel():
+    quat = _test_identity_quat(5)
+    x = np.array([0.5, 2.5], dtype=np.float64)
+    y = np.array([-0.25, -1.0], dtype=np.float64)
+
+    ra_a, dec_a, _ = focal_plane_solution(
+        quat,
+        x,
+        y,
+        aberration=False,
+        compute_roll=False,
+    )
+
+    q_fov = quat_from_xy_arcmin(x, y)
+    ra_b, dec_b, _ = _focal_plane_solution_no_aberration_qfov(
+        quat,
+        q_fov,
+        compute_roll=False,
+    )
+
+    assert np.allclose(ra_a, ra_b, atol=1e-12, equal_nan=True)
+    assert np.allclose(dec_a, dec_b, atol=1e-12, equal_nan=True)
+
+
+def test_seasonal_aberration_shapes_and_finiteness():
+    n = 8
+    aftime = np.linspace(6.0e6, 7.0e6, n)
+    ra = np.linspace(0.0, 359.0, n)
+    dec = np.linspace(-45.0, 45.0, n)
+
+    abx, aby = compute_seasonal_aberration_arcsec(aftime, ra, dec)
+
+    assert abx.shape == (n,)
+    assert aby.shape == (n,)
+    assert np.all(np.isfinite(abx))
+    assert np.all(np.isfinite(aby))
+
+
+def test_matched_recipe_equivalence_zero_residual_synthetic():
+    """Matched recipes should be numerically identical on synthetic inputs."""
+    nsamp = 7
+    ndet = 75  # LW channel count; required by offset helper indexing.
+
+    # Synthetic attitude timeline with small smooth motion.
+    quat = quat_from_xy_arcmin(
+        np.linspace(-4.0, 4.0, nsamp),
+        np.linspace(1.5, -1.5, nsamp),
+    )
+    quat /= np.linalg.norm(quat, axis=1, keepdims=True)
+
+    # Synthetic detector geometry and time.
+    x = np.linspace(-3.0, 3.0, ndet, dtype=np.float64)
+    y = np.linspace(-1.5, 1.5, ndet, dtype=np.float64)
+    aftime = np.linspace(6.1e6, 6.2e6, nsamp, dtype=np.float64)
+
+    # Long recipe: canonical labels vs aliases.
+    ra_l1, dec_l1, roll_l1 = focal_plane_solution(
+        quat,
+        x,
+        y,
+        aberration=True,
+        compute_roll=True,
+        offset_style="long",
+        detector="LW",
+        packetid0=0x42,
+        attitude_source="PR",
+        aberration_style="long",
+        aftime=aftime,
+    )
+    ra_l2, dec_l2, roll_l2 = focal_plane_solution(
+        quat,
+        x,
+        y,
+        aberration=True,
+        compute_roll=True,
+        offset_style="longcorrect",
+        detector="LW",
+        packetid0=0x42,
+        attitude_source="PR",
+        aberration_style="ecliptic",
+        aftime=aftime,
+    )
+
+    # Seasonal recipe: canonical labels vs historical aliases.
+    ra_s1, dec_s1, roll_s1 = focal_plane_solution(
+        quat,
+        x,
+        y,
+        aberration=True,
+        compute_roll=True,
+        offset_style="attitude",
+        detector="LW",
+        packetid0=0x42,
+        attitude_source="PR",
+        aberration_style="seasonal",
+        aftime=aftime,
+    )
+    ra_s2, dec_s2, roll_s2 = focal_plane_solution(
+        quat,
+        x,
+        y,
+        aberration=True,
+        compute_roll=True,
+        offset_style="idl",
+        detector="LW",
+        packetid0=0x42,
+        attitude_source="PR",
+        aberration_style="idl",
+        aftime=aftime,
+    )
+
+    assert np.allclose(ra_l1, ra_l2, atol=1e-12, equal_nan=True)
+    assert np.allclose(dec_l1, dec_l2, atol=1e-12, equal_nan=True)
+    assert np.allclose(roll_l1, roll_l2, atol=1e-12, equal_nan=True)
+
+    assert np.allclose(ra_s1, ra_s2, atol=1e-12, equal_nan=True)
+    assert np.allclose(dec_s1, dec_s2, atol=1e-12, equal_nan=True)
+    assert np.allclose(roll_s1, roll_s2, atol=1e-12, equal_nan=True)
 
 
 if __name__ == "__main__":
