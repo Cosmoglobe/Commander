@@ -192,13 +192,14 @@ module comm_tod_mod
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
-     logical(lgt) :: apply_inst_corr               
+     logical(lgt) :: apply_inst_corr
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
      character(len=16), allocatable, dimension(:) :: incl_objctr
@@ -573,6 +574,7 @@ contains
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%max_npole_Tbol      = 0
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%apply_inst_corr = .false.

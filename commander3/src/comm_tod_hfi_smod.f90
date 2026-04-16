@@ -131,6 +131,7 @@ contains
     c%correct_sl      = .false.
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
+    c%correct_Tbol    = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
@@ -138,6 +139,7 @@ contains
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
     c%n_4k_lines      = num_tokens(cpar%ds_tod_4k_lines(id_abs), "," )
+    c%max_npole_Tbol  = 7
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
 
@@ -196,6 +198,9 @@ contains
     ! Construct lookup tables
     c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
     call c%precompute_lookups()
+
+    ! Allocate and initialize bolometer transfer functions
+    if (c%correct_Tbol) allocate(c%Tbol(c%ndet))
     
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -850,9 +855,24 @@ contains
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
 
+    integer(i4b) :: j
+    real(dp), allocatable, dimension(:) :: par
+    
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
     self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
 
+    if (self%correct_Tbol .and. self%myid == 0) then
+       allocate(par(2 + 2*self%max_npole_Tbol))
+       do j = 1, self%ndet
+          call read_hdf(instfile, trim(adjustl(self%label(j)))//'/'//'Tbol', par)
+          self%Tbol(j)%p => comm_Tbol(self%samprate, par)
+       end do
+       deallocate(par)
+    end if
+
+    call mpi_finalize(j)
+    stop
+       
   end subroutine load_instrument_hfi
 
 
