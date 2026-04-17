@@ -87,13 +87,14 @@ contains
   end subroutine estimate_params
 
   ! Routine for convolving with bolometer transfer function, tod = T * tod
-  subroutine convolve_Tbol(self, tod)
+  subroutine convolve_Tbol(self, tod, plan_fwd, plan_back)
     implicit none
     class(comm_Tbol),               intent(in)    :: self
     real(sp),         dimension(:), intent(inout) :: tod
-
+    integer*8,                      intent(inout) :: plan_fwd, plan_back
+    
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
-    integer*8    :: plan_fwd, plan_back
+
     real(dp)     :: f
     complex(dpc) :: TF
     real(sp),     allocatable, dimension(:)   :: dt
@@ -104,12 +105,12 @@ contains
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    !call sfftw_init_threads(err)
+    !call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    !call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    !call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
     dt(1:ntod)           = tod
@@ -121,7 +122,7 @@ contains
     ! Apply transfer function in Fourier space
     do i = 0, n-1
        f     = i*(self%samprate/2)/(n-1) 
-       TF    = cmplx(splint(self%TF_real, f), splint(self%TF_real, f))
+       TF    = cmplx(splint(self%TF_real, f), splint(self%TF_imag, f))
        dv(i) = TF * dv(i)
     end do
 
@@ -132,6 +133,8 @@ contains
     tod = dt(1:ntod) / nfft
 
     deallocate(dt, dv)
+    !call dfftw_destroy_plan(plan_fwd)
+    !call dfftw_destroy_plan(plan_back)
     
   end subroutine convolve_Tbol
 
@@ -156,13 +159,14 @@ contains
        self%tau(i) = par(2+2*i)
     end do
 
-    write(*,*) 'npole = ', self%npole
-    write(*,*) 'param = ', par
-    
     ! Generate transfer function
-    allocate(nu(NSPLINE), TF(NSPLINE))
-    do i = 1, NSPLINE
-       nu(i) = (i-1)*(self%samprate/2)/(NSPLINE-1) 
+    allocate(nu(0:NSPLINE), TF(0:NSPLINE)) ! position 0 is spin frequency
+    do i = 0, NSPLINE
+       if (i == 0) then
+          nu(i) = 1.d0/60.d0 ! One rotation per minute
+       else
+          nu(i) = (i-1)*(self%samprate/2)/(NSPLINE-1)
+       end if
        omega = 2.d0*pi * nu(i)
 
        ! Compute bolometer transfer function
@@ -176,20 +180,29 @@ contains
 
        ! Compute total transfer function
        TF(i) = F*Hp
-       write(*,fmt='(i6,5f10.6)') i, nu(i), omega, abs(F), abs(Hp), abs(TF(i))
+       !write(*,fmt='(i6,5f10.6)') i, nu(i), omega, abs(F), abs(Hp), abs(TF(i))
     end do
 
+    ! Normalize to unity amplitude at spin (dipole) frequency; require real component to be positive
+    TF = TF / abs(TF(0))
+    if (real(TF(0)) < 0.d0) TF = -TF
+    
     ! Spline real and imaginary components separately
     call free_spline(self%TF_real)
     call free_spline(self%TF_imag)
-    call spline(self%TF_real, nu,  real(TF))
-    call spline(self%TF_imag, nu, aimag(TF))
+    call spline(self%TF_real, nu(1:NSPLINE),  real(TF(1:NSPLINE)))
+    call spline(self%TF_imag, nu(1:NSPLINE), aimag(TF(1:NSPLINE)))
 
-    open(58, file='tf.dat')
-    do i = 1, NSPLINE
-       write(58,*) nu(i), real(TF(i)), aimag(TF(i))
-    end do
-    close(58)
+!!$    open(58, file='tf.dat')
+!!$    do i = 1, NSPLINE
+!!$       write(58,*) nu(i), real(TF(i)), aimag(TF(i))
+!!$    end do
+!!$    write(58,*)
+!!$    do i = 1, 100000
+!!$       omega = (i-1)*(self%samprate/2)/(100000-1)
+!!$       write(58,*) omega, splint(self%TF_real, omega), splint(self%TF_imag, omega)
+!!$    end do
+!!$    close(58)
 
     deallocate(nu, TF)
     

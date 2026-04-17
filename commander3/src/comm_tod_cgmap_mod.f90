@@ -449,7 +449,7 @@ contains
        j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          call self%T(det)%p%convolve(self%tod(det,i:j))
+          !call self%T(det)%p%convolve(self%tod(det,i:j))
        end do
     end do
 

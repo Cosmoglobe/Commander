@@ -46,7 +46,10 @@ contains
     integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
 
-    integer(i4b) :: i, j, k, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: n, nfft
+    real(sp),     allocatable, dimension(:)   :: dt
+    complex(spc), allocatable, dimension(:)   :: dv
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -93,6 +96,15 @@ contains
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
 
+    if (btest(oper,SD_NCORR) .or. tod%correct_Tbol) then
+       sd%enable_fft = .true.
+       nfft     = 2 * sd%ntod
+       n        = nfft / 2 + 1
+       allocate(dt(nfft), dv(0:n-1))
+       call sfftw_plan_dft_r2c_1d(sd%plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       call sfftw_plan_dft_c2r_1d(sd%plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       deallocate(dt, dv)
+    end if
 
     ! Initialize detector list
     if (present(det)) then
@@ -106,7 +118,6 @@ contains
     ! Initialize arrays that are not set in this routine
     if (btest(oper,SD_NCORR)) sd%n_corr = 0.
     
-
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
     if (btest(oper,SD_BASE)) then
@@ -207,6 +218,44 @@ contains
        call tod%construct_sl_template(sd, det)
        sd%s_sl = 2.d0 * sd%s_sl ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        call timer%stop(TOD_SL_INT, tod%band)
+    end if
+
+    ! Apply Tbol convolution to all optical components
+    if (tod%correct_Tbol) then
+!!$       if (tod%myid == 0 .and. scan == 1 .and. allocated(sd%s_sky)) then
+!!$          open(58,file='sky_before_Tbol.dat', recl=1024)
+!!$          do i = 1, ntod
+!!$             write(58,*) i, sd%s_sky(i,1,0,1), sd%s_orb(i,1,0)
+!!$          end do
+!!$          close(58)
+!!$       end if
+       
+       do j = 1, ndet
+          d = j; if (present(det)) d = det
+          if (.not. tod%scans(scan)%d(d)%accept) cycle
+          do h = 0, hmax
+             do b = 1, nbp
+                if (allocated(sd%s_sky)) call tod%Tbol(d)%p%convolve(sd%s_sky(:,j,h,b), sd%plan_fwd, sd%plan_back)
+                if (allocated(sd%s_bp))  call tod%Tbol(d)%p%convolve(sd%s_bp(:,j,h,b), sd%plan_fwd, sd%plan_back)
+             end do
+             if (allocated(sd%s_orb))    call tod%Tbol(d)%p%convolve(sd%s_orb(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_sl))     call tod%Tbol(d)%p%convolve(sd%s_sl(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_zodi))   call tod%Tbol(d)%p%convolve(sd%s_zodi(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_objctr)) call tod%Tbol(d)%p%convolve(sd%s_objctr(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_gain))   call tod%Tbol(d)%p%convolve(sd%s_gain(:,j,h), sd%plan_fwd, sd%plan_back)
+          end do
+       end do
+
+!!$       if (tod%myid == 0 .and. scan == 1 .and. allocated(sd%s_sky)) then
+!!$          open(58,file='sky_after_Tbol.dat', recl=1024)
+!!$          do i = 1, ntod
+!!$             write(58,*) i, sd%s_sky(i,1,0,1), sd%s_orb(i,1,0)
+!!$          end do
+!!$          close(58)
+!!$          write(*,*) 'Done'
+!!$          call mpi_finalize(i)
+!!$          stop
+!!$       end if
     end if
 
     ! Construct monopole correction template
@@ -323,6 +372,12 @@ contains
     if (allocated(sd%dark))          deallocate(sd%dark)
     if (allocated(sd%s_objctr))      deallocate(sd%s_objctr)
     if (allocated(sd%s_calib))       deallocate(sd%s_calib)
+
+    if (sd%enable_fft) then
+       call dfftw_destroy_plan(sd%plan_fwd)
+       call dfftw_destroy_plan(sd%plan_back)
+    end if
+
   end subroutine dealloc_scan_data
 
 

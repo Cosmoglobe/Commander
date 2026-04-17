@@ -398,6 +398,8 @@ module comm_tod_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
+     logical(lgt) :: enable_fft = .false.
+     integer*8    :: plan_fwd, plan_back
      integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing [ntod,ndet,nhorn]
@@ -2333,7 +2335,7 @@ contains
           end if
           
           call self%orb_dp%compute_orbital_dipole(d, v_ref, v_ref_next, self%nu_c(d), &
-               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f/self%bp(j)%p%unit_scale)
+               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f*self%bp(j)%p%Kcmb2unit)
           !write(*,*) 'orb', d, j, sd%s_orb(1:5,j,hp)
        end do
     end do

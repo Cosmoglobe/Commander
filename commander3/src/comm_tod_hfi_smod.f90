@@ -861,7 +861,7 @@ contains
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
     self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
 
-    if (self%correct_Tbol .and. self%myid == 0) then
+    if (self%correct_Tbol) then
        allocate(par(2 + 2*self%max_npole_Tbol))
        do j = 1, self%ndet
           call read_hdf(instfile, trim(adjustl(self%label(j)))//'/'//'Tbol', par)
@@ -870,9 +870,6 @@ contains
        deallocate(par)
     end if
 
-    call mpi_finalize(j)
-    stop
-       
   end subroutine load_instrument_hfi
 
 
