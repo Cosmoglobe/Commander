@@ -346,7 +346,8 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-
+    class(comm_cgmap), pointer :: cgmap
+    
     ! file for saving tods
     type(hdf_file) :: tod_file
 
@@ -399,8 +400,13 @@ contains
        skip_nonlin_ = 3
     end if
 
-    oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    if (sample_ncorr) then
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    else
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+    end if
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -445,7 +451,7 @@ contains
     !------------------------------------
 
     ! Fit per-chunk low-level non-linearity parameters
-    do i = 1, self%nscan
+    do i = 1, 0 ! self%nscan ! Disable for now
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
 
@@ -578,18 +584,18 @@ contains
        call update_status(status, "tod_adc"//ctext)
     end if
 
-    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
-    do i = 1, self%nscan
-       if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
-       call sample_hfi_baselines(sd, self, i, handle)
-       call dealloc_scan_data(sd)
-    end do
-    call update_status(status, "tod_base"//ctext)
-    
-    ! Create pixel histograms
-    if (self%first_call) call compute_tod_pixhist(self)
-    call update_status(status, "tod_hist"//ctext)
+!!$    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
+!!$    do i = 1, self%nscan
+!!$       if (.not. any(self%scans(i)%d%accept)) cycle
+!!$       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
+!!$       call sample_hfi_baselines(sd, self, i, handle)
+!!$       call dealloc_scan_data(sd)
+!!$    end do
+!!$    call update_status(status, "tod_base"//ctext)
+!!$    
+!!$    ! Create pixel histograms
+!!$    if (self%first_call) call compute_tod_pixhist(self)
+!!$    call update_status(status, "tod_hist"//ctext)
     
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
@@ -603,10 +609,15 @@ contains
        slist   = ''
     end if
 
+    ! Initialize CG mapmaker, maptype = 2 = TQU
+    cgmap => comm_cgmap(self, 2)
+    
     ! Fit higher-level corrections
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     call update_status(status, "tod_preloop"//ctext)
     do i = 1, self%nscan
+
+       write(*,*) "q", i, self%nscan
        
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
@@ -710,6 +721,9 @@ contains
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+       ! Feed CG mapmaker calibrated and cleaned data
+       call cgmap%load_data(i, self, sd, d_calib(1,:,:))
        
        ! Update scan list
        call wall_time(t2)
@@ -789,7 +803,7 @@ contains
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
-        call update_status(status, "tod_binmap2"//ctext)
+    call update_status(status, "tod_binmap2"//ctext)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -815,6 +829,11 @@ contains
     call timer%stop(TOD_WRITE)
     call update_status(status, "tod_binmap3"//ctext)
 
+    ! Solve for CG map
+    call cgmap%solve(map_out)
+    call dealloc_cgmap(cgmap)
+    call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+    
     ! Clean up
     call binmap%dealloc()
     call update_status(status, "tod_binmap4"//ctext)
