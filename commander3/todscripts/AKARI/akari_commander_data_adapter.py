@@ -529,3 +529,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     def get_sigma0(self, band:str, detector:str):
         return 1
+
+    def get_spinaxis(self):
+        '''
+        Position in radians of the spin axis of the satellite.
+        Referred to as outP at various points in the code.
+        '''
+        return np.array([9.0, 9.0])
