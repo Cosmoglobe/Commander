@@ -115,7 +115,9 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
-     else
+    else if (cpar%on_the_fly_tod_sim) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime: on-the-fly tod sims followed by standard data processing', '|'
+    else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
      write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
@@ -357,9 +359,9 @@ program commander
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
             end if
         end do
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
-     ! Do CG group sampling
-     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk
@@ -518,6 +520,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)

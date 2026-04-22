@@ -260,7 +260,6 @@ contains
 
     select case (trim(self%model))
     case ('powlaw_tilt')
-
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n

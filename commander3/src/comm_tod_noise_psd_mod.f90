@@ -53,6 +53,7 @@ module comm_tod_noise_psd_mod
      real(sp),     allocatable, dimension(:,:)  :: nu_fit            ! Frequency range used to fit non-linear parameters
 
      real(sp),     pointer :: sigma0                                 ! Pointer to xi_n(1)
+     real(sp)              :: sigma0_preproc                                 ! Sigma0 for preprocessing
      real(sp),     allocatable, dimension(:)    :: xi_n              ! Active sampling parameters, xi_n(1) = sigma0
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)
      real(sp),     allocatable, dimension(:,:)  :: P_active          ! Informative prior on xi_n (n_xi, mean/rms)

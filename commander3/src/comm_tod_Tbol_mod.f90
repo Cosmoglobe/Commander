@@ -22,6 +22,7 @@
 module comm_tod_Tbol_mod
   use comm_utils
   use comm_status_mod
+  use comm_fft_mod
   implicit none
   private
 
@@ -35,11 +36,14 @@ module comm_tod_Tbol_mod
      real(dp)     :: tau_stray, S_phase
      real(dp), allocatable, dimension(:) :: a
      real(dp), allocatable, dimension(:) :: tau
-     type(spline_type) :: TF_real, TF_imag
+     type(spline_type) :: TF_full_real,    TF_full_imag
+     type(spline_type) :: TF_preproc_real, TF_preproc_imag
+     type(spline_type) :: TF_cgmap_real,   TF_cgmap_imag
   contains
     procedure :: estimate_params
     procedure :: get_HFI_electronic_transfunc
     procedure :: get_HFI_Homega
+    procedure :: get_K_regularization
     procedure :: update           => update_Tbol
     procedure :: convolve         => convolve_Tbol
     procedure :: dealloc          => dealloc_Tbol
@@ -87,9 +91,11 @@ contains
   end subroutine estimate_params
 
   ! Routine for convolving with bolometer transfer function, tod = T * tod
-  subroutine convolve_Tbol(self, tod, plan_fwd, plan_back)
+  subroutine convolve_Tbol(self, tbol_type, operation, tod, plan_fwd, plan_back)
     implicit none
     class(comm_Tbol),               intent(in)    :: self
+    character(len=*),               intent(in)    :: tbol_type
+    character(len=*),               intent(in)    :: operation
     real(sp),         dimension(:), intent(inout) :: tod
     integer*8,                      intent(inout) :: plan_fwd, plan_back
     
@@ -101,28 +107,38 @@ contains
     complex(spc), allocatable, dimension(:)   :: dv
 
     ntod     = size(tod)
-    nomp     = 1
-    nfft     = 2 * ntod
+    nfft     = get_closest_fft_pow2(ntod)
     n        = nfft / 2 + 1
 
-    !call sfftw_init_threads(err)
-    !call sfftw_plan_with_nthreads(nomp)
-
     allocate(dt(nfft), dv(0:n-1))
-    !call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    !call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
     dt(1:ntod)           = tod
-    dt(2*ntod:ntod+1:-1) = tod(1:ntod)
+    dt(ntod+1:nfft)      = 0.    ! Zero pad
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
 
     ! Apply transfer function in Fourier space
     do i = 0, n-1
-       f     = i*(self%samprate/2)/(n-1) 
-       TF    = cmplx(splint(self%TF_real, f), splint(self%TF_imag, f))
+       f     = i*(self%samprate/2)/(n-1)
+       if (trim(tbol_type) == 'full') then
+          TF    = cmplx(splint(self%TF_full_real, f), splint(self%TF_full_imag, f))
+       else if (trim(tbol_type) == 'preproc') then
+          TF    = cmplx(splint(self%TF_preproc_real, f), splint(self%TF_preproc_imag, f))
+       else if (trim(tbol_type) == 'cgmap') then
+          TF    = cmplx(splint(self%TF_cgmap_real, f), splint(self%TF_cgmap_imag, f))
+       end if
+
+       if (trim(operation) == 'transpose') then
+          TF = conjg(TF)
+       else if (trim(operation) == 'inverse') then
+          if (abs(TF) > 0.d0) then 
+             TF = 1.d0 / TF
+          else
+             TF = 0.d0
+          end if
+       end if
        dv(i) = TF * dv(i)
     end do
 
@@ -133,8 +149,6 @@ contains
     tod = dt(1:ntod) / nfft
 
     deallocate(dt, dv)
-    !call dfftw_destroy_plan(plan_fwd)
-    !call dfftw_destroy_plan(plan_back)
     
   end subroutine convolve_Tbol
 
@@ -145,10 +159,10 @@ contains
     real(dp),         dimension(:), intent(in)    :: par
 
     integer(i4b) :: i, j
-    real(dp)     :: omega
+    real(dp)     :: omega, K
     complex(dpc) :: F, Hp
     real(dp),     allocatable, dimension(:)   :: nu
-    complex(dpc), allocatable, dimension(:)   :: TF
+    complex(dpc), allocatable, dimension(:)   :: TF_full, TF_preproc, TF_cgmap
 
     ! Update parameters
     self%npole     = count(par(3::2) > 0.d0)
@@ -159,8 +173,8 @@ contains
        self%tau(i) = par(2+2*i)
     end do
 
-    ! Generate transfer function
-    allocate(nu(0:NSPLINE), TF(0:NSPLINE)) ! position 0 is spin frequency
+    ! Generate transfer function; position 0 is spin frequency
+    allocate(nu(0:NSPLINE), TF_full(0:NSPLINE), TF_preproc(0:NSPLINE), TF_cgmap(0:NSPLINE))
     do i = 0, NSPLINE
        if (i == 0) then
           nu(i) = 1.d0/60.d0 ! One rotation per minute
@@ -178,33 +192,61 @@ contains
        ! Compute electronic transfer function
        Hp = self%get_HFI_electronic_transfunc(omega)
 
+       ! Compute regularization kernel
+       K = self%get_K_regularization(nu(i))
+       
        ! Compute total transfer function
-       TF(i) = F*Hp
+       if (K > 0.d0) then
+          TF_full(i)    = K
+          TF_preproc(i) = K/(F*Hp)
+       else
+          TF_full(i)    = 0.d0
+          TF_preproc(i) = 0.d0
+       end if
        !write(*,fmt='(i6,5f10.6)') i, nu(i), omega, abs(F), abs(Hp), abs(TF(i))
     end do
 
     ! Normalize to unity amplitude at spin (dipole) frequency; require real component to be positive
-    TF = TF / abs(TF(0))
-    if (real(TF(0)) < 0.d0) TF = -TF
-    
-    ! Spline real and imaginary components separately
-    call free_spline(self%TF_real)
-    call free_spline(self%TF_imag)
-    call spline(self%TF_real, nu(1:NSPLINE),  real(TF(1:NSPLINE)))
-    call spline(self%TF_imag, nu(1:NSPLINE), aimag(TF(1:NSPLINE)))
+    TF_full    = TF_full    / abs(TF_full(0))
+    TF_preproc = TF_preproc / abs(TF_preproc(0))
+    TF_cgmap   = 1.d0 !TF_full/TF_preproc 
+    if (real(TF_preproc(0)) < 0.d0) TF_preproc = -TF_preproc
 
-!!$    open(58, file='tf.dat')
-!!$    do i = 1, NSPLINE
-!!$       write(58,*) nu(i), real(TF(i)), aimag(TF(i))
+    ! Spline real and imaginary components separately
+    call free_spline(self%TF_full_real)
+    call free_spline(self%TF_full_imag)
+    call spline(self%TF_full_real, nu(1:NSPLINE),  real(TF_full(1:NSPLINE)))
+    call spline(self%TF_full_imag, nu(1:NSPLINE), aimag(TF_full(1:NSPLINE)))
+    
+    ! Regularize high-frequency real component for preprocessing, avoid noise boost
+!!$    TF_preproc = TF_full
+!!$    i = 1
+!!$    do while (i < NSPLINE .and. (real(TF_preproc(i)) > real(TF_preproc(i+1)) .or. nu(i) < 80.d0))
+!!$       i = i+1
 !!$    end do
-!!$    write(58,*)
-!!$    do i = 1, 100000
-!!$       omega = (i-1)*(self%samprate/2)/(100000-1)
-!!$       write(58,*) omega, splint(self%TF_real, omega), splint(self%TF_imag, omega)
+!!$    ! Set real component at hifher frequencies to local minimum
+!!$    TF_preproc(i:) = cmplx(real(TF_preproc(i)), aimag(TF_preproc(i:)))
+
+    ! Spline real and imaginary components separately
+    call free_spline(self%TF_preproc_real)
+    call free_spline(self%TF_preproc_imag)
+    call spline(self%TF_preproc_real, nu(1:NSPLINE),  real(TF_preproc(1:NSPLINE)))
+    call spline(self%TF_preproc_imag, nu(1:NSPLINE), aimag(TF_preproc(1:NSPLINE)))
+
+    ! Compute residual ratio, to be left for CG mapmaking
+    call free_spline(self%TF_cgmap_real)
+    call free_spline(self%TF_cgmap_imag)
+    call spline(self%TF_cgmap_real, nu(1:NSPLINE),  real(TF_cgmap(1:NSPLINE)))
+    call spline(self%TF_cgmap_imag, nu(1:NSPLINE), aimag(TF_cgmap(1:NSPLINE)))     
+
+!!$    open(58, file='tf.dat', recl=1024)
+!!$    do i = 1, NSPLINE
+!!$       write(58,*) nu(i), real(TF_full(i)), aimag(TF_full(i)), real(TF_preproc(i)), aimag(TF_preproc(i)), real(TF_cgmap(i)), aimag(TF_cgmap(i))
 !!$    end do
 !!$    close(58)
+!!$    write(*,*) 'done'
 
-    deallocate(nu, TF)
+    deallocate(nu, TF_full, TF_preproc, TF_cgmap)
     
   end subroutine update_Tbol
 
@@ -273,7 +315,35 @@ contains
     h5 = 2.d0*R12*R9*R78*C18*s / (s**3*K3 + s**2*K2 + s*K1 + R12*R9) ! SP HPF+Sallen Key
 
     H = h0*h1*h2*h3*h4*h5
+    !H = h0*h1*h3*h4
  
   end function get_HFI_Homega
 
+  function get_K_regularization(self, f) result(K)
+    implicit none
+    class(comm_Tbol), intent(in)    :: self
+    real(dp),         intent(in)    :: f
+    real(dp)                        :: K
+
+    real(dp) :: f_gauss, f_c, k0, fmax, fsamp
+
+    fsamp   = 2*90.18759d0
+    f_gauss = 65.d0 ! Hz
+    f_c     = 80.d0 ! Hz
+    k0      = 0.9
+    fmax    = f_c + k0*(fsamp/2-f_c)
+
+    if (f > fmax) then
+       K = 0.d0
+    else
+       K = exp(-0.5d0 * (f/f_gauss)**2)
+       if (f > f_c) then
+          K = K * cos(0.5d0*pi * (f-f_c)/(fmax-f_c))**2
+       end if
+    end if
+
+    !write(*,*) f, K
+    
+  end function get_K_regularization
+  
 end module comm_tod_Tbol_mod
