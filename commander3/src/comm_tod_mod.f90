@@ -370,6 +370,7 @@ module comm_tod_mod
      procedure                           :: precompute_zodi_lookups
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
+     procedure                           :: compute_powspec
   end type comm_tod
   
   abstract interface
@@ -3473,8 +3474,8 @@ contains
 
   end subroutine get_s_static
 
-  subroutine print_powspec(self, tod, scan, ps_output)
-    ! Prints the power spectrum of the given timestream of data
+  subroutine compute_powspec(self, tod, scan, print_output, powspec)
+    ! Compute power spectrum of the given timestream of data and prints it
     !
     ! Arguments:
     ! ----------
@@ -3484,13 +3485,16 @@ contains
     !      tod of the scan
     ! scan: int
     !       scan number
-    ! ps_output: string
-    !            output filename
+    ! print_output: string
+    !               output filename
+    ! powspec: real(sp) 2D-array
+    !          optional variable to store computed ps
     implicit none
     class(comm_tod),                           intent(inout) :: self
     real(sp),                   dimension(1:), intent(in)    :: tod
     integer(i4b),                              intent(in)    :: scan
-    character(len=*),                          intent(in)    :: ps_output
+    character(len=*),                              optional, intent(in)    :: print_output
+    real(sp),         allocatable, dimension(:,:), optional, intent(inout) :: powspec
 
     integer(i4b) :: l, n, ntod, nomp, nfft, err
     integer*8    :: plan_fwd
@@ -3505,9 +3509,10 @@ contains
     n        = nfft / 2 + 1
 
     call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)  
+    call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
+    if (present(powspec)) allocate(powspec(1:n-1,2))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
 
     ! FFT
@@ -3517,18 +3522,24 @@ contains
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
-    open(58,file=ps_output, recl=1024)
+
+    if (present(print_output)) open(58,file=print_output, recl=1024)
     do l = 1, n-1
        ls = l*(samprate/2)/(n-1)
        ps = abs(dv(l))** 2 / ntod
-       write(58,*) ls, ps
+       if (present(print_output)) write(58,*) ls, ps
+       if (present(powspec)) then
+          powspec(l,1) = ls
+          powspec(l,2) = ps
+       end if
     end do
+    if (present(print_output)) close(58)
     close(58)
 
     deallocate(dt, dv)
     call dfftw_destroy_plan(plan_fwd)
 
-  end subroutine print_powspec
+  end subroutine compute_powspec
 
   function get_sd_operation_code(op_list) result(oper)
     implicit none

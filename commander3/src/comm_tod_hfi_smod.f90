@@ -323,6 +323,7 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
+    real(sp)            :: bin_width, nu, f_nu ! ADDED
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
@@ -331,12 +332,12 @@ contains
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext, itertext
+    character(len=6)    :: samptext, scantext, itertext, dettext ! MODIFIED
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0, freqmask
-!    real(sp), allocatable, dimension(:)       :: d_prime
+    real(sp), allocatable, dimension(:)       :: d_prime ! ADDED
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -499,13 +500,47 @@ contains
        call self%hfi_dark_correction(i, sd)       
 
        ! 4k Line corrections
-       if (fit_4k_lines) then
+       if (.false. .and. fit_4k_lines) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call estimate_hfi_4k_lines(self, sd, j)
           end do
           !call self%estimate_hfi_4k_lines(i, sd)
        end if
+
+
+
+
+
+
+       ! ADDED
+       ! --Check noise model EVAL return
+       if (iter > 2) then
+          do j = 1, self%ndet
+             if (self%scans(i)%d(j)%accept .and. mod(self%scanid(i),1000)==0) then
+                call int2string(iter, itertext)
+                call int2string(self%scanid(i), scantext)
+                call int2string(j,dettext)
+                allocate(d_prime(self%scans(i)%ntod))
+                d_prime = sd%tod(:,j) - self%scans(i)%d(j)%gain * sd%s_tot(:,j,0,1)
+                d_prime = d_prime * sd%mask(:,j)
+                call self%compute_powspec(d_prime,i,print_output= trim(chaindir) // '/firstloop_ps_' // scantext // '_' // itertext // '_' // dettext // '.dat')
+                deallocate(d_prime)
+
+                open(58,file= trim(chaindir) // '/fine_eval_' // scantext // '_' // itertext // '_' // dettext // '.dat', recl=1024)
+                k = 1000
+                bin_width = (self%samprate/2) *(1 - 1./sd%ntod)/k
+                nu = (self%samprate/2)/sd%ntod - bin_width
+                do l = 0, k+1
+                   nu = nu + bin_width
+                   f_nu = self%scans(i)%d(j)%N_psd%eval_full(nu)
+                   write(58,*) nu, f_nu
+                end do
+                close(58)
+             end if
+          end do
+       end if
+
 
        ! Clean up
        call dealloc_scan_data(sd)
@@ -1393,7 +1428,7 @@ contains
     end if
     
     ! Deconvolve high-frequency roll-off
-    if (nonlin_lvl > 2) then
+    if (.false. .and. nonlin_lvl > 2) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           !call deconvolve_rolloff(self, sd, i) !sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
@@ -1401,7 +1436,7 @@ contains
     end if
 
     ! Correct 4k lines (re-estimate after gain sampling)
-    if (nonlin_lvl > 3) then
+    if (.false. .and. nonlin_lvl > 3) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           !call remove_hfi_4k_lines(self, scan, i, sd%tod(:,i), sd%s_tot(:,i))
@@ -1491,7 +1526,7 @@ contains
     complex(spc), allocatable, dimension(:)   :: dv, dv_res
     real(sp),     allocatable, dimension(:,:) :: ps, ps_res, sub_ps, profile
 
-    apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
+    apply_mask_ = .true.; if (present(apply_mask)) apply_mask_ = apply_mask
     
     scan     = sd%scan
     ntod     = self%scans(scan)%ntod
