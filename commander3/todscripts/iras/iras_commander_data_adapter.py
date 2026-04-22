@@ -6,12 +6,13 @@ import healpy
 import functools
 import glob
 
-from iras_native_tod_reader import IRASTODReader
+from iras_native_tod_reader import IRASTODReader, BANDS, BAND_DET_NUMBERS, BAND_DETS
+import iras_native_tod_reader
+
 
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import HeliocentricMeanEcliptic, get_body
 from astropy.coordinates import SkyCoord, FK4
-GC = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic')
 
 """
 This script is essentially an adaption of the script
@@ -44,19 +45,6 @@ FROM "Cosmoglobe/cosmoglobe/tod_tools/commander_data_adapter.py:
 
 
 """
-!!!!!!! TBD !!!!!!!
-
-
--get_chunk_data             Yes
--get_chunk_end_earth        Yes (temp)
--get_chunk_end_satpos       Using earth
--get_chunk_end_time         Yes
--get_chunk_indices          Yes
--get_chunk_satvel           Using zeros
--get_chunk_start_earthpos   Yes (temp)
--get_chunk_start_satpos     Using earth
--get_chunk_start_time       Yes
--set_chunk_index            Yes
 
 TESTING: 
 Currently testing the script. Below is a list of what to look after at the moment:
@@ -76,89 +64,9 @@ Currently testing the script. Below is a list of what to look after at the momen
     
 """
 
-BANDS = [
-    '012',
-    '025',
-    '060',
-    '100'
-]
-
-# BAND_DETS = {
-BAND_DET_NUMBERS = {
-    '012': [23, 24, 25, 26, 27, 28, 29, 30, 47, 48, 49, 50, 51, 52, 53, 54],    #  12 micron / Band 1
-    '025': [16, 17, 18, 19, 20, 21, 22, 39, 40, 41, 42, 43, 44, 45, 46],        #  25 micron / Band 2
-    '060': [8, 9, 10, 11, 12, 13, 14, 15, 31, 32, 33, 34, 35, 36, 37, 38],      #  60 micron / Band 3
-    '100': [1, 2, 3, 4, 5, 6, 7, 55, 56, 57, 58, 59, 60, 61, 62],               # 100 micron / Band 4
-}
-
-# ALL_DETS = sorted(sum(BAND_DET_NUMBERS.values(), []))
-# import copy
-# FULL_BAND_DETS = copy.deepcopy(BAND_DETS)
-
-DEAD_DETECTOR_LIST = [17, 20, 36]
-DEGRADED_PERFORMANCE_DETECTORS = [25, 26, 28, 42] # See expl.suppl. Chapter IV.A.2
-
-DEAD_DETECTORS = {}
-
-BAND_DETS = {}
-for band in BANDS:
-    DEAD_DETECTORS[band] = []
-    BAND_DETS[band] = []
-    for det_num in BAND_DET_NUMBERS[band]:
-        if det_num in DEAD_DETECTOR_LIST:
-            DEAD_DETECTORS[band].append(f'IRAS_{band}-{det_num:02d}')
-        else:
-            BAND_DETS[band].append(f'IRAS_{band}-{det_num:02d}')
-
-
-NUM_DETECTORS = {key: len(dets) for key, dets in BAND_DETS.items()}
-
-# print(BAND_DETS)
-# exit()
-
-### FITS 2 output hdf. TBD
-def fits2output_formatter(): pass # PLACEHOLDER
-# # This is a callback function to be used with the AKARITODReader. It formats the output data from
-# # the TOD reader in a format that is useful for the HDF file generation.
-# def fits2output_formatter(file, start_index, end_index, band,
-#                           start_det_inds=START_DET_INDS,
-#                           num_detectors=NUM_DETECTORS, band_dets=BAND_DETS):
-#     """Formats the data in an AKARI fits file in the way we need for the Commander HDFs.
-
-#     Arguments:
-#         file (fitsio.FITS): an open fitsio.FITS file instance, pointing to a TOD fits file.
-#         start_index, end_index (int): The indices (relative to the start of the file) to fetch.
-#         band (str): The band in question (is needed because each fits file contains data for two
-#                     bands)
-
-#     Returns:
-#         dictionary containing the data we want from each fits file.
-#     """
-#     out_data = {}
-#     # There is an implicit assumption here that we only want contiguous detectors. This seems to be
-#     # an okay assumption for now, but I just note it here.
-#     start_det_ind = start_det_inds[band]
-#     end_det_ind = start_det_ind + num_detectors[band]
-#     tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
-#     tot_pixflag = file[1]['PIX_FLAG'].read()[start_index:end_index,
-#                                              start_det_ind:end_det_ind, :].astype(bool)
-#     for local_det_idx, detname in enumerate(band_dets[band]):
-#         out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
-#         out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
-#     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
-#     out_data['frame_flag'] = file[1]['FLAG'].read()[start_index:end_index].astype(bool)
-#     out_data['aftime'] = file[1]['AFTIME'].read()[start_index:end_index]
-#     out_data['ra'] = file[5]['RA'].read()[start_index:end_index]
-#     out_data['dec'] = file[5]['DEC'].read()[start_index:end_index]
-#     out_data['packet_id'] = file[1]['PACKETID'].read()[start_index:end_index].astype(int)
-#     out_data['start_satpos'] = 0
-#     out_data['end_satpos'] = 0
-#     out_data['start_earthpos'] = 0
-#     out_data['end_earthpos'] = 0
-
-#     return out_data
-
-
+BANDS               = iras_native_tod_reader.BANDS
+# BAND_DET_NUMBERS    = iras_native_tod_reader.BAND_DET_NUMBERS
+BAND_DETS           = iras_native_tod_reader.BAND_DETS
 
 class IRASCommanderDataAdapter(CommanderDataAdapter):
     """
@@ -174,14 +82,16 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             bands: list[str] = BANDS,
             band_dets: dict[str, list[int]] = BAND_DETS,
     ):
-        
         self.data_dir       = data_dir
         self.nside          = nside
         self.bands          = bands
         self.band_dets      = band_dets
         self.num_detectors  = {key: len(dets) for key, dets in band_dets.items()} 
         self.num_files_per_segment = num_files_per_segment
-        
+
+        self.flux2MJy_sr = self._get_flux2MJy_sr_conversion_factors()
+
+
         self.fsamp = {
             '012': 16.0,  # [Hz],  12 micron
             '025': 16.0,  # [Hz],  25 micron
@@ -190,33 +100,26 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         }
 
         self.t0 = Time("1981-01-01T00:00:00", scale="utc") # IRAS's t=0
+        self.GC = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic') # For coord trans.
+
 
         # All (alive) detectors have the same number of files
         # Using det 30 to compute the number.    
         self.num_chunks     = len(glob.glob(f"{self.data_dir}/*/*/det30_continuous.npz"))
         self.num_segments   = int(np.ceil(self.num_chunks / self.num_files_per_segment))
 
-        # self.chunk_idx = 50
-        # chunks = self.get_chunk_indices(bands[0], segment=1)
-        # print(f"{chunks=}")
-        # print(f"{len(chunks)=}")
-        # print(f"{type(chunks)=}")
-        # print(f"{chunks=}")
-        # exit()
-
         self.todreaders = {}
         self.filelist = {}
         for band in self.bands:
+            print(f"Preparing files for band {band}", end="... ", flush=True)
             self.todreaders[band] = IRASTODReader(
-                data_dir, 
-                band, 
-                band_dets = self.band_dets
-                )
-            if self.todreaders[band].testing:
-                raise RuntimeError(
-                    f"Error. Testing must be False when calling IRASTODReader from data adapter class." 
+                iras_npz_dir    = self.data_dir, 
+                band            = band, 
+                load_filelist   = True
+                # band_dets       = self.band_dets
                 )
             self.filelist[band] = self.todreaders[band].filelist
+            print("Done")
             
 
     '''def _calculate_chunk_files(self):
@@ -244,7 +147,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         into the format needed for the HDFwriter"""
 
         self.todreaders = None
-        self._process_akari_flags = self._process_iras_flags
+        self._process_iras_flags = self._process_iras_flags
 
 
         todreader_data = {}
@@ -261,7 +164,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             for det in self.band_dets[band]:
                 todreader_data[band][det] = {}
                 todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
-                todreader_data[band][det]['flag'] = self._process_akari_flags(
+                todreader_data[band][det]['flag'] = self._process_iras_flags(
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], mode)
@@ -281,6 +184,30 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
                 todreader_data['end_earthpos'] = curr_data['end_earthpos']
 
         return todreader_data
+
+    def _get_flux2MJy_sr_conversion_factors(self):
+        # Create dictionary containing each detector's multiplicative factor 
+        # to convert tod from W/m^2 to MJy/sr.
+        # Returns dict with
+        #   key: detector name [str]
+        #   val: conversion factor [float] 
+
+        # Load dict. with det. areas: det_area_dict[det.numb(int)] = area (steradian). 
+        # Product of last two columns of Table II.C.3 in IRAS explanatory supplement
+        det_file = "/mn/stornext/d5/data/vetleav/IRAS/detector_area.npy"
+        det_area_dict = np.load(det_file, allow_pickle=True).item()
+
+        conv_factor_dict = {}
+        for band, det_list in self.band_dets.items():
+            band_wl = float(band) * u.micron
+            band_freq = band_wl.to(u.Hz, equivalencies=u.spectral())
+            for det_name in det_list:
+                det_num = int(det_name.split("-")[-1])
+                det_area = det_area_dict[det_num]
+                conv_factor_dict[det_name] = (1 * u.W / u.m**2 / band_freq / det_area).to(u.MJy / u.sr).value
+                
+        return conv_factor_dict
+
 
     def get_num_segments(self, band: str)  ->  int: 
         # For a given band, returns the
@@ -393,9 +320,29 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         self.chunk_start_time   = t[0]  * u.s + self.t0
         self.chunk_end_time     = t[-1] * u.s + self.t0
 
-        tod = data["flux"] * self.todreaders[band].flux_to_MJy_sr[detector] # MJy/sr
+        tod = data["flux"] * self.flux2MJy_sr[detector] # Convert data from W/m^2 to MJy/sr
         ra  = data["ra"]
         dec = data["dec"]
+        if self.chunk_idx == 5:
+            if band == "060":
+                if len(tod) == 8933:
+                    print(f"NB! removing one datapoint from {detector} / chunk {self.chunk_idx}")
+                    tod = tod[:-1]
+                    ra  = ra[:-1] 
+                    dec = dec[:-1]
+            elif band == "100":
+                if len(tod) == 4467:
+                    print(f"NB! removing one datapoint from {detector} / chunk {self.chunk_idx}")
+                    tod = tod[:-1]
+                    ra  = ra[:-1] 
+                    dec = dec[:-1]
+            # print("ADAPTER")
+            # print(f"    {fname=}")
+            # print(f"    {tod.shape=}")
+            # print(f"    {ra.shape =}")
+            # print(f"    {dec.shape=}")
+        # if detector == "IRAS_060-14" and self.chunk_idx == 5:
+
 
         # TEMP
         flag_tot = np.zeros_like(tod, dtype=int)
@@ -412,11 +359,12 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # sc = SkyCoord(ra=ra, dec=dec, unit='deg',
                 equinox='B1950.0', obstime='J1983.5', frame=FK4)
 
-        coords = sc.transform_to(GC)
+        coords = sc.transform_to(self.GC)
         ra[good_data] = coords.l.value
         dec[good_data] = coords.b.value
         pix = healpy.ang2pix(self.nside, ra, dec, lonlat=True)
-
+        # print(len(flag_tot[flag_tot != 0]))
+        # print(band, detector)
         return tod, pix, psi, flag_tot
 
 
@@ -520,11 +468,12 @@ if __name__ == '__main__':
     bdets = BAND_DETS
     bdets = {}
     for band, dets in BAND_DETS.items():
-        bdets[band] = dets[::3]
+        bdets[band] = dets#[::3]
 
     ICDA = IRASCommanderDataAdapter(
         data_dir        = data_dir,
         nside           = 256,
-        bands           = [BANDS[1]],
+        # bands           = [BANDS[1]],
+        bands           = BANDS,
         band_dets       = bdets,
     )
