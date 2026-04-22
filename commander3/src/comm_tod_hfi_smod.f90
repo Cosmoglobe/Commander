@@ -131,6 +131,7 @@ contains
     c%correct_sl      = .false.
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
+    c%correct_Tbol    = .true.
     c%orb_4pi_beam    = .false.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
@@ -138,6 +139,7 @@ contains
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
     c%n_4k_lines      = num_tokens(cpar%ds_tod_4k_lines(id_abs), "," )
+    c%max_npole_Tbol  = 7
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
 
@@ -196,6 +198,9 @@ contains
     ! Construct lookup tables
     c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
     call c%precompute_lookups()
+
+    ! Allocate and initialize bolometer transfer functions
+    if (c%correct_Tbol) allocate(c%Tbol(c%ndet))
     
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -342,7 +347,8 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-
+    class(comm_cgmap), pointer :: cgmap
+    
     ! file for saving tods
     type(hdf_file) :: tod_file
 
@@ -379,8 +385,8 @@ contains
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
        make_dyn_mask         = iter == 1
-       sample_ncorr          = .false. !iter  > 0 !.true.
-       sample_xi_n           = .false. !iter > 1 !.false.
+       sample_ncorr          = iter > 1 !.true.
+       sample_xi_n           = iter > 2 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 1 !.true.
     end if
@@ -395,8 +401,13 @@ contains
        skip_nonlin_ = 3
     end if
 
-    oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    if (sample_ncorr) then
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    else
+       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+    end if
     
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -441,7 +452,7 @@ contains
     !------------------------------------
 
     ! Fit per-chunk low-level non-linearity parameters
-    do i = 1, self%nscan
+    do i = 1, self%nscan ! Disable for now
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
 
@@ -473,6 +484,12 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
+       ! Estimate pre-deconvolution white noise rms
+       do j = 1, self%ndet
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
+       end do
+          
        ! Deconvolve high-frequency roll-off
 !!$       do j = 1, self%ndet
 !!$          if (.not. self%scans(i)%d(j)%accept) cycle
@@ -608,18 +625,18 @@ contains
        call update_status(status, "tod_adc"//ctext)
     end if
 
-    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
-    do i = 1, self%nscan
-       if (.not. any(self%scans(i)%d%accept)) cycle
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
-       call sample_hfi_baselines(sd, self, i, handle)
-       call dealloc_scan_data(sd)
-    end do
-    call update_status(status, "tod_base"//ctext)
-    
-    ! Create pixel histograms
-    if (self%first_call) call compute_tod_pixhist(self)
-    call update_status(status, "tod_hist"//ctext)
+!!$    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
+!!$    do i = 1, self%nscan
+!!$       if (.not. any(self%scans(i)%d%accept)) cycle
+!!$       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
+!!$       call sample_hfi_baselines(sd, self, i, handle)
+!!$       call dealloc_scan_data(sd)
+!!$    end do
+!!$    call update_status(status, "tod_base"//ctext)
+!!$    
+!!$    ! Create pixel histograms
+!!$    if (self%first_call) call compute_tod_pixhist(self)
+!!$    call update_status(status, "tod_hist"//ctext)
     
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
@@ -633,17 +650,20 @@ contains
        slist   = ''
     end if
 
+    ! Initialize CG mapmaker, maptype = 2 = TQU
+    !cgmap => comm_cgmap(self, 2)
+    
     ! Fit higher-level corrections
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     call update_status(status, "tod_preloop"//ctext)
     do i = 1, self%nscan
-       
+
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
        ! Prepare data
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
 
        ! Create dynamic mask
        if (make_dyn_mask) then
@@ -663,7 +683,7 @@ contains
           if (.not. any(self%scans(i)%d%accept)) cycle
 
           ! Update scan data with new flagging
-          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
        end if
 
        ! Sample correlated noise
@@ -740,6 +760,9 @@ contains
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+       ! Feed CG mapmaker calibrated and cleaned data
+       !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
        
        ! Update scan list
        call wall_time(t2)
@@ -819,7 +842,7 @@ contains
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
-        call update_status(status, "tod_binmap2"//ctext)
+    call update_status(status, "tod_binmap2"//ctext)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -845,6 +868,11 @@ contains
     call timer%stop(TOD_WRITE)
     call update_status(status, "tod_binmap3"//ctext)
 
+    ! Solve for CG map
+    !call cgmap%solve(map_out)
+    !call dealloc_cgmap(cgmap)
+    !call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+    
     ! Clean up
     call binmap%dealloc()
     call update_status(status, "tod_binmap4"//ctext)
@@ -885,8 +913,20 @@ contains
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
 
+    integer(i4b) :: j
+    real(dp), allocatable, dimension(:) :: par
+    
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
     self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
+
+    if (self%correct_Tbol) then
+       allocate(par(2 + 2*self%max_npole_Tbol))
+       do j = 1, self%ndet
+          call read_hdf(instfile, trim(adjustl(self%label(j)))//'/'//'Tbol', par)
+          self%Tbol(j)%p => comm_Tbol(self%samprate, par)
+       end do
+       deallocate(par)
+    end if
 
   end subroutine load_instrument_hfi
 
@@ -1405,7 +1445,7 @@ contains
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
 
-    integer(i4b) :: i, scan
+    integer(i4b) :: i, j, d, scan
 
     scan = sd%scan
     
@@ -1426,6 +1466,19 @@ contains
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
+
+    ! In-paint flagged samples with s_tot + white noise
+    if (nonlin_lvl > 2) then
+       do i = 1, self%ndet
+          d = i; if (present(det)) d = det
+          if (.not. self%scans(scan)%d(d)%accept) cycle
+          do j = 1, sd%ntod
+             if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+             end if
+          end do
+       end do
+    end if
     
     ! Deconvolve high-frequency roll-off
     if (.false. .and. nonlin_lvl > 2) then
@@ -1441,6 +1494,28 @@ contains
           if (.not. self%scans(scan)%d(i)%accept) cycle
           !call remove_hfi_4k_lines(self, scan, i, sd%tod(:,i), sd%s_tot(:,i))
           !call estimate_hfi_4k_lines(self, sd, i)
+       end do
+    end if
+
+    ! Deconvolve regularized bolometer transfer function
+    if (nonlin_lvl > 4) then
+       do i = 1, self%ndet
+          if (.not. self%scans(scan)%d(i)%accept) cycle
+          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+             open(58,file='tod_before.dat')
+             do j = 1, sd%ntod
+                write(58,*) j, sd%tod(j,i)
+             end do
+             close(58)
+          end if
+          call self%Tbol(i)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)
+          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+             open(58,file='tod_after.dat')
+             do j = 1, sd%ntod
+                write(58,*) j, sd%tod(j,i)
+             end do
+             close(58)
+          end if
        end do
     end if
 

@@ -590,7 +590,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_out)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -599,6 +599,7 @@ contains
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
+    real(sp),                           intent(out), optional :: sigma0_out
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
@@ -626,7 +627,7 @@ contains
     samprate = self%samprate
     n_gibbs  = 3
     threshold = 5.d0 ! Remove outliers
-    outscan   = 5020 !92
+    outscan   = -1! 5020 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
 
@@ -722,7 +723,7 @@ contains
        end do
 
        !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1000) then
+       if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -743,7 +744,7 @@ contains
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
-             !write(*,*) "psd", k, j
+             !if (self%myid==0) write(*,*) "psd", k, j, self%myid
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
@@ -758,12 +759,12 @@ contains
              xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-             if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
+             !if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
           end do
        end do
 
        !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1000) then
+       if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)

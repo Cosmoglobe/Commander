@@ -34,7 +34,9 @@ module comm_tod_hfi_mod
   use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
+  use comm_tod_Tbol_mod
   use comm_tod_mapmaking_mod
+  use comm_tod_cgmap_mod
   use comm_tod_pixhist_mod
   use comm_tod_adc_binfit_mod
   use comm_tod_4k_lines_mod

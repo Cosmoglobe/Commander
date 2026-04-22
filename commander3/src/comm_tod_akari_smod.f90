@@ -410,6 +410,7 @@ contains
 !!$         self%ntempl = 1     ! OBS may change
 !!$         ! allocate self%nsamp_templ
 !!$         allocate(self%nsamp_templ(self%ntempl, self%ndet, self%nscan))
+!!$         self%nsamp_templ = 0.d0
 !!$         do i = 1, self%nscan
 !!$            ! skip scan if no accepted data
 !!$            if (.not. any(self%scans(i)%d%accept)) cycle
@@ -485,7 +486,7 @@ contains
       end if
 
       ! Initialize CG mapmaker, maptype = 1 = T-only
-      cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
+      cgmap => comm_cgmap(self, 1)
       
       ! Perform loop over scans to prepare data to make maps
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
