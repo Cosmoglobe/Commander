@@ -86,14 +86,14 @@ contains
          band_samprate = 25.28 ! Hz
       end if
 
-      ! Correlated noise parameters
-      c%xi_n_nu_fit(1,:) = [0.05d0, 0.99*band_samprate/2]   ! Freq range for sigma0
+      ! Correlated noise pa.rameters
+      c%xi_n_nu_fit(1,:) = [0.5d0, 4.d0]   ! Freq range for sigma0
       c%xi_n_nu_fit(2,:) = [0.d0, 0.5d0]    ! Freq range for fknee
       c%xi_n_nu_fit(3,:) = [0.d0, 0.5d0]    ! Freq range for alpha
       
       c%xi_n_P_uni(1,:)  = [1d-6, 100.d0]   ! Uniform prior for sigma0
       c%xi_n_P_uni(2,:)  = [6d-5, 1.d0]     ! Uniform prior for fknee
-      c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+      c%xi_n_P_uni(3,:)  = [-4d0, -1d0]   ! Uniform prior for alpha
       
       ! Set rms of all parameters to 0.05 for initial test phase. 
       c%xi_n_P_rms(1)    = 1.00d0           ! Prior rms for sigma0
@@ -105,8 +105,8 @@ contains
          c%xi_n_nu_fit(4,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for fknee2
          c%xi_n_nu_fit(5,:) = [4.d0, 0.99*band_samprate/2]  ! Freq range for alpha2
          
-         c%xi_n_P_uni(4,:)  = [4.0d0, 0.99*band_samprate/2]  ! Uniform prior for fknee2
-         c%xi_n_P_uni(5,:)  = [0.5d0, 3.d0]   ! Uniform prior for alpha2
+         c%xi_n_P_uni(4,:)  = [7.0d0, 0.99*band_samprate/2]  ! Uniform prior for fknee2
+         c%xi_n_P_uni(5,:)  = [2d0, 4.d0]   ! Uniform prior for alpha2
          
          c%xi_n_P_rms(4)    = 0.05d0         ! Prior rms for fknee2
          c%xi_n_P_rms(5)    = 0.05d0         ! Prior rms for alpha2
@@ -129,8 +129,7 @@ contains
       else
           c%compressed_tod  = .false.
       end if
-      c%correct_sl      = .false.                ! OBS FIXME these flags are obsolete and not used
-      c%correct_orb     = .false.                ! replaced by oper_default below
+      c%correct_sl      = .false.                ! OBS FIXME these flags are obsolete and not used      c%correct_orb     = .false.                ! replaced by oper_default below
       c%orb_4pi_beam    = .false.
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
       c%apply_inst_corr = .false.   
@@ -516,13 +515,13 @@ contains
          if (sample_ncorr) then
             call sample_n_corr(self, sd, handle)
             if (sample_xi_n) then
-               call sample_noise_psd(self, sd, handle, chaindir)
+               call sample_noise_psd(self, sd, handle, chaindir, iter)
             else
-               call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+               call sample_noise_psd(self, sd, handle, chaindir, iter, only_sigma0=.true.)
             end if
          else
             call sample_n_corr(self, sd, handle, onlymono=.true.)
-            call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+            call sample_noise_psd(self, sd, handle, chaindir, iter, only_sigma0=.true.)
          end if
 
          ! Compute chisquare

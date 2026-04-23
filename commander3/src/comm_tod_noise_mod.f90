@@ -494,12 +494,13 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, iter, freqmask, only_sigma0, dec_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
     type(planck_rng),                   intent(inout)  :: handle
-    character(len=*),                   intent(in)    :: chaindir
+    character(len=*),                   intent(in)     :: chaindir
+    integer(i4b),                       intent(in)     :: iter
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
@@ -511,7 +512,7 @@ contains
     real(sp)     :: f, logbin
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
-    character(len=6) :: stext
+    character(len=6) :: stext, itext
     character(len=2) :: dtext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
@@ -551,10 +552,10 @@ contains
                 else
                    mask0(j) = 1.
                    !res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1) - sd%n_corr(j1:j2,i)) / (j2-j1+1)
-                   res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                   res0(j)  = sum(sd%tod(j1:j2,i)) ! - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
                    if (allocated(sd%s_tot))  res0(j)  = res0(j) - sum(self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
                    if (allocated(sd%n_corr)) res0(j)  = res0(j) - sum(sd%n_corr(j1:j2,i)) / (j2-j1+1)
-                   if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1)
+                   !if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1) ! Already in sd%tod
                 end if
              end do
           else
@@ -562,7 +563,7 @@ contains
              res0  = sd%tod(:,i)
              if (allocated(sd%s_tot))  res0 = res0 - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1)
              if (allocated(sd%n_corr)) res0 = res0 - sd%n_corr(:,i)
-             if (allocated(sd%s_spur)) res0 = res0 - sd%s_spur(:,i)
+             !if (allocated(sd%s_spur)) res0 = res0 - sd%s_spur(:,i)
              mask0 = sd%mask(:,i)
           end if
        
@@ -618,7 +619,7 @@ contains
        !dt     = sd%n_corr(:,i)
        dt     = sd%tod(:,i) 
        if (allocated(sd%s_tot))  dt = dt - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1)
-       if (allocated(sd%s_spur)) dt = dt - sd%s_spur(:,i)
+       !if (allocated(sd%s_spur)) dt = dt - sd%s_spur(:,i) ! Already in sd%tod
        do j = 1, ntod ! Inpaint masked samples with a noise realization
           if (sd%mask(j,i) == 0) then
              dt(j) = sd%n_corr(j,i) + self%scans(scan)%d(i)%N_psd%xi_n(1) * rand_gauss(handle)
@@ -629,9 +630,11 @@ contains
        !if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          call int2string(iter, itext)
+          open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'_'//itext//'.dat', recl=1024)
           do j = 1, ntod
-             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
+             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j)/self%scans(scan)%d(i)%gain, sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
+             !write(58,*) j, dt(j), sd%n_corr(j,i), sd%mask(j,i)
           end do
           close(58)
        end if
@@ -670,7 +673,8 @@ contains
        !if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
-          open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
+          call int2string(iter, itext)
+          open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'_'//itext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
           j1     = 1
@@ -681,9 +685,18 @@ contains
                 ps_d = ps_d + abs(dv(l))**2 / ntod
                 ps_s = ps_s + self%scans(scan)%d(i)%N_psd%eval_full(real(l*(samprate/2)/(n-1),sp))
              end do
-             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1)/self%scans(scan)%d(i)%gain**2, ps_s/(j2-j1+1)/self%scans(scan)%d(i)%gain**2
+             write(58,*) 0.5*(j1+j2)*(samprate/2)/(n-1), ps_d/(j2-j1+1)/self%scans(scan)%d(i)%gain**2, ps_s/(j2-j1+1)/self%scans(scan)%d(i)%gain**2, self%scans(scan)%d(i)%N_psd%xi_n(1)**2/self%scans(scan)%d(i)%gain**2
              j1 = j2+1
              j2 = j1*logbin + 1             
+          end do
+          close(58)
+          
+          open(58,file=trim(chaindir)//'/noise_psd_fullres_'//trim(self%freq)//'_'//stext//'_'//dtext//'_'//itext//'.dat', recl=1024)
+          write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
+          do j1 =1, n-1
+             ps_d = abs(dv(j1))**2 / ntod
+             ps_s = self%scans(scan)%d(i)%N_psd%eval_full(real(j1*(samprate/2)/(n-1),sp))
+             write(58,*) j1*(samprate/2)/(n-1), ps_d/self%scans(scan)%d(i)%gain**2, ps_s/self%scans(scan)%d(i)%gain**2
           end do
           close(58)
        end if

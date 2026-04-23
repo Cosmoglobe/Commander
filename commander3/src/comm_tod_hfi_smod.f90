@@ -533,7 +533,7 @@ contains
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
           if (trim(self%init_from_HDF) == 'none') then
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+             call sample_noise_psd(self, sd, handle, chaindir, iter, only_sigma0=.true., dec_wn=dec_wn)
           end if
 
           ! Create mask
@@ -556,13 +556,13 @@ contains
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
-             call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
+             call sample_noise_psd(self, sd, handle, chaindir, iter, freqmask=freqmask)
              deallocate(freqmask)
           else
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+             call sample_noise_psd(self, sd, handle, chaindir, iter, only_sigma0=.true., dec_wn=dec_wn)
           end if
        else
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+          call sample_noise_psd(self, sd, handle, chaindir, iter, only_sigma0=.true., dec_wn=dec_wn)
        end if
 
        

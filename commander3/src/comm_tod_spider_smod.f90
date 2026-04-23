@@ -495,7 +495,7 @@ contains
         call sample_n_corr(self, sd, handle)
         
         ! Compute noise spectrum parameters
-        call sample_noise_psd(self, sd, handle, chaindir)
+        call sample_noise_psd(self, sd, handle, chaindir, iter)
 
         ! Compute chisquare
         call timer%start(TOD_CHISQ, self%band)
