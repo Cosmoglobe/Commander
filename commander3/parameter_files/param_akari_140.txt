@@ -1,7 +1,7 @@
 **************************************************************
 *                  Commander parameter file                  *
 **************************************************************
-@DEFAULT LFI_tod.defaults
+@DEFAULT AKARI_tod.defaults
 
 OPERATION                     = sample  # {sample,optimize}
 VERBOSITY                     = 3       # [0,...,3]

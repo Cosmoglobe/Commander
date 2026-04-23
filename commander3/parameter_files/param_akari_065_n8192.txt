@@ -134,11 +134,11 @@ INCLUDE_BAND027                = .false.    # 2802 map
 
 
 @START 001
-@DEFAULT bands/AKARI/AKARI_065_n2048_v1.defaults
+@DEFAULT bands/AKARI/AKARI_065_n8192_v1.defaults
 BAND_LABEL&&&                      = AKARI_065
 BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; placeholder
+BAND_MAPFILE&&&                    = akari/maps/akari_160_1_8192.fits        # Official map
+BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_8192.fits  # RMS map; placeholder
 BAND_TOD_FILELIST&&&               = akari/tod/065/filelist_akari_065.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N60/filelist_AKARI_N60_v1_.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 11978 100
@@ -166,11 +166,11 @@ BAND_TOD_LEVEL&&&                  = L2
 
 
 @START 002
-@DEFAULT bands/AKARI/AKARI_160_n2048_v1.defaults
+@DEFAULT bands/AKARI/AKARI_160_n8192_v1.defaults
 BAND_LABEL&&&                      = AKARI_160
 BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
+BAND_MAPFILE&&&                    = akari/maps/akari_160_1_8192.fits        # Official map
+BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_8192.fits  # RMS map; set to 1 for now
 BAND_TOD_FILELIST&&&               = akari/tod/160/filelist_akari_160.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N160/filelist_AKARI_N160_v1_.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 11978 100
@@ -197,11 +197,11 @@ BAND_TOD_LEVEL&&&                  = L2
 @END 002 
 
 @START 003
-@DEFAULT bands/AKARI/AKARI_090_n2048_v1.defaults
+@DEFAULT bands/AKARI/AKARI_090_n8192_v1.defaults
 BAND_LABEL&&&                      = AKARI_090
 BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
+BAND_MAPFILE&&&                    = akari/maps/akari_160_1_8192.fits        # Official map
+BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_8192.fits  # RMS map; set to 1 for now
 BAND_TOD_FILELIST&&&               = akari/tod/090/filelist_akari_090.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-S/filelist_AKARI_WIDE-S_v1_.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 11978 100
@@ -228,11 +228,11 @@ BAND_TOD_LEVEL&&&                  = L2
 @END 003
 
 @START 004
-@DEFAULT bands/AKARI/AKARI_140_n2048_v1.defaults
+@DEFAULT bands/AKARI/AKARI_140_n8192_v1.defaults
 BAND_LABEL&&&                      = AKARI_140
 BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
+BAND_MAPFILE&&&                    = akari/maps/akari_160_1_8192.fits        # Official map
+BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_8192.fits  # RMS map; set to 1 for now
 BAND_TOD_FILELIST&&&               = akari/tod/140/filelist_akari_140.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-L/filelist_AKARI_WIDE-L_v1_.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 11978 100
