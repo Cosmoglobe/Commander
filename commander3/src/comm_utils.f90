@@ -1734,7 +1734,7 @@ contains
     
   end subroutine compute_running_variance_dp
 
-  function bin_spec_lin(x, ps, dx) result(bin_spec)
+ function bin_spec_lin(x, ps, dx, sigmas) result(bin_spec)
     !
     ! Routine to bin a power spectrum with uniform bins
     !
@@ -1755,11 +1755,12 @@ contains
     !           contains x- and y- values for the binned power spectrum
     !
     implicit none
-    real(sp),    dimension(1:), intent(in) :: ps, x
-    real(sp),                   intent(in) :: dx
+    real(sp),    dimension(1:),                        intent(in) :: ps, x
+    real(sp),                                          intent(in) :: dx
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
     real(sp),  allocatable, dimension(:,:) :: bin_spec
 
-    integer(i4b) :: i, j, n, nbin
+    integer(i4b) :: i, j, k, n, nbin
     integer(i4b), allocatable, dimension(:) :: bin_count
     real(sp),     allocatable, dimension(:) :: bin_sum
 
@@ -1771,10 +1772,10 @@ contains
     allocate(bin_spec(nbin,2))
 
     bin_sum = 0.d0; bin_count = 0
-    bin_spec(nbin,2) = 0.d0
+    bin_spec = 0.d0
     do i = 1, n
        j = (x(i) - x(1))/dx + 1
-       if (j >= 1 .and. j <= nbin) then
+       if (j <= nbin) then
           bin_sum(j)   = bin_sum(j) + ps(i)
           bin_count(j) = bin_count(j) + 1
        end if
@@ -1785,10 +1786,25 @@ contains
        if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
     end do
 
+    ! Compute sigmas
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas = 0.d0
+       k = 0
+       do j = 1, nbin
+          do i = 1, bin_count(j)
+             k = k + 1
+             sigmas(j) = sigmas(j) + (ps(k) - bin_spec(j,2))**2
+          end do
+          sigmas(j) = sigmas(j) / (bin_count(j) - 1)
+          sigmas(j) = sqrt(sigmas(j))
+       end do
+    end if
+
     deallocate(bin_sum,bin_count)
   end function bin_spec_lin
 
-  function bin_spec_log(x, ps, nbin) result(bin_spec)
+  function bin_spec_log(x, ps, nbin, sigmas) result(bin_spec)
     !
     ! Routine to bin a power spectrum with logarithmic bins
     !
@@ -1809,11 +1825,12 @@ contains
     !           contains x- and y- values for the power spectrum
     !
     implicit none
-    real(sp),    dimension(1:), intent(in) :: ps, x
-    integer(i4b),               intent(in) :: nbin
+    real(sp),    dimension(1:),                        intent(in) :: ps, x
+    integer(i4b),                                      intent(in) :: nbin
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
     real(sp),  allocatable, dimension(:,:) :: bin_spec
 
-    integer(i4b) :: i, j, n
+    integer(i4b) :: i, j, k, n
     real(sp)     :: log_min, log_max, dx
     integer(i4b), allocatable, dimension(:) :: bin_count
     real(sp),     allocatable, dimension(:) :: bin_sum, edges
@@ -1833,7 +1850,7 @@ contains
     end do
 
     bin_sum = 0.d0; bin_count = 0
-    bin_spec(nbin,2) = 0.d0
+    bin_spec= 0.d0
     do i = 1, n
        do j = 1, nbin
           if (x(i) >= edges(j) .and. x(i) < edges(j+1)) then
@@ -1848,12 +1865,28 @@ contains
        if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
     end do
 
+    ! Compute sigmas
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas = 0.d0
+       k = 0
+       do j = 1, nbin
+          do i = 1, bin_count(j)
+             k = k + 1
+             sigmas(j) = sigmas(j) + (ps(k) - bin_spec(j,2))**2
+          end do
+          sigmas(j) = sigmas(j) / (bin_count(j) - 1)
+          sigmas(j) = sqrt(sigmas(j))
+       end do
+    end if
+
+
     deallocate(bin_sum,bin_count,edges)
   end function bin_spec_log
 
-  function bin_spec_loglin(x, ps, nbin_log, dx_lin, threshold) result(bin_spec)
+  function bin_spec_loglin(x, ps, nbin_log, dx_lin, threshold, sigmas) result(bin_spec)
     !
-    ! Routine to bin a power spectrum with logarithmic bins up to a threshold
+    ! Routine to bin a power spectrum with logarithmic bins up to a threshold, and linearly afterwards
     !
     ! Arguments
     ! ---------
@@ -1869,6 +1902,9 @@ contains
     !
     ! threshold: Threshold from logarithmic to linear
     !
+    ! sigmas: sp array
+    !         std of each bin
+    !
     ! ----------------------
     ! Returns
     ! -------
@@ -1876,27 +1912,42 @@ contains
     !           contains x- and y- values for the power spectrum
     !
     implicit none
-    real(sp),     dimension(:), intent(in) :: ps, x
-    integer(i4b),               intent(in) :: nbin_log
-    real(sp),                   intent(in) :: dx_lin, threshold
+    real(sp),     dimension(:),                        intent(in) :: ps, x
+    integer(i4b),                                      intent(in) :: nbin_log
+    real(sp),                                          intent(in) :: dx_lin, threshold
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
     real(sp),  allocatable, dimension(:,:) :: bin_spec
 
     integer(i4b) :: n, nbin, thr_ind
+    real(sp),  allocatable, dimension(:)   :: sigmas_lin, sigmas_log
     real(sp),  allocatable, dimension(:,:) :: log_bin_spec, lin_bin_spec
 
     n = size(x)
     if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
 
     thr_ind = locate(real(x,dp),dble(threshold))
-    log_bin_spec = bin_spec_log(x(:thr_ind),ps(:thr_ind),nbin_log)
-    lin_bin_spec = bin_spec_lin(x(thr_ind:),ps(thr_ind:),dx_lin)
+    if (present(sigmas)) then
+       log_bin_spec = bin_spec_log(x(:thr_ind), ps(:thr_ind), nbin_log, sigmas_log)
+       lin_bin_spec = bin_spec_lin(x(thr_ind:), ps(thr_ind:), dx_lin, sigmas_lin)
+    else
+       log_bin_spec = bin_spec_log(x(:thr_ind), ps(:thr_ind), nbin_log)
+       lin_bin_spec = bin_spec_lin(x(thr_ind:), ps(thr_ind:), dx_lin)
+    end if
 
-    nbin = nbin_log + size(lin_bin_spec(:,1))
+    nbin = nbin_log + size(lin_bin_spec(2:,1))
     allocate(bin_spec(nbin,2))
     bin_spec(:nbin_log,:) = log_bin_spec
-    bin_spec(nbin_log+1:,:) = lin_bin_spec
+    bin_spec(nbin_log+1:,:) = lin_bin_spec(2:,:)
+
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas(:nbin_log)   = sigmas_log
+       sigmas(nbin_log+1:) = sigmas_lin
+       deallocate(sigmas_log, sigmas_lin)
+    end if
 
     deallocate(log_bin_spec,lin_bin_spec)
   end function bin_spec_loglin
+
 
 end module comm_utils

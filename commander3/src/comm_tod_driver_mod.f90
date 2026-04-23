@@ -604,6 +604,12 @@ contains
        ! Prepare data
        call init_scan_data(tod, i, oper, TODMASK_GAIN, sd, handle=handle)
 
+       if (.false. .and. tod%noise_psd_model == 'spline') then
+          do j = 1, tod%ndet
+             if (tod%scans(i)%d(j)%accept) call update_spline_noise_psd(tod,sd,i,j)
+          end do
+       end if
+
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
@@ -990,6 +996,183 @@ contains
     
   end subroutine remove_tod_outliers
   
+  subroutine remove_tod_outliers_spline(tod, window, threshold)
+    implicit none
+    class(comm_tod),                intent(inout) :: tod
+    integer(i4b),                   intent(in)    :: window
+    real(sp),         dimension(6), intent(in)    :: threshold
+
+    integer(i4b) :: i, j, k, l, ll, iter, scan, n, ierr, npar
+    integer(i4b), parameter :: nstat = 6
+    real(dp)     :: mu, sigma
+    real(sp), allocatable, dimension(:,:,:) :: stat, xi_stat
+    logical(lgt), allocatable, dimension(:,:)   :: accept
+    character(len=6), dimension(nstat) :: label
+
+    call timer%start(TOD_CHISQ, tod%band)
+    label = ['chisq ', 'sigma0', 'xi_n', 'base  ', 'base1 ', 'base2 ']
+
+    if (tod%myid==0) then
+       select type(N_psd => tod%scans(1)%d(1)%N_psd)
+          type is (comm_noise_psd_spline)
+          npar = N_psd%n_common_points
+       end select
+    end if
+    call mpi_bcast(npar, 1, MPI_INTEGER, 0, tod%comm, ierr)
+
+    ! Collect test statistics from all cores
+    allocate(stat(tod%last_scan,tod%ndet,-1:nstat), accept(tod%last_scan,tod%ndet))
+    allocate(xi_stat(tod%last_scan,tod%ndet,npar))
+    stat = 0.; xi_stat = 0.
+    do i = 1, tod%nscan
+       scan = tod%scanid(i)
+       do j = 1, tod%ndet
+          stat(scan,j,0)  = 0.; if (tod%scans(i)%d(j)%accept) stat(scan,j,0) = 1.
+          stat(scan,j,-1) = tod%mod_phase(j,i)
+          if (.not. tod%scans(i)%d(j)%accept) cycle
+          if (threshold(1) > 0.) stat(scan,j,1) = tod%scans(i)%d(j)%chisq
+          if (threshold(2) > 0.) stat(scan,j,2) = tod%scans(i)%d(j)%N_psd%xi_n(1)
+
+          if (threshold(3) > 0.) then
+             select type(N_psd => tod%scans(i)%d(j)%N_psd)
+                type is (comm_noise_psd_spline)
+                do k = 1, npar
+                   xi_stat(scan,j,k) = N_psd%common_points(k,2)
+                end do
+             end select
+          end if
+
+          if (threshold(4) > 0.) stat(scan,j,4) = tod%scans(i)%d(j)%baseline(0)
+          if (threshold(5) > 0.) then
+             if (tod%mod_phase(j,i) == 1.) then
+                stat(scan,j,5) = tod%scans(i)%d(j)%baseline1
+             else
+                stat(scan,j,5) = tod%scans(i)%d(j)%baseline2
+             end if
+          end if
+          if (threshold(6) > 0.) then
+             if (tod%mod_phase(j,i) == 1.) then
+                stat(scan,j,6) = tod%scans(i)%d(j)%baseline2
+             else
+                stat(scan,j,6) = tod%scans(i)%d(j)%baseline1
+             end if
+          end if
+       end do
+    end do
+
+    ! Find and exclude outliers
+    !! l/=3 (stat)
+
+    if (tod%myid == 0) then
+       call mpi_reduce(mpi_in_place, stat, size(stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+
+       ! Search for outliers; compare given scan to surrounding scans. Iterate,
+       ! and let the window separation decrease in each step to eliminate extended
+       ! regions of outliers
+       accept = .true.
+       do iter = 1, 5
+          do j = 1, tod%ndet
+             do l = 1, nstat
+                if (l/=3) then
+                   if (threshold(l) <= 0.) cycle
+                   do i = 1, tod%last_scan
+                      if (stat(i,j,0) <= 0. .or. .not. accept(i,j)) cycle
+                      mu = 0.0; n = 0; sigma = 0.0
+                      do k = max(i-iter*window,1), max(i-(iter-1)*window-1,1)
+                         if (stat(k,j,0) == 0.) cycle
+                         mu = mu    + stat(k,j,l)
+                         sigma = sigma + real(stat(k,j,l),dp)**2
+                         n     = n     + 1
+                      end do
+                      do k = min(i+(iter-1)*window+1,tod%nscan_tot), min(i+iter*window,tod%nscan_tot)
+                         if (stat(k,j,0) == 0.) cycle
+                         mu    = mu    + stat(k,j,l)
+                         sigma = sigma + real(stat(k,j,l),dp)**2
+                         n     = n     + 1
+                      end do
+                      if (n > window/2 .and. n > 1) then
+                         mu    = mu / n
+                         sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
+                         if (sigma > 0.) then
+                            accept(i,j) =  (abs(stat(i,j,l)-mu) < threshold(l)*sigma)
+                            if (.not. accept(i,j)) write(*,fmt='(a,i8,i4,a,a,a,f16.3,a,f8.3)') '  Rejecting scan = ', i, j, ', ', label(l), ' = ', stat(i,j,l), ', sigma = ', (stat(i,j,l)-mu)/sigma
+                            !if (accept(i,j)) write(*,fmt='(a,i8,i4,a,a,a,f16.3,a,f8.3)') '  Accepting scan = ', i, j, ', ',
+                            !label(l), ' = ', stat(i,j,l), ', sigma = ', (stat(i,j,l)-mu)/sigma
+                         end if
+                      end if
+                   end do
+                end if
+             end do
+          end do
+       end do
+    else
+       call mpi_reduce(stat, stat, size(stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+    end if
+
+
+    ! l==3 (xi_stat, noise model common points)
+    if (tod%myid == 0) then
+       call mpi_reduce(mpi_in_place, xi_stat, size(xi_stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+
+       accept = .true.
+       do iter = 1, 5
+          do j = 1, tod%ndet
+             if (threshold(3) <= 0.) cycle
+             do i = 1, tod%nscan
+                scan = tod%scanid(i)
+                if (stat(scan,j,0) <= 0. .or. .not. accept(scan,j)) cycle
+                do ll = 1, npar
+                   mu = 0.0; n = 0; sigma = 0.0
+                   do k = max(scan-iter*window,1), max(scan-(iter-1)*window-1,1)
+                      if (stat(k,j,0) == 0.) cycle
+                      mu = mu    + xi_stat(k,j,ll)
+                      sigma = sigma + real(xi_stat(k,j,ll),dp)**2
+                      n     = n     + 1
+                   end do
+                   do k = min(scan+(iter-1)*window+1,tod%nscan_tot), min(scan+iter*window,tod%nscan_tot)
+                      if (stat(k,j,0) == 0.) cycle
+                      mu    = mu    + xi_stat(k,j,ll)
+                      sigma = sigma + real(xi_stat(k,j,ll),dp)**2
+                      n     = n     + 1
+                   end do
+                   if (n > window/2 .and. n > 1) then
+                      mu    = mu / n
+                      sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
+                      if (sigma > 0.) then
+                         accept(scan,j) =  (abs(xi_stat(scan,j,ll)-mu) < threshold(3)*sigma)
+                         if (.not. accept(scan,j)) write(*,fmt='(a,i8,i4,a,a,a,i8,a,f16.3,a,f8.3)') '  Rejecting scan = ', scan,&
+                            & j, ', ', label(l), '(', ll+1, ') = ', xi_stat(scan,j,ll), ', sigma = ', (xi_stat(scan,j,ll)-mu)/sigma
+                      end if
+                   end if
+                end do
+             end do
+          end do
+       end do
+    else
+       call mpi_reduce(xi_stat, xi_stat, size(xi_stat), &
+            & MPI_REAL, MPI_SUM, 0, tod%comm, ierr)
+    end if
+
+
+    ! Distribute final accept list, and update local data structure
+    call mpi_bcast(accept,  size(accept) , MPI_LOGICAL, 0, tod%comm, ierr)
+    do i = 1, tod%nscan
+       scan = tod%scanid(i)
+       do j = 1, tod%ndet
+          tod%scans(i)%d(j)%accept = tod%scans(i)%d(j)%accept .and. accept(scan,j)
+       end do
+    end do
+
+    ! Clean up
+    deallocate(stat, xi_stat, accept)
+    call timer%stop(TOD_CHISQ, tod%band)
+
+  end subroutine remove_tod_outliers_spline
+
+
   subroutine compute_chisq_abs_bp(tod, scan, sd, chisq)
     implicit none
     class(comm_tod),                       intent(inout) :: tod

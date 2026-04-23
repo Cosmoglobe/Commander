@@ -620,6 +620,8 @@ contains
        self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
     else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
+    else if (trim(self%noise_psd_model) == 'spline') then
+       self%n_xi = 94 ! {sigma0, spline nodes}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -1275,7 +1277,7 @@ contains
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
-       if (tod%n_xi >= 3) then
+       if (tod%n_xi >= 3 .and. trim(tod%noise_psd_model) /= 'spline') then
           xi_n(2) = min(max(scalars(3), tod%xi_n_P_uni(2,1)), tod%xi_n_P_uni(2,2))
           xi_n(3) = min(max(scalars(4), tod%xi_n_P_uni(3,1)), tod%xi_n_P_uni(3,2))
        end if
@@ -1310,6 +1312,11 @@ contains
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == 'spline') then
+          do j = 2, tod%n_xi
+             xi_n(j) = 1.d8 / j
+          end do
+          self%d(i)%N_psd => comm_noise_psd_spline(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
 !!$          do while (.true.)

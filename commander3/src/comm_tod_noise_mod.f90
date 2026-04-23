@@ -59,7 +59,7 @@ contains
     !          TOD-domain correlated noise realization
     ! 
     implicit none
-    class(comm_tod),                    intent(in)     :: self
+    class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(inout)  :: sd
 
     type(planck_rng),                   intent(inout)  :: handle
@@ -125,11 +125,11 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       ! Setting new white noise level from powspec
-       if (self%first_call) then
+       if (.true.) then !self%first_call) then
+          if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
           sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
           N_wn     = sigma_0**2
-       else
+       else ! Setting new white noise level from powspec
           allocate(ps(0:n-1))
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -253,43 +253,6 @@ contains
 !!$       end if
       
 
-!       ! Splined PSD evaluation
-!       if (self%noise_psd_model == 'spline') then
-!          if (self%myid == 0) write(*,*) 'Splined PSD evaluation'
-!          dt(1:ntod)           = d_prime(:)
-!          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-!          call timer%start(TOT_FFT)
-!          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-!          call timer%stop(TOT_FFT)
-!          allocate(psd(n-1,2))
-!          do l = 1, n-1
-!             psd(l,1) = real(l*(samprate/2)/(n-1))
-!             psd(l,2) = abs(dv(l)) ** 2 / ntod
-!          end do
-!
-!          threshold = 5.d0 ! Hz
-!          nbin = 10; dnu = 5.d0
-!          binned_psd = bin_spec_loglin(psd(:,1),psd(:,2),nbin,dnu,threshold)
-!
-!          deallocate(psd)
-!          call dfftw_destroy_plan(plan_fwd)
-!          call dfftw_destroy_plan(plan_back)
-!
-!          select type(N_psd => self%scans(scan)%d(i)%N_psd)
-!             type is (comm_noise_psd_spline)
-!                call N_psd%update_spline(binned_psd(:,2),binned_psd(:,1))
-!          end select
-!  
-!          if (self%scanid(scan) == 5000 .and. .not. self%first_call) then
-!             open(58,file='testdir/splined_noise_psd.dat', recl=1024)
-!             write(58,*) self%scans(scan)%d(i)%N_psd%sigma0
-!             do l = 2, self%scans(scan)%d(i)%N_psd%npar
-!                nu = self%scans(scan)%d(i)%N_psd%xi_n(l)
-!                write(58,*) nu, self%scans(scan)%d(i)%N_psd%eval_full(nu)
-!             end do
-!             close(58)
-!          end if
-!       end if
 
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, sd%mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
@@ -679,10 +642,18 @@ contains
              end do
              if (nval > 100) then
                 if( present(dec_wn) )then
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   if (present(sigma0_out)) then
+                      sigma0_out = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                 else
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   if (present(sigma0_out)) then
+                      sigma0_out = sqrt(s/(nval-1))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1))
                 end if
              else
@@ -797,6 +768,7 @@ contains
 
     function lnL_xi_n(x) 
       use healpix_types
+      use, intrinsic :: ieee_arithmetic
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_xi_n
@@ -816,14 +788,23 @@ contains
       ! Add likelihood term
       lnL_xi_n = 0.d0
       do l = n_low, n_high
+
+         if (.not. ieee_is_finite(ps(l))) then
+            lnL_xi_n = -1.d30
+            self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
+            return
+         end if
+
          if (present(freqmask)) then
             if (freqmask(l) == 0.) cycle
          end if
          f         = l*(samprate/2)/(n-1)
          !N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
          N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_full(f)
-         if (N_corr .le. 0) then
+         if (.not. ieee_is_finite(N_corr) .or. N_corr .le. 0) then
            write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
+           lnL_xi_n = -1.d30
+           return
          else
            lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
          end if
@@ -846,6 +827,29 @@ contains
     end function lnL_xi_n
        
   end subroutine sample_noise_psd
+
+  ! Updates the spline noise PSD model
+  subroutine update_spline_noise_psd(self, sd, scan, i)
+    implicit none
+    class(comm_tod),            intent(inout)  :: self
+    class(comm_scandata),       intent(in)     :: sd
+    integer(i4b),               intent(in)     :: scan
+    integer(i4b),               intent(in)     :: i
+
+    real(sp), allocatable, dimension(:)   :: d_prime
+    real(sp), allocatable, dimension(:,:) :: noise_ps
+
+    allocate(d_prime(self%scans(scan)%ntod))
+    d_prime = sd%tod(:,i) - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
+    d_prime = d_prime * sd%mask(:,i)
+    call self%compute_powspec(d_prime, scan, powspec=noise_ps)
+    select type(N_psd => self%scans(scan)%d(i)%N_psd)
+       type is (comm_noise_psd_spline)
+          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
+       deallocate(d_prime,noise_ps)
+    end select
+
+  end subroutine update_spline_noise_psd
 
 
   ! Routine for multiplying a set of timestreams with inverse noise covariance 
