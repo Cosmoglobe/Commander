@@ -61,7 +61,6 @@ class AKARITODReader:
         self.fitsdir = akari_fits_dir
         self.filelist = glob.glob(self.fitsdir + f'/*/*{file_identifier}*.fits')
         self.filelist.sort()
-        self.filelist = self.filelist[:60]
         self.fits2output_formatter = fits2output_formatter
         if load_idx_file_mapping and mapping_dir is None:
             raise(ValueError(f"load_idx_file_mapping is True but no mapping_dir is given"))
