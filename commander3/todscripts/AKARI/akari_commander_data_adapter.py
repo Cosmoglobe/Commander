@@ -37,6 +37,23 @@ START_DET_INDS = { # These are the starting indices for each detector inside the
     '160': 45  #N160
 }
 
+# These are the implied starting indices of each detector for the lon/lat pkl files created by
+# Ryosuke. I currently assume that these are 'wrongly' indexed compared to the 'standard' starting
+# indices (above) because this wrong assumption was made throughout, and I don't believe these
+# lonlat files depend on the fits files any further than just getting the boresight pointing, which
+# is common for all detectors. Thus, I believe that Ryosuke used the implied indexing scheme below
+# when he calculated the lon/lats of each detector pixel. This we should take away when a proper
+# calculation is implemented rather than using the pkl files.
+# I also don't assume that the below will be the correct indexing for the pkl *flag* array, because
+# those flags actually come from the .fits files and have just wrongly indexed when added to the HDF
+# files, I believe.
+START_DET_INDS_LONLAT_PKL_FILES = { 
+    '065': 0,
+    '090': 40,
+    '140': 0,
+    '160': 45
+}
+
 BAND_DETS = {}
 
 
@@ -173,10 +190,12 @@ DESIRED_FLAGS = {
 
 # How many FITS files should be included in a single HDF file
 NUM_FITS_FILES_PER_SEGMENT = 200
+#NUM_FITS_FILES_PER_SEGMENT = 4
 
 REFERENCE_TIME = Time("2000-01-01", format="isot", scale="utc")
 
 PATH_TO_GADS_PKL_FILES = '/mn/stornext/d23/cmbco/akari/akari_TSD_pkl/gads/all/'
+PATH_TO_LONLAT_PKL_FILES = '/mn/stornext/d23/cmbco/akari/akari_TSD_pkl/'
 
 for band, ndets in NUM_DETECTORS.items():
     BAND_DETS[band] = []
@@ -202,6 +221,25 @@ def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
             outflags[detname][:, flagidx] = currflags[detidx, :]
     return outflags
 
+
+def load_lonlat_pkl(fitsfilename, band, pkl_path=PATH_TO_LONLAT_PKL_FILES):
+    ff = os.path.basename(fitsfilename)
+    split_ff = ff.split('_')
+    time = split_ff[2]
+    start_ind = START_DET_INDS_LONLAT_PKL_FILES[band]
+    numdets = NUM_DETECTORS[band]
+    detnames = BAND_DETS[band]
+    outlons = {}
+    outlats = {}
+    lonfname = pkl_path + f'/lon/all/{time[:10]}/{"_".join(split_ff[:3])}_gb_lon_gads.pkl' 
+    latfname = pkl_path + f'/lat/all/{time[:10]}/{"_".join(split_ff[:3])}_gb_lat_gads.pkl' 
+    with open(lonfname, 'rb') as f_lon, open(latfname, 'rb') as f_lat:
+        currlon = np.array(pickle.load(f_lon))[start_ind:start_ind+numdets]
+        currlat = np.array(pickle.load(f_lat))[start_ind:start_ind+numdets]
+        for detidx, detname in enumerate(detnames):
+            outlons[detname] = currlon[detidx, :]
+            outlats[detname] = currlat[detidx, :]
+    return outlons, outlats
 
 # This is a callback function to be used with the AKARITODReader. It formats the output data from
 # the TOD reader in a format that is useful for the HDF file generation.
@@ -379,6 +417,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                 raise NotImplementedError("""We currently don't support loading gads flags for several
                                           different fits files.""")
             gads_flags = load_gads_flags(files[0], band)
+            detlons, detlats = load_lonlat_pkl(files[0], band)
 #            print(gads_flags)
             for detidx, det in enumerate(self.band_dets[band]):
                 todreader_data[band][det] = {}
@@ -390,13 +429,18 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], gads_flags[det], mode)
-            ra = curr_data['ra']
-            dec = curr_data['dec']
-            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
-            todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
-                                                         c.galactic.l.value,
-                                                         c.galactic.b.value,
-                                                         lonlat=True)
+                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
+                todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
+                                                                  c.galactic.l.value,
+                                                                  c.galactic.b.value,
+                                                                  lonlat=True)
+#            ra = curr_data['ra']
+#            dec = curr_data['dec']
+#            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+#            todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
+#                                                         c.galactic.l.value,
+#                                                         c.galactic.b.value,
+#                                                         lonlat=True)
             if 'start_time' not in todreader_data:
                 starttime = curr_data['aftime'][0]
                 endtime = curr_data['aftime'][-1]
