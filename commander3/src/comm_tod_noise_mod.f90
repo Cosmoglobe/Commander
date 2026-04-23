@@ -693,13 +693,13 @@ contains
           end if
        end do
 
-       !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1) then
+       if (mod(self%scanid(scan),5000) == 0) then
+       !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
-             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
+             write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j)/self%scans(scan)%d(i)%gain, sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
           end do
           close(58)
        end if
@@ -734,8 +734,8 @@ contains
           end do
        end do
 
-       !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1) then
+       if (mod(self%scanid(scan),5000) == 0) then
+       !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -823,6 +823,8 @@ contains
 
       ! Revert xi_n with old value
       self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
+
+      !write(*,*) self%scans(scan)%d(i)%N_psd%xi_n(currpar), lnL_xi_n
       
     end function lnL_xi_n
        
@@ -960,15 +962,16 @@ contains
     real(sp),                    intent(in)    :: f_samp, f_spin, delta_f, f_max
     real(sp),     dimension(0:), intent(inout) :: freqmask
 
-    integer(i4b) :: i, j, n
+    integer(i4b) :: i, j, n, harm
     real(dp)     :: f, df
 
-    n = size(freqmask)
+    n        = size(freqmask)
+    freqmask = 1.
     do i = 0, n-1
        f = i*(f_samp/2)/(n-1)
        if (f > f_max) return
-       f = modulo(f,f_samp)
-       if (f < delta_f .or. f > f_samp-delta_f) freqmask(i) = 0.
+       harm = nint(f/f_spin)
+       if (harm > 0 .and. abs(f-harm*f_spin) < delta_f) freqmask(i) = 0.
     end do
     
   end subroutine create_spin_freqmask
