@@ -10,7 +10,7 @@ OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/duncan_testhdf/'
 NSIDE = 2048
 NUM_SEGMENT_PROCESSES = 60
 # Do this if you want error messages
-#NUM_SEGMENT_PROCESSES = None
+NUM_SEGMENT_PROCESSES = None
 BANDS = ['065', '090', '140', '160']
 BANDS = ['065']
 BANDS = ['090']

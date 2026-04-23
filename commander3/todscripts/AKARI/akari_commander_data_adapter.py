@@ -429,18 +429,22 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], gads_flags[det], mode)
-                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
-                todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
-                                                                  c.galactic.l.value,
-                                                                  c.galactic.b.value,
-                                                                  lonlat=True)
-#            ra = curr_data['ra']
-#            dec = curr_data['dec']
-#            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
-#            todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
-#                                                         c.galactic.l.value,
-#                                                         c.galactic.b.value,
-#                                                         lonlat=True)
+
+
+
+            ra = curr_data['ra']
+            dec = curr_data['dec']
+            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+            todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
+                                                         c.galactic.l.value,
+                                                         c.galactic.b.value,
+                                                         lonlat=True)
+
+
+            vecs = c.galactic.cartesian.get_xyz().value.T
+            spin_axis = self.todreaders[band]._ring_spin_axis(vecs)
+            todreader_data[band]['spin_axis'] = spin_axis
+
             if 'start_time' not in todreader_data:
                 starttime = curr_data['aftime'][0]
                 endtime = curr_data['aftime'][-1]
@@ -573,3 +577,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     def get_sigma0(self, band:str, detector:str):
         return 1
+
+    def get_spinaxis(self, band:str):
+        '''
+        Position in radians of the spin axis of the satellite.
+        Referred to as outP at various points in the code.
+        '''
+        return self.all_chunk_data[band]['spin_axis']

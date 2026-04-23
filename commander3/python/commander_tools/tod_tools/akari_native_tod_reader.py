@@ -1,7 +1,10 @@
 import glob
 import fitsio
 import numpy as np
+import healpy as hp
 import pickle
+import random
+import math
 
 """
 A class for reading AKARI TODs within a given range.
@@ -200,3 +203,24 @@ class AKARITODReader:
         file_indices = [i for i in range(start_fileind, end_fileind+1)]
 
         return file_indices
+
+
+    @staticmethod
+    def _ring_spin_axis(vecs):
+        vecs = np.array(vecs)
+        outAng = np.array([0., 0.])
+        nsamps = min(100, len(vecs))
+        pair1 = random.sample(range(len(vecs)), nsamps)
+        pair2 = random.sample(range(len(vecs)), nsamps)
+        for a1, a2 in zip(pair1, pair2):
+            crossP = np.cross(vecs[a1], vecs[a2])
+            if(crossP[0] < 0):
+                crossP *= -1
+            theta1, phi1 = hp.vec2ang(crossP)
+            if(not math.isnan(theta1) and not math.isnan(phi1)):
+                outAng[0] += theta1[0]/nsamps
+                outAng[1] += phi1[0]/nsamps
+            else:
+                outAng[0] += outAng[0]/nsamps
+                outAng[1] += outAng[1]/nsamps
+        return outAng
