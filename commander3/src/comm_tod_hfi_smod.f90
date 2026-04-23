@@ -104,14 +104,14 @@ contains
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Signa0
-    c%xi_n_P_uni(2,:)  = [0.001d0, 20d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.3d0]   ! alpha
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
+    c%xi_n_P_uni(2,:)  = [0.001d0, 1d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
-    c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
-    c%xi_n_nu_fit(2,:) = [0.001d0, 80d0]
-    c%xi_n_nu_fit(3,:) = [0.001d0, 80d0]
+    c%xi_n_nu_fit(1,:) = [0.5d0, 5d0] 
+    c%xi_n_nu_fit(2,:) = [0.001d0, 0.5d0]
+    c%xi_n_nu_fit(3,:) = [0.001d0, 0.5d0]
     !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
     !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
     c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
@@ -568,7 +568,8 @@ contains
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', oper_default, handle)
        call sample_calibration(self, 'relcal', oper_default, handle)
-       call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
+       !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
+       call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
     end if
     
@@ -658,8 +659,9 @@ contains
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
-             call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
+             !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
+             call sample_noise_psd(self, sd, handle, chaindir)
              deallocate(freqmask)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
