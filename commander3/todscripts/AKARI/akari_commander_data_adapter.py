@@ -429,6 +429,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], gads_flags[det], mode)
+                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
+                todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
+                                                                  c.galactic.l.value,
+                                                                  c.galactic.b.value,
+                                                                  lonlat=True)
 
 
 
