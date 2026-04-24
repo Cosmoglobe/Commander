@@ -69,8 +69,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    !c%noise_psd_model = 'spline'
+    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -345,7 +345,7 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    real(sp)            :: bin_width, nu, f_nu ! ADDED
+    real(sp)            :: bin_width
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
@@ -354,12 +354,12 @@ contains
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext, itertext, dettext ! MODIFIED
+    character(len=6)    :: samptext, scantext, itertext, dettext
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0, freqmask
-    real(sp), allocatable, dimension(:)       :: d_prime ! ADDED
+    !real(sp), allocatable, dimension(:)       :: d_prime
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -400,14 +400,14 @@ contains
        sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = iter > 1
+       sample_gain           = .false. !iter > 1
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 2 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 1 !.true.
     end if
-    fit_4k_lines          = iter > 2
+    fit_4k_lines          = iter > 0
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -504,9 +504,7 @@ contains
        end do
           
        ! Deconvolve high-frequency roll-off
-       if (.true. .and. .not. self%first_call) then
-          call int2string(iter, itertext)
-          call int2string(self%scanid(i), scantext)
+       if (.not. self%first_call) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call deconvolve_rolloff(self, sd, j)
@@ -521,16 +519,12 @@ contains
        call self%hfi_dark_correction(i, sd)       
 
        ! 4k Line corrections
-       if (.true. .and. fit_4k_lines) then
+       if (fit_4k_lines) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call estimate_hfi_4k_lines(self, sd, j)
           end do
        end if
-
-
-       ! ... Other corrections ...
-
 
 
 
@@ -541,37 +535,6 @@ contains
           end do
        end if
 
-
-
-
-
-       ! ADDED
-       ! --Check noise model EVAL return
-       if (.true.) then
-          do j = 1, self%ndet
-             if (self%scans(i)%d(j)%accept .and. mod(self%scanid(i),1000)==0) then
-                call int2string(iter, itertext)
-                call int2string(self%scanid(i), scantext)
-                call int2string(j,dettext)
-                allocate(d_prime(self%scans(i)%ntod))
-                d_prime = sd%tod(:,j) - self%scans(i)%d(j)%gain * sd%s_tot(:,j,0,1)
-                d_prime = d_prime * sd%mask(:,j)
-                call self%compute_powspec(d_prime,i,print_output= trim(chaindir) // '/firstloop_ps_' // scantext // '_' // itertext // '_' // dettext // '.dat')
-                deallocate(d_prime)
-
-                open(58,file= trim(chaindir) // '/fine_eval_' // scantext // '_' // itertext // '_' // dettext // '.dat', recl=1024)
-                k = 1000
-                bin_width = (self%samprate/2) *(1 - 1./sd%ntod)/k
-                nu = (self%samprate/2)/sd%ntod - bin_width
-                do l = 0, k+1
-                   nu = nu + bin_width
-                   f_nu = self%scans(i)%d(j)%N_psd%eval_full(nu)
-                   write(58,*) nu, f_nu
-                end do
-                close(58)
-             end if
-          end do
-       end if
 
 
        ! Clean up
@@ -806,8 +769,14 @@ contains
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
-       !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
-       !call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
+
+       !if (trim(self%noise_psd_model) /= 'spline') then
+          !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
+          !call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
+       !else
+          !                                  half-window  [chisq, sigma0, xi_n,  base,  base1, base2]
+          !call remove_tod_outliers_spline(self, 100,      [5.,    5.,     9.,    0.,    5.,    5.   ])
+       !end if
        
        if (self%symm_flags) then
           ! Remove partners for rejected scans
@@ -1498,7 +1467,7 @@ contains
     end if
     
     ! Deconvolve high-frequency roll-off
-    if (.true. .and. nonlin_lvl > 2) then
+    if (nonlin_lvl > 2) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           call deconvolve_rolloff(self, sd, i)
@@ -1506,7 +1475,7 @@ contains
     end if
 
     ! Correct 4k lines (re-estimate after gain sampling)
-    if (.true. .and. nonlin_lvl > 3) then
+    if (nonlin_lvl > 3) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           call remove_hfi_4k_lines(self, sd, i)
@@ -1679,7 +1648,7 @@ contains
 
 
     dnu = 0.03 ! Hz (size of freq window around each spike)
-    maxiter = 1 ! Can be extended to iterative correction
+    maxiter = 2 ! Can be extended to iterative correction
     n_f0 = 50; n_sig = 100
     do i = 1, self%n_4k_lines
        fmin = self%nus_4k_lines(i) - dnu
@@ -1886,29 +1855,14 @@ contains
        nsub = i1 - i0 + 1
        if(nsub < 5) return ! too small window
 
-       write(*,*) 'spike n.',i
-       write(*,*) 'PS_SPIKES'
        ps_spikes(i0:i1) = self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2)
-       do l = i0 - 2, i1 + 2
-          write(*,*) ps(l,1), ps_spikes(l)
-       end do
-       write(*,*) '################'
-       write(*,*) 'PS_FLAT'
        ps_flat(i0:i1) = ps_flat(i0:i1) - ps_spikes(i0:i1)
        do k = 0, nsub-1
           ps_flat(i0+k) = max(wn/100,ps_flat(i0+k)) ! avoid too strong correction
        end do
-       do l = i0 - 2, i1 + 2
-          write(*,*) ps(l,1), ps_spikes(l)
-       end do
-       write(*,*) '################'
     end do
        
     ! Weiner filter
-    write(*,*) 'pre-wiener'
-    do l = 1, n-1
-       write(*,*) ps(l,1), ps_spikes(l), ps_flat(l)
-    end do
     W = ps_flat / (ps_flat + ps_spikes)
     deallocate(ps_flat,ps_spikes)
     dv(1:n-1) = dv(1:n-1) * W

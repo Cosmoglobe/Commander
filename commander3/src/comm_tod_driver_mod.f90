@@ -604,7 +604,7 @@ contains
        ! Prepare data
        call init_scan_data(tod, i, oper, TODMASK_GAIN, sd, handle=handle)
 
-       if (.false. .and. tod%noise_psd_model == 'spline') then
+       if (.true. .and. tod%noise_psd_model == 'spline') then
           do j = 1, tod%ndet
              if (tod%scans(i)%d(j)%accept) call update_spline_noise_psd(tod,sd,i,j)
           end do

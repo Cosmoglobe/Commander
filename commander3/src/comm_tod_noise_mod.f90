@@ -125,7 +125,7 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       if (.true.) then !self%first_call) then
+       if (.true. .and. self%first_call) then !self%first_call) then
           if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
           sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
           N_wn     = sigma_0**2
