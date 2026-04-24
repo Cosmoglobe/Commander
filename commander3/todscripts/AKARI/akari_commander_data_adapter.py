@@ -535,9 +535,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             tod = self.all_chunk_data[band][det]['todz']
         else:
             tod = self.all_chunk_data[band][det]['tod']
+        psi_arr = np.zeros_like(self.all_chunk_data[band][det]['pix'], dtype=int)
         return (tod,
-                self.all_chunk_data[band]['pix'],
-                np.zeros_like(self.all_chunk_data[band]['pix'], dtype=int),
+                self.all_chunk_data[band][det]['pix'],
+                psi_arr,
                 self.all_chunk_data[band][det]['flag'])
 
     @get_chunk
