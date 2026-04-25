@@ -5,6 +5,7 @@ import numpy as np
 import healpy
 import functools
 import glob
+import os, signal
 
 from iras_native_tod_reader import IRASTODReader, BANDS, BAND_DET_NUMBERS, BAND_DETS
 import iras_native_tod_reader
@@ -45,22 +46,16 @@ FROM "Cosmoglobe/cosmoglobe/tod_tools/commander_data_adapter.py:
 
 
 """
-
-TESTING: 
-Currently testing the script. Below is a list of what to look after at the moment:
-- Chunk indices
-    - currently using chunks w/ indices (0, N-1)
-    - Should probably be (1, N)
-    - Change 'get_chunk_indices' if this is the case. 
-    - Change file list indexing accordingly. 
+Currently missing/placeholder only:
+- satvel
+- earthpos, 
+    - start and end
+- satpos
+    - Using earthpos atm
 - flags
-    - currently copy-paste
-- UPDATE
-- Main issue:
-    - earth positions
-    - fix those, redo som stuff and crack on.
-
-    FIX DICTIONARY FUCKUPS!!!
+    - everything
+- mbangs, polangs, npsi
+    - not sure if relevant 
     
 """
 
@@ -110,6 +105,8 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
 
         self.todreaders = {}
         self.filelist = {}
+        self.chunksizes = {}
+
         for band in self.bands:
             print(f"Preparing files for band {band}", end="... ", flush=True)
             self.todreaders[band] = IRASTODReader(
@@ -119,7 +116,10 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
                 # band_dets       = self.band_dets
                 )
             self.filelist[band] = self.todreaders[band].filelist
+            self.chunksizes[band] = self.todreaders[band].chunksizes
             print("Done")
+            print()
+
             
 
     '''def _calculate_chunk_files(self):
@@ -316,33 +316,17 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         ### KEYS: t, ra, dec, flux, n_merged, dedup_seconds, sop, obs, det
         data = np.load(fname)
 
-        t = data["t"]
+        # Some bands (60 and 100) have varying ntods betw. detectors for certain cunks
+        # N_tod is precomputed, and ensures that all detectors have the same length for all chunks
+        N_tod = self.chunksizes[band][self.chunk_idx]
+
+        t   = data["t"][:N_tod]
         self.chunk_start_time   = t[0]  * u.s + self.t0
         self.chunk_end_time     = t[-1] * u.s + self.t0
 
-        tod = data["flux"] * self.flux2MJy_sr[detector] # Convert data from W/m^2 to MJy/sr
-        ra  = data["ra"]
-        dec = data["dec"]
-        if self.chunk_idx == 5:
-            if band == "060":
-                if len(tod) == 8933:
-                    print(f"NB! removing one datapoint from {detector} / chunk {self.chunk_idx}")
-                    tod = tod[:-1]
-                    ra  = ra[:-1] 
-                    dec = dec[:-1]
-            elif band == "100":
-                if len(tod) == 4467:
-                    print(f"NB! removing one datapoint from {detector} / chunk {self.chunk_idx}")
-                    tod = tod[:-1]
-                    ra  = ra[:-1] 
-                    dec = dec[:-1]
-            # print("ADAPTER")
-            # print(f"    {fname=}")
-            # print(f"    {tod.shape=}")
-            # print(f"    {ra.shape =}")
-            # print(f"    {dec.shape=}")
-        # if detector == "IRAS_060-14" and self.chunk_idx == 5:
-
+        tod = data["flux"][:N_tod] * self.flux2MJy_sr[detector] # Convert data from W/m^2 to MJy/sr
+        ra  = data["ra"][:N_tod]
+        dec = data["dec"][:N_tod]
 
         # TEMP
         flag_tot = np.zeros_like(tod, dtype=int)

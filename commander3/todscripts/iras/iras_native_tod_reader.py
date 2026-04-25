@@ -75,9 +75,11 @@ class IRASTODReader:
 
 
         if load_filelist:
-            self.filelist = self._load_det_filelist_dictionary_band(band)
+            self.filelist   = self._load_det_filelist_dictionary_band(band)
+            self.chunksizes = self._load_chunk_size_dictionary(band)
         else:
             self.filelist   = self.get_det_filelist()
+            self.chunksizes = self._load_chunk_size_dictionary(band)
 
 
     def get_det_filelist(self):
@@ -150,6 +152,54 @@ class IRASTODReader:
         return self.filelist_all
 
 
+    def _store_chunk_size_dictionary(self, band):
+        if band not in BANDS:
+            raise ValueError
+        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
+        filelist_fname = f"{outdir}/filelist_{band:03}.pkl"
+        outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
+        if Path(outfile).exists():
+            raise FileExistsError
+        
+        with open(filelist_fname, "rb") as pkl_file:
+            filelist = pickle.load(pkl_file)
+
+        print(f"Computing min chunk sizes for band {band}")
+        
+        N_chunks            = len(list(filelist.values())[0])
+        chunksizes_dict    = {}
+        if band == "012" or band == "025":
+            chunksizes_dict    = {chunk_idx: -1 for chunk_idx in range(1, N_chunks + 1)}
+            print(f"Done! Storing to {outfile}")
+            with open(outfile, "wb") as pkl_file:
+                pickle.dump(chunksizes_dict, pkl_file)
+            return 
+        
+        N_dets          = len(filelist.keys())
+        chunk_lengths   = np.zeros(N_dets, dtype=int)
+        for ii in tqdm(range(N_chunks)):
+        # for ii in range(N_chunks):
+            chunk_idx = ii + 1
+            for jj, flist in enumerate(filelist.values()):
+                chunk_lengths[jj] = len(np.load(flist[ii], allow_pickle=True)["t"])
+
+            chunksizes_dict[chunk_idx] = np.min(chunk_lengths)
+        
+        print(f"Done! Storing to {outfile}")
+        with open(outfile, "wb") as pkl_file:
+            pickle.dump(chunksizes_dict, pkl_file)
+
+    def _load_chunk_size_dictionary(self, band):
+        print("Loading")
+        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
+        outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
+        with open(outfile, "rb") as pkl_file:
+            chunksizes_dict = pickle.load(pkl_file)
+        return chunksizes_dict
+
+
+
+
 if __name__ == '__main__':
     TOD_DIR = "/mn/stornext/d5/data/vetleav/IRAS/tod_data/IPAC_level1"
     import sys
@@ -167,5 +217,14 @@ if __name__ == '__main__':
         load_filelist=True
         )
     print("STORING")
-    ITR._store_det_filelist_dictionary()
-        
+    # ITR._store_chunk_size_dictionary("100")
+    # ITR._store_chunk_size_dictionary("012")
+    # ITR._store_chunk_size_dictionary("025")
+
+
+    ch = ITR._load_chunk_size_dictionary("025")
+    print("res:")
+    keys = list(ch.keys())
+    for k in keys[::100]:
+    # for k,v in ch.items()[::100]:
+        print(f"{k:4}, {ch[k]}")
