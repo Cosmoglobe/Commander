@@ -53,6 +53,8 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
+
+
      integer(i4b)       :: nside, nside_febecop, nsrc, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps, recompute_ptsrc_precond
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (nsrc,nmaps)
@@ -896,6 +898,7 @@ contains
 
     call init_beam_templates(self, cpar, id, id_abs)
 
+    
   end subroutine read_sources
 
 
@@ -2161,7 +2164,8 @@ contains
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
-    n_gibbs             = 1
+
+    n_gibbs             = 1 !2
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
     
@@ -2175,6 +2179,10 @@ contains
     end if
     
     if (.true. .or. trim(operation) == 'optimize') then
+    
+    if (trim(operation) == 'optimize') then
+       >>>>>>> Stashed changes
+       
        !if (self%myid == 0) write(*,*) 'opimize ptsrc spectral parameters'
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
@@ -2383,6 +2391,7 @@ n_gibbs=1
              !do k = self%nsrc, self%nsrc
                 theta = self%src(k)%theta(:,p)
                 
+
 !                if (self%myid == 0) write(*,*) 'c maps', p, self%nmaps
 !                if (self%myid == 0) write(*,*) 'c nsrc', k, self%nsrc
 
@@ -2394,6 +2403,7 @@ n_gibbs=1
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale * self%src(k)%T(la)%A_ext 
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
+
 !if (self%myid == 0) write(*,*) 'l numband', l, numband
                 end do
                 
@@ -2532,6 +2542,7 @@ n_gibbs=1
        do p = 1, self%nmaps
           !do k = self%nsrc, self%nsrc
           do k = 1, self%nsrc
+
              !if (self%myid == 0) write(*,*) 'p,k  ', p, k
 
              a_old = amp(k,p) ! Store old amplitude to recompute residual
