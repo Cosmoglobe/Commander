@@ -242,7 +242,7 @@ contains
     end if
 
     ! HKE: HFI has v_sun in km/s right now!
-    s_dip = s_dip*1e3
+    !s_dip = s_dip*1e3
     
   end subroutine compute_orbital_dipole
 

@@ -20,6 +20,7 @@
 !================================================================================
 module comm_B_FIRAS_mod
   use comm_B_mod
+  use, intrinsic :: ieee_exceptions
   implicit none
 
   private
@@ -129,6 +130,7 @@ contains
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map_hires => null()
     real(dp), allocatable, dimension(:,:) :: map_full 
+    logical :: halting_save 
 
     nstep     = 11
     alpha0    =    3.19d0 * pi/180.d0
@@ -167,7 +169,12 @@ contains
           call compute_euler_matrix_zyz(0.d0, 0.d0, alpha, M_sat)
           vec1 = matmul(self%M_ecl, matmul(M_rot, matmul(M_sat, &
                & matmul(transpose(M_rot), vec0))))
+          ! Temporarily disable FP exception halting for query_disc
+          call ieee_get_halting_mode(ieee_invalid, halting_save)
+          call ieee_set_halting_mode(ieee_invalid, .false.)
           call query_disc(self%nside_hires, vec1, self%r_max, pixlist, n)
+          ! Restore FP exception halting
+          call ieee_set_halting_mode(ieee_invalid, halting_save)
           do j = 0, n-1
              vec = self%vecs(:,pixlist(j))
              call angdist(vec1, vec, theta)

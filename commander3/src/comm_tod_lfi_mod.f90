@@ -34,6 +34,7 @@ module comm_tod_lfi_mod
   use comm_conviqt_mod
   use comm_tod_mapmaking_mod
   use comm_tod_driver_mod
+  use comm_tod_simulations_mod
   implicit none
 
   private

@@ -607,7 +607,7 @@ contains
     call int2string(map_in%info%nside,nside_in_str)
     call int2string(info%nside,nside_out_str)
 
-    if (map_in%info%nmaps == 3) then
+    if (map_in%info%pol) then
        nmap_pixwin = 2
     else
        nmap_pixwin = 1
@@ -619,8 +619,8 @@ contains
     call read_dbintab(trim(cpar%datadir)//'common/pixwind/'//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
     call read_dbintab(trim(cpar%datadir)//'common/pixwind'//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
 
-    if (map_in%info%nmaps == 3) pixwin_in(:,3) = pixwin_in(:,2)
-    if (info%nmaps == 3)        pixwin_out(:,3) = pixwin_out(:,2)
+    if (map_in%info%pol) pixwin_in(:,3) = pixwin_in(:,2)
+    if (info%pol)        pixwin_out(:,3) = pixwin_out(:,2)
 
     ! Need to make sure we smooth before we ud_grade
     ! Move variance map to alms

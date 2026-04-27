@@ -98,10 +98,14 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl3845 ]]; then
+    build_dir="build_owl3845_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3946 ]]; then
     build_dir="build_owl3946_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
     build_dir="build_owl38_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl39 ]]; then
+    build_dir="build_owl39_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
     build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
@@ -130,6 +134,12 @@ then
     build_dir="build_hya79_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
     build_dir="build_hya1016_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
+	build_dir="build_hya1719_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
+	build_dir="build_hya20_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
+	build_dir="build_hya21_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
     build_dir="build_hya1719_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
