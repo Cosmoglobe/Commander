@@ -2178,11 +2178,8 @@ contains
 !      return
     end if
     
-    if (.true. .or. trim(operation) == 'optimize') then
-    
-    if (trim(operation) == 'optimize') then
-       >>>>>>> Stashed changes
-       
+    if (.true. .or. trim(operation) == 'optimize') then   !OBS always going in here now
+        
        !if (self%myid == 0) write(*,*) 'opimize ptsrc spectral parameters'
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
