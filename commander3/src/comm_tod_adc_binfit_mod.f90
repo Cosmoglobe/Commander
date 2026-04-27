@@ -37,11 +37,11 @@ module comm_tod_adc_binfit_mod
      character(len=128) :: label
      integer(i4b)       :: min_adu, max_adu, min_coadd, max_coadd, ncoadd, nbit
      integer(i4b), allocatable, dimension(:,:) :: param_adc ! (code, width, global mod/local)
-     real(sp),   allocatable, dimension(:) :: p ! (npar_adc)
-     real(sp),   allocatable, dimension(:) :: Q     ! ADU bin widths (fast samp)
-     real(sp),   allocatable, dimension(:) :: v     ! Voltage boundaries
-     real(sp),   allocatable, dimension(:) :: DNL   ! ADU bin widths (fast samp)
-     real(sp),   allocatable, dimension(:) :: INL   ! Integral non-linearity
+     real(dp),   allocatable, dimension(:) :: p ! (npar_adc)
+     real(dp),   allocatable, dimension(:) :: Q     ! ADU bin widths (fast samp)
+     real(dp),   allocatable, dimension(:) :: v     ! Voltage boundaries
+     real(dp),   allocatable, dimension(:) :: DNL   ! ADU bin widths (fast samp)
+     real(dp),   allocatable, dimension(:) :: INL   ! Integral non-linearity
      type(spline_type)                     :: A_s   ! Noise weighted transfer functio
      type(spline_type)                     :: F     ! ADC transfer function (coadded)
      real(dp),   allocatable, dimension(:) :: invF  ! ADC correction function 
@@ -63,7 +63,7 @@ module comm_tod_adc_binfit_mod
     class(comm_adc_binfit), pointer :: p => null()
   end type adc_binfit_pointer
 
-  real(sp),     parameter :: A_s_sigma = 5.d0     ! Noise integration limit in sigma
+  real(dp),     parameter :: A_s_sigma = 5.d0     ! Noise integration limit in sigma
   integer(i4b), parameter :: A_s_oversampling = 3 ! Number of evaluation points per ADU
   
 interface
@@ -173,7 +173,7 @@ interface
     !           Parameter vector; must be of length npar_adc
     implicit none
     class(comm_adc_binfit),             intent(inout) :: self
-    real(sp), dimension(self%npar_adc), intent(in), optional    :: p
+    real(dp), dimension(self%npar_adc), intent(in), optional    :: p
   end subroutine param2Q
 
   module subroutine powell_adc(self, powell_chisq_adc)
@@ -211,7 +211,7 @@ interface
        function chisq_adc(p, ndof)
          use healpix_types
          implicit none
-         real(sp), dimension(:), intent(in),  optional :: p
+         real(dp), dimension(:), intent(in),  optional :: p
          integer(i8b),           intent(out), optional :: ndof
          real(dp)                                      :: chisq_adc
        end function chisq_adc

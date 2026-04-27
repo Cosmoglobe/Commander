@@ -2350,7 +2350,7 @@ contains
     end if
 
     allocate(P(3,ntod))
-    do j = 1, self%ndet
+    do j = 1, sd%ndet
        d = j; if (present(det)) d = det
        if (.not. self%scans(scan)%d(d)%accept) cycle
        do h = 1, self%nhorn

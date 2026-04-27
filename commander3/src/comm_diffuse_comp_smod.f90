@@ -2128,7 +2128,7 @@ contains
        call self%x%alm_equal(m)
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    
+
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
 

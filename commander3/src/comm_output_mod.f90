@@ -20,6 +20,7 @@
 !================================================================================
 module comm_output_mod
   use comm_chisq_mod
+  use comm_line_comp_mod
   implicit none
 
 contains
@@ -180,6 +181,7 @@ contains
        end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
        select type (c)
+       class is (comm_line_comp)
        class is (comm_diffuse_comp)
           if (output_hdf) then
              hdfpath = trim(adjustl(itext))//'/'//trim(adjustl(c%label))

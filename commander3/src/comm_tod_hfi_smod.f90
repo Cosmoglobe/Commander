@@ -344,7 +344,7 @@ contains
 !    real(sp), allocatable, dimension(:)       :: d_prime
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
+    !real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
     class(comm_cgmap), pointer :: cgmap
     
@@ -355,7 +355,8 @@ contains
        seed = rand_uni(handle) * 100000000
        call rand_init(self%handle, seed)
     end if
-       
+
+    call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -384,10 +385,10 @@ contains
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter > 1 !.true.
-       sample_xi_n           = iter > 2 !.false.
+       sample_ncorr          = iter > 0 !.true.
+       sample_xi_n           = iter > 1 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
-       sample_adc            = .false. !iter  > 1 !.true.
+       sample_adc            = iter  > 0 !.true.
     end if
     fit_4k_lines          = .false. !iter > 2
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -450,6 +451,24 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
+    ! Sample ADC and baseline parameters jointly
+    if (sample_adc) then
+       ! Initialize ADC objects before first call
+       if (.not. associated(self%adc(1)%p)) then
+          call self%compute_adu_range
+          do i = 1, self%ndet
+             self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
+                  & self%adu_range(i,1), self%adu_range(i,2), 40)
+          end do
+       end if
+
+       ! Sample ADC parameters -- MUST BE FOLLOWED BY BASELINE SAMPLER
+       do i = 1, self%ndet
+          call self%sample_adc_and_baselines(handle, i)
+       end do
+       call update_status(status, "tod_adc"//ctext)
+    end if
+    
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan ! Disable for now
        ! Skip scan if no accepted data
@@ -460,19 +479,9 @@ contains
 !           write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1)
 !        end do
 !        close(58)
-        
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
 
-       ! Subtract A/B detector crosstalk
-        ! Not implemented yet
-
-       call timer%start(TOD_NONLIN, self%band)
-       if (self%correct_N_crosstalk) then
-          ! estimate A/B detector crosstalk coeficients
-          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
-          !call self%xtalk%estimate_crosstalk_matrix(sd)
-          !call self%xtalk%remove_crosstalk_signal(sd)
-       end if
+       ! Apply only ADC corrections
+       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=1)
 
        ! Estimate modulation baselines; and set modulation phase
        if (self%first_call .and. trim(self%init_from_HDF) == 'none') then
@@ -524,6 +533,17 @@ contains
           !call self%estimate_hfi_4k_lines(i, sd)
        end if
 
+       call timer%start(TOD_NONLIN, self%band)
+       if (self%correct_N_crosstalk) then
+          ! estimate A/B detector crosstalk coeficients
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
+       end if
+
+       ! Subtract A/B detector crosstalk
+        ! Not implemented yet
+
        ! Clean up
        call dealloc_scan_data(sd)
     end do
@@ -560,7 +580,6 @@ contains
     ! Fit bolometer transfer function parameters?
     !    Not implemented yet     
 
-
     ! NOW Sample high level tod components that require cleaned data
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -573,33 +592,6 @@ contains
        call update_status(status, "tod_calib"//ctext)
     end if
     
-    ! Sample ADC and baseline parameters jointly
-    if (sample_adc) then
-       ! Initialize ADC objects before first call
-       if (.not. associated(self%adc(1)%p)) then
-          call self%compute_adu_range
-          do i = 1, self%ndet
-             self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
-                  & self%adu_range(i,1), self%adu_range(i,2), 40)
-          end do
-       end if
-
-       ! Sample ADC parameters
-!!$       do i = 1, self%ndet
-!!$          call self%sample_adc_and_baselines(handle, i, map_sky(:,:,i,1), procmask)
-!!$       end do
-       call update_status(status, "tod_adc"//ctext)
-    end if
-
-!!$    ! Sample baselines -- MUST IMMEDIATELY FOLLOW ADC SAMPLER
-!!$    do i = 1, self%nscan
-!!$       if (.not. any(self%scans(i)%d%accept)) cycle
-!!$       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
-!!$       call sample_hfi_baselines(sd, self, i, handle)
-!!$       call dealloc_scan_data(sd)
-!!$    end do
-!!$    call update_status(status, "tod_base"//ctext)
-!!$    
 !!$    ! Create pixel histograms
 !!$    if (self%first_call) call compute_tod_pixhist(self)
 !!$    call update_status(status, "tod_hist"//ctext)
@@ -681,14 +673,14 @@ contains
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
 
-          ! Count number of unmasked samples outside the processing mask; for ADC sampling
-          do j = 1, sd%ndet
-             if (self%scans(i)%d(j)%accept) then
-                self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
-             else
-                self%scans(i)%d(j)%nsamp_unmasked = 0
-             end if
-          end do
+!!$          ! Count number of unmasked samples outside the processing mask; for ADC sampling
+!!$          do j = 1, sd%ndet
+!!$             if (self%scans(i)%d(j)%accept) then
+!!$                self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
+!!$             else
+!!$                self%scans(i)%d(j)%nsamp_unmasked = 0
+!!$             end if
+!!$          end do
        end if
 
        ! Compute chisquare for bandpass fit
@@ -1417,14 +1409,28 @@ contains
     scan = sd%scan
     
     ! Apply ADC corrections to raw self%tod
-    if (associated(self%adc(1)%p)) then
+    if (nonlin_lvl > 0 .and. associated(self%adc(1)%p)) then
        do i = 1, self%ndet
-          if (.not. self%scans(scan)%d(i)%accept) cycle
-          call self%adc(i)%p%Q2As(92.)
-          call self%adc(i)%p%As2F
-          call self%adc(i)%p%adc_correct(self%scanid(scan), i, sd%tod(:,i), &
-               & self%scans(scan)%d(i)%N_psd%sigma0, &
-               & mask=iand(sd%flag(:,i), self%flag0) .eq.0)
+          d = i; if (present(det)) d = det
+          if (.not. self%scans(scan)%d(d)%accept) cycle
+          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+             open(58,file='adc_before.dat')
+             do j = 1, sd%ntod
+                write(58,*) j, sd%tod(j,i), and(sd%flag(j,i), self%flag0)
+             end do
+             close(58)
+          end if
+          !call self%adc(d)%p%Q2As(92.)
+          !call self%adc(d)%p%As2F
+          call self%adc(d)%p%adc_correct(sd%tod(:,i), &
+               & iand(sd%flag(:,i), self%flag0) .eq.0)
+          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+             open(58,file='adc_after.dat')
+             do j = 1, sd%ntod
+                write(58,*) j, sd%tod(j,i), and(sd%flag(j,i), self%flag0)
+             end do
+             close(58)
+          end if
        end do
     end if
 
@@ -2276,7 +2282,7 @@ contains
   end subroutine fill_gaps
 
 
-  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
+  module subroutine sample_adc_and_baselines(self, handle, det)
     !  Sample ADC parameters
     !
     !  Arguments:
@@ -2287,8 +2293,6 @@ contains
     class(comm_hfi_tod),                       intent(inout) :: self
     type(planck_rng),                          intent(inout) :: handle
     integer(i4b),                              intent(in)    :: det
-    real(sp),          dimension(1:,1:),       intent(in)    :: map_sky
-    real(sp),          dimension(0:),          intent(in)    :: procmask
 
     integer(i4b)        :: i, j, k, flag, ierr, ntod, decimation, offset, ind, oper
     integer(i8b)        :: ntot
@@ -2308,7 +2312,7 @@ contains
     ! Count number of unmasked and decimated samples
     allocate(numsamp(self%nscan), sigma0(self%nscan))
     do i = 1, self%nscan
-       numsamp(i) = self%scans(i)%d(det)%nsamp_unmasked / decimation
+       numsamp(i) = self%scans(i)%ntod / decimation
        sigma0(i)  = self%scans(i)%d(det)%N_psd%sigma0
      end do
     ntot = sum(numsamp)
@@ -2321,7 +2325,7 @@ contains
           numsamp(i) = ind-1
           cycle
        end if
-       call init_scan_data(self, i, oper, TODMASK_PROC, sd, nonlin_level=0)
+       call init_scan_data(self, i, oper, TODMASK_PROC, sd, det=det, nonlin_level=0)
 
       gain    = self%scans(i)%d(det)%gain
       phase   = self%mod_phase(det,i)
@@ -2403,14 +2407,14 @@ contains
       real(dp), dimension(:), intent(in),  optional :: x
       real(dp)                                      :: powell_chisq_adc_hfi
 
-      powell_chisq_adc_hfi = chisq_adc_hfi(real(x,sp))
+      powell_chisq_adc_hfi = chisq_adc_hfi(x)
 
     end function powell_chisq_adc_hfi
 
 
     function chisq_adc_hfi(x, ndof) result (chisq)
       implicit none
-      real(sp), dimension(:), intent(in),  optional :: x
+      real(dp), dimension(:), intent(in),  optional :: x
       integer(i8b),           intent(out), optional :: ndof
       real(dp)                                      :: chisq
 
@@ -2419,7 +2423,7 @@ contains
       real(dp)     :: chisq_sub, A, b
       real(sp)     :: baseline
       logical(lgt) :: output_ndof
-      real(sp), allocatable, dimension(:) :: p
+      real(dp), allocatable, dimension(:) :: p
 
       allocate(p(self%adc(det)%p%npar_adc))
       if (self%myid == 0) then
@@ -2427,7 +2431,7 @@ contains
          call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
          p = x
       end if
-      call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
+      call mpi_bcast(p, size(p), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
       output_ndof = (flag == 2)
 
       ! Check priors
@@ -2437,7 +2441,7 @@ contains
          return
       end if
       
-      ! Update ADC parameters; assume constant sigma0 fir niw
+      ! Update ADC parameters; assume constant sigma0 for now
       call self%adc(det)%p%param2Q(p)
       call self%adc(det)%p%Q2As(92.)
       call self%adc(det)%p%As2F
@@ -2463,7 +2467,7 @@ contains
          
 !!$         if (self%myid == 0 .and. det==1) then
 !!$            do j = 1, n
-!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), tod(k1+j-1)-tod_corr(j), (tod(k1+j-1)-tod_corr(j))/sigma0(i), sigma0(i)
+!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), s_volt(k1+j-1), tod_corr(j)-s_volt(k1+j-1), (tod_corr(j)-s_volt(k1+j-1))/sigma0(i), sigma0(i)
 !!$            end do
 !!$         end if
          
@@ -2481,7 +2485,7 @@ contains
          if (self%myid == 0) ndof = ndof_tot
       end if
 
-      if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
+      !if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
 
     end function chisq_adc_hfi
 

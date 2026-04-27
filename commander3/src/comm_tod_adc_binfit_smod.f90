@@ -52,7 +52,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
 
-    integer(i4b) :: i, j, c0, ierr
+    integer(i4b) :: i, j, k, c0, ierr
     real(dp)     :: delta
     
     allocate(c)
@@ -74,53 +74,53 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 
     ! Count number of free parameters
     c%npar_adc = 0                
-    do i = 0, 0 !63                 ! 64 individual codes after midpoint
+    do i = 0, 0!63                 ! 64 individual codes after midpoint
        if (32768+i >= c%min_adu .and. 32768+i <= c%max_adu) then
           c%npar_adc = c%npar_adc + 1
        end if
     end do
-    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
-       c0 = c%min_adu
-    else
-       c0 = c%min_adu - mod(c%min_adu,64) + 64
-    end if
-    do i = c0, c%max_adu, 64
-       if (i == 32768) cycle
-       c%npar_adc = c%npar_adc + 1 ! Jump between 64-code patterns
-    end do
+!!$    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+!!$       c0 = c%min_adu
+!!$    else
+!!$       c0 = c%min_adu - mod(c%min_adu,64) + 64
+!!$    end if
+!!$    do i = c0, c%max_adu, 64
+!!$       if (i == 32768) cycle
+!!$       c%npar_adc = c%npar_adc + 1 ! Jump between 64-code patterns
+!!$    end do
 !!$    c%npar_adc = c%npar_adc + 63 ! Global repeated 64-code pattern
     if (c%myid == 0) write(*,*) '  Number of ADC parameters = ', c%npar_adc, trim(label)
     
     ! Initialize parameter structure
     allocate(c%param_adc(c%npar_adc,3), c%p(c%npar_adc))
     j = 0
-    do i = 0, 0 !63
+    do i = 0, 0!63
        if (32768+i >= c%min_adu .and. 32768+i <= c%max_adu) then
           j = j+1
           c%param_adc(j,:) = [32768+i,1,1]  ! 64 individual codes after midpoint
        end if
     end do
-    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
-       c0 = c%min_adu
-    else
-       c0 = c%min_adu - mod(c%min_adu,64) + 64
-    end if
-    do i = c0, c%max_adu, 64
-       if (i == 32768) cycle
-       j = j+1
-       c%param_adc(j,:) = [i,1,1]  ! Jump between 64-code patterns 
-    end do
+!!$    if (mod(c%min_adu,64) == 0) then ! Start counting at the first 64-code boundary
+!!$       c0 = c%min_adu
+!!$    else
+!!$       c0 = c%min_adu - mod(c%min_adu,64) + 64
+!!$    end if
+!!$    do i = c0, c%max_adu, 64
+!!$       if (i == 32768) cycle
+!!$       j = j+1
+!!$       c%param_adc(j,:) = [i,1,1]  ! Jump between 64-code patterns 
+!!$    end do
 !!$    do i = 1, 63
 !!$       j = j+1
 !!$       c%param_adc(j,:) = [i,1,-64]  ! Global repeated 64-code pattern
 !!$    end do
     
     ! Initialize bin widths
-    c%p     = 1.
+    c%p     = 1.d0
     call c%param2Q(c%p)
 
     ! Testing
-    if (.false.) then
+    if (.true.) then
        if (c%myid == 0) then
           !c%Q(32768) = 0.2
           call c%Q2As(92.)
@@ -143,19 +143,21 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           
           open(58, file='adc_F_'//trim(label)//'.dat', recl=1024)
           do i = c%min_coadd, c%max_coadd
+             k      = nint(splint(c%F, real(i,dp)))
+             if (k > c%max_coadd) exit
              delta  = c%invF(nint(splint(c%F, real(i,dp))))-i
              write(58,*) i, c%F%y(i-c%min_coadd+1), c%invF(i), delta
           end do
           close(58)          
           
        end if
-       call mpi_finalize(ierr)
-       stop
+!!$       call mpi_finalize(ierr)
+!!$       stop
     end if
     
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, scan, det, tod, sigma0, mask)
+  module subroutine adc_correct(self, tod, mask)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -174,43 +176,18 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !    The adc corrected version of tod_in    
     ! ====================================================================
     implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-    integer(i4b),                    intent(in)    :: scan, det
+    class(comm_adc_binfit),          intent(in)    :: self
     real(sp),     dimension(:),      intent(inout) :: tod
-    real(sp),                        intent(in)    :: sigma0
-    logical(lgt), dimension(:),      intent(in), optional :: mask
+    logical(lgt), dimension(:),      intent(in)    :: mask
 
     integer(i4b) :: i
-    real(dp)     :: delta
-    character(len=6) :: scan_text
-    character(len=1) :: det_text
-    
-    ! Initialize transfer function
-    !call self%Q2As(sigma0)
-    !call self%Q2As(92.)
-    !call self%As2F
-
-!!$    call int2string(scan, scan_text)
-!!$    call int2string(det, det_text)
-!!$    open(58, file='adc_F_'//trim(self%label)//'_'//scan_text//'_'//det_text//'.dat', recl=1024)
-!!$    do i = self%min_coadd, self%max_coadd
-!!$       delta  = self%invF(int(splint(self%F, real(i,dp))))-i
-!!$       write(58,*) i, self%F%y(i-self%min_coadd+1), self%invF(i), delta
-!!$    end do
-!!$    close(58)          
 
     ! Apply correction
-    if (present(mask)) then
-       do i = 1, size(tod)
-          if (mask(i)) then
-             tod(i) = self%invF(nint(tod(i)))
-          end if
-       end do
-    else
-       do i = 1, size(tod)
+    do i = 1, size(tod)
+       if (mask(i)) then
           tod(i) = self%invF(nint(tod(i)))
-       end do
-    end if
+       end if
+    end do
   end subroutine adc_correct
 
   module subroutine param2Q(self, p)
@@ -225,11 +202,11 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !           Parameter vector; must be of length npar_adc
     implicit none
     class(comm_adc_binfit),             intent(inout) :: self
-    real(sp), dimension(self%npar_adc), intent(in), optional    :: p
+    real(dp), dimension(self%npar_adc), intent(in), optional    :: p
 
     integer(i4b) :: i, m, w, c, c0, c1, b
 
-    self%Q = 1. ! Default is unity
+    self%Q = 1.d0 ! Default is unity
     do i = 1, self%npar_adc
        if (self%param_adc(i,3) < 0) then
           ! Global parameter; affects all indices with modulo m
@@ -297,7 +274,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     real(dp)     :: Phi1, Phi2, sigma_sum, s, sigma_limit, s_min, s_max, ds, w, w_tot, sig0
     real(dp), allocatable, dimension(:) :: x, y
 
-    sig0 = sigma0/sqrt(40.)
+    sig0 = sigma0/sqrt(40.d0)
     
     ! Compute bin boundaries, v
     self%v(self%min_adu) = self%min_adu ! Assume uniform bins at lower values
@@ -307,13 +284,13 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 
     ! Compute differential nonlinearity, DNL = Q(k)/Q-1
     do i = self%min_adu, self%max_adu
-       self%DNL(i) = self%Q(i) - 1.
+       self%DNL(i) = self%Q(i) - 1.d0
     end do
 
     ! Compute integrated nonlinearity (INL = Q(k)/Q -1)
-    self%INL(self%min_adu) = self%Q(self%min_adu) - 1.
+    self%INL(self%min_adu) = self%Q(self%min_adu) - 1.d0
     do i = self%min_adu+1, self%max_adu
-       self%INL(i) = self%INL(i-1) + self%Q(i) - 1.
+       self%INL(i) = self%INL(i-1) + self%Q(i) - 1.d0
     end do
 
     ! Compute noise-weighted transfer function
@@ -333,7 +310,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
        x(i)  = s
        
        ! Determine integration range
-       j_min = max(locate(self%v, real(s_min,sp))+self%min_adu-1,self%min_adu)
+       j_min = max(locate(self%v, s_min)+self%min_adu-1,self%min_adu)
        j_max = j_min
        do while (s_max > self%v(j_max) .and. j_max < self%max_adu-1)
           j_max = j_max+1
@@ -383,7 +360,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
        end if
 
        ! Guard against truncation and round-off errors, and add half a bin
-       y(i) = y(i) / w_tot + 0.5 
+       y(i) = y(i) / w_tot + 0.5d0
     end do
     call spline_simple(self%A_s, x, y, linear=.true.)
     deallocate(x,y)
@@ -493,9 +470,9 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     integer(i4b) :: i, j, k, n_gibbs, npar, blocksize, b0, b1, ierr
     integer(i8b) :: ndof
     logical(lgt) :: accept
-    real(sp)     :: eta, chisq0, chisq_old, chisq_prop, a, mu, sigma
+    real(dp)     :: eta, chisq0, chisq_old, chisq_prop, a, mu, sigma
     integer(i4b), allocatable, dimension(:)   :: n_accept
-    real(sp),     allocatable, dimension(:)   :: x_prop, rms_prop
+    !real(sp),     allocatable, dimension(:)   :: x_prop, rms_prop
     real(dp),     allocatable, dimension(:)   :: x
 
     npar      = self%npar_adc
@@ -506,6 +483,11 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 
     ! Perform optimization
     call powell(x, powell_chisq_adc, ierr, tolerance=1d-4)
+    chisq_prop = powell_chisq_adc(x)
+    
+    write(*,*) 'adc powell -- p old   = ', self%p
+    write(*,*) 'adc powell -- p new   = ', x
+    write(*,fmt='(a,f16.3,a,f16.3)') ' adc powell -- X^2 old = ', chisq_old, ', new =', chisq_prop
     
     ! Update main parameters
     if (ierr == 0) then
@@ -513,9 +495,6 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     else
        x    = self%p
     end if
-    chisq_prop = powell_chisq_adc(x)
-    
-    write(*,fmt='(a,f16.3,a,f16.3)') ' adc powell -- X^2 old = ', chisq_old, ', new =', chisq_prop
 
     call self%outputASCII
     
@@ -539,7 +518,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
        function chisq_adc(p, ndof)
          use healpix_types
          implicit none
-         real(sp), dimension(:), intent(in),  optional :: p
+         real(dp), dimension(:), intent(in),  optional :: p
          integer(i8b),           intent(out), optional :: ndof
          real(dp)                                      :: chisq_adc
        end function chisq_adc
@@ -548,17 +527,17 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     integer(i4b) :: i, j, k, n_gibbs, npar, blocksize, b0, b1
     integer(i8b) :: ndof
     logical(lgt) :: accept
-    real(sp)     :: eta, chisq0, chisq_old, chisq_prop, a, mu, sigma
+    real(dp)     :: eta, chisq0, chisq_old, chisq_prop, a, mu, sigma
     integer(i4b), allocatable, dimension(:)   :: n_accept
-    real(sp),     allocatable, dimension(:)   :: x_prop, rms_prop
-    real(sp),     allocatable, dimension(:,:) :: x
+    real(dp),     allocatable, dimension(:)   :: x_prop, rms_prop
+    real(dp),     allocatable, dimension(:,:) :: x
 
     npar      = self%npar_adc
     n_gibbs   = 5
     blocksize = 1
 
     allocate(x(0:n_gibbs,npar), x_prop(npar), rms_prop(npar), n_accept(npar))
-    rms_prop = 0.01
+    rms_prop = 0.01d0
     n_accept = 0
 
     x(0,:)    = self%p
@@ -627,7 +606,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     implicit none
     class(comm_adc_binfit),          intent(inout) :: self
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     real(sp)     :: delta
     
        if (self%myid == 0) then
@@ -652,8 +631,9 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           
           open(58, file='adc_F_'//trim(self%label)//'.dat', recl=1024)
           do i = self%min_coadd, self%max_coadd
-             j = max(min(int(splint(self%F, real(i,dp))), self%max_coadd), self%min_coadd)
-             delta  = self%invF(j)-i
+             k      = nint(splint(self%F, real(i,dp)))
+             if (k > self%max_coadd) exit
+             delta  = self%invF(nint(splint(self%F, real(i,dp))))-i
              write(58,*) i, self%F%y(i-self%min_coadd+1), self%invF(i), delta
           end do
           close(58)          
