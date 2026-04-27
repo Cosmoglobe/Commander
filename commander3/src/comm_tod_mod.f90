@@ -199,7 +199,8 @@ module comm_tod_mod
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
-     logical(lgt) :: compressed_tod               
+     logical(lgt) :: compressed_tod
+     logical(lgt) :: rawtod_dp               
      logical(lgt) :: apply_inst_corr
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
@@ -409,6 +410,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + bitmask)
      real(sp),     allocatable, dimension(:,:)     :: mask2         ! TOD mask (flags + bitmask)
      real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data [ntod,ndet]
+     real(dp),     allocatable, dimension(:,:)     :: tod_dp        ! Raw data [ntod,ndet]; double precision
      real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
      real(sp),     allocatable, dimension(:,:,:)   :: s_sl          ! Sidelobe correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_objctr      ! Object-centric signal (solar, Moon, Earth, zodi..)
@@ -581,6 +583,7 @@ contains
     self%max_npole_Tbol      = 0
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
+    self%rawtod_dp       = .false.
     self%apply_inst_corr = .false.
     self%accept_threshold = 0.9d0 ! default
     self%sample_abs_bp   = .false.
@@ -2961,7 +2964,7 @@ contains
   end subroutine decompress_diodes
 
 
-  subroutine decompress_tod(self, scan, det, tod)
+  subroutine decompress_tod(self, scan, det, tod, tod_dp)
     !
     ! decompresses huffman coded tods 
     !
@@ -2983,6 +2986,7 @@ contains
     class(comm_tod),                    intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),            dimension(:),  intent(out) :: tod
+    real(dp),            dimension(:),  intent(out), optional :: tod_dp
 
     byte,  allocatable, dimension(:)  :: test
     integer(i4b), allocatable, dimension(:) :: tod_int
@@ -2994,6 +2998,9 @@ contains
       !write(*,*) self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, size(self%scans(scan)%d(det)%ztod)
       call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
       tod = real(tod_int, sp)
+      if (self%rawtod_dp) then
+         tod_dp = real(tod_int, dp)
+      end if
       deallocate(tod_int)
     endif
 

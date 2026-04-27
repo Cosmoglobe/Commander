@@ -127,6 +127,7 @@ contains
     ! Initialize instrument-specific parameters
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nhorn           = 1
+    c%rawtod_dp       = .true.
     c%compressed_tod  = .true.
     c%correct_sl      = .false.
     c%correct_orb     = .true.
@@ -942,7 +943,7 @@ contains
        do j = 1, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A1 = A1 + 1.d0
-          b1 = b1 + self%tod(j,i)
+          b1 = b1 + self%tod_dp(j,i)
           if (sub_s) b1 = b1 - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i,0,1)
           !if (tod%scanid(scan) == 1151) write(58,*) j, self%tod(j,i), sgn, tod%scans(scan)%d(i)%gain, self%s_tot(j,i,0,1)
        end do
@@ -956,12 +957,12 @@ contains
        !write(*,*) 'Ab1', tod%scanid(scan), i, b1, real(A1,sp), real(rand_gauss(handle)/sqrt(A1),sp)
        
        ! Even samples
-       if (tod%scanid(scan) == 1151) write(58,*)
+       !if (tod%scanid(scan) == 1151) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A2 = A2 + 1.d0
-          b2 = b2 + self%tod(j,i)
+          b2 = b2 + self%tod_dp(j,i)
           if (sub_s) b2 = b2 + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i,0,1)
           !if (tod%scanid(scan) == 1151) write(58,*) j, self%tod(j,i), sgn, tod%scans(scan)%d(i)%gain, self%s_tot(j,i,0,1)
        end do
@@ -1022,8 +1023,8 @@ contains
           if (iand(self%flag(j,  i), tod%flag0) .ne. 0) cycle
           if (iand(self%flag(j+1,i), tod%flag0) .ne. 0) cycle
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
-             mu1 = mu1 + (self%tod(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
-                       & (self%tod(j+1,i)-tod%scans(scan)%d(i)%baseline2)
+             mu1 = mu1 + (self%tod_dp(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
+                       & (self%tod_dp(j+1,i)-tod%scans(scan)%d(i)%baseline2)
              n   = n  + 1.d0
           end if
        end do
@@ -1081,10 +1082,10 @@ contains
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
-              self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline1)
+              self%tod(j,i) =  sgn*(self%tod_dp(j,i) - tod%scans(scan)%d(d)%baseline1)
               !self%tod(j,i) =  (self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
            else
-              self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline2)
+              self%tod(j,i) = -sgn*(self%tod_dp(j,i) - tod%scans(scan)%d(d)%baseline2)
               !self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
        end do
@@ -1131,8 +1132,8 @@ contains
           call init_scan_data(self, scan, oper, -1, sd, nonlin_level=0)
           do j = 1, sd%ntod
              if (iand(sd%flag(j,i), self%flag0) .eq. 0) then
-                self%adu_range(i,1) = min(self%adu_range(i,1), nint(sd%tod(j,i)))
-                self%adu_range(i,2) = max(self%adu_range(i,2), nint(sd%tod(j,i)))
+                self%adu_range(i,1) = min(self%adu_range(i,1), nint(sd%tod_dp(j,i)))
+                self%adu_range(i,2) = max(self%adu_range(i,2), nint(sd%tod_dp(j,i)))
              end if
           end do
           call dealloc_scan_data(sd)
@@ -1408,7 +1409,7 @@ contains
 
     scan = sd%scan
     
-    ! Apply ADC corrections to raw self%tod
+    ! Apply ADC corrections to raw self%tod_dp
     if (nonlin_lvl > 0 .and. associated(self%adc(1)%p)) then
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
@@ -1416,25 +1417,25 @@ contains
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
              open(58,file='adc_before.dat')
              do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i), and(sd%flag(j,i), self%flag0)
+                write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
              end do
              close(58)
           end if
           !call self%adc(d)%p%Q2As(92.)
           !call self%adc(d)%p%As2F
-          call self%adc(d)%p%adc_correct(sd%tod(:,i), &
+          call self%adc(d)%p%adc_correct(sd%tod_dp(:,i), &
                & iand(sd%flag(:,i), self%flag0) .eq.0)
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
              open(58,file='adc_after.dat')
              do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i), and(sd%flag(j,i), self%flag0)
+                write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
              end do
              close(58)
           end if
        end do
     end if
 
-    ! Demodulate TOD
+    ! Demodulate TOD; convert from double precision (sd%tod_dp) to single precision (sd%tod)
     if (nonlin_lvl > 1) then
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)

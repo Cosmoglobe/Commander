@@ -80,6 +80,7 @@ contains
     if (btest(oper,SD_BASE))    allocate(sd%pix     (ntod, ndet, nhorn))
     if (btest(oper,SD_BASE))    allocate(sd%psi     (ntod, ndet, nhorn))
     if (btest(oper,SD_TOD))     allocate(sd%tod     (ntod, ndet))
+    if (btest(oper,SD_TOD) .and. tod%rawtod_dp) allocate(sd%tod_dp(ntod, ndet))
     if (btest(oper,SD_ORB))     allocate(sd%s_orb   (ntod, ndet, 0:hmax))
     if (btest(oper,SD_SL))      allocate(sd%s_sl    (ntod, ndet, 0:hmax))
     if (btest(oper,SD_ZODI) .and. tod%subtract_zodi)    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
@@ -145,7 +146,11 @@ contains
              d = j; if (present(det)) d = det
              if (.not. tod%scans(scan)%d(d)%accept) cycle
              if (tod%compressed_tod) then
-                call tod%decompress_tod(scan, d, sd%tod(:,j))
+                if (tod%rawtod_dp) then
+                   call tod%decompress_tod(scan, d, sd%tod(:,j), sd%tod_dp(:,j))
+                else
+                   call tod%decompress_tod(scan, d, sd%tod(:,j))
+                end if
              else
                 sd%tod(:,j) = tod%scans(scan)%d(d)%tod
              end if
@@ -356,6 +361,7 @@ contains
     if (allocated(sd%det))           deallocate(sd%det)
     if (allocated(sd%ind))           deallocate(sd%ind)
     if (allocated(sd%tod))           deallocate(sd%tod)
+    if (allocated(sd%tod_dp))        deallocate(sd%tod_dp)
     if (allocated(sd%n_corr))        deallocate(sd%n_corr)
     if (allocated(sd%s_sl))          deallocate(sd%s_sl)
     if (allocated(sd%s_sky))         deallocate(sd%s_sky)

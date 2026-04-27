@@ -96,7 +96,7 @@ interface
     class(comm_adc_binfit), pointer    :: c
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, scan, det, tod, sigma0, mask)
+  module subroutine adc_correct(self, tod, mask)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -104,10 +104,10 @@ interface
     !
     ! self : comm_adc object
     !    Defines the adc correction that should be applied
-    ! tod : float array
+    ! tod : double precision array
     !    The tod that is to be corrected
-    ! sigma0 : real
-    !    White noise rms, coadded
+    ! mask : real
+    !    Flag mask
     ! 
     ! Outputs : 
     !
@@ -115,11 +115,9 @@ interface
     !    The adc corrected version of tod_in    
     ! ====================================================================
     implicit none
-    class(comm_adc_binfit),          intent(inout) :: self
-    integer(i4b),                    intent(in)    :: scan, det
-    real(sp), dimension(:),          intent(inout) :: tod
-    real(sp),                        intent(in)    :: sigma0
-    logical(lgt), dimension(:),      intent(in), optional    :: mask
+    class(comm_adc_binfit),          intent(in)    :: self
+    real(dp), dimension(:),          intent(inout) :: tod
+    logical(lgt), dimension(:),      intent(in)    :: mask
   end subroutine adc_correct
 
   module subroutine Q2As(self, sigma0)

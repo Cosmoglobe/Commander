@@ -165,7 +165,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !
     ! self : comm_adc object
     !    Defines the adc correction that should be applied
-    ! tod : float array
+    ! tod : double precision array
     !    The tod that is to be corrected
     ! sigma0 : real
     !    White noise rms, coadded
@@ -177,7 +177,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     ! ====================================================================
     implicit none
     class(comm_adc_binfit),          intent(in)    :: self
-    real(sp),     dimension(:),      intent(inout) :: tod
+    real(dp),     dimension(:),      intent(inout) :: tod
     logical(lgt), dimension(:),      intent(in)    :: mask
 
     integer(i4b) :: i
