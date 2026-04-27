@@ -3,12 +3,14 @@ import iras_native_tod_reader
 
 from cosmoglobe.tod_tools.commander_hdf_writer import CommanderHDFWriter
 from time import time
+from pathlib import Path
 
 # Main script - run to create the IRAS HDF files
 IRAS_NPZ_DIR    = "/mn/stornext/d5/data/vetleav/IRAS/tod_data/IPAC_level1"
 OUTPATH         = '/mn/stornext/d5/data/vetleav/IRAS/tod_data/hdf_commander'
 NSIDE           = 512
 NUM_PROCESSES   = 64
+OVERWRITE       = True
 
 BANDS       = iras_native_tod_reader.BANDS
 BAND_DETS   = iras_native_tod_reader.BAND_DETS
@@ -69,74 +71,89 @@ def set_bands_and_band_dets(testing=True, bands=None, verbose=True):
     return bands, band_dets
 
 
-def run_single_band_write():
+def run_single_band_write(version):
     N_dets = [len(BAND_DETS[band]) for band in BANDS]
     print(f"Storing h5 files for band {BANDS} with {N_dets} detectors")
     t0 = time()
     iras_comm_data_adapter = IRASCommanderDataAdapter(
         data_dir                = IRAS_NPZ_DIR, 
         nside                   = NSIDE, 
+        version                 = version,
         num_files_per_segment   = NUM_FILES_PER_SEGMENT,
         bands                   = BANDS,
         band_dets               = BAND_DETS
         )
     
+    # Store files for this version in separate subdir.  
+    outpath = f"{OUTPATH}/v{version}"
+    Path(outpath).mkdir(exist_ok=True)
+
+    # Write hdf files.
     comm_todwriter = CommanderHDFWriter(iras_comm_data_adapter)
     comm_todwriter.write_hdf_files(
-        OUTPATH, 
-        overwrite=True, 
-        num_processes=NUM_PROCESSES,
-        bands=BANDS
+        hdf_output_dir  = outpath,
+        overwrite       = True, 
+        num_processes   = NUM_PROCESSES,
+        bands           = BANDS
         )
     t1 = time()
     print(f"DONE! dur: {t1-t0:.3f} sec")
 
     
 
-def run_multiple_band_write():
+def run_multiple_band_write(version):
     print("Testing multi. Delete here to run")
     print(BANDS)
     print(BAND_DETS)
     print(NUM_PROCESSES)
     exit()
 
-    
     iras_comm_data_adapter = IRASCommanderDataAdapter(
         data_dir                = IRAS_NPZ_DIR, 
         nside                   = NSIDE, 
+        version                 = version,
         num_files_per_segment   = NUM_FILES_PER_SEGMENT,
         bands                   = BANDS,
         band_dets               = BAND_DETS
         )
     
+    # Store files for this version in separate subdir.  
+    outpath = f"{OUTPATH}/v{version}"
+    Path(outpath).mkdir(exist_ok=True)
+
+    # Write hdf files.
     comm_todwriter = CommanderHDFWriter(iras_comm_data_adapter)
     comm_todwriter.write_hdf_files(
-        OUTPATH, 
-        overwrite=True, 
-        num_processes=NUM_PROCESSES,
-        bands=BANDS
+        hdf_output_dir  = outpath, 
+        overwrite       = True, 
+        num_processes   = NUM_PROCESSES,
+        bands           = BANDS
         )
 
 def main():
     global BANDS
     global BAND_DETS
     global NUM_PROCESSES
-
+    global OVERWRITE
+    global NSIDE
     """
-    Set NUM_PROCESSES, BANDS and BAND_DETS here 
+    Set value of various parameters here 
     before calling the actual functions.
-    This setup was adapted/written for testing/debugging purposes 
+    This setup was adapted/written for simplified 
+    testing/debugging purposes 
     """
     NUM_PROCESSES   = 128
+    NSIDE           = 512
+    OVERWRITE       = True
     # BANDS, BAND_DETS = set_bands_and_band_dets(testing=True, bands=["060"])
     # BANDS, BAND_DETS = set_bands_and_band_dets(testing=False, bands=["012"])
     # BANDS, BAND_DETS = set_bands_and_band_dets(testing=False, bands=["025"])
     # BANDS, BAND_DETS = set_bands_and_band_dets(testing=False, bands=["060"])
     BANDS, BAND_DETS = set_bands_and_band_dets(testing=False, bands=["100"])
-    run_single_band_write()
+
+    version = 2 # Integer. Which version of the hdf files we're writing. 
+    run_single_band_write(version=version)
 
 
 if __name__ == '__main__':
-    
-
     main()

@@ -7,7 +7,7 @@ import functools
 import glob
 import os, signal
 
-from iras_native_tod_reader import IRASTODReader, BANDS, BAND_DET_NUMBERS, BAND_DETS
+from iras_native_tod_reader import IRASTODReader, BANDS, BAND_DETS
 import iras_native_tod_reader
 
 
@@ -60,7 +60,6 @@ Currently missing/placeholder only:
 """
 
 BANDS               = iras_native_tod_reader.BANDS
-# BAND_DET_NUMBERS    = iras_native_tod_reader.BAND_DET_NUMBERS
 BAND_DETS           = iras_native_tod_reader.BAND_DETS
 
 class IRASCommanderDataAdapter(CommanderDataAdapter):
@@ -73,19 +72,22 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             self,
             data_dir: str, 
             nside: int,
-            num_files_per_segment: int = 100, 
+            version: int,
             bands: list[str] = BANDS,
             band_dets: dict[str, list[int]] = BAND_DETS,
+            num_files_per_segment: int = 100, 
     ):
         self.data_dir       = data_dir
         self.nside          = nside
+        self.version        = version
         self.bands          = bands
         self.band_dets      = band_dets
         self.num_detectors  = {key: len(dets) for key, dets in band_dets.items()} 
         self.num_files_per_segment = num_files_per_segment
 
-        self.flux2MJy_sr = self._get_flux2MJy_sr_conversion_factors()
+        assert type(self.version) is int
 
+        self.flux2MJy_sr = self._get_flux2MJy_sr_conversion_factors()
 
         self.fsamp = {
             '012': 16.0,  # [Hz],  12 micron
@@ -112,37 +114,22 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             self.todreaders[band] = IRASTODReader(
                 iras_npz_dir    = self.data_dir, 
                 band            = band, 
-                load_filelist   = True
-                # band_dets       = self.band_dets
+                band_dets       = self.band_dets,
+                load_filelist   = True,
                 )
             self.filelist[band] = self.todreaders[band].filelist
             self.chunksizes[band] = self.todreaders[band].chunksizes
             print("Done")
             print()
 
-            
-
-    '''def _calculate_chunk_files(self):
-        """
-        UPDATE: MAY BE OBSOLETE
-        Internal function that calculates a mapping between chunk index and fits files. 
-        This is temporary, as we might want to do something more sophisticated about 
-        how we define the chunks.
-        """
-        chunk_file_map = {}
-        for band in self.bands:
-            chunk_file_map[band] = {}
-            curr_chunk_idx = 0
-            for file in self.filelist[band]:
-                chunk_file_map[band][curr_chunk_idx] =  []
-                chunk_file_map[band][curr_chunk_idx].append(file)
-                curr_chunk_idx += 1
-        return chunk_file_map'''
 
     def _process_iras_flags(self):
         pass
 
     def _process_iras_tod_reader_data(self):
+        if True:
+            raise NotImplementedError("Placeholder method atm.") 
+
         """Internal function to process the data coming from the IRAS TOD reader and getting it
         into the format needed for the HDFwriter"""
 
@@ -212,9 +199,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
     def get_num_segments(self, band: str)  ->  int: 
         # For a given band, returns the
         # number of segments (i.e. number of HDF files) for that band.
-
-        ## IRAS:
-        # Number of npz files for a single detector:
+        # All IRAS detectors have 5787 npz files, i.e. chunks.
         #   - 5787 (for deplated Level 1 data)
         return self.num_segments
 
@@ -223,7 +208,9 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
 
         # Version 1:
         #   - Deplated level1 data from IPAC, in units of W/m^2.
-        return 1 
+        #   - Minimum working values with proper positions, vels, 
+        #       or flags not properly implemented yet. 
+        return self.version
 
     def get_experiment_name(self) -> str: 
         return "IRAS"
@@ -267,11 +254,9 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # Given a band
         # name and a segment number belonging to that band, gives the indices of
         # the chunks (previously:scans) that belong to the segment in question.
-
+        # Called by "commander_hdf_writer.py"
         start_idx   = (segment-1) * self.num_files_per_segment
         end_idx     = segment * self.num_files_per_segment
-        # if end_idx > self.num_chunks[band]:
-            # end_idx = self.num_chunks[band]
         if end_idx > self.num_chunks:
             end_idx = self.num_chunks
         return [i for i in range(start_idx+1, end_idx+1)]
@@ -288,11 +273,15 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # data fetch calls will *not* be specifying the chunk number, but will
         # implicitly assume that the adapter knows which chunk number is the
         # current one.
+
+        # Called by "commander_hdf_writer.py"
         self.chunk_idx = chunk_idx
         self.all_chunk_data = None #Reset chunk
 
-
-    '''def get_chunk(func):
+    def get_chunk(func):
+        if True:
+            raise NotImplementedError("Kept for reference atm.") 
+        
         """Decorator function to make sure that a chunk is always preloaded"""
         print("NOOOOOOOO")
         @functools.wraps(func)
@@ -301,7 +290,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
                 self.all_chunk_data = self._process_iras_tod_reader_data()
             return func(self, *args)
 
-        return inner'''
+        return inner
 
     def get_chunk_data(self, band:str, detector:str): 
         # -> tod(np.array[float/int]), pix(np.array[int]), psi(np.array(float)), flag(np.array[int]):
@@ -311,13 +300,13 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # an array of integers representing bits.
 
         fname = self.filelist[band][detector][self.chunk_idx - 1]
-        # file = np.load(f"{self.data_dir}/sop534/obs013/det30_continuous.npz")
 
         ### KEYS: t, ra, dec, flux, n_merged, dedup_seconds, sop, obs, det
         data = np.load(fname)
 
         # Some bands (60 and 100) have varying ntods betw. detectors for certain cunks
         # N_tod is precomputed, and ensures that all detectors have the same length for all chunks
+        # For bands 012 and 025 N_tod=-1 for all chunks.
         N_tod = self.chunksizes[band][self.chunk_idx]
 
         t   = data["t"][:N_tod]
@@ -347,8 +336,6 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         ra[good_data] = coords.l.value
         dec[good_data] = coords.b.value
         pix = healpy.ang2pix(self.nside, ra, dec, lonlat=True)
-        # print(len(flag_tot[flag_tot != 0]))
-        # print(band, detector)
         return tod, pix, psi, flag_tot
 
 
@@ -367,20 +354,16 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # satellite at the beginning of the chunk in galactic coordinates
         # (cartesian, in meters) as a length 3 list.
 
-        # TEMP
         # return self.get_chunk_start_earthpos()
-        return [0,0,0]
-
+        return [0,0,0] # TEMP
 
     def get_chunk_end_satpos(self) -> list[float]:
         # Returns the position of the
         # satellite at the end of the chunk in galactic coordinates (cartesian,
         # in meters) as a length 3 list. 
 
-        # TEMP
         # return self.get_chunk_end_earth()
-        return [0,0,0]
-
+        return [0,0,0] # TEMP
 
     def get_chunk_start_earthpos(self) -> list[float]:
         # Returns the position of the
@@ -391,8 +374,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         #                                        HeliocentricMeanEcliptic)
         # earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
         # return earth_pos
-        return [0,0,0]
-
+        return [0,0,0] # TEMP
 
     def get_chunk_end_earthpos(self) -> list[float]:
         # Returns the position of the
@@ -403,12 +385,13 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         #                                        HeliocentricMeanEcliptic)
         # earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
         # return earth_pos
-        return [0,0,0]
+        return [0,0,0] # TEMP
 
     def get_chunk_satvel(self) -> list[float]: 
         # Returns the velocity of the satellite
         # at the beginning of the chunk in m/s as a length 3 list.
-        return [0, 0, 0]
+        
+        return [0, 0, 0] # TEMP
 
     def get_should_compress_tods(self) -> bool: 
         # Returns True if TODs should be compressed; False otherwise. 
@@ -438,7 +421,6 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # Using same value as AKARI script for now 
         return  1 / (10 * 60)
 
-
     def get_sigma0(self, band:str, detector:str) -> float: 
         # Returns the sigma0 (white noise level) of the specified band and detector.
 
@@ -452,12 +434,12 @@ if __name__ == '__main__':
     bdets = BAND_DETS
     bdets = {}
     for band, dets in BAND_DETS.items():
-        bdets[band] = dets#[::3]
+        bdets[band] = dets
 
     ICDA = IRASCommanderDataAdapter(
         data_dir        = data_dir,
         nside           = 256,
-        # bands           = [BANDS[1]],
+        version         = 0,
         bands           = BANDS,
         band_dets       = bdets,
     )

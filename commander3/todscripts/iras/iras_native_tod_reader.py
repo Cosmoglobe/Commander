@@ -14,14 +14,15 @@ written by Eirik Gjerløw for AKARI.
 """
 
 
-
+# Valid band names for iras 
 BANDS = [
-    '012',
-    '025',
-    '060',
-    '100'
+    '012', #  12 micron / Band 1
+    '025', #  25 micron / Band 2
+    '060', #  60 micron / Band 3
+    '100'  # 100 micron / Band 4
 ]
 
+# Detectors in each band. 
 BAND_DET_NUMBERS = {
     '012': [23, 24, 25, 26, 27, 28, 29, 30, 47, 48, 49, 50, 51, 52, 53, 54],    #  12 micron / Band 1
     '025': [16, 17, 18, 19, 20, 21, 22, 39, 40, 41, 42, 43, 44, 45, 46],        #  25 micron / Band 2
@@ -35,6 +36,10 @@ DEGRADED_PERFORMANCE_DETECTORS = [25, 26, 28, 42] # See expl.suppl. Chapter IV.A
 
 DEAD_DETECTORS = {}
 
+# Compute dictionary with:
+#   - keys: BANDS
+#   - vals: list(str), with "IRAS_xxx-yy", where xxx=band and yy=det
+# Detectors in "DEAD_DETECTOR_LIST" are omitted from BAND_DETS  
 BAND_DETS = {}
 for band in BANDS:
     DEAD_DETECTORS[band] = []
@@ -55,19 +60,23 @@ class IRASTODReader:
 
     iras_npz_dir (str): The directory in which the .npz tod files reside (should not be
         compressed)
-    band (str): The band for which to load the TODs. Should be '012', '025', '060' or '100'.
+    band (str): The band for which to load the TODs. Should be on of BANDS, i.e. '012', '025', '060' or '100'.
+    band_dets:  Dictionary with list of detectors for each band. 
+    load_filelist: If True (default), loads precomputed filelist and ntod for said band.  
     """
     def __init__(
             self, 
             iras_npz_dir, # /mn/stornext/d5/data/vetleav/IRAS/tod_data/IPAC_level1
             band,
-            band_dets = BAND_DETS,
-            load_filelist = False
+            band_dets       = BAND_DETS,
+            load_filelist   = True
             ):
         
         if band not in BANDS:
             raise ValueError(
                 f"Unrecognized band '{band}'. Should be one of {BANDS}.")
+        if type(band) is not str:
+            raise TypeError
         
         self.data_dir   = iras_npz_dir
         self.band       = band
@@ -83,10 +92,12 @@ class IRASTODReader:
 
 
     def get_det_filelist(self):
-        # Return dict of npz files
-        #  key: detector number [int] 
-        #  val: sorted list of all npz files for said detector.
-        # This dictionary is used by the adapter to load the correct files.
+        """
+        Return dict of npz files
+         key: detector number [int] 
+         val: sorted list of all npz files for said detector.
+        This dictionary is used by the adapter to load the correct files.
+        """
         filelist_dict = {}
         for det_name in tqdm(self.band_dets[self.band]):
             det_num =  int(det_name.split("-")[-1])
@@ -101,38 +112,47 @@ class IRASTODReader:
 
 
     def _store_det_filelist_dictionary(self):
-
+        """
+        Store all files for a given band as a dictionary.
+        - keys: det_name, e.g. "IRAS_060-XX" for detectors in band 60.
+        - vals: list[filepaths], where filepaths is a sorted list of paths to
+                all 5878 filenames for a given detector.  
+        The stored dictionaries are loaded by the "_load_det_filelist_dictionary_band" method. 
+        """
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
-        outfname_all = f"{outdir}/filelist_all.pkl"
-        filelist_dict = {}
         for band, det_name_list in tqdm(self.band_dets.items()):
             outfname_band = f"{outdir}/filelist_{band}.pkl"
             if Path(outfname_band).exists:
+                # Prevent overwriting
                 print(f"{outfname_band} already exists. Skipping")
                 continue
             filelist_band = {}
             for det_name in tqdm(det_name_list):
                 det_num =  int(det_name.split("-")[-1])
+                # Get sorted list of all files for a given detector. 
                 filelist_band[det_name] = sorted(glob.glob(f"{self.data_dir}/*/*/det{det_num:02}_continuous.npz"))
+
                 if len(filelist_band[det_name]) != 5787:
+                    # All detectors in all bands should have 5787 associated npz files. 
                     raise RuntimeError(
                         f"""
-                        ERROR! Found {len(filelist_dict[det_name])} files for detector {det_name}.
+                        ERROR! Found {len(filelist_band[det_name])} files for detector {det_name}.
                         Only valid number is 5787. Aborting"""
                     )
-            with open(f"{outdir}/filelist_{band}.pkl", "wb") as pkl_file:
+            # Store dictionary as pkl file. 
+            with open(outfname_band, "wb") as pkl_file:
                 pickle.dump(filelist_band, pkl_file)
-            filelist_dict[band] = filelist_band
-        if Path(outfname_all).exists:
-            print(f"{outfname_band} already exists. Returning")
-            return
-
-        with open(outfname_all, "wb") as pkl_file:
-            pickle.dump(filelist_dict, pkl_file)
-
-        return filelist_dict
+        return
 
     def _load_det_filelist_dictionary_band(self, band):
+        """
+        Return dictionray containing all npz files for a given band
+        computed by the "_store_det_filelist_dictionary_band" method. 
+        - keys: det_name, e.g. "IRAS_060-XX" for detectors in band 60.
+        - vals: list[filepaths], where filepaths is a sorted list of paths to
+                all 5878 filenames for a given detector.  
+        
+        """
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
         filelist_fname = f"{outdir}/filelist_{band}.pkl"
         with open(filelist_fname, "rb") as pkl_file:
@@ -140,35 +160,44 @@ class IRASTODReader:
         return filelist
 
 
-    def _load_det_filelist_dictionary_full(self):
-        ### OBSOLETE
-        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
-        filelist_fname = f"{outdir}/filelist_all.pkl"
-        if not Path(filelist_fname).exists():
-            raise FileNotFoundError
-        
-        with open(f"{outdir}/filelist_all.pkl", "rb") as pkl_file:
-            self.filelist_all = pickle.load(pkl_file)
-        return self.filelist_all
-
 
     def _store_chunk_size_dictionary(self, band):
+        """
+        In bands 060 and 100, some chunks (files) have a 
+        varying number of tod samples between detectors, causing
+        errors with huffman compression when creating h5 files 
+        due to varying file array sizes. 
+
+        Here, we go through all chunks in all detectors, and store 
+        the *lowest* number of tod samples for a given  chunk in each band. 
+        Tods are then loaded as data[:min_ntod].
+        For bands 012 and 025 we set min_ntod=-1,
+        as all chunks have equal ntod. 
+        Method is brute force and inefficient, but only needs to be run once.  
+
+        Store min_ntod dictionary for each band as pickle file, with
+        - keys: chunk_idx, integer in [1,2,...,5786,5787]
+        - vals: lowest ntod for the chunk across detectors in band.   
+        Output: chunk_sizes_{band}.pkl
+        """
         if band not in BANDS:
             raise ValueError
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
         filelist_fname = f"{outdir}/filelist_{band:03}.pkl"
         outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
         if Path(outfile).exists():
+            # Prevent overwriting
             raise FileExistsError
         
         with open(filelist_fname, "rb") as pkl_file:
+            # Load filelist for all detectors in band
             filelist = pickle.load(pkl_file)
 
         print(f"Computing min chunk sizes for band {band}")
-        
-        N_chunks            = len(list(filelist.values())[0])
+        N_chunks            = len(list(filelist.values())[0]) # 5787
         chunksizes_dict    = {}
         if band == "012" or band == "025":
+            # Const. ntod. Use -1 for all chunks. 
             chunksizes_dict    = {chunk_idx: -1 for chunk_idx in range(1, N_chunks + 1)}
             print(f"Done! Storing to {outfile}")
             with open(outfile, "wb") as pkl_file:
@@ -178,11 +207,12 @@ class IRASTODReader:
         N_dets          = len(filelist.keys())
         chunk_lengths   = np.zeros(N_dets, dtype=int)
         for ii in tqdm(range(N_chunks)):
-        # for ii in range(N_chunks):
+            # Iterate over all chunks
             chunk_idx = ii + 1
             for jj, flist in enumerate(filelist.values()):
+                # Get number of tods in all detectors for said chunk. 
                 chunk_lengths[jj] = len(np.load(flist[ii], allow_pickle=True)["t"])
-
+            # Find lowest ntod for chunk.
             chunksizes_dict[chunk_idx] = np.min(chunk_lengths)
         
         print(f"Done! Storing to {outfile}")
@@ -190,7 +220,10 @@ class IRASTODReader:
             pickle.dump(chunksizes_dict, pkl_file)
 
     def _load_chunk_size_dictionary(self, band):
-        print("Loading")
+        """
+        Loads number of tods to use in every chunk for a given band. 
+        See docstring in "_store_chunk_size_dictionary" for details. 
+        """
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
         outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
         with open(outfile, "rb") as pkl_file:
@@ -202,29 +235,9 @@ class IRASTODReader:
 
 if __name__ == '__main__':
     TOD_DIR = "/mn/stornext/d5/data/vetleav/IRAS/tod_data/IPAC_level1"
-    import sys
-    if len(sys.argv) == 2:
-        band = f"{sys.argv[1].zfill(3)}"
-    else:
-        band = "100"
-
-    # TESTING = False
-    TESTING = True
 
     ITR = IRASTODReader(
-        iras_npz_dir=TOD_DIR,
-        band=band,
-        load_filelist=True
+        iras_npz_dir    = TOD_DIR,
+        band            = band,
+        load_filelist   = True
         )
-    print("STORING")
-    # ITR._store_chunk_size_dictionary("100")
-    # ITR._store_chunk_size_dictionary("012")
-    # ITR._store_chunk_size_dictionary("025")
-
-
-    ch = ITR._load_chunk_size_dictionary("025")
-    print("res:")
-    keys = list(ch.keys())
-    for k in keys[::100]:
-    # for k,v in ch.items()[::100]:
-        print(f"{k:4}, {ch[k]}")
