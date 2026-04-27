@@ -70,7 +70,7 @@ contains
     ndet  = sd%ndet
     hmax  = sd%hmax
     nhorn = sd%nhorn
-    nbp   = sd%nbp 
+    nbp   = sd%nbp
                                 allocate(sd%det     (ndet))
     if (btest(oper,SD_IND))     allocate(sd%ind     (ntod, ndet, nhorn))
     if (btest(oper,SD_BASE))    allocate(sd%flag    (ntod, ndet))
@@ -881,15 +881,14 @@ contains
     d_calib = 0.d0
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       !write(*,*) '[comm_tod_driver_mod] gain:', tod%scans(scan)%d(j)%gain
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
        d_calib(1,:,j) = (sd%tod(:,j)) &
             & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
 !       d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
 !            & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j,0,1) + sd%s_bp(:,j,0,1)              ! residual
-       !if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
-       if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
+       if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
+       !if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j,0,1)                                               ! bandpass
        if (tod%output_n_maps > 4 .and. allocated(sd%s_orb))  d_calib(5,:,j) = sd%s_orb(:,j,0)                                              ! orbital dipole
        if (tod%output_n_maps > 5 .and. allocated(sd%s_sl))   d_calib(6,:,j) = sd%s_sl(:,j,0)          

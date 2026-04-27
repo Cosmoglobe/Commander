@@ -40,6 +40,7 @@ module comm_tod_chipass_mod
    type, extends(comm_tod) :: comm_chipass_tod
    contains
       procedure     :: process_tod          => process_chipass_tod
+      procedure     :: construct_corrtemp_inst => construct_corrtemp_chipass
    end type comm_chipass_tod
 
    interface comm_chipass_tod
@@ -110,6 +111,8 @@ contains
       c%samprate_lowres = 8.  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
+      c%baseline_order  = 1
+      c%apply_inst_corr = .true.
       c%compressed_tod  = .false.
       c%correct_sl      = .false.
       c%correct_orb     = .false.
@@ -162,9 +165,11 @@ contains
 
 
       ! Initialize all baseline corrections to zero
-      !do i = 1, c%nscan
-      !   c%scans(i)%d%baseline = 0.d0
-      !end do
+      do i = 1, c%nscan
+         do j = 1, c%ndet
+            c%scans(i)%d(j)%baseline = 0.d0
+         end do 
+      end do
       
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_chipass
@@ -258,7 +263,7 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .true.                         ! Gain sampling
-      sample_ncorr = .false.
+      sample_ncorr = .true.
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -307,33 +312,63 @@ contains
 
       ! sample baseline
       ! Sample baseline for current scan
-      if (.false.) then
+      if (.true.) then
          if (self%myid == 0) then
             write(*,*) '|    --> Sampling baseline'
          end if
-         !self%apply_inst_corr = .false. ! Disable baseline correction for just this call
-         self%apply_inst_corr = .true.
+         self%apply_inst_corr = .false. ! Disable baseline correction for just this call
          call update_status(status, "baseline")
          do i = 1, self%nscan
             if (.not. any(self%scans(i)%d%accept)) cycle
             call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
-            
+            ! check there are valid points
+            l = 0
+            do j = 1, self%ndet
+               do k = 1, self%scans(i)%ntod
+                  if (sd%mask(k,j) > 0.5) then
+                     l    = l + 1
+                  end if
+               end do
+            end do
+            if (.not. l > self%baseline_order+1) cycle
             !call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
             call timer%start(TOD_BASELINE, self%band)
+            !if (i == 1 .and. self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] 1 sample_chipass_baseline'
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline; self%apply_inst_corr:', self%apply_inst_corr
             !if (self%myid == 0) write(*,*) '    size(sd%mask):', size(sd%mask)
             !if (self%myid == 0) write(*,*) '    sd%mask(1,1):', sd%mask(1,1)
-            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot(:,:,1,1), sd%mask, handle)
+            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask, handle) ! changed ind from 1 to 0
+            !if (i == 1 .and. self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] 2 sample_chipass_baseline done'
             !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_baseline done'
             call timer%stop(TOD_BASELINE, self%band)
+            ! apply inst corr
             call dealloc_scan_data(sd)
          end do
-         !self%apply_inst_corr = .true.
+         self%apply_inst_corr = .true.
 
          call timer%start(TOD_WAIT, self%band)
          call mpi_barrier(self%comm, ierr)
          call timer%stop(TOD_WAIT, self%band)
       end if
+
+      ! apply inst corr
+      !if (self%apply_inst_corr) then
+      !   do i = 1, self%nscan
+      !      call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+      !      call construct_corrtemp_chipass(self, sd) ! added
+      !      call timer%start(TOD_INSTCORR, self%band)
+      !      do j = 1, self%ndet
+      !         if (.not. self%scans(i)%d(j)%accept) cycle
+      !         if (self%myid == 0) write(*, *) 'j:', j
+      !         if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%s_inst(:,j):', sd%s_inst(:,j)
+      !         if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%tod(:,j):', sd%tod(:,j)
+      !         sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
+      !         if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%tod(:,j) new:', sd%tod(:,j)
+      !      end do
+      !      call dealloc_scan_data(sd)
+      !   end do
+      !   call timer%stop(TOD_INSTCORR, self%band)
+      !end if
 
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_gain:', sample_gain
@@ -344,9 +379,10 @@ contains
          call sample_calibration(self, 'abscal', oper_default, handle)
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         !call sample_calibration(self, 'relcal', oper_default, handle)         
+         call sample_calibration(self, 'relcal', oper_default, handle)         
          ! 'deltaG': the time-variable and detector-variable gain
          !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
       ! Prepare intermediate data structures
@@ -372,7 +408,9 @@ contains
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+         allocate(sd%n_corr(sd%ntod, sd%ndet))
          sd%n_corr = 0d0
+         !if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] size(sd%n_corr, 1), size(sd%n_corr, 2):', size(sd%n_corr, 1), size(sd%n_corr, 2)
 
 !!$         if (.false. .and. self%myid == 0 .and. i == 1) then
 !!$            open(58,file='tod.dat', recl=1024)
@@ -381,6 +419,21 @@ contains
 !!$            end do
 !!$            close(58)
 !!$         end if
+
+         ! apply inst corr
+         if (self%apply_inst_corr) then
+            call construct_corrtemp_chipass(self, sd) ! added
+            call timer%start(TOD_INSTCORR, self%band)
+            do j = 1, self%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               !if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] j:', j
+               !if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%s_inst(:,j):', sd%s_inst(:,j)
+               !if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%tod(:,j):', sd%tod(:,j)
+               sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
+               !if (self%myid == 0) write(*, *) '    [comm_tod_chipass_mod] sd%tod(:,j) new:', sd%tod(:,j)
+            end do
+            call timer%stop(TOD_INSTCORR, self%band)
+         end if
 
          ! Sample correlated noise
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_ncorr?', sample_ncorr
@@ -408,7 +461,7 @@ contains
 
          ! For debugging: write TOD to hdf
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] self%scanid(i):', self%scanid(i)
-         if (.false.) then
+         if (.true.) then
             ! scan id appears to be the worst chi2
             !if (self%scanid(i) < 10000) then
             !if (self%scanid(i) < 10) then
@@ -523,6 +576,9 @@ contains
          call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
          if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
          if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+         ! added
+         if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] output_n_maps:', self%output_n_maps
+         if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'baseline'//trim(postfix))
          if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
          if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
             do i = 1, zodi_model%n_comps
@@ -577,40 +633,107 @@ contains
     integer(i4b) :: i, j, k, n
     real(dp)     :: dt, t_tot, t, A, b, mval, eta
     real(dp), allocatable, dimension(:) :: x, y
+    !real(dp), dimension(0:4) :: b2
+    !real(dp), dimension(0:4, 0:4) :: C
 
     allocate(x(tod%scans(scan)%ntod), y(tod%scans(scan)%ntod))
     dt = 1.d0 / tod%scans(scan)%ntod
 
+    !if (tod%myid == 0) write(*,*) ''
+    !if (tod%myid == 0) write(*,*) '    [comm_tod_chipass_mod] scan', scan
 
-    !write(*,*) 'sample_baseline 1'
+
     do j = 1, tod%ndet
-       !write(*,*) 'sample_baseline 2 -- j:', j
+       !if (tod%myid == 0) write(*,*) '    [comm_tod_chipass_mod]    det:', j
+       !if (tod%myid == 0) write(*,*) '    [comm_tod_chipass_mod]    gain:', tod%scans(scan)%d(j)%gain
        if (.not. tod%scans(scan)%d(j)%accept) cycle
 
        t = 0.d0
        n = 0
-       !write(*,*) 'sample_baseline 3 -- t, dt, tod%scans(scan)%ntod:', t, dt, tod%scans(scan)%ntod
+       !if (tod%myid == 0) write(*,*) '    ktod ', 'raw ', 'gain*s_tot ', 'y'
        do k = 1, tod%scans(scan)%ntod
-          !write(*,*) '    sample_baseline 4 -- k:', k
           t      = t + dt
-          !write(*,*) '    sample_baseline 4.1 -- t, k, j, mask(k,j):', t, k, j, mask(k,j)
           if (mask(k,j) > 0.5) then
-             !write(*,*) '    sample_baseline 5'
              n    = n + 1
              x(n) = t
              y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
+             !if (tod%myid == 0) write(*,*) k, raw(k,j), tod%scans(scan)%d(j)%gain * s_tot(k,j), y(n)
           end if
-          !write(*,*) '    sample_baseline 4.1'
        end do
 
-       !write(*,*) '    sample_baseline fit_polynomial'
-       call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline)
+       if (n > tod%baseline_order+1) call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline)
+       !if (tod%myid == 0 .and. mod(scan, 1690) == 0) write(*,*) '    [comm_tod_chipass_mod] n, ntod, baseline:', &
+       !        & n, tod%scans(scan)%ntod, tod%scans(scan)%d(j)%baseline
+
+       !do i = 0, 4
+       !   b2(i) = sum(y(1:n) * x(1:n)**i)
+       !   do k = i, 4
+       !      C(i,k) = sum(x(1:n)**(i+k))
+       !      C(k,i) = C(i,k)
+       !   end do
+       !end do
+       !call solve_system_real(C, tod%scans(scan)%d(j)%baseline, b2)
        !write(*,*) '    sample_baseline fit_polynomial done'
     end do
+    !if (tod%myid == 0) then
+    !   write(*,*) '    [comm_tod_chipass_mod] scan', scan
+    !   write(*,*) '        ntod:', tod%scans(scan)%ntod
+    !   !write(*,*) '        x:', x(1:n)
+    !   write(*,*) '        y:', y(1:n)
+    !   write(*,*) '        raw:', raw(:, 13)
+    !   write(*,*) '        s_tot:', s_tot(:, 13)
+    !   write(*,*) '        mask:', mask(:,tod%ndet)
+    !   write(*,*) '        det 13 gain:', tod%scans(scan)%d(13)%gain
+    !   write(*,*) '        baseline det 13 out:', tod%scans(scan)%d(13)%baseline
+    !end if
 
     deallocate(x, y)
 
   end subroutine sample_chipass_baseline
 
+  subroutine construct_corrtemp_chipass(self, sd, det)
+    !  Construct a CHIPASS instrument-specific correction template; for now contains baseline
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_chipass_tod), intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: i, j, k, d, nbin, b, scan
+    real(dp)     :: dt, t
+
+    !if (self%myid == 0) write(*,*) '    [comm_tod_chipass_mod] construct_corrtemp_chipass 0'
+    scan      = sd%scan
+    dt        = 1.d0 / self%scans(scan)%ntod
+    sd%s_inst = 0.
+    do j = 1, self%ndet
+       d = j; if (present(det)) d = det
+       t = 0.d0
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       do k = 1, self%scans(scan)%ntod
+          t      = t + dt
+          do i = 0, self%baseline_order
+             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
+          end do
+       end do
+    end do
+    !if (self%myid == 0) write(*,*) '    [comm_tod_chipass_mod] construct_corrtemp_chipass 1'
+
+  end subroutine construct_corrtemp_chipass
 
 end module comm_tod_chipass_mod
