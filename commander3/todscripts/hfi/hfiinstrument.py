@@ -27,6 +27,8 @@ import math
 import argparse
 import sys
 from astropy.io import fits
+from astropy.table import Table
+sys.path.append('/mn/stornext/u3/raelynsu/code/Commander/commander3/python')
 #sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
 from commander_tools.tod_tools.hfi import hfi
 from commander_tools.tod_tools.lfi import lfi
@@ -37,20 +39,26 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d16/cmbco/bp/mathew/hfi')
+    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d23/cmbco/globe/planck/rimo')
 
-    parser.add_argument('--rimo', type=str, action='store', help='path to the RIMO file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/RIMO_npipe2.fits')
+    parser.add_argument('--rimo', type=str, action='store', help='path to the RIMO file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/RIMO_npipe2.fits')
 
-    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d16/cmbco/bp/HFI/aux/beams')
+    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/beams')
+
+    tbol_file="/mn/stornext/u3/raelynsu/code/ParameterFiles/Tbol_SI.txt"
+    # /mn/stornext/d23/cmbco/globe/orig/planck/aux/Tbol_SI.txt"
 
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 4
+    version = 5
 
     rimo = fits.open(args.rimo)
     
     inst_file = inst.commander_instrument(outDir, hfi.instrument_filename(version), version, 'w')
+
+    ##from https://www.aanda.org/articles/aa/full_html/2016/10/aa25844-15/T9.html
+    tbol = Table.read(tbol_file,format='ascii')
 
     for freq in hfi.freqs:
         bandNo = rimo.index_of('BANDPASS_F' + str(freq))
@@ -100,6 +108,8 @@ def main():
             inst_file.add_field(prefix + '/centFreq', data=[hfi.cent_freqs[str(freq) + '-' + det]])
 
             inst_file.add_field(prefix + '/polEff', data=[hfi.pol_effs[str(freq) + '-' + det]])
+
+            inst_file.add_field(prefix+ '/Tbol', data=np.asarray(tbol[tbol['Bolometer'] == str(freq) + '-' + det][0][1:]))
 
             print(prefix)
 

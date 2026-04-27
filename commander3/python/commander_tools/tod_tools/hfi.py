@@ -205,10 +205,13 @@ class hfi(object):
 
         if version == 4:
             try:
-                if f.h5file['143-2a/polEff'] != 87.5:
+                if f.h5file['143-2a/polEff'][0] != 87.5:
                     print('HFI instrument file has wrong polarization efficiencies')
+                    print(f.h5file['143-2a/polEff'][0])
             except (IOError):
                 print('HFI instrument file is missing polarization efficiencies')
+        if version == 5:
+            print('Version 5 includes Tbol. ') #from https://www.aanda.org/articles/aa/full_html/2016/10/aa25844-15/T9.html
 
-        if version > 4:
+        if version > 5:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")
