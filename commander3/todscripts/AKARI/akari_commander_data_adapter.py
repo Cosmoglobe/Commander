@@ -429,6 +429,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], gads_flags[det], mode)
+                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
+                todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
+                                                                  c.galactic.l.value,
+                                                                  c.galactic.b.value,
+                                                                  lonlat=True)
 
 
 
@@ -530,9 +535,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             tod = self.all_chunk_data[band][det]['todz']
         else:
             tod = self.all_chunk_data[band][det]['tod']
+        psi_arr = np.zeros_like(self.all_chunk_data[band][det]['pix'], dtype=int)
         return (tod,
-                self.all_chunk_data[band]['pix'],
-                np.zeros_like(self.all_chunk_data[band]['pix'], dtype=int),
+                self.all_chunk_data[band][det]['pix'],
+                psi_arr,
                 self.all_chunk_data[band][det]['flag'])
 
     @get_chunk
