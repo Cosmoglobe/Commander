@@ -882,10 +882,10 @@ contains
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
-       d_calib(1,:,j) = (sd%tod(:,j)) &
+       !d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
+       !    & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
+       d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
             & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
-!       d_calib(1,:,j) = (sd%tod(:,j) - sd%s_spur(:,j) - sd%n_corr(:,j)) &
-!            & * inv_gain - sd%s_tot(:,j,0,1) + sd%s_sky(:,j,0,1) - sd%s_bp(:,j,0,1)
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j,0,1) + sd%s_bp(:,j,0,1)              ! residual
        if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
        !if (tod%output_n_maps > 2) d_calib(3,:,j) = 0!(sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr

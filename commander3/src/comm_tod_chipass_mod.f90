@@ -284,7 +284,7 @@ contains
 
       ! Define useful sd operation codes
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-           & SD_SKY,SD_BP,SD_INST])
+           & SD_SKY,SD_BP,SD_INST,SD_NCORR])
 
       ! Initialize index-based sky map and mask
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
@@ -408,8 +408,8 @@ contains
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
-         allocate(sd%n_corr(sd%ntod, sd%ndet))
-         sd%n_corr = 0d0
+         !allocate(sd%n_corr(sd%ntod, sd%ndet))
+         !sd%n_corr = 0d0
          !if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] size(sd%n_corr, 1), size(sd%n_corr, 2):', size(sd%n_corr, 1), size(sd%n_corr, 2)
 
 !!$         if (.false. .and. self%myid == 0 .and. i == 1) then
@@ -444,6 +444,7 @@ contains
             sd%n_corr = 0.d0
             call sample_noise_psd(self, sd, handle, only_sigma0=.true.)
          end if
+         sd%tod = sd%tod - sd%n_corr
          
 
          ! Compute chisquare for bandpass fit
