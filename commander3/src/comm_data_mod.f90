@@ -335,7 +335,7 @@ contains
        call update_status(status, "data_BP")
 
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
@@ -443,10 +443,10 @@ contains
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
     write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
-         & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]  a2f [K_RJ/MJy]'
+         & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]  a2f [MJy/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+       write(unit,fmt='(a11,a10,f12.3,f14.3,3e18.5,3e17.5,3e18.5,3e14.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
              & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6, data(q)%bp(0)%p%a2f * 1d6
     end do
     close(unit)
@@ -613,7 +613,7 @@ contains
     call int2string(map_in%info%nside,nside_in_str)
     call int2string(info%nside,nside_out_str)
 
-    if (map_in%info%nmaps == 3) then
+    if (map_in%info%pol) then
        nmap_pixwin = 2
     else
        nmap_pixwin = 1
@@ -622,11 +622,11 @@ contains
     allocate(pixwin_in(0:4*map_in%info%nside,map_in%info%nmaps))
     allocate(pixwin_out(0:4*info%nside,info%nmaps))
 
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'common/pixwind/'//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'common/pixwind'//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
 
-    if (map_in%info%nmaps == 3) pixwin_in(:,3) = pixwin_in(:,2)
-    if (info%nmaps == 3)        pixwin_out(:,3) = pixwin_out(:,2)
+    if (map_in%info%pol) pixwin_in(:,3) = pixwin_in(:,2)
+    if (info%pol)        pixwin_out(:,3) = pixwin_out(:,2)
 
     ! Need to make sure we smooth before we ud_grade
     ! Move variance map to alms

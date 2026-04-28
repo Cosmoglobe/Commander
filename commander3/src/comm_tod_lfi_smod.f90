@@ -335,7 +335,6 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
-    !self%output_n_maps = 1
 
     ! Define useful sd operation codes
     if (sample_rel_bandpass) then
@@ -454,7 +453,7 @@ contains
        ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
-          call sample_noise_psd(self, sd, handle)
+          call sample_noise_psd(self, sd, handle, chaindir)
        end if
 
        ! Compute chisquare
@@ -517,7 +516,7 @@ contains
        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
        map_out%map = binmap%outmaps(1)%p%map
     else if(self%map_type == 'nplus2') then
-       call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d6)
+       call finalize_binned_map_nplus2_depol(self, binmap, rms_out, 1.d6)
        !Q+U maps
        map_out%map(:,2:3) = binmap%outmaps(1)%p%map(:,2:3)
        do i = 1, self%ndet
@@ -552,11 +551,16 @@ contains
     else if(self%map_type == 'nplus2') then
       do i = 1, self%ndet
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_map"//trim(postfix))
+        
         ! copy rms map for each detector into outmaps(0)
-        binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i)
-        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,self%ndet+1:self%ndet+2)
+        if(i == 1) then
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,1)
+        else
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i+2)
+        end if
+        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,2:3)
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_rms"//trim(postfix))
-        !call rms_out%writeFITS 
+
         if(self%output_n_maps > 1) call binmap%outmaps(i+self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_res"//trim(postfix))
         if(self%output_n_maps > 2) call binmap%outmaps(i+2*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_ncorr"//trim(postfix))
         if(self%output_n_maps > 3) call binmap%outmaps(i+3*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_bpcorr"//trim(postfix))
@@ -1371,7 +1375,7 @@ contains
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
-          sd%s_inst(k,l) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+          sd%s_inst(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
 

@@ -112,7 +112,7 @@ contains
       implicit none
       type(comm_params), intent(in) :: cpar
 
-      integer(i4b) :: i, j, h, k, kp, l, g, scan, nside, npix, nmaps, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth, thin, ntod_lowres, oper
+      integer(i4b) :: i, j, h, k, kp, l, g, scan, nside, npix, nmaps, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth, thin, ntod_lowres, oper, nmask
       real(dp) :: dt_tod, theta, phi, vec0(3), vec1(3), M_ecl2gal(3,3), day, lambda_solar, lat, lon
       real(sp), allocatable :: tod(:), downsamp_vec(:, :), s_static(:)
       real(dp), allocatable, dimension(:, :) :: vec
@@ -191,8 +191,8 @@ contains
                call dealloc_scan_data(sd)
 
                ! Remove masked samples
-               ntod_lowres = count(mask)
-               allocate(downsamp_pix(ntod_lowres,nhorn))
+               nmask = count(mask)
+               allocate(downsamp_pix(nmask,nhorn))
                do h = 1, nhorn
                   downsamp_pix(:,h) = pack(d%downsamp_pix_full(:,h), mask)
                end do
@@ -202,8 +202,8 @@ contains
                deallocate(mask, downsamp_pix)
 
                ! Allocate other downsampled quantities with same shape
-               allocate(d%downsamp_point_full(ntod_lowres,nhorn,5))
-               do k = 1, ntod_lowres
+               allocate(d%downsamp_point_full(nmask,nhorn,5))
+               do k = 1, nmask
                   if (any(d%downsamp_pix_full(k,:)<0) .or. any(d%downsamp_pix_full(k,:)> 12*nside**2-1)) then
                      write(*,*) 'a', data(i)%tod%scanid(scan), j, nside, k, ntod_lowres, d%downsamp_pix_full(k,:), d%downsamp_tod_full(k), d%downsamp_obs_time_full(k)
                   end if
@@ -425,7 +425,11 @@ contains
 
                   ! Apply thinning factor, adjusted for already masked samples
                   ngood    = count(data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,l))
-                  thinstep = max(nint(real(ngood,sp)/real(ntod,sp) / cpar%zs_tod_thin_factor),1)
+                  if (ntod > 0) then
+                     thinstep = max(nint(real(ngood,sp)/real(ntod,sp) / cpar%zs_tod_thin_factor),1)
+                  else
+                     thinstep = 1
+                  end if
                   k        = 1
                   ngood    = 0
                   do while (k <= ntod)
@@ -645,7 +649,7 @@ contains
       
       ndof = 0
       do i = 1, numband
-         if (data(i)%tod_type == "none") cycle
+         if (trim(data(i)%tod_type) == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
          if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
          ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
@@ -663,13 +667,14 @@ contains
             ! Skip scan if no accepted data
             do j = 1, ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 4) cycle ! No meaningful data; typically the whole scan is flagged
 
                allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod),nhorn))
                
                call wall_time(t3)
                do h = 1, nhorn
                   call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
-                       & scan, j, zodi_model, s_zodi(:,h), use_lowres_pointing=.true.)
+                       & scan, j, zodi_model, s_zodi(:,h))
                end do
                call wall_time(t4)
 

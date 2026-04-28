@@ -77,7 +77,7 @@ contains
        if (present(nside)) then
           call int2string(nside, nside_text)
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'pixel_window_n'//nside_text//'.fits')
+               & pixwin=trim(dir)//'common/pixwind/'//'pixel_window_n'//nside_text//'.fits')
        else if (present(pixwin)) then
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
                & pixwin=trim(dir)//'/'//trim(pixwin))
@@ -85,7 +85,7 @@ contains
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
        end if
     else
-       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
+      call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
             & beamfile=trim(cpar%ds_blfile(id_abs)), &
             & pixwin=trim(cpar%ds_pixwin(id_abs)))
     end if

@@ -84,6 +84,7 @@ module comm_defs
   integer(i4b), parameter :: SD_MONO     = 20
   integer(i4b), parameter :: SD_OBJCTR   = 21
   integer(i4b), parameter :: SD_JUMP     = 22
+  integer(i4b), parameter :: SD_SPIKE    = 23
 
   !**************************************************
   !           Ephemeris definitions
@@ -91,6 +92,13 @@ module comm_defs
   integer(i4b), parameter :: EPH_NUM_OBJECTS = 2
   integer(i4b), parameter :: EPH_JUPITER     = 1
   integer(i4b), parameter :: EPH_VENUS       = 2
-    
-  
+
+  !**************************************************
+  !           TOD data bit definitions
+  !**************************************************
+  integer(i4b), parameter :: TOD_RAMP_RESET      =  5
+  integer(i4b), parameter :: TOD_CALLAMP1        =  15
+  integer(i4b), parameter :: TOD_CALLAMP2        =  16
+
+
 end module comm_defs

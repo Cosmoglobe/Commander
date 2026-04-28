@@ -1,3 +1,5 @@
+@DEFAULT global.defaults
+
 # Monte Carlo options
 BASE_SEED                     = 163425  # Seed for random number generator
 
@@ -17,9 +19,11 @@ ENABLE_TOD_ANALYSIS           = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = -1
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
-FFTW3_MAGIC_NUMBERS           = fft3_magic_numbers_230810.txt
+FFTW3_MAGIC_NUMBERS           = common/aux/fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
 
-ENABLE_TOD_SIMULATIONS        = .false.
+ON_THE_FLY_TOD_SIM            = .false. # make on-the-fly tod sims and continue analyzing them
+ENABLE_TOD_SIMULATIONS        = .false. # make and write sims to disk and exit
 SIMS_OUTPUT_DIRECTORY         = none
 
 # Options for CMB resampling (for constrained realization production)

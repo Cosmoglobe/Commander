@@ -468,6 +468,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     character(len=16),         dimension(100) :: abscal_labels
+    character(len=16)                         :: istr, istr2
     class(comm_mapinfo), pointer              :: info_pol => null()
 
     mono_ = .true.; if (present(mono)) mono_=mono 
@@ -563,9 +564,13 @@ contains
           deallocate(map)
        end select
        c => c%nextComp()
-    end do
-    
+    end do   
+ 
     call map_diff%Y()
+
+    !write(istr, '(I0)') band
+    !write(istr2, '(I0)') det
+    !call map_out%writeFITS('input_map_band' // trim(istr)//'_det' //trim(istr2) // '.fits')
 
     ! Compute residual map
     map_out%map = map_out%map + map_diff%map

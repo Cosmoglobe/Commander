@@ -33,15 +33,22 @@ module comm_tod_akari_mod
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
   use comm_tod_mapmaking_mod
+  use comm_tod_cgmap_mod
    implicit none
 
    private
    public comm_akari_tod
 
    type, extends(comm_tod) :: comm_akari_tod
+      integer(i4b)                                  :: ntempl       ! Number of tod correction templates
+      integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! length of each template [ntempl]
+      real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
+      class(comm_dynmask), pointer :: dynmask
    contains
-     procedure     :: process_tod            => process_akari_tod
-     procedure     :: apply_fast_flags_inst  => apply_fast_flags_akari
+     procedure     :: process_tod             => process_akari_tod
+     procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
+     procedure     :: sample_ramp
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -145,6 +152,35 @@ interface
      class(comm_akari_tod),                 intent(inout)    :: self
      class(comm_scandata),                  intent(inout)    :: sd
    end subroutine apply_fast_flags_akari
+
+   
+   module subroutine construct_corrtemp_akari(self, sd, det)
+     ! construct AKARI instrument-specific correction template from ramp template
+     ! puts this into sd%s_inst
+    implicit none
+    class(comm_akari_tod), intent(in)             :: self
+    class(comm_scandata),  intent(inout)          :: sd
+    integer(i4b),          intent(in),   optional :: det
+  end subroutine construct_corrtemp_akari
+
+  module subroutine init_sample_ramp(self, sd)
+    ! scans tod flags to find length of tod segment between ramp flags (= length of correction template)
+    ! puts this into self%nsamp_templ
+    implicit none
+    class(comm_akari_tod), intent(inout)       ::self
+    class(comm_scandata),  intent(in)          :: sd
+
+  end subroutine init_sample_ramp
+
+  module subroutine sample_ramp(self, sd)
+    ! find template of baseline beween to ramp events, by averaging over all events in a scan
+    ! put this into self%tod_correction_templ
+    implicit none
+    class(comm_akari_tod), intent(inout)       ::self
+    class(comm_scandata),  intent(in)          :: sd
+
+  end subroutine sample_ramp
+
    
 end interface
    

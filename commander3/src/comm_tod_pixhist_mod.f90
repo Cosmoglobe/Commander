@@ -47,7 +47,7 @@ contains
     do det = 1, ndet
     
        ! Set up full-mission scan data
-       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd)
+       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd, nonlin_level=0, spur_level=0)
        call timer%start(TOD_PIXHIST, tod%band)
        
 !!$       if (tod%myid == 0 .and. det == 2) then
@@ -177,7 +177,7 @@ contains
           tod%pixhist(4,i,det) = mu - 4.0*sigma
           tod%pixhist(5,i,det) = mu + 4.0*sigma
           
-          if (.false. .and. tod%myid == 0 .and. mod(i,1000)==0 .and. det == 1) then
+          if (.false. .and. tod%myid == 0 .and. mod(i,1000)==0 .and. det == 10) then
              call int2string(i,pix_text)
              open(58,file='pixhist'//pix_text//'.dat', recl=1024)
              write(58,*) '# pixhist =', tod%pixhist(:,i,det)
@@ -233,7 +233,7 @@ contains
 !!$       open(58,file='tod.dat')
 !!$       do i = 1, tod%nscan
 !!$          if (.not. any(tod%scans(i)%d%accept)) cycle
-!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.,handle_=handle)
 !!$          do j = 1, tod%ndet
 !!$             if (.not. tod%scans(i)%d(j)%accept) cycle
 !!$             do k = 1, sd%ntod

@@ -100,6 +100,7 @@ module comm_map_mod
      procedure     :: smooth
      procedure     :: map2pix
      procedure     :: bcast_fullsky_map
+     procedure     :: bcast_fullsky_from_root
      procedure     :: bcast_fullsky_alms
      procedure     :: distribute_alms
      procedure     :: get_alm
@@ -404,7 +405,7 @@ subroutine tod2file_dp3(filename,d)
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      if (info%nmaps == 3) then
+      if (info%pol) then
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
       end if
@@ -464,7 +465,7 @@ subroutine tod2file_dp3(filename,d)
        deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
        call sharp_destroy_alm_info(self%alm_info)
        call sharp_destroy_geom_info(self%geom_info_T)
-       if (self%nmaps == 3) call sharp_destroy_geom_info(self%geom_info_P)
+       if (self%pol) call sharp_destroy_geom_info(self%geom_info_P)
     end if
 
   end subroutine comm_mapinfo_finalize
@@ -1733,6 +1734,38 @@ subroutine tod2file_dp3(filename,d)
        call mpi_recv(vals, np*nmaps, MPI_REAL,    0, 98, self%info%comm, mpistat, ierr)
     end if
   end subroutine map2pix
+
+  subroutine bcast_fullsky_from_root(self, map)
+    implicit none
+    class(comm_map),                    intent(inout)            :: self
+    real(dp),         dimension(0:,1:), intent(in),    optional  :: map
+
+    integer(i4b) :: i, nmaps, npix, np, ierr
+    real(dp),     allocatable, dimension(:,:) :: buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+
+    ! Distribute to each core according to pix
+    if (self%info%myid == 0) then
+       self%map = map(self%info%pix,:)
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(np,nmaps))
+          call mpi_recv(p,  np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          buffer = map(p,:)
+          call mpi_send(buffer, np*nmaps, MPI_DOUBLE_PRECISION,    i, 98, self%info%comm, ierr)
+          deallocate(p,buffer)
+       end do
+    else
+       np = self%info%np
+       call mpi_send(np,             1,        MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_send(self%info%pix,  np,       MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_recv(self%map,       np*nmaps, MPI_DOUBLE_PRECISION, 0, 98, self%info%comm, mpistat, ierr)
+    end if
+  end subroutine bcast_fullsky_from_root
 
   
   subroutine bcast_fullsky_alms(self)
