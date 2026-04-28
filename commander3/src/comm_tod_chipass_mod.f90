@@ -80,6 +80,7 @@ contains
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
+      real(dp)     :: samprate
 
       call timer%start(TOD_INIT, id_abs)
 
@@ -87,25 +88,25 @@ contains
       allocate(c)
 
       ! Set up noise PSD type and priors
+      samprate          = 8.d0 ! Hz
       c%freq            = cpar%ds_label(id_abs)
       c%n_xi            = 3
       c%noise_psd_model = 'oof'
       allocate(c%xi_n_nu_fit(c%n_xi,2))
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
-
       c%xi_n_P_rms      = [1.d0, 0.1d0, 0.2d0] 
       ! [sigma0, fknee, alpha]; sigma0 is not used
-      c%xi_n_nu_fit(1,:) = [0.5d0, 3d0]        ! sigma0
-      c%xi_n_nu_fit(2,:) = [0.001d0, 1d0]         ! fknee
-      c%xi_n_nu_fit(3,:) = [0.001d0, 1d0]         ! alpha
+      c%xi_n_nu_fit(1,:) = [0.001d0, 0.99*samprate/2]        ! sigma0
+      c%xi_n_nu_fit(2,:) = [0.001d0, 0.99*samprate/2]         ! fknee
+      c%xi_n_nu_fit(3,:) = [0.001d0, 0.99*samprate/2]         ! alpha
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
-      c%xi_n_P_uni(2,:)  = [0.00001d0, 0.3d0]  ! fknee
+      c%xi_n_P_uni(2,:)  = [0.00001d0, 3d0]  ! fknee
       c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
-
+      
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
-
+      
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
       c%samprate_lowres = 8.  ! Lowres samprate in Hz
@@ -142,7 +143,7 @@ contains
       
       ! Read the actual TOD
       call c%read_tod(c%label)
-
+      
       ! Initialize bandpass mean and proposal matrix
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
@@ -368,6 +369,12 @@ contains
             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
          end if
 
+         ! Compute chisquare
+         do j = 1, sd%ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            call self%compute_tod_chisq(sd, j)
+         end do
+         
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
