@@ -5,8 +5,19 @@ import astropy.units as u
 from pathlib import Path
 from astropy.io import fits
 import matplotlib.pyplot as plt 
+import shutil
+import os
 
-from iras_native_tod_reader import BANDS
+from iras_native_tod_reader import BANDS, BAND_DETS
+from commander_npz2hdf import run_multiple_band_write_external
+
+
+"""
+Collection of methods all needed to generate input files for commander. 
+Current version (1) is minial and hasn't been tested yet. 
+
+Various methods are expected to be changed/moved to different scripts in the future,
+"""
 
 OUTDIR = "/mn/stornext/d23/cmbco/globe/iras"
 
@@ -172,6 +183,48 @@ def make_bp_files(version):
     write_iras_instrument_file(output_path=outpath, version=version)
 
 
-def make_tod_files(nside=512):
-    pass
+def make_tod_files(version, copy_new_filelists, nside=512):
+    """
+    Make tod files for a given version with external script.
+    Both h5 files and filelists will be stored in:
+        **/globe/iras/tod/vetle_deplated_IPAC/v{version}/n{nside}
+    These are NOT read by commander by default.
+    Commander reads tod files from filelists located at
+        filelist_dir = **/globe/iras/tod/{band}/fileslist_{band}.txt
+    
+    copy_new_filelists: 
+        True:   Copy new h5 filelists to filelist_dir
+        False:  Make new h5 files, but don't replace filelists. 
+    """
+    input("Make new tod files? Enter to cnt.")
 
+    outpath_base    = f"{OUTDIR}/tod"
+    h5_outpath      = f"{outpath_base}/vetle_deplated_IPAC/v{version:02}/n{nside}"
+    print(f"Saving h5 files to: {h5_outpath}")
+
+    run_multiple_band_write_external(
+        outpath         = h5_outpath,
+        version         = version,
+        nside           = nside,
+        overwrite       = False,
+        num_processes   = os.cpu_count(),
+        bands           = BANDS,
+        band_dets       = BAND_DETS,
+        num_files_per_segment = 100
+    )
+    if copy_new_filelists:
+        print(f"Making new input filelists for commander")
+        for band in BANDS:
+            filelist_fname = f"filelist_{band}.txt"
+            filelist_src = Path(f"{h5_outpath}/{filelist_fname}")
+            filelist_dst = Path(f"{outpath_base}/{band}/{filelist_fname}")
+            if filelist_dst.exists():
+                input(f"{filelist_dst} already exists. Press Enter to overwrite")
+
+            filelist_dst.parent.mkdir(exist_ok=True)
+            shutil.copy2(src=filelist_src, dst=filelist_dst)
+        
+
+if __name__ == '__main__':
+    make_tod_files(version=1, copy_new_filelists=False)
+    pass 
