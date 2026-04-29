@@ -107,6 +107,10 @@ contains
        c%RJ2unit_ = data(band)%bp(0)%p%a2f
     case ('uK_RJ') 
        c%RJ2unit_ = 1.d0
+    case ('mK_RJ') 
+       c%RJ2unit_ = 1.d-3
+    case ('K_RJ') 
+       c%RJ2unit_ = 1.d-6
     case ('Kkm/s') 
        c%RJ2unit_ = 1.d0
        ! c%RJ2unit_ = 1.d0 / (c%nu_ref/c * 1d9)
