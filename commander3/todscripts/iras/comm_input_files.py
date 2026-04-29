@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 from iras_native_tod_reader import BANDS
 
 OUTDIR = "/mn/stornext/d23/cmbco/globe/iras"
-akaridir = "/mn/stornext/d23/cmbco/globe/akari" # Used for testing
-
 
 def make_beam_files(nside, unit=u.arcsec):
     input("Make beam files? Enter to cnt.")
@@ -135,32 +133,45 @@ def make_rms_files(nside=512):
         rms_map = np.ones(healpy.nside2npix(nside))
         healpy.write_cl(outfname, rms_map)
 
+def make_bp_files(version):
+    """
+    In Eirik's akari h5 files:
+    keys:
+    - common
+        - version["data"] = 5
+    - AKARI_{band}
+        - bandpass                 Dataset {100}
+        - bandpassx                Dataset {100} # Freq. GHz
+    - AKARI_{band}-{det}
+        - bandpass                 Dataset {100}
+        - bandpassx                Dataset {100} # Freq. GHz
+        - beam                     Group
+            - B                        Dataset {1} # 0
+            - E                        Dataset {1} # 0
+            - T                        Dataset {1} # 0
+        - beamlmax                 Dataset {1} # 0
+        - beammmax                 Dataset {1} # 0
+        - centFreq                 Dataset {1} # CentralFreq in GHz
+        - elip                     Dataset {1} # 1
+        - fwhm                     Dataset {1} # 1.01666666666667 arcmin (For 160, = 61 arcsec)
+        - mbeam_eff                Dataset {1} # 0
+        - psi_ell                  Dataset {1} # 0
+        - sl                       Group
+            - B                        Dataset {1} # 0 
+            - E                        Dataset {1} # 0 
+            - T                        Dataset {1} # 0 
+        - sllmax                   Dataset {1} # 0
+        - slmmax                   Dataset {1} # 0
+
+    """
+
+    input(f"Make bp files version {version}? Enter to cnt.")
+
+    from write_instrument import write_iras_instrument_file
+    outpath = f"{OUTDIR}/bp"
+    write_iras_instrument_file(output_path=outpath, version=version)
+
 
 def make_tod_files(nside=512):
     pass
 
-def make_bp_files(nside=512):
-    pass
-
-exit()
-
-def test_map():
-    # fname = "/mn/stornext/d16/cmbco/ola/IRAS/iris/IRIS_nohole_2_2048_v2.fits"
-    fname = "/mn/stornext/d16/cmbco/ola/IRAS/issa/ISSA_B4H0_healpix_ns1024.fits"
-    iris25, h = healpy.read_map(fname, field=None, h=True)
-
-    # print(iris25.shape)
-    # nn = len(iris25[1])
-    # print(healpy.npix2nside(nn))
-    # print(*h, sep='\n')
-    healpy.mollview(iris25[0]/iris25[1], min=0, max=50, cmap="jet")#norm="hist")
-    plt.show()
-    # healpy.mollview(iris25, min=0, max=10, cmap="jet")#norm="hist")
-    # plt.show()
-
-
-
-
-
-
-# test_map()
