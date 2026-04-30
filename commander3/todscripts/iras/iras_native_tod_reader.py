@@ -187,7 +187,7 @@ class IRASTODReader:
         outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
         if Path(outfile).exists():
             # Prevent overwriting
-            raise FileExistsError
+            raise FileExistsError(outfile)
         
         with open(filelist_fname, "rb") as pkl_file:
             # Load filelist for all detectors in band
@@ -198,7 +198,7 @@ class IRASTODReader:
         chunksizes_dict    = {}
         if band == "012" or band == "025":
             # Const. ntod. Use -1 for all chunks. 
-            chunksizes_dict    = {chunk_idx: -1 for chunk_idx in range(1, N_chunks + 1)}
+            chunksizes_dict    = {chunk_idx: None for chunk_idx in range(1, N_chunks + 1)}
             print(f"Done! Storing to {outfile}")
             with open(outfile, "wb") as pkl_file:
                 pickle.dump(chunksizes_dict, pkl_file)
