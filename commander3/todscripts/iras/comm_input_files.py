@@ -240,8 +240,18 @@ def make_tod_detector_lists():
             outfile_band.write(det)
         outfile_band.close()
 
+def _common_mask_fullsky_512():
+    """
+    Create fullsky mask for nside 512, which was non-existing.
+    Only executed once. 
+    """
+    outdir = f"/mn/stornext/d23/cmbco/globe/common/mask"
+    n512_mask = np.ones(healpy.nside2npix(512), dtype=">f4")
+    outfile = f"{outdir}/mask_fullsky_n0512.fits"
+    healpy.write_map(outfile, n512_mask)
 
 
 if __name__ == '__main__':
     # make_tod_files(version=1, copy_new_filelists=False)
-    make_tod_detector_lists()
+    # make_tod_detector_lists()
+    pass
