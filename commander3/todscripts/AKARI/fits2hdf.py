@@ -11,10 +11,10 @@ NSIDE = 2048
 NUM_SEGMENT_PROCESSES = 60
 # Do this if you want error messages
 #NUM_SEGMENT_PROCESSES = None
-BANDS = ['065', '090', '140', '160']
+# You can run all together, but it's typically faster to start four different
+# instances, one for each band
+#BANDS = ['065', '090', '140', '160']
 BANDS = ['065']
-BANDS = ['090']
-BANDS = ['140']
 
 def run_single_band_write(band):
     akari_comm_data_adapter = akari_commander_data_adapter.AKARICommanderDataAdapter(
