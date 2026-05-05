@@ -1,7 +1,7 @@
 # IRAS 60 default parameters
 # nside 512 is currently default. Use this file as a placeholder/tester
 
-@DEFAULT bands/IRAS/IRAS_60_v1.defaults
+@DEFAULT bands/IRAS/IRAS_060_v1.defaults
 BAND_NSIDE&&&                  = 512
 BAND_LMAX&&&                   = 6000
 BAND_MASKFILE&&&               = common/mask/mask_fullsky_n0512.fits 

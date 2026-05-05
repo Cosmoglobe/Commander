@@ -1,7 +1,7 @@
 # IRAS 60 default parameters
 
-BAND_LABEL&&&                  = IRAS_60
-BAND_INSTRUMENT_LABEL&&&       = IRAS_60
+BAND_LABEL&&&                  = IRAS_060
+BAND_INSTRUMENT_LABEL&&&       = IRAS_060
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 512

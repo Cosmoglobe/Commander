@@ -1,0 +1,9 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT ../param_iras.txt
+
+INCLUDE_BAND001                = .false.    # 012
+INCLUDE_BAND002                = .false.    # 025
+INCLUDE_BAND003                = .true.    # 060
+INCLUDE_BAND004                = .false.    # 100

@@ -1,0 +1,7 @@
+@DEFAULT ../param_iras_060.txt
+
+@START 003
+@DEFAULT bands/IRAS/IRAS_060_n512_v1.defaults
+BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_060_v1_n512.fits
+BAND_TOD_FILELIST&&&               = iras/tod/060/filelist_060.txt
+@END 003
