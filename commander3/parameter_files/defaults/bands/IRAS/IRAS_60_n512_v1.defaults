@@ -1,68 +1,19 @@
 # IRAS 60 default parameters
-BAND_LABEL&&&                  = IRAS_60
-BAND_INSTRUMENT_LABEL&&&       = IRAS_60
-BAND_OBS_PERIOD&&&             = 1
-BAND_POLARIZATION&&&           = .false.
+# nside 512 is currently default. Use this file as a placeholder/tester
+
+@DEFAULT bands/IRAS/IRAS_60_v1.defaults
 BAND_NSIDE&&&                  = 512
 BAND_LMAX&&&                   = 6000
-BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
-BAND_NOISE_FORMAT&&&           = rms
-BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 
 BAND_MASKFILE&&&               = common/mask/mask_fullsky_n0512.fits 
 BAND_MASKFILE_CALIB&&&         = common/mask/mask_fullsky_n0512.fits 
-BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
 BAND_BEAM_B_L_FILE&&&          = iras/beam/iras_060_beam_240arcsec_n512.fits
-BAND_BEAM_B_PTSRC_FILE&&&      = none
 BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n0512.fits
-BAND_SAMP_NOISE_AMP&&&         = .false.
-BAND_BANDPASS_TYPE&&&          = IRAS
-BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
-BAND_NOMINAL_FREQ&&&           = 4997 # GHz
-BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = iras/bp/iras_instrument_v01.h5
-BAND_SAMP_GAIN&&&              = .false.
-BAND_GAIN_PRIOR_MEAN&&&         = 1.
-BAND_GAIN_PRIOR_RMS&&&          = 0
-BAND_GAIN_CALIB_COMP&&&        = all
-BAND_GAIN_LMIN&&&              = -1
-BAND_GAIN_LMAX&&&              = -1
 BAND_GAIN_APOD_MASK&&&         = common/mask/mask_fullsky_n0512.fits 
-BAND_GAIN_APOD_FWHM&&&         = 120.
-BAND_DEFAULT_GAIN&&&           =   1.
-BAND_DEFAULT_BP_DELTA&&&       =   0.
-BAND_DEFAULT_NOISEAMP&&&       =   1.
-BAND_COMPONENT_SENSITIVITY&&&  = broadband
 
-BAND_TOD_TYPE&&&               = IRAS
-BAND_TOD_BP_INIT_PROP&&&       = dirbe/bp/bp_init_DIRBE_01.dat
-BAND_TOD_HALFRING&&&           = 0
-BAND_TOD_START_SCANID&&&       = 1
-BAND_TOD_END_SCANID&&&         = 5787 # I think
-BAND_TOD_TOT_NUMSCAN&&&        = 5787 # I think
 BAND_TOD_FLAG&&&               = 3 # IDK
-BAND_TOD_ORBITAL_ONLY_ABSCAL&&& = .false.
-BAND_TOD_DETECTOR_LIST&&&      = iras/tod/060/iras_060_detlist.txt
-BAND_TOD_INIT_FROM_HDF&&&      = default
-BAND_TOD_JUMPLIST&&&           = none
-BAND_TOD_LEVEL&&&              = L1 # IPAC
 
 BAND_MAPFILE&&&                = iras/maps/iris_060_1_n512.fits
 BAND_NOISEFILE&&&              = iras/rms/iras_060_temprms_n512.fits
-BAND_REG_NOISEFILE&&&          = none
-BAND_NOISE_RMS&&&_SMOOTH01     = none
-BAND_NOISE_RMS&&&_SMOOTH02     = none
-BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = common/mask/mask_common_dx12_n0512.fits # Same as akari, but with n512 
 BAND_TOD_SMALL_PROCMASK&&&     = common/mask/mask_common_dx12_n0512.fits # Same as akari, but with n512
-BAND_TOD_RIMO&&&               = iras/bp/iras_instrument_v01.h5
-BAND_TOD_FILELIST&&&           = iras/tod/060/filelist_060.txt
-BAND_TOD_ABSCAL_COMP&&&        = full
-N_GIBBS_PER_TOD&&&             = 1
-
-BAND_TOD_ZODI_SUBTRACTION&&&       = .false. # In v1 of TODs, earth and satellite pos are all zeros. 
-BAND_TOD_ZODI_MASK&&&              = none
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-
