@@ -1,0 +1,8 @@
+@DEFAULT ../param_akari_160.txt
+
+@START 004
+@DEFAULT bands/AKARI/AKARI_160_n8192_v1.defaults
+BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_160_v1_n8192.fits
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n8196/filelist_160.txt
+@END 004
+
