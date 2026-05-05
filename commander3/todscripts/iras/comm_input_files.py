@@ -232,13 +232,11 @@ def make_tod_detector_lists():
         if Path(fname).exists():
             print(f"Skipping existing file: {fname}")
             continue
-        outfile_band = open(
-            fname, 
-            "w"
-        )
-        for det in det_list:
-            outfile_band.write(det)
-        outfile_band.close()
+        with open(fname, "w") as outfile_band:
+            outfile_band.write("\n".join(det_list))
+            outfile_band.write("\n")
+
+
 
 def _common_mask_fullsky_512():
     """
@@ -253,5 +251,5 @@ def _common_mask_fullsky_512():
 
 if __name__ == '__main__':
     # make_tod_files(version=1, copy_new_filelists=False)
-    # make_tod_detector_lists()
-    pass
+    make_tod_detector_lists()
+    # pass
