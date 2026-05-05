@@ -2491,7 +2491,7 @@ contains
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit, nnu, nuc
     integer(i4b)       :: p, p_min, p_max, npr, npol
-    real(dp)           :: vals(10),theta(2)
+    real(dp)           :: vals(10),theta(3)
     real(dp)           :: nu1, nu2, dlognu, nu, sed
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -2796,25 +2796,30 @@ contains
          open(unit, file=trim(filename), status='replace')
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
-         nu2=self%SEDtab(2,self%ntab)
 
          if (allocated(self%astrotab)) then
             !!!RAELYN: GO TO END OF ASTROTAB AMOUNT if it exists 
-            nu2=self%astrotab(1,self%nastrotab)
+            ! nu2=self%astrotab(1,self%nastrotab)
+            nu2=self%astrotab(1,2)
+            ! nu2=self%SEDtab(2,self%ntab)
+            theta(1)=self%theta(1)%p%map(1,1)
+            theta(2)=self%theta(2)%p%map(1,1)
+            theta(3)=self%theta(3)%p%map(1,1)
          else 
             nu2=self%SEDtab(2,self%ntab)
+            theta(1)=self%theta(1)%p%map(1,1)
+            theta(2)=self%theta(2)%p%map(1,1)
          end if 
          
          dlognu = (log(nu2) - log(nu1)) / 500d0
-         theta(1)=self%theta(1)%p%map(1,1)
-         theta(2)=self%theta(2)%p%map(1,1)
+         
          do nuc = 0, 500
             nu  = exp(log(nu1) + dlognu*nuc)
             sed = self%S(nu=nu, pol=1, theta=theta)
             write(unit,'(2E20.10)') nu, sed
          end do
          if (allocated(self%astrotab)) then
-            do i =1,self%nastrotab
+            do i =3,self%nastrotab
                write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
             end do 
          end if 

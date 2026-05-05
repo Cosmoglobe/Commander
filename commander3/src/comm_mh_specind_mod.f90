@@ -938,9 +938,6 @@ contains
                  end if
                  c => c%nextComp()
               end do
-
-
-
             else if (comp_names(2)(1:3) == 'tab') then
               ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
@@ -988,12 +985,12 @@ contains
               end do
               !!!RAELYN: check if this is right?
             else if (comp_names(2)(1:7) == 'adScale') then
-              if (c%npar /= 3) then 
-                if (cpar%myid == 0) then
-                  write(*,*) 'Error: Npar should be 3 for an astroDustScale (adScale) component. Something is wrong.'
-                  stop
-                end if
-              end if 
+              ! if (c%npar /= 3) then 
+              !   if (cpar%myid == 0) then
+              !     write(*,*) 'Error: Npar should be 3 for an astroDustScale (adScale) component. Something is wrong.'
+              !     stop
+              !   end if
+              ! end if 
               c => compList
               do while (associated(c))
                 if (trim(c%label) == trim(comp_names(1))) then

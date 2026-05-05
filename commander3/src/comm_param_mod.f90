@@ -263,8 +263,6 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)     :: cs_prior_amp
      character(len=2048), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=2048), allocatable, dimension(:,:)   :: cs_SED_template
-     ! character(len=2048), allocatable, dimension(:,:)   :: cs_astrodust_template
-     !!!! RAELYN: is this the right thing to do? or should it just be a second column in the SED template??
      character(len=2048), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:)     :: cs_nu_join
@@ -2595,6 +2593,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,1))
     call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,1))
+
     call get_parameter_hashtable(htbl, 'COMP_T_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
     k = cpar%cs_poltype(2,i)
     if (.not. cpar%cs_polarization(i)) k = 1 
@@ -2742,6 +2741,86 @@ contains
             & par_int=cpar%cs_smooth_scale(i,3))
             call get_parameter_hashtable(htbl, 'COMP_NU_JOIN'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_nu_join(i))
+                k = cpar%cs_poltype(2,i)
+          if (.not. cpar%cs_polarization(i)) k = 1 
+          do j = 1,k
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_LMAX'//itext, &
+                    & len_itext=len_itext,        par_int=cpar%cs_lmax_ind_pol(j,3,i))
+               if (cpar%cs_lmax_ind_pol(j,2,i) < 0) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PIXREG'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_LNLTYPE'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_lnLtype(j,3,i))
+                    if (trim(cpar%cs_spec_lnLtype(j,2,i)) == 'prior') then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PRIOR_MEAN'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_theta_prior(1,j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PRIOR_RMS'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_theta_prior(2,j,3,i))
+                    else
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_SAMPLE_NPROP'//itext, &
+                         & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_nprop(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
+                         & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
+                         & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,3,i))
+                    end if
+               end if
+               if (trim(cpar%cs_spec_pixreg(j,3,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
+                         & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PIXREG_PRIORS'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_priors(j,3,i))
+               end if
+          end do
+          do j = 1,k
+               if (trim(cpar%cs_spec_pixreg(j,3,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PIXREG_MAP'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(3,i), path=.true.)
+                    exit
+               end if
+          end do
+          bool_flag=.false.
+          do j = 1,k
+               if (cpar%cs_lmax_ind_pol(j,3,i) < 0 ) bool_flag=.true.
+          end do
+          if (bool_flag .or. cpar%almsamp_pixreg) &
+               & call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PIXREG_INITVALUE_MAP'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(3,i), path=.true.)
+          if (any(cpar%cs_lmax_ind_pol(:k,3,i) >= 0)) &
+               & call get_parameter_hashtable(htbl, 'COMP_ADSCALE_ALMSAMP_INIT'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_almsamp_init(3,i), path=.true.)
+          if (bool_flag) then
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
+                    & par_int=cpar%cs_spec_uni_nprop(1,3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
+                    & par_int=cpar%cs_spec_uni_nprop(2,3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_MASK'//itext, & 
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mask(3,i), path=.true.)
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NPROP'//itext, & 
+                    & len_itext=len_itext, par_string=cpar%cs_spec_nprop(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PROPLEN'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_proplen(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                    & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(3,i))
+               if (cpar%cs_spec_corr_convergence(3,i))  call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                    & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                    & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,3))
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_MASK'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,3), path=.true.)
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_TYPE'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,3))
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_FREEZE'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,3))
+          end if
        end if
     end if
 
