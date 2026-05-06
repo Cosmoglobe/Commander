@@ -647,12 +647,12 @@ contains
         end if 
     end do
 
-    if (self%x%info%myid == 0) then
-      write(*,*) "Spline nodes"
-      write(*,*) 'x', exp(x)
-      write(*,*) 'y', exp(y)
-      write(*,*) 'T,beta,adScale', T, beta, adScale
-    end if
+   !  if (self%x%info%myid == 0) then
+   !    write(*,*) "Spline nodes"
+   !    write(*,*) 'x', exp(x)
+   !    write(*,*) 'y', exp(y)
+   !    write(*,*) 'T,beta,adScale', T, beta, adScale
+   !  end if
 
     ! the left boundary should match the first derivative between the MBB and the tabulated values
     ! the right boundary should match the slope of the line of the first two points of the astrodust table
