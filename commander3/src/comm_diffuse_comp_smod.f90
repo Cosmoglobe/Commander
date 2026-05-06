@@ -2892,8 +2892,7 @@ contains
 
        if (trim(self%type) == 'MBBtab') then
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
-         !!RAELYN ADD A READ FOR THE MBBTAB ASTRODUST TYPE HERE, will this throw an error if the astrotab does 
-         !not exist?
+         !!RAELYN: will this throw an error if the astrotab does not exist?
          call read_hdf(hdffile, trim(adjustl(path))//'/astroDustTab', self%astrotab)
        end if
 

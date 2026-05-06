@@ -75,6 +75,12 @@ contains
     allocate(c%theta_steplen(2, cpar%mcmc_num_samp_groups))
     allocate(c%indlabel(2))
     allocate(c%nu_min_ind(2), c%nu_max_ind(2))
+
+   ! write(*,*) 'cs_p_uni(1,1)', cpar%cs_p_uni(id_abs,1,1)
+   ! write(*,*) 'cs_p_uni(1,2)', cpar%cs_p_uni(id_abs,1,2)
+   ! write(*,*) 'cs_p_uni(2,1)', cpar%cs_p_uni(id_abs,2,1)
+   ! write(*,*) 'cs_p_uni(2,2)', cpar%cs_p_uni(id_abs,2,2)
+
     do i = 1, 2
        c%theta_def(i)  = cpar%cs_theta_def(i,id_abs)
        c%p_uni(:,i)    = cpar%cs_p_uni(id_abs,:,i)
