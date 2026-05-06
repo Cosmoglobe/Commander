@@ -156,7 +156,7 @@ module comm_param_mod
      integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmin
      integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmax
      character(len=2048), allocatable, dimension(:)   :: ds_gain_apodmask
-     character(len=2048), allocatable, dimension(:)   :: ds_gain_fwhm
+     real(dp),            allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),            allocatable, dimension(:,:) :: ds_defaults
      character(len=2048), allocatable, dimension(:)   :: ds_component_sensitivity
      real(dp),            allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
@@ -697,7 +697,7 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_GAIN_LMAX'//itext, len_itext=len_itext,       par_int=cpar%ds_gain_lmax(i))
        call get_parameter_hashtable(htbl, 'BAND_GAIN_LMIN'//itext, len_itext=len_itext,       par_int=cpar%ds_gain_lmin(i))
        call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_MASK'//itext, len_itext=len_itext,  par_string=cpar%ds_gain_apodmask(i))
-       call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext, len_itext=len_itext,  par_string=cpar%ds_gain_fwhm(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext, len_itext=len_itext,  par_dp=cpar%ds_gain_fwhm(i))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext, len_itext=len_itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext, len_itext=len_itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
        call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, len_itext=len_itext, &

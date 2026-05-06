@@ -36,7 +36,7 @@ module comm_data_mod
      ! stat = -2  -> fix to zero
      ! stat = -3  -> fix to unity
      ! stat >  0  -> set equal to parameter stat
-     real(dp)                            :: gain, gain_tmp, gain_prior(2)
+     real(dp)                            :: gain, gain_tmp, gain_prior(2), gain_fwhm
      real(dp), allocatable, dimension(:) :: gain_sigmas
      character(len=128)                  :: gain_comp
      integer(i4b)                        :: gain_lmin, gain_lmax
@@ -118,6 +118,7 @@ contains
        data(n)%gain_prior     = cpar%ds_gain_prior(i,:)
        data(n)%gain_lmin      = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
+       data(n)%gain_fwhm      = cpar%ds_gain_fwhm(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
        data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)

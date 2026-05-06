@@ -96,6 +96,12 @@ contains
     ! Divide by old gain
     sig%map = sig%map / data(band)%gain
 
+    ! Smooth with regularization beam
+    if (data(band)%gain_fwhm > 0.d0) then
+       call res%smooth(data(band)%gain_fwhm)
+       call sig%smooth(data(band)%gain_fwhm)
+    end if
+    
     lmin = data(band)%gain_lmin
     lmax = data(band)%gain_lmax
     if (lmin > 0 .and. lmax > 0) then
@@ -157,7 +163,7 @@ contains
           end if
           ! Only allow relatively small changes between steps, and not outside the range from 0.01 to 0.01
           data(band)%gain = min(max(gain_new, data(band)%gain-MAX_DELTA_G), data(band)%gain+MAX_DELTA_G)
-          write(*,*) ' Posterior mean gain = ', mu, sigma, data(band)%gain
+          write(*,fmt='(a,a,f12.6,f12.6)') ' Gain = ', trim(data(band)%label), data(band)%gain, sigma
        end if
 
        ! Distribute new gains
@@ -166,13 +172,13 @@ contains
        call invN_sig%dealloc(); deallocate(invN_sig)
     end if
 
-    ! Subtract scaled reference signal to residual
+    ! Subtract scaled reference signal from residual
     data(band)%res%map = res%map - data(band)%gain * sig%map
 
     ! Output residual signal and residual for debugging purposes
     if (.true.) then
        call sig%writeFITS(trim(outdir)//'/gain_sig_'//trim(data(band)%label)//'.fits')
-       call res%writeFITS(trim(outdir)//'/gain_out'//trim(data(band)%label)//'.fits')
+       call res%writeFITS(trim(outdir)//'/gain_out_'//trim(data(band)%label)//'.fits')
        call data(band)%res%writeFITS(trim(outdir)//'/gain_inp_'//trim(data(band)%label)//'.fits')
     end if
 
