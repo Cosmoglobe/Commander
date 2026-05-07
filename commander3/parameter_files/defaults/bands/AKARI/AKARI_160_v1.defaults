@@ -56,7 +56,7 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = fullsky
 BAND_TOD_SMALL_PROCMASK&&&     = fullsky
-BAND_TOD_RIMO&&&               = akari/beam/AKARI_instrument_v05.h5
+BAND_TOD_RIMO&&&               = akari/bp/AKARI_instrument_v05.h5
 BAND_TOD_FILELIST&&&           = akari/tod/160/filelist_AKARI_160.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1

@@ -1343,8 +1343,7 @@ COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chai
 COMP_LABEL&&                  = stars_diff
 COMP_MBBTAB_TYPE&&            = binned
 COMP_SED_TEMPLATE&&           = faint_WISE_DIRBE_tab_v07.dat
-COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits
- diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
+COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 24
@@ -1497,12 +1496,12 @@ ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:e
 # ------------------------------------------------------------------
 NUM_ZODI_COMPS = 7
 
-! PARAMETER VALUE FORMAT: comma separated list of values and priors
-! valid examples:           ZODI_T_0 = 286.0 (no prior)
-!                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
-!                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
-!                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
-!                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
+# PARAMETER VALUE FORMAT: comma separated list of values and priors
+# valid examples:           ZODI_T_0 = 286.0 (no prior)
+#                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
+#                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
+#                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
+#                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
 ZODI_T_0                    = 286.0
 ZODI_T_DELTA                = 0.4668626
 ZODI_G1                     =  0.70

@@ -3,6 +3,6 @@
 @START 002
 @DEFAULT bands/AKARI/AKARI_090_n8192_v1.defaults
 BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_090_v1_n8192.fits
-BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n8196/filelist_090.txt
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n8192/filelist_090.txt
 @END 002
 
