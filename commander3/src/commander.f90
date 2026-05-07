@@ -432,6 +432,7 @@ contains
     class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
+    logical(lgt)              :: all_bps_equal
 
     if (iter > 1) then
        ndelta      = cpar%num_bp_prop + 1
@@ -471,6 +472,15 @@ contains
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
+       all_bps_equal = .true.
+       do j = 1, ndet
+         do k = i, ndet
+            if (size(data(i)%bp(j)%p%tau0) /= size(data(i)%bp(k)%p%tau0) .or. (.not. all(data(i)%bp(j)%p%tau0 == data(i)%bp(k)%p%tau0))) then
+               all_bps_equal = .false.
+            end if
+         end do
+       end do
+         
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))
@@ -531,6 +541,10 @@ contains
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
+             if (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                s_sky(j, k)%p => s_sky(1, k)%p ! Same bandpasses means we don't need separate sky maps
+                cycle
+             end if
              !s_sky(j,k)%p => comm_map(data(i)%info)
              if (trim(data(i)%tod%tod_type) == 'DIRBE') then
                 call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
@@ -544,6 +558,10 @@ contains
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
+                if  (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                   s_gain(j)%p => s_gain(1)%p ! Same bandpasses means we don't need separate gain maps
+                   cycle
+                end if
                 if (associated(gainmap)) then
                    call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
                      & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
