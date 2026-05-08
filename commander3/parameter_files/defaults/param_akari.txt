@@ -60,26 +60,26 @@ INCLUDE_BAND004                = .true.    # 160 (N160)
 
 # TOD
 # DIRBE 
-INCLUDE_BAND005                = .true.    # 1.25 micron T 01 first half
-INCLUDE_BAND006                = .true.    # 1.25 micron T 01 second half
-INCLUDE_BAND007                = .true.    # 2.2  micron T 02 first half
-INCLUDE_BAND008                = .true.    # 2.2  micron T 02 second half
-INCLUDE_BAND009                = .true.    # 3.5  micron T 03 first half
-INCLUDE_BAND010                = .true.    # 3.5  micron T 03 second half
-INCLUDE_BAND011                = .true.    # 4.9  micron T 04 first half
-INCLUDE_BAND012                = .true.    # 4.9  micron T 04 second half
-INCLUDE_BAND013                = .true.    # 12  micron T 05 first half
-INCLUDE_BAND014                = .true.    # 12  micron T 05 second half
-INCLUDE_BAND015                = .true.     # 25  micron T 06 first half
-INCLUDE_BAND016                = .true.     # 25  micron T 06 second half
-INCLUDE_BAND017                = .true.    # 60  micron T 07 first half
-INCLUDE_BAND018                = .true.    # 60  micron T 07 second half
-INCLUDE_BAND019                = .true.    # 100 micron T 08 first half
-INCLUDE_BAND020                = .true.    # 100 micron T 08 second half
-INCLUDE_BAND021                = .true.    # 140 micron T 09 first half
-INCLUDE_BAND022                = .true.    # 140 micron T 09 second half
-INCLUDE_BAND023                = .true.    # 240 micron T 10 first half
-INCLUDE_BAND024                = .true.    # 240 micron T 10  second half
+INCLUDE_BAND005                = .false.    # 1.25 micron T 01 first half
+INCLUDE_BAND006                = .false.    # 1.25 micron T 01 second half
+INCLUDE_BAND007                = .false.    # 2.2  micron T 02 first half
+INCLUDE_BAND008                = .false.    # 2.2  micron T 02 second half
+INCLUDE_BAND009                = .false.    # 3.5  micron T 03 first half
+INCLUDE_BAND010                = .false.    # 3.5  micron T 03 second half
+INCLUDE_BAND011                = .false.    # 4.9  micron T 04 first half
+INCLUDE_BAND012                = .false.    # 4.9  micron T 04 second half
+INCLUDE_BAND013                = .false.    # 12  micron T 05 first half
+INCLUDE_BAND014                = .false.    # 12  micron T 05 second half
+INCLUDE_BAND015                = .false.     # 25  micron T 06 first half
+INCLUDE_BAND016                = .false.     # 25  micron T 06 second half
+INCLUDE_BAND017                = .false.    # 60  micron T 07 first half
+INCLUDE_BAND018                = .false.    # 60  micron T 07 second half
+INCLUDE_BAND019                = .false.    # 100 micron T 08 first half
+INCLUDE_BAND020                = .false.    # 100 micron T 08 second half
+INCLUDE_BAND021                = .false.    # 140 micron T 09 first half
+INCLUDE_BAND022                = .false.    # 140 micron T 09 second half
+INCLUDE_BAND023                = .false.    # 240 micron T 10 first half
+INCLUDE_BAND024                = .false.    # 240 micron T 10  second half
 
 # MAPS
 # Planck
