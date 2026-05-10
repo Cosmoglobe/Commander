@@ -182,7 +182,7 @@ contains
     class(sparse_system),     intent(inout) :: self
     real(dp), dimension(:),   intent(out)   :: x
 
-    integer(i4b) :: phase, error
+    integer(i4b) :: i, phase, error
     real(dp)     :: normb, normr
     
     ! Solve system

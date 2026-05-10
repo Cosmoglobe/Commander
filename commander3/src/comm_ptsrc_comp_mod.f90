@@ -809,7 +809,7 @@ contains
           allocate(self%src(i)%theta_rms(self%npar,self%nmaps))
           allocate(self%src(i)%amp_rms(self%nmaps))
           allocate(self%src(i)%P_theta(self%npar,self%nmaps,2))
-!          allocate(self%src(i)%P_x(self%nmaps,2))
+          allocate(self%src(i)%P_x(self%nmaps,2))
           self%src(i)%id             = id_ptsrc
           self%src(i)%glon           = glon * DEG2RAD
           self%src(i)%glat           = glat * DEG2RAD
@@ -817,8 +817,8 @@ contains
           self%x(i,:)                = amp / self%cg_scale
           !if (self%myid == 0) write(*,*) 'amp', self%x(i,:)
           self%src(i)%vec            = vec
-!          self%src(i)%P_x(:,1)       = amp     / self%cg_scale
- !         self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
+          self%src(i)%P_x(:,1)       = amp     / self%cg_scale
+          self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
           self%src(i)%P_theta(:,:,1) = beta
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
@@ -1157,7 +1157,7 @@ contains
           if (trim(label) /= 'none') itext = '/'//trim(label)//'/'//trim(adjustl(itext))
           call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
           m = ext(1)
-          
+
           ! Read full beam from file
           allocate(ind_in(m), b_in(m))
           call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
@@ -1243,11 +1243,11 @@ contains
        T%np = 0
        i    = 1
        j    = locate(data(band)%info%pix, ind(i))
-       do while (j == 0 .and. i < n) 
+       do while (j == -1 .and. i < n) 
           i = i+1
           j = locate(data(band)%info%pix, ind(i))
        end do
-       if (j > 0) then
+       if (j >= 0) then
           do while (.true.)
              if (ind(i) == data(band)%info%pix(j)) then
                 T%np            = T%np + 1
@@ -1607,6 +1607,7 @@ contains
 
        ! Find number of matrix elements
        if (.not. associated(P_cr(samp_group)%invM_src(1,j)%M)) then
+          call wall_time(t1)
           n = 0
           i1  = 0
           do c1 = 1, nactive
@@ -1615,27 +1616,30 @@ contains
              do k1 = 1, pt1%nsrc
                 if (myid_pre == 0 .and. mod(k1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Precomp sparsity =', k1, pt1%nsrc, n
                 i1 = i1+1   
-                i2 = pt1%myid
+                i2 = 1+pt1%myid
                 do c2 = 1, nactive
                    pt2 => pc(c2)%p
                    if (j > pt2%nmaps) cycle
                    do k2 = 1+pt1%myid, pt2%nsrc, pt1%numprocs
+                      if (i2 >= i1) then
+                         dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
+                         !                      write(*,*) 'num', i1, i2, dist
+                         if (dist <= 5.d0*pi/180.d0) n = n+1
+                      end if
                       i2 = i2+pt1%numprocs
-                      if (i2 < i1) cycle
-                      dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
-                      if (dist <= 3.d0*pi/180.d0) n = n+1
                    end do
                 end do
              end do
           end do
+          call wall_time(t2)
           call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
-          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'Number of matrix elements = ', n
+          if (myid_pre == 0 .and. verbosity_ > 0) write(*,*) 'Number of matrix elements = ', n, t2-t1, 'sec'
           ! Allocate sparse matrix
           P_cr(samp_group)%invM_src(1,j)%M => sparse_system(npre(samp_group), n)
        end if
 
        if (P_cr(samp_group)%invM_src(1,j)%M%ni == 0) then
-          ! Construct matrix with sparsity pattern
+          ! Construct matrix and sparsity pattern
           i1  = 0
           do c1 = 1, nactive
              pt1  => pc(c1)%p
@@ -1652,7 +1656,7 @@ contains
                       i2 = i2+1
                       if (i2 < i1) cycle
                       dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
-                      if (dist > 3.d0*pi/180.d0) cycle ! Cutoff should be user defined
+                      if (dist > 5.d0*pi/180.d0) cycle ! Cutoff should be user defined
 
                       tot = 0.d0
                       do l = 1, numband
@@ -1665,8 +1669,8 @@ contains
 
                          ! Search for common pixels; skip if no pixel overlap
                          if (n1 == 0 .or. n2 == 0) cycle
-                         if (pt1%src(k1)%T(la)%pix(1,1)  > pt2%src(k2)%T(la)%pix(n2,1)) cycle
-                         if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(1,1))  cycle
+                         !if (pt1%src(k1)%T(la)%pix(1,1)  > pt2%src(k2)%T(la)%pix(n2,1)) cycle
+                         !if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(1,1))  cycle
 
                          p1 = 1
                          p2 = 1
@@ -1689,8 +1693,8 @@ contains
                                p2 = p2+1
                             end if
                             if (p1 > n1 .or. p2 > n2) exit
-                            if (pt1%src(k1)%T(la)%pix(p1,1) > pt2%src(k2)%T(la)%pix(n2,1)) exit
-                            if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(p2,1)) exit
+                            !if (pt1%src(k1)%T(la)%pix(p1,1) > pt2%src(k2)%T(la)%pix(n2,1)) exit
+                            !if (pt1%src(k1)%T(la)%pix(n1,1) < pt2%src(k2)%T(la)%pix(p2,1)) exit
                          end do
                       end do
                       ! Update sparse matrix
@@ -1708,7 +1712,7 @@ contains
 
        else
 
-          ! Construct matrix with sparsity pattern
+          ! Construct matrix with existingsparsity pattern
           do i1 = 1, P_cr(samp_group)%invM_src(1,j)%M%ni
              if (myid_pre == 0 .and. mod(i1,10000) == 0 .and. verbosity_ > 0) write(*,*) 'Updating A =', i1, P_cr(samp_group)%invM_src(1,j)%M%ni
              c1 = 1
@@ -1736,7 +1740,7 @@ contains
                   & .not. pt2%recompute_ptsrc_precond) cycle
 
                 dist = acos(min(max(sum(pt1%src(k1)%vec*pt2%src(k2)%vec),-1.d0),1.d0))
-                if (dist > 3.d0*pi/180.d0) cycle ! Cutoff should be user defined
+                if (dist > 5.d0*pi/180.d0) cycle ! Cutoff should be user defined
 
                 tot = 0.d0
                 do l = 1, numband
@@ -1827,6 +1831,24 @@ contains
                 call P_cr(samp_group)%invM_src(1,j)%M%add_diag(0.0d0, i1)
              end do
           end do
+          ! Check for unobserved sources
+          i1  = 0
+          do c1 = 1, nactive
+             pt1  => pc(c1)%p
+             if (.not. pt1%recompute_ptsrc_precond) then
+                i1 = i1 + pt1%nsrc
+                cycle
+             end if
+             if (j > pt1%nmaps) cycle
+             do k1 = 1, pt1%nsrc
+                i1         = i1+1
+                if (P_cr(samp_group)%invM_src(1,j)%M%a(P_cr(samp_group)%invM_src(1,j)%M%ia(i1)) <= 0.d0) then
+                   write(*,*) "Unobserved source:", trim(pt1%src(k1)%id)
+                end if
+             end do
+          end do
+          !write(*,*) 'A', sum(abs(P_cr(samp_group)%invM_src(1,j)%M%a)), minval(P_cr(samp_group)%invM_src(1,j)%M%a), maxval(P_cr(samp_group)%invM_src(1,j)%M%a), size(P_cr(samp_group)%invM_src(1,j)%M%a)
+          !write(*,*) 'Afull', P_cr(samp_group)%invM_src(1,j)%M%a
           ! Invert matrix to finalize preconditioner
           call wall_time(t3)
           call P_cr(samp_group)%invM_src(1,j)%M%decomp(verbosity)
@@ -2818,8 +2840,8 @@ n_gibbs=1
        ! Apply amplitude prior
        if (allocated(c_lnL%src(k_lnL)%P_x)) then
           if (c_lnL%src(k_lnL)%P_x(p_lnL,2) > 0.d0) then
-             !          lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (amp-c_lnL%src(k_lnL)%P_x(p_lnL,1))**2 / &
-             !               & c_lnL%src(k_lnL)%P_x(p_lnL,2)**2
+             lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (amp-c_lnL%src(k_lnL)%P_x(p_lnL,1))**2 / &
+                  & c_lnL%src(k_lnL)%P_x(p_lnL,2)**2
           end if
        end if
 

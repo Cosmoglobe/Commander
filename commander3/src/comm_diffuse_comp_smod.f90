@@ -3614,7 +3614,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0 .and. verbosity_ > 0) then
+       if (.false. .and. self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
              write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
              write(*,fmt='(a)') ' | '
@@ -3644,7 +3644,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0 .and. verbosity_ > 0) then
+          if (.false. .and. self%x%info%myid == 0 .and. verbosity_ > 0) then
              write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
              write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'

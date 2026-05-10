@@ -351,7 +351,7 @@ contains
     end do
     !call update_status(status, "cr8")
 
-    if (i >= maxiter .and. trim(cpar%cg_conv_crit) /= 'fixed_iter') then
+    if (i > maxiter .and. trim(cpar%cg_conv_crit) /= 'fixed_iter') then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
        write(*,*) '       number of iterations = ', maxiter
        stat = stat + 1

@@ -145,7 +145,7 @@ contains
       call c%read_tod(c%label)
       
       ! Initialize bandpass mean and proposal matrix
-      call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
+      !call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
       c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
@@ -160,9 +160,9 @@ contains
       !end do
 
       ! Allocate sidelobe convolution data structures
-      allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
+      !allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
 
-      c%orb_dp => comm_orbdipole(comm=c%comm)
+      !c%orb_dp => comm_orbdipole(comm=c%comm)
 
 
       ! Initialize all baseline corrections to zero
@@ -276,7 +276,7 @@ contains
          
       ! Initialize local variables
       ndelta          = size(delta,3)
-      self%n_bp_prop  = ndelta-1
+      self%n_bp_prop  = 0 !ndelta-1
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
@@ -291,7 +291,7 @@ contains
 
       ! Define useful sd operation codes
       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-           & SD_SKY,SD_BP,SD_INST,SD_NCORR])
+           & SD_SKY,SD_INST,SD_NCORR])
 
       ! Initialize index-based sky map and mask
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
@@ -396,7 +396,7 @@ contains
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
                call write_hdf(tod_file, '/n_corr', sd%n_corr)
                call write_hdf(tod_file, '/s_sl', sd%s_sl)
-               call write_hdf(tod_file, '/s_orb', sd%s_orb)
+               !call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
