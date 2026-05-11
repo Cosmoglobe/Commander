@@ -493,7 +493,7 @@ contains
       end if
 
       ! Initialize CG mapmaker, maptype = 1 = T-only
-      cgmap => comm_cgmap(self, 1)
+      !cgmap => comm_cgmap(self, 1)
       
       ! Perform loop over scans to prepare data to make maps
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -550,7 +550,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! Feed CG mapmaker calibrated and cleaned data
-         call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+         !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
                   
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
          
@@ -659,10 +659,10 @@ contains
       ! endif
 
       ! Solve for CG map
-      call cgmap%solve(map_out)
-      call dealloc_cgmap(cgmap)
-      call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
-      !call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+      !call cgmap%solve(map_out)
+      !call dealloc_cgmap(cgmap)
+      !call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+      !!call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
       ! Clean up
       call binmap%dealloc()
@@ -1092,56 +1092,35 @@ contains
 
      character(len=10) :: diode_name
      integer(i4b) :: ierr, i, j, nsamp
-!     real(dp), allocatable, dimension(:,:)   :: amp, amp_tot
-!     real(dp), allocatable, dimension(:,:,:) :: R, R_tot
      real(dp), allocatable, dimension(:,:,:,:) :: templ, templ_tot
 
      nsamp = maxval(self%nsamp_templ)
-     allocate(templ(    nsamp, self%ntempl, self%ndet, self%nscan))
-     allocate(templ_tot(nsamp, self%ntempl, self%ndet, self%nscan))
-     templ_tot = 0.d0
+     !allocate(templ(    nsamp, self%ntempl, self%ndet, self%last_scan)) ! obs
+     allocate(templ(nsamp, self%ntempl, self%ndet, self%nscan_tot)) ! obs memory waste 
+     write(*,*) 'scans, nscan, nscan_tot ', self%scanid, self%nscan, self%nscan_tot
+
      templ = 0.d0
-     templ(:,:,:,self%scanid) = self%tod_correction_templ(1:nsamp, 1:self%ntempl, 1:self%ndet, self%scanid)
-     call mpi_reduce(templ, templ_tot, size(templ), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+     do i = 1, self%nscan
+        if (self%myid == 0) write(*,*)  'tod_correlation_templ' 
+        if (self%myid == 0) write(*,*) i, self%tod_correction_templ(1:5, 1, 1, i)  
+        templ(:,:,:,self%scanid(i)) = self%tod_correction_templ(1:nsamp, 1:self%ntempl, 1:self%ndet, i)
+     end do
 
-     
-!     allocate(amp(self%last_scan,self%ndet), amp_tot(self%last_scan,self%ndet))
-!     amp = 0.d0
-!     amp(self%scanid,:) = self%spike_amplitude
-!     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-
-!     if (trim(self%level) == 'L1') then
-!        allocate(R(self%last_scan,self%ndet,size(self%R,3)),R_tot(self%last_scan,self%ndet,size(self%R,3)))
-!        R = 0.d0
-!        R(self%scanid,:,:) = self%R
-!        call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!     end if
-
-     if (self%myid == 0) write(*,*) 'level ', self%level
-     
-     if (self%myid == 0 .and. trim(self%level) == 'L1') then
- !       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
- !       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
- !       call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
- !       call write_hdf(chainfile, trim(adjustl(path))//'w_diode', self%diode_weights)
-
-!        if (associated(self%adc_corrections(1,1)%p) .and. .not. self%use_dpc_adc) then
-!           allocate(adc_corr(size(self%adc_corrections(1,1)%p%adc_in),2,self%ndet,size(self%adc_corrections(1,:))))
-!           do i = 1, self%ndet
-!              do j = 1, size(self%adc_corrections(1,:))
-!                 adc_corr(:,1,i,j) = self%adc_corrections(i,j)%p%adc_in
-!                 adc_corr(:,2,i,j) = self%adc_corrections(i,j)%p%adc_out
-!              end do
-!           end do
-!           call write_hdf(chainfile, trim(adjustl(path))//'adc_corr', adc_corr)
-!           deallocate(adc_corr)
-!        end if
-!     end if
-
-!     deallocate(amp, amp_tot)
-!     if (trim(self%level) == 'L1') deallocate(R, R_tot)
-
+     if (self%myid == 0) then
+        allocate(templ_tot(nsamp, self%ntempl, self%ndet, self%nscan_tot)) ! obs memory waste 
+        templ_tot = 0.d0
+        call mpi_reduce(templ, templ_tot, size(templ), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+     else
+        call mpi_reduce(templ, templ, size(templ), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr) 
      end if
+     deallocate(templ)
+
+
+     if (self%myid == 0) then
+        call write_hdf(chainfile, trim(adjustl(path))//'ramp', templ_tot)
+        deallocate(templ_tot)
+     end if
+        
         
    end subroutine dumpToHDF_akari
    
