@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 200    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/chain_c0001.h5:25
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/chain_c0001.h5:5
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
