@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 200    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init23/chain_c0001.h5:23
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/chain_c0001.h5:25
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -29,7 +29,7 @@ TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
 
 CG_CONVERGENCE_CRITERION       = residual   # {residual, chisquare}
 CG_MINITER                     =     3
-CG_TOLERANCE                   = 1.d-6   # Fractional CG convergence criterion
+CG_TOLERANCE                   = 1.d-7   # Fractional CG convergence criterion
 
 FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_magic_numbers_230810.txt
 
@@ -37,7 +37,7 @@ FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_mag
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY               = chains_CHIPASS
+OUTPUT_DIRECTORY               = chains_compsep
 OUTPUT_SIGNALS_PER_BAND        = .false.
 OUTPUT_MIXING_MATRIX           = .false.
 THINNING_FACTOR                = 1      # output only every nth sample
@@ -203,6 +203,7 @@ BAND_NUM_BP_PROPOSALS_PER_ITER&&& = -1
 @DEFAULT bands/haslam/haslam_0.4_map.defaults
 BAND_MAPFILE&&&                = haslam_n0512_60arcmin_uK.fits
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/haslam_n0512_60arcmin_uK_smoothed_60arcmin.fits
+BAND_MASKFILE&&&               = mask_haslam_brightsources_v1.fits
 BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
 #BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_1pct_0.8K.fits
 BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_6.9K.fits # 0.8K * 60 arcmin / Nside=512 pixel width
@@ -921,7 +922,7 @@ INCLUDE_COMP06                = .true.  # freefree
 INCLUDE_COMP07                = .false.  # Low-freq AME
 INCLUDE_COMP08                = .false.  # CMB relativistic quadrupole
 
-NUM_CG_SAMPLING_GROUPS = 2 #4
+NUM_CG_SAMPLING_GROUPS = 2 3 #4
 
 #@START 01
 #CG_SAMPLING_GROUP&&          = radio
@@ -938,12 +939,18 @@ CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPAS
 @END 01
 
 @START 02
-#CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
-CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,003.15-Arcade2,003.41-Arcade2
 CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 7
-CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,003.15-Arcade2,003.41-Arcade2
 @END 02
+
+@START 03
+CG_SAMPLING_GROUP&&          = 002.3-SPASS
+CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = 002.3-SPASS
+@END 03
 
 #@START 03
 #CG_SAMPLING_GROUP&&          = cmb,dust
@@ -1080,7 +1087,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 08
 
-NUM_MCMC_SAMPLING_GROUPS = 2
+NUM_MCMC_SAMPLING_GROUPS = 1 2
 
 #@START 01
 #MCMC_SAMPLING_GROUP_PARAMS&&            = synch:beta%0.01
@@ -1092,7 +1099,7 @@ NUM_MCMC_SAMPLING_GROUPS = 2
 
 @START 01
 MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.01,gain:0.820-Dwingeloo%0.01,gain:1.4-CHIPASS%0.01
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__3410_MHz_ARCADE2_nside16_mask.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
@@ -1100,7 +1107,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
 
 @START 02
 MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.01
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 0.4-Haslam
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__2303_MHz_S-PASS_nside1024_mask.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
