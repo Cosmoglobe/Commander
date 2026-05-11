@@ -134,7 +134,7 @@ INCLUDE_BAND066                = .false.    # 2802 map
 
 
 @START 001
-@DEFAULT bands/IRAS/IRAS_012_v1.defaults
+@DEFAULT bands/IRAS/IRAS_12_v0.defaults
 BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_012-23,IRAS_012-24,IRAS_012-25,IRAS_012-26,IRAS_012-27,IRAS_012-28,IRAS_012-29,IRAS_012-30,IRAS_012-47,IRAS_012-48,IRAS_012-49,IRAS_012-50,IRAS_012-51,IRAS_012-52,IRAS_012-53,IRAS_012-54
@@ -146,7 +146,7 @@ BAND_TOD_FILELIST&&&               = iras/tod/012/filelist_012.txt
 @END 001
 
 @START 002
-@DEFAULT bands/IRAS/IRAS_025_v1.defaults
+@DEFAULT bands/IRAS/IRAS_25_v0.defaults
 BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_025-16,IRAS_025-18,IRAS_025-19,IRAS_025-21,IRAS_025-22,IRAS_025-39,IRAS_025-40,IRAS_025-41,IRAS_025-42,IRAS_025-43,IRAS_025-44,IRAS_025-45,IRAS_025-46
@@ -170,7 +170,7 @@ BAND_TOD_FILELIST&&&               = iras/tod/060/filelist_060.txt
 @END 003
 
 @START 004
-@DEFAULT bands/IRAS/IRAS_100_v1.defaults
+@DEFAULT bands/IRAS/IRAS_100_v0.defaults
 BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_100-01,IRAS_100-02,IRAS_100-03,IRAS_100-04,IRAS_100-05,IRAS_100-06,IRAS_100-07,IRAS_100-55,IRAS_100-56,IRAS_100-57,IRAS_100-58,IRAS_100-59,IRAS_100-60,IRAS_100-61,IRAS_100-62
@@ -1009,7 +1009,7 @@ COMP_APPLY_DUST_EXTINCTION&&  = .false.
 
 # Thermal dust component
 @START 03
-@DEFAULT components/dust/dust_coldtab_DIRBE_n4096.defaults
+@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
 #COMP_TYPE&&                   = MBB
 COMP_AMP_INPUT_MAP&&          = init_comm3/akari_v00/init_dust_cold_dirbe_prod6_v3.fits
 COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
@@ -1200,7 +1200,7 @@ COMP_INIT_FROM_HDF&&          = default
 
 # CII-correlated thermal dust component
 @START 16
-@DEFAULT components/dust/dust_hotPAH_n4096.defaults
+@DEFAULT components/dust/dust_hotPAH.defaults
 #COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = dust_cii
 COMP_NU_REF_T&&               = 545
@@ -1380,33 +1380,33 @@ COMP_INDMASK&&                = common/mask/mask_DIRBE_colddust_n2048_v2.fits
 COMP_INIT_FROM_HDF&&          = default
 @END 25
 
-# Infrared (60um) thermal dust component
-@START 26
-@DEFAULT components/dust/dust_ir_DIRBE_n0512.defaults
-COMP_TYPE&&                   = MBBtab
-COMP_LABEL&&                  = dust_ir
-COMP_NU_REF_T&&               = 3000
-COMP_AMP_INPUT_MAP&&          = init_dust_ir_prod4_v1.fits
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
-COMP_T_NU_MIN&&               = 120  
-COMP_BETA_NU_MIN&&            = 120      
-COMP_T_NU_MAX&&               = 1000
-COMP_BETA_NU_MIN&&            = 1000     
-COMP_T_DEFAULT&&              = 34.03
-COMP_BETA_DEFAULT&&           =   1.650
-COMP_SED_TEMPLATE&&           = SEDtab_dust_ir_dirbe_prod4_v1.dat
-COMP_APPLY_DUST_EXTINCTION&&  = .false.
-COMP_MBBTAB_TYPE&&            = binned
-COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
-COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
-COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
-COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
-COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
-COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
-@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
-COMP_INIT_FROM_HDF&&          = default
-@END 26
+# # Infrared (60um) thermal dust component
+# @START 26
+# @DEFAULT components/dust/dust_ir_DIRBE_n0512.defaults
+# COMP_TYPE&&                   = MBBtab
+# COMP_LABEL&&                  = dust_ir
+# COMP_NU_REF_T&&               = 3000
+# COMP_AMP_INPUT_MAP&&          = init_dust_ir_prod4_v1.fits
+# COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
+# COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
+# COMP_T_NU_MIN&&               = 120  
+# COMP_BETA_NU_MIN&&            = 120      
+# COMP_T_NU_MAX&&               = 1000
+# COMP_BETA_NU_MIN&&            = 1000     
+# COMP_T_DEFAULT&&              = 34.03
+# COMP_BETA_DEFAULT&&           =   1.650
+# COMP_SED_TEMPLATE&&           = SEDtab_dust_ir_dirbe_prod4_v1.dat
+# COMP_APPLY_DUST_EXTINCTION&&  = .false.
+# COMP_MBBTAB_TYPE&&            = binned
+# COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
+# COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 0.3
+# COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
+# COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
+# COMP_AMP_PRIOR_MAP&&          = none CII_DIRBE_140um_60arc_n2048_v1_x10.fits
+# COMP_INDMASK&&                = fullsky mask_DIRBE_colddust_n2048_v2.fits
+# @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+# COMP_INIT_FROM_HDF&&          = default
+# @END 26
 
 # CO-correlated thermal dust component
 @START 27
