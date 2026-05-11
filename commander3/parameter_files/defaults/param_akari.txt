@@ -11,9 +11,9 @@ VERBOSITY                     = 3       # [0,...,3]
 ##############################################################
 
 # Monte Carlo options
-NUMCHAIN         = 1       # Number of independent chains
+NUMCHAIN         = 1          # Number of independent chains
 NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
-CHAIN_STATUS     = append  
+CHAIN_STATUS     = new        # new, append  
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = /mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_chain_akari_v1.h5:400 # This is DIRBE DR2
 
@@ -54,7 +54,7 @@ NUMBAND                        = 24 4 20
 # AKARI
 INCLUDE_BAND001                = .true.    # 065 (N60)
 INCLUDE_BAND002                = .true.    # 090 (WIDE-S)
-INCLUDE_BAND004                = .true.    # 140 (WIDE-L)
+INCLUDE_BAND003                = .true.    # 140 (WIDE-L)
 INCLUDE_BAND004                = .true.    # 160 (N160)
 
 
