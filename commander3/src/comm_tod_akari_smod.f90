@@ -76,14 +76,17 @@ contains
       
       ! For 2oof, the max psd freq. (samprate/2) is needed for freq. ranges and priors.
       ! samprate is defined in c%read_tod(c%label), but psd params must be defined before this. 
-      if (trim(c%freq) == 'AKARI_N160') then
+      if (trim(c%freq) == 'AKARI_160') then
          band_samprate = 16.86 ! Hz
-      else if (trim(c%freq) == 'AKARI_WIDE-L') then
+      else if (trim(c%freq) == 'AKARI_140') then
          band_samprate = 16.86 ! Hz 
-      else if (trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_090') then
          band_samprate = 25.28 ! Hz
-      else if (trim(c%freq) == 'AKARI_N60') then
+      else if (trim(c%freq) == 'AKARI_065') then
          band_samprate = 25.28 ! Hz
+      else
+         write(*,*) trim(c%freq), 'is not a known akari band. Quitting'
+         stop
       end if
 
       ! Correlated noise parameters
@@ -224,11 +227,15 @@ contains
       ! initialize ramp correction templates
       c%ntempl = 1     ! OBS may change
       allocate(c%nsamp_templ(c%ntempl))
-      if (trim(c%freq) == 'AKARI_N160' .or. trim(c%freq) == 'AKARI_WIDE-L') then
+      if (trim(c%freq) == 'AKARI_160' .or. trim(c%freq) == 'AKARI_140') then
          c%nsamp_templ = [28]
-      else if (trim(c%freq) == 'AKARI_N60' .or. trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_065' .or. trim(c%freq) == 'AKARI_090') then
          c%nsamp_templ = [44]
+      else
+         write(*,*) trim(c%freq), 'is not a known akari band. Quitting'
+         stop
       end if
+      write(*,*) 'aaa', maxval(c%nsamp_templ) ,c%ntempl ,c%ndet, c%nscan
       allocate(c%tod_correction_templ(maxval(c%nsamp_templ),c%ntempl,c%ndet,c%nscan))
       c%tod_correction_templ = 0.d0
 
