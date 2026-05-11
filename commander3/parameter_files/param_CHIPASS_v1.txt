@@ -15,10 +15,10 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 200    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init9/chain_c0001.h5:23
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init23/chain_c0001.h5:23
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
-SAMPLE_SPECTRAL_INDICES       = .false.
+SAMPLE_SPECTRAL_INDICES       = .true.
 
 ENABLE_TOD_ANALYSIS           = .true.
 # TOD sampling options
@@ -28,6 +28,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER    = 0    # 1 for sampling; >= 1 for optimize
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
 
 CG_CONVERGENCE_CRITERION       = residual   # {residual, chisquare}
+CG_MINITER                     =     3
 CG_TOLERANCE                   = 1.d-6   # Fractional CG convergence criterion
 
 FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_magic_numbers_230810.txt
@@ -209,7 +210,7 @@ BAND_REG_NOISEFILE&&&          = BP_haslam_rmsreg_v2.fits  none
 BAND_NUM_BP_PROPOSALS_PER_ITER&&& = -1
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_CALIB_COMP&&&        = synch,ff
-BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_PRIOR_RMS&&&          = 0.
 BAND_GAIN_LMIN&&&              = -1  
 BAND_GAIN_LMAX&&&              = -1
 BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
@@ -715,9 +716,8 @@ BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
 @START 040
 @INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240___820_MHz_Dwingeloo.defaults
 BAND_INSTRUMENT_LABEL&&&       = 0.820-Dwingeloo
-BAND_MASKFILE&&&               = /mn/stornext/d16/personal/daniersp/data/mask_file_Dwingeloo_exclude_CHIPASS_nside_256.fits
 BAND_NOISEFILE&&&              = AST9240___820_MHz_Dwingeloo_nside256_rms_apod3deg.fits
-BAND_SAMP_GAIN&&&              = .false.
+BAND_MASKFILE&&&               = /mn/stornext/d16/personal/daniersp/data/mask_file_Dwingeloo_exclude_CHIPASS_nside_256.fits
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_CALIB_COMP&&&        = synch,ff
 BAND_GAIN_PRIOR_RMS&&&          = 0.
@@ -751,7 +751,7 @@ BAND_GAIN_PRIOR_RMS&&&          = 1.
 BAND_INSTRUMENT_LABEL&&&       = 002.3-SPASS
 BAND_NOISEFILE&&&              = AST9240__2303_MHz_S-PASS_nside1024_rms_apod3deg.fits
 #BAND_NOISEFILE&&&              = spass_dr1_1902_healpix_Tb_sens_x2.62_uniform.fits
-BAND_LMAX&&&                   = 2000
+BAND_LMAX&&&                   = 2955
 BAND_MASKFILE_CALIB&&&         = mask_intersection_spass_ovro.fits mask_ff_n1024.fits
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_CALIB_COMP&&&        = synch,ff
@@ -856,14 +856,17 @@ BAND_GAIN_PRIOR_RMS&&&          = 1.
 
 # CHIPASS 1.4 GHz TOD
 @START 052
+#@INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS.defaults
 @INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
+#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
-BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_comb5/tod_1.4-CHIPASS_map_c0001_k000092.fits
+BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init19/tod_1.4-CHIPASS_map_c0001_k000007.fits
 #BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_comb5/tod_1.4-CHIPASS_rms_c0001_k000092.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init19/tod_1.4-CHIPASS_rms_c0001_k000007.fits
+BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
-BAND_LMAX&&&                   = 2000
+BAND_LMAX&&&                   = 2955
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_CALIB_COMP&&&        = synch,ff
 BAND_GAIN_PRIOR_RMS&&&          = 0.
@@ -872,7 +875,7 @@ BAND_TOD_TYPE&&&               = CHIPASS
 BAND_TOD_MAIN_PROCMASK&&&      = /mn/stornext/d16/personal/daniersp/data/mask_file_lambda_chipass_healpix_r10.fits
 BAND_TOD_SMALL_PROCMASK&&&     = /mn/stornext/d16/personal/daniersp/data/mask_file_lambda_chipass_healpix_r10.fits
 BAND_TOD_BP_INIT_PROP&&&       = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/bp_init_CHIPASS.dat
-#BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
+BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
 BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_new_pointing/filelist_1395.txt
 #BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_cal_Tsys_mK/filelist_1395.txt
 BAND_UNIT&&&                   = mK_cmb
@@ -881,6 +884,7 @@ BAND_TOD_START_SCANID&&&       = 1
 BAND_TOD_END_SCANID&&&         = 50690
 BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_comb5/chain_c0001.h5:90
 BAND_TOD_LEVEL&&&              = L1
+#BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
 BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
@@ -892,7 +896,7 @@ BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
 BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
 BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MAPMAKE_TYPE&&&       = binned
-#BAND_TOD_DETECTOR_LIST&&&      = 01
+#BAND_TOD_DETECTOR_LIST&&&      = 01 #,06
 BAND_TOD_4K_LINES&&&           = 'none'
 BAND_BANDPASS_TYPE&&&          = LFI #delta
 @END 052
@@ -902,7 +906,9 @@ BAND_BANDPASS_TYPE&&&          = LFI #delta
 #                     Model parameters                       #
 ##############################################################	
 
-INSTRUMENT_PARAM_FILE         = init_instpar_chipass_v5.dat
+EXTINCTION_E(B-V)_MAP = none
+
+INSTRUMENT_PARAM_FILE         = init_instpar_chipass_v7.dat
 INIT_INSTRUMENT_FROM_HDF      = default
  
 NUM_SIGNAL_COMPONENTS         = 8
@@ -910,12 +916,19 @@ INCLUDE_COMP01                = .false.  # Cmb # CMB; no monopole or dipole
 INCLUDE_COMP02                = .true.  # synch # synch_curvature # Synch power-law
 INCLUDE_COMP03                = .false.  # dust # Thermal dust
 INCLUDE_COMP04                = .true.  # md # Mono and dipoles
-INCLUDE_COMP05                = .false.  # radio # Radio sources
+INCLUDE_COMP05                = .true.  # radio # Radio sources
 INCLUDE_COMP06                = .true.  # freefree
 INCLUDE_COMP07                = .false.  # Low-freq AME
 INCLUDE_COMP08                = .false.  # CMB relativistic quadrupole
 
 NUM_CG_SAMPLING_GROUPS = 2 #4
+
+#@START 01
+#CG_SAMPLING_GROUP&&          = radio
+#CG_SAMPLING_GROUP_MASK&&     = fullsky
+#CG_SAMPLING_GROUP_MAXITER&&  = 5
+#CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS
+#@END 01
 
 @START 01
 CG_SAMPLING_GROUP&&          = synch,ff #,ff,ame
@@ -925,27 +938,26 @@ CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPAS
 @END 01
 
 @START 02
-CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
+#CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
 CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 7
-CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,002.3-SPASS,003.15-Arcade2,003.41-Arcade2
 @END 02
 
-@START 03
-CG_SAMPLING_GROUP&&          = cmb,dust
-CG_SAMPLING_GROUP_MASK&&     = fullsky
-CG_SAMPLING_GROUP_MAXITER&&  = 50
-CG_SAMPLING_GROUP_BANDS&&    = all
-@END 03
+#@START 03
+#CG_SAMPLING_GROUP&&          = cmb,dust
+#CG_SAMPLING_GROUP_MASK&&     = fullsky
+#CG_SAMPLING_GROUP_MAXITER&&  = 50
+#CG_SAMPLING_GROUP_BANDS&&    = all
+#@END 03
 
-@START 04
-CG_SAMPLING_GROUP&&          = md
-CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
-CG_SAMPLING_GROUP_MAXITER&&  = 7
-CG_SAMPLING_GROUP_BANDS&&    = all
-@END 04
-
-NUM_MCMC_SAMPLING_GROUPS = 0
+#@START 04
+#CG_SAMPLING_GROUP&&          = md
+#CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 7
+#CG_SAMPLING_GROUP_BANDS&&    = all
+#@END 04
 
 # CMB
 @START 01
@@ -954,25 +966,28 @@ COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
 COMP_AMP_INPUT_MAP&&          = init_cmb_amp_BP8.1_v1.fits
 COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 01
 
 # Synchrotron component
-@START 02
+@START 02 
 #@DEFAULT components/synch/synch_LFI.defaults
 @DEFAULT components/synch/synch_CHIPASS.defaults
-COMP_AMP_LMAX&&               = 2955
-COMP_APOD_LMAX&&              = 2955
-COMP_CL_DEFAULT_BETA_T&&      = 15d0
-COMP_CL_DEFAULT_AMP_T&&       = 3e14
+COMP_AMP_LMAX&&               = 1000 2955
+COMP_APOD_LMAX&&              = 1000 2955
+COMP_OUTPUT_FWHM&&            = 60         # arcmin
+COMP_CL_DEFAULT_BETA_T&&      = 60d0
+COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_comb5/synch_c0001_k000090.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init16/synch_c0001_k000003.fits
 COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           = -2.62
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
 COMP_POLARIZATION&&           = .false.
 COMP_INIT_FROM_HDF&&          = default
 COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 02
 
 # Thermal dust component
@@ -993,39 +1008,55 @@ COMP_T_PRIOR_GAUSS_RMS&&      =   0.0    # 0.1
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
 COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg_HKE.fits 
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 03
 
 # Mono- and dipole component
 @START 04
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_MONO_FROM_PRIOR&&     = none
-COMP_MD_DEFINITION_FILE&&     = init_md_chipass_v3.dat
+COMP_MD_DEFINITION_FILE&&     = init_md_chipass_v6.dat
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 04
 
 # Radio sources
 @START 05
 @DEFAULT components/radio/radio_LFI.defaults
-COMP_CATALOG&&                 = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v8.dat
-COMP_INIT_CATALOG&&            = init_radio_BP8.11.dat
-COMP_PTSRC_TEMPLATE&&          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v42.h5
+COMP_CATALOG&&                 = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh_100mJy.dat
+COMP_INIT_CATALOG&&            = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh_100mJy.dat
+COMP_PTSRC_TEMPLATE&&          = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh.h5
+COMP_AMP_RMS_SCALE_FACTOR&&    = 10.         # Scale amp rms by this factor
+COMP_MIN_DIST_BETWEEN_SRC&&    = 15       ! arcmin
+COMP_NU_REF&&                  = 1.4
+COMP_NU_REF_T&&                = 1.4
+COMP_ALPHA_PRIOR_UNI_LOW&&     =  -2
+COMP_ALPHA_PRIOR_UNI_HIGH&&    =   0.5
+COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
 COMP_INIT_FROM_HDF&&           = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 05
 
 # freefree component ---------------------------------------------------------------------
 @START 06
 @DEFAULT components/freefree/freefree_LFI.defaults
-COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
-COMP_AMP_PRIOR_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
-COMP_AMP_LMAX&&               = 2955
-COMP_APOD_LMAX&&              = 2955
-COMP_CL_DEFAULT_THETA_T&&     = 15.d0 # equivalent to BETA for CL_TYPE = gauss (see synch)
-COMP_OUTPUT_FWHM&&            = 15         # arcmin
+#COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init16/ff_c0001_k000003.fits
+COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits
+COMP_AMP_LMAX&&               = 1000 2955
+COMP_APOD_LMAX&&              = 1000 2955
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned,power_law, exp}
+COMP_CL_DEFAULT_AMP_T&&       = 1e7          # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_BETA_T&&      = 60.d0 # smoothing scale
+COMP_OUTPUT_FWHM&&            = 60         # arcmin
 # New Local sampling parameters. 'freefree, ff'
 @DEFAULT components/freefree/freefree_LFI_localsampler.defaults
 COMP_T_E_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_T_E_COMBINED_MONOPOLE_SAMPLING&& = .false.
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 06
 
 # Low-frequency AME component ------------------------------------------------------------------
@@ -1039,15 +1070,17 @@ COMP_NU_P_PRIOR_GAUSS_RMS&&   = 0.
 @DEFAULT components/ame/ame_LFI_localsampler.defaults
 # New Local sampling parameters, 'ame'
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 07
 
 
 # CMB relativistic quadrupole correction
 @START 08
 @DEFAULT components/cmb/cmb_relquad.defaults
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 08
 
-NUM_MCMC_SAMPLING_GROUPS = 1
+NUM_MCMC_SAMPLING_GROUPS = 2
 
 #@START 01
 #MCMC_SAMPLING_GROUP_PARAMS&&            = synch:beta%0.01
@@ -1058,9 +1091,17 @@ NUM_MCMC_SAMPLING_GROUPS = 1
 #@END 01
 
 @START 01
-MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.003,gain:0.820-Dwingeloo%0.003,gain:002.3-SPASS%0.003
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.01,gain:0.820-Dwingeloo%0.01,gain:1.4-CHIPASS%0.01
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__3410_MHz_ARCADE2_nside16_mask.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 3
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
 @END 01
+
+@START 02
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.01
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 0.4-Haslam
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__2303_MHz_S-PASS_nside1024_mask.fits
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
+@END 02
