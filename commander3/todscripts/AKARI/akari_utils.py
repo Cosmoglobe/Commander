@@ -45,7 +45,8 @@ DIRBE_POS_FILES = [
     "dmr_anc_90326_90356.txt",
 ]
 
-BANDS = ["N60", "WIDE-S", "WIDE-L", "N160"]
+#BANDS = ["N60", "WIDE-S", "WIDE-L", "N160"]
+BANDS = ["065", "090", "140", "160"]
 NDETS = [40, 60, 45, 30]
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
@@ -72,7 +73,7 @@ PLANET_RADII = {
 
 for b, ndet in zip(BANDS, NDETS):
     for i in range(ndet):
-        DETECTORS.append(f"{b}_{i+1:02}")
+        DETECTORS.append(f"{b}-{i+1:02}")
 
 
 BAND_TO_WAVELENGTH: dict[str, float] = {}
@@ -144,13 +145,13 @@ def get_akari_fwhm() -> dict[str, float]:
     fwhms: dict[str, float] = {}
 
     for detector in DETECTORS:
-        if "N60" in detector:
+        if "065" in detector:
             fwhms[detector] = 37 / 60.0 / 60.0 * np.pi / 180.0
-        elif "WIDE-S" in detector:
+        elif "090" in detector:
             fwhms[detector] = 39 / 60.0 / 60.0 * np.pi / 180.0
-        elif "WIDE-L" in detector:
+        elif "140" in detector:
             fwhms[detector] = 58 / 60.0 / 60.0 * np.pi / 180.0
-        elif "N160" in detector:
+        elif "160" in detector:
             fwhms[detector] = 61 / 60.0 / 60.0 * np.pi / 180.0
         else:
             print("Weird things happening", detector)
@@ -379,16 +380,16 @@ def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
     bandpass_file = BANDPASS_PATH + f"FIS_RSRF_070122.txt"
     bandpass = np.loadtxt(bandpass_file, skiprows=1)
 
-    if "N60" in band:
+    if "065" in band:
         freqs = bandpass[:, 0] * u.micron
         weights = bandpass[:, 2]
-    elif "WIDE-S" in band:
+    elif "090" in band:
         freqs = bandpass[:, 0] * u.micron
         weights = bandpass[:, 3]
-    elif "WIDE-L" in band:
+    elif "140" in band:
         freqs = bandpass[:, 4] * u.micron
         weights = bandpass[:, 6]
-    elif "N160" in band:
+    elif "160" in band:
         freqs = bandpass[:, 4] * u.micron
         weights = bandpass[:, 7]
     else:
@@ -412,4 +413,4 @@ def get_iras_factor(band: str) -> float:
 
 
 if __name__ == "__main__":
-    print(get_iras_factor("N60"))
+    print(get_iras_factor("060"))

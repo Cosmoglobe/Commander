@@ -1,7 +1,7 @@
 **************************************************************
 *                  Commander parameter file                  *
 **************************************************************
-@DEFAULT LFI_tod.defaults
+@DEFAULT AKARI_tod.defaults
 
 OPERATION                     = sample  # {sample,optimize}
 VERBOSITY                     = 3       # [0,...,3]
@@ -49,228 +49,151 @@ NSIDE_CHISQ                   = 512
 ##############################################################	
 
 DATA_DIRECTORY                 = /mn/stornext/d23/cmbco/globe/ #/mn/stornext/d23/cmbco/akari/data/
-NUMBAND                        = 4 20
+NUMBAND                        = 24 4 20
 
 # AKARI
-INCLUDE_BAND001                = .false.    # n065 (N60)
-INCLUDE_BAND002                = .false.    # n160 (N160)
-INCLUDE_BAND003                = .true.    # w090 (WIDE-S)
-INCLUDE_BAND004                = .false.    # w140 (WIDE-L)
+INCLUDE_BAND001                = .true.    # 065 (N60)
+INCLUDE_BAND002                = .true.    # 090 (WIDE-S)
+INCLUDE_BAND004                = .true.    # 140 (WIDE-L)
+INCLUDE_BAND004                = .true.    # 160 (N160)
 
 
 # TOD
 # DIRBE 
-INCLUDE_BAND101                = .true.    # 1.25 micron T 01 first half
-INCLUDE_BAND102                = .true.    # 1.25 micron T 01 second half
-INCLUDE_BAND103                = .true.    # 2.2  micron T 02 first half
-INCLUDE_BAND104                = .true.    # 2.2  micron T 02 second half
-INCLUDE_BAND005                = .true.    # 3.5  micron T 03 first half
-INCLUDE_BAND006                = .true.    # 3.5  micron T 03 second half
-INCLUDE_BAND007                = .true.    # 4.9  micron T 04 first half
-INCLUDE_BAND008                = .true.    # 4.9  micron T 04 second half
-INCLUDE_BAND009                = .true.    # 12  micron T 05 first half
-INCLUDE_BAND010                = .true.    # 12  micron T 05 second half
-INCLUDE_BAND011                = .true.     # 25  micron T 06 first half
-INCLUDE_BAND012                = .true.     # 25  micron T 06 second half
-INCLUDE_BAND013                = .true.    # 60  micron T 07 first half
-INCLUDE_BAND014                = .true.    # 60  micron T 07 second half
-INCLUDE_BAND015                = .true.    # 100 micron T 08 first half
-INCLUDE_BAND016                = .true.    # 100 micron T 08 second half
-INCLUDE_BAND017                = .true.    # 140 micron T 09 first half
-INCLUDE_BAND018                = .true.    # 140 micron T 09 second half
-INCLUDE_BAND019                = .true.    # 240 micron T 10 first half
-INCLUDE_BAND020                = .true.    # 240 micron T 10  second half
+INCLUDE_BAND005                = .false.    # 1.25 micron T 01 first half
+INCLUDE_BAND006                = .false.    # 1.25 micron T 01 second half
+INCLUDE_BAND007                = .false.    # 2.2  micron T 02 first half
+INCLUDE_BAND008                = .false.    # 2.2  micron T 02 second half
+INCLUDE_BAND009                = .false.    # 3.5  micron T 03 first half
+INCLUDE_BAND010                = .false.    # 3.5  micron T 03 second half
+INCLUDE_BAND011                = .false.    # 4.9  micron T 04 first half
+INCLUDE_BAND012                = .false.    # 4.9  micron T 04 second half
+INCLUDE_BAND013                = .false.    # 12  micron T 05 first half
+INCLUDE_BAND014                = .false.    # 12  micron T 05 second half
+INCLUDE_BAND015                = .false.     # 25  micron T 06 first half
+INCLUDE_BAND016                = .false.     # 25  micron T 06 second half
+INCLUDE_BAND017                = .false.    # 60  micron T 07 first half
+INCLUDE_BAND018                = .false.    # 60  micron T 07 second half
+INCLUDE_BAND019                = .false.    # 100 micron T 08 first half
+INCLUDE_BAND020                = .false.    # 100 micron T 08 second half
+INCLUDE_BAND021                = .false.    # 140 micron T 09 first half
+INCLUDE_BAND022                = .false.    # 140 micron T 09 second half
+INCLUDE_BAND023                = .false.    # 240 micron T 10 first half
+INCLUDE_BAND024                = .false.    # 240 micron T 10  second half
 
 # MAPS
 # Planck
-INCLUDE_BAND021                = .false.    # 857 map
-INCLUDE_BAND022                = .false.    # 545 map
-INCLUDE_BAND028                = .false.    # 353 map
-INCLUDE_BAND029                = .false.    # 217 map
-INCLUDE_BAND030                = .false.    # 143 map
-INCLUDE_BAND031                = .false.    # 100 map
+INCLUDE_BAND025                = .false.    # 857 map
+INCLUDE_BAND026                = .false.    # 545 map
+INCLUDE_BAND027                = .false.    # 353 map
+INCLUDE_BAND028                = .false.    # 217 map
+INCLUDE_BAND029                = .false.    # 143 map
+INCLUDE_BAND030                = .false.    # 100 map
 
-INCLUDE_BAND033                = .false.    # 100-ds1 map
-INCLUDE_BAND034                = .false.    # 100-ds2 map
+INCLUDE_BAND031                = .false.    # 100-ds1 map
+INCLUDE_BAND032                = .false.    # 100-ds2 map
 
-INCLUDE_BAND035                = .false.    # 100-1 map
-INCLUDE_BAND036                = .false.    # 100-2 map
-INCLUDE_BAND037                = .false.    # 100-3 map
-INCLUDE_BAND038                = .false.    # 100-4 map
+INCLUDE_BAND033                = .false.    # 100-1 map
+INCLUDE_BAND034                = .false.    # 100-2 map
+INCLUDE_BAND035                = .false.    # 100-3 map
+INCLUDE_BAND036                = .false.    # 100-4 map
 
-INCLUDE_BAND039                = .false.    # 217-1 map
-INCLUDE_BAND040                = .false.    # 217-2 map
-INCLUDE_BAND041                = .false.    # 217-3 map
-INCLUDE_BAND042                = .false.    # 217-4 map
-INCLUDE_BAND043                = .false.    # 217-5 map
-INCLUDE_BAND044                = .false.    # 217-6 map
-INCLUDE_BAND045                = .false.    # 217-7 map
-INCLUDE_BAND046                = .false.    # 217-8 map
+INCLUDE_BAND037                = .false.    # 217-1 map
+INCLUDE_BAND038                = .false.    # 217-2 map
+INCLUDE_BAND039                = .false.    # 217-3 map
+INCLUDE_BAND040                = .false.    # 217-4 map
+INCLUDE_BAND041                = .false.    # 217-5 map
+INCLUDE_BAND042                = .false.    # 217-6 map
+INCLUDE_BAND043                = .false.    # 217-7 map
+INCLUDE_BAND044                = .false.    # 217-8 map
 
-INCLUDE_BAND047                = .false.    # 353-1 map
-INCLUDE_BAND048                = .false.    # 353-2 map
-INCLUDE_BAND049                = .false.    # 353-3 map
-INCLUDE_BAND050                = .false.    # 353-4 map
-INCLUDE_BAND051                = .false.    # 353-5 map
-INCLUDE_BAND052                = .false.    # 353-6 map
-INCLUDE_BAND053                = .false.    # 353-7 map
-INCLUDE_BAND054                = .false.    # 353-8 map
+INCLUDE_BAND045                = .false.    # 353-1 map
+INCLUDE_BAND046                = .false.    # 353-2 map
+INCLUDE_BAND047                = .false.    # 353-3 map
+INCLUDE_BAND048                = .false.    # 353-4 map
+INCLUDE_BAND049                = .false.    # 353-5 map
+INCLUDE_BAND050                = .false.    # 353-6 map
+INCLUDE_BAND051                = .false.    # 353-7 map
+INCLUDE_BAND052                = .false.    # 353-8 map
 
 # FIRAS 
-INCLUDE_BAND055                = .false.    # 108 map
-INCLUDE_BAND056                = .false.    # 149 map
-INCLUDE_BAND057                = .false.    # 217 map
-INCLUDE_BAND058                = .false.    # 353 map
-INCLUDE_BAND023                = .false.    # 544 map
-INCLUDE_BAND024                = .false.    # 857 map
-INCLUDE_BAND025                = .false.    # 1251 map
-INCLUDE_BAND061                = .false.    # 1809 map
-INCLUDE_BAND059                = .false.    # 1890 map
-INCLUDE_BAND032                = .false.    # 1904 map
-INCLUDE_BAND060                = .false.    # 1918 map
-INCLUDE_BAND062                = .false.    # 2081 map
-INCLUDE_BAND026                = .false.    # 2135 map
-INCLUDE_BAND027                = .false.    # 2802 map
+INCLUDE_BAND053                = .false.    # 108 map
+INCLUDE_BAND054                = .false.    # 149 map
+INCLUDE_BAND055                = .false.    # 217 map
+INCLUDE_BAND056                = .false.    # 353 map
+INCLUDE_BAND057                = .false.    # 544 map
+INCLUDE_BAND058                = .false.    # 857 map
+INCLUDE_BAND059                = .false.    # 1251 map
+INCLUDE_BAND060                = .false.    # 1809 map
+INCLUDE_BAND061                = .false.    # 1890 map
+INCLUDE_BAND062                = .false.    # 1904 map
+INCLUDE_BAND063                = .false.    # 1918 map
+INCLUDE_BAND064                = .false.    # 2081 map
+INCLUDE_BAND065                = .false.    # 2135 map
+INCLUDE_BAND066                = .false.    # 2802 map
 
 
 @START 001
-@DEFAULT bands/AKARI/AKARI_N60_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_N60
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; placeholder
-BAND_TOD_FILELIST&&&               = akari/tod/n065/filelist_akari_n65.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N60/filelist_AKARI_N60_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_N60_01,AKARI_N60_02,AKARI_N60_03,AKARI_N60_04,AKARI_N60_05,AKARI_N60_06,AKARI_N60_07,AKARI_N60_08,AKARI_N60_09,AKARI_N60_10,AKARI_N60_11,AKARI_N60_12,AKARI_N60_13,AKARI_N60_14,AKARI_N60_15,AKARI_N60_16,AKARI_N60_17,AKARI_N60_18,AKARI_N60_19,AKARI_N60_20,AKARI_N60_21,AKARI_N60_22,AKARI_N60_23,AKARI_N60_24,AKARI_N60_25,AKARI_N60_26,AKARI_N60_27,AKARI_N60_28,AKARI_N60_29,AKARI_N60_30,AKARI_N60_31,AKARI_N60_32,AKARI_N60_33,AKARI_N60_34,AKARI_N60_35,AKARI_N60_36,AKARI_N60_37,AKARI_N60_38,AKARI_N60_39,AKARI_N60_40
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+@DEFAULT bands/AKARI/AKARI_065_v1.defaults
+BAND_TOD_START_SCANID&&&           = 584
+BAND_TOD_END_SCANID&&&             = 11978
+BAND_TOD_DETECTOR_LIST&&&          = AKARI_065-01,AKARI_065-02,AKARI_065-03,AKARI_065-04,AKARI_065-05,AKARI_065-06,AKARI_065-07,AKARI_065-08,AKARI_065-09,AKARI_065-10,AKARI_065-11,AKARI_065-12,AKARI_065-13,AKARI_065-14,AKARI_065-15,AKARI_065-16,AKARI_065-17,AKARI_065-18,AKARI_065-19,AKARI_065-20,AKARI_065-21,AKARI_065-22,AKARI_065-23,AKARI_065-24,AKARI_065-25,AKARI_065-26,AKARI_065-27,AKARI_065-28,AKARI_065-29,AKARI_065-30,AKARI_065-31,AKARI_065-32,AKARI_065-33,AKARI_065-34,AKARI_065-35,AKARI_065-36,AKARI_065-37,AKARI_065-38,AKARI_065-39,AKARI_065-40
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_n60_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_proc_akari_n60_v1.fits # Not used
+BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_065_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
+BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_065.txt
 @END 001
 
-
 @START 002
-@DEFAULT bands/AKARI/AKARI_N160_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_N160
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/n160/filelist_akari_n160.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/N160/filelist_AKARI_N160_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_N160_01,AKARI_N160_02,AKARI_N160_03,AKARI_N160_04,AKARI_N160_05,AKARI_N160_06,AKARI_N160_07,AKARI_N160_08,AKARI_N160_09,AKARI_N160_10,AKARI_N160_11,AKARI_N160_12,AKARI_N160_13,AKARI_N160_14,AKARI_N160_15,AKARI_N160_16,AKARI_N160_17,AKARI_N160_18,AKARI_N160_19,AKARI_N160_20,AKARI_N160_21,AKARI_N160_22,AKARI_N160_23,AKARI_N160_24,AKARI_N160_25,AKARI_N160_26,AKARI_N160_27,AKARI_N160_28,AKARI_N160_29,AKARI_N160_30
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+@DEFAULT bands/AKARI/AKARI_090_v1.defaults
+BAND_TOD_START_SCANID&&&           = 584
+BAND_TOD_END_SCANID&&&             = 11978
+BAND_TOD_DETECTOR_LIST&&&          = AKARI_090-01,AKARI_090-02,AKARI_090-03,AKARI_090-04,AKARI_090-05,AKARI_090-06,AKARI_090-07,AKARI_090-08,AKARI_090-09,AKARI_090-10,AKARI_090-11,AKARI_090-12,AKARI_090-13,AKARI_090-14,AKARI_090-15,AKARI_090-16,AKARI_090-17,AKARI_090-18,AKARI_090-19,AKARI_090-20,AKARI_090-21,AKARI_090-22,AKARI_090-23,AKARI_090-24,AKARI_090-25,AKARI_090-26,AKARI_090-27,AKARI_090-28,AKARI_090-29,AKARI_090-30,AKARI_090-31,AKARI_090-32,AKARI_090-33,AKARI_090-34,AKARI_090-35,AKARI_090-36,AKARI_090-37,AKARI_090-38,AKARI_090-39,AKARI_090-40,AKARI_090-41,AKARI_090-42,AKARI_090-43,AKARI_090-44,AKARI_090-45,AKARI_090-46,AKARI_090-47,AKARI_090-48,AKARI_090-49,AKARI_090-50,AKARI_090-51,AKARI_090-52,AKARI_090-53,AKARI_090-54,AKARI_090-55,AKARI_090-56,AKARI_090-57,AKARI_090-58,AKARI_090-59,AKARI_090-60
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_n160_v1.fits 
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_proc_akari_n60_v1.fits # Not used
+BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_090_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 002 
+BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_090.txt
+@END 002
 
 @START 003
-@DEFAULT bands/AKARI/AKARI_WIDE-S_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-S
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/w090/filelist_akari_w090.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-S/filelist_AKARI_WIDE-S_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_WIDE-S_01,AKARI_WIDE-S_02,AKARI_WIDE-S_03,AKARI_WIDE-S_04,AKARI_WIDE-S_05,AKARI_WIDE-S_06,AKARI_WIDE-S_07,AKARI_WIDE-S_08,AKARI_WIDE-S_09,AKARI_WIDE-S_10,AKARI_WIDE-S_11,AKARI_WIDE-S_12,AKARI_WIDE-S_13,AKARI_WIDE-S_14,AKARI_WIDE-S_15,AKARI_WIDE-S_16,AKARI_WIDE-S_17,AKARI_WIDE-S_18,AKARI_WIDE-S_19,AKARI_WIDE-S_20,AKARI_WIDE-S_21,AKARI_WIDE-S_22,AKARI_WIDE-S_23,AKARI_WIDE-S_24,AKARI_WIDE-S_25,AKARI_WIDE-S_26,AKARI_WIDE-S_27,AKARI_WIDE-S_28,AKARI_WIDE-S_29,AKARI_WIDE-S_30,AKARI_WIDE-S_31,AKARI_WIDE-S_32,AKARI_WIDE-S_33,AKARI_WIDE-S_34,AKARI_WIDE-S_35,AKARI_WIDE-S_36,AKARI_WIDE-S_37,AKARI_WIDE-S_38,AKARI_WIDE-S_39,AKARI_WIDE-S_40,AKARI_WIDE-S_41,AKARI_WIDE-S_42,AKARI_WIDE-S_43,AKARI_WIDE-S_44,AKARI_WIDE-S_45,AKARI_WIDE-S_46,AKARI_WIDE-S_47,AKARI_WIDE-S_48,AKARI_WIDE-S_49,AKARI_WIDE-S_50,AKARI_WIDE-S_51,AKARI_WIDE-S_52,AKARI_WIDE-S_53,AKARI_WIDE-S_54,AKARI_WIDE-S_55,AKARI_WIDE-S_56,AKARI_WIDE-S_57,AKARI_WIDE-S_58,AKARI_WIDE-S_59,AKARI_WIDE-S_60
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+@DEFAULT bands/AKARI/AKARI_140_v1.defaults
+BAND_TOD_START_SCANID&&&           = 584
+BAND_TOD_END_SCANID&&&             = 11978
+BAND_TOD_DETECTOR_LIST&&&          = AKARI_140-01,AKARI_140-02,AKARI_140-03,AKARI_140-04,AKARI_140-05,AKARI_140-06,AKARI_140-07,AKARI_140-08,AKARI_140-09,AKARI_140-10,AKARI_140-11,AKARI_140-12,AKARI_140-13,AKARI_140-14,AKARI_140-15,AKARI_140-16,AKARI_140-17,AKARI_140-18,AKARI_140-19,AKARI_140-20,AKARI_140-21,AKARI_140-22,AKARI_140-23,AKARI_140-24,AKARI_140-25,AKARI_140-26,AKARI_140-27,AKARI_140-28,AKARI_140-29,AKARI_140-30,AKARI_140-31,AKARI_140-32,AKARI_140-33,AKARI_140-34,AKARI_140-35,AKARI_140-36,AKARI_140-37,AKARI_140-38,AKARI_140-39,AKARI_140-40,AKARI_140-41,AKARI_140-42,AKARI_140-43,AKARI_140-44,AKARI_140-45
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_wide-s_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_zodi_akari_wide-s_v1.fits # Not used
+BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_140_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
+BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_140.txt
 @END 003
 
 @START 004
-@DEFAULT bands/AKARI/AKARI_WIDE-L_n2048_v1.defaults
-BAND_LABEL&&&                      = AKARI_WIDE-L
-BAND_LMAX&&&                       = 1000
-BAND_MAPFILE&&&                    = akari/maps/akari_160_1_2048.fits        # Official map
-BAND_NOISEFILE&&&                  = akari/rms/akari_160_temprms_2048.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = akari/tod/w140/filelist_akari_w140.txt #/mn/stornext/d23/cmbco/akari/tamakim/h5_test/WIDE-L/filelist_AKARI_WIDE-L_v1_.txt
-BAND_TOD_START_SCANID&&&           = 1
-BAND_TOD_END_SCANID&&&             = 11978 100
-BAND_TOD_TOT_NUMSCAN&&&            = 11978
-BAND_TOD_DETECTOR_LIST&&&          = AKARI_WIDE-L_01,AKARI_WIDE-L_02,AKARI_WIDE-L_03,AKARI_WIDE-L_04,AKARI_WIDE-L_05,AKARI_WIDE-L_06,AKARI_WIDE-L_07,AKARI_WIDE-L_08,AKARI_WIDE-L_09,AKARI_WIDE-L_10,AKARI_WIDE-L_11,AKARI_WIDE-L_12,AKARI_WIDE-L_13,AKARI_WIDE-L_14,AKARI_WIDE-L_15,AKARI_WIDE-L_16,AKARI_WIDE-L_17,AKARI_WIDE-L_18,AKARI_WIDE-L_19,AKARI_WIDE-L_20,AKARI_WIDE-L_21,AKARI_WIDE-L_22,AKARI_WIDE-L_23,AKARI_WIDE-L_24,AKARI_WIDE-L_25,AKARI_WIDE-L_26,AKARI_WIDE-L_27,AKARI_WIDE-L_28,AKARI_WIDE-L_29,AKARI_WIDE-L_30,AKARI_WIDE-L_31,AKARI_WIDE-L_32,AKARI_WIDE-L_33,AKARI_WIDE-L_34,AKARI_WIDE-L_35,AKARI_WIDE-L_36,AKARI_WIDE-L_37,AKARI_WIDE-L_38,AKARI_WIDE-L_39,AKARI_WIDE-L_40,AKARI_WIDE-L_41,AKARI_WIDE-L_42,AKARI_WIDE-L_43,AKARI_WIDE-L_44,AKARI_WIDE-L_45
-BAND_TOD_TYPE&&&                   = AKARI
-BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
-BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
-BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
-BAND_TOD_MOON_CENTRIC_MASK&&&     = none
-BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
-BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
-BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
-BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+@DEFAULT bands/AKARI/AKARI_160_v1.defaults
+BAND_TOD_START_SCANID&&&           = 584
+BAND_TOD_END_SCANID&&&             = 11978
+BAND_TOD_DETECTOR_LIST&&&          = AKARI_160-01,AKARI_160-02,AKARI_160-03,AKARI_160-04,AKARI_160-05,AKARI_160-06,AKARI_160-07,AKARI_160-08,AKARI_160-09,AKARI_160-10,AKARI_160-11,AKARI_160-12,AKARI_160-13,AKARI_160-14,AKARI_160-15,AKARI_160-16,AKARI_160-17,AKARI_160-18,AKARI_160-19,AKARI_160-20,AKARI_160-21,AKARI_160-22,AKARI_160-23,AKARI_160-24,AKARI_160-25,AKARI_160-26,AKARI_160-27,AKARI_160-28,AKARI_160-29,AKARI_160-30
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
-BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_wide-l_v1.fits
-BAND_TOD_ZODI_MASK&&&              = akari/mask/mask_zodi_akari_wide-l_v1.fits # not used
+BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_160_v1_n4096.fits 
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483645   # Apply all flags, except moon
-#BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
-BAND_TOD_MAPMAKE_TYPE&&&           = binned
-BAND_TOD_LEVEL&&&                  = L2
-@END 004
+BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_160.txt
+@END 004 
 
 
-@START 101
+@START 005
 @DEFAULT bands/DIRBE/DIRBE_01_CIO_512.defaults
 BAND_LABEL&&&                  = 01a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_01a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_01a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_01_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 1 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 01a ,01b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_01a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_01a_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -278,22 +201,22 @@ BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
 BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none 01a,01b
 BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_01_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_01_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_01_compobj_res_v13.fits mask_stars_01_0.02MJysr_res0.02_v8.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 101
+@END 005
 
-@START 102
+@START 006
 @DEFAULT bands/DIRBE/DIRBE_01_CIO_512.defaults
 BAND_LABEL&&&                  = 01b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_01b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_01b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_01b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_01_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_01b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_01b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none >01a
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -303,22 +226,22 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1  
 BAND_TOD_END_SCANID&&&         = 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_01_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_01_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_01_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_01_compobj_res_v13.fits mask_stars_01_0.02MJysr_res0.02_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 102
+@END 006
 
-@START 103
+@START 007
 @DEFAULT bands/DIRBE/DIRBE_02_CIO_512.defaults
 BAND_LABEL&&&                  = 02a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_02_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_02a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_02a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_02_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 02a ,02b none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_02a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_02a_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 02a,02b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -328,22 +251,22 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_02_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_02_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_02_compobj_res_v13.fits mask_stars_01_0.02MJysr_v10.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 103
+@END 007
 
-@START 104
+@START 008
 @DEFAULT bands/DIRBE/DIRBE_02_CIO_512.defaults
 BAND_LABEL&&&                  = 02b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_02b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_02_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_02b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_02b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_02_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 02b none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_02b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_02b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none >02a
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -353,22 +276,22 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_02_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_02_compobj_res_v13.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_02_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_02_compobj_res_v13.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 104
+@END 008
 
-@START 005
+@START 009
 @DEFAULT bands/DIRBE/DIRBE_03_CIO_512.defaults
 BAND_LABEL&&&                  = 03a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_03a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_03a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_03_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 03a ,03b none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_03a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_03a_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 03a,03b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -378,22 +301,22 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_03_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_03_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_03_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_03_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_03_compobj_res_v12.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 005
+@END 009
 
-@START 006
+@START 010
 @DEFAULT bands/DIRBE/DIRBE_03_CIO_512.defaults
 BAND_LABEL&&&                  = 03b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_03b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_03b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_03b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_03_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 03b none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_03b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_03b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none >03a
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -403,23 +326,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1  
 BAND_TOD_END_SCANID&&&         = 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_03_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_03_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_03_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_03_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_03_compobj_res_v12.fits mask_stars_01_0.02MJysr_v8.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 006
+@END 010
 
-@START 007
+@START 011
 @DEFAULT bands/DIRBE/DIRBE_04_CIO_512.defaults
 BAND_LABEL&&&                  = 04a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_04_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_04_nside512_V24a.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 04a ,04b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_04a_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04a_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_04a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04a_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 04a,04b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
@@ -428,23 +351,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_04_v2.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 1 16 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_04_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_04_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_04_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_04_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_04_compobj_res_v12.fits 
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 007
+@END 011
 
-@START 008
+@START 012
 @DEFAULT bands/DIRBE/DIRBE_04_CIO_512.defaults
 BAND_LABEL&&&                  = 04b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_04_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_04_nside512_V24b.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 04b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_04b_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_04b_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_04b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_04b_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none >04a
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
@@ -453,124 +376,124 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_04_v2.dat none
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1  
 BAND_TOD_END_SCANID&&&         = 255 270 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_04_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_04_gain_res_v1.fits mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_04_compobj_res_v12.fits mask_chisq_stars_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_04_gain_res_v1.fits mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_04_compobj_res_v12.fits 
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 008
+@END 012
 
-@START 009
+@START 013
 @DEFAULT bands/DIRBE/DIRBE_05_CIO_512.defaults
 BAND_LABEL&&&                  = 05a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_05_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_05_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 8 1 16 31 
 BAND_TOD_END_SCANID&&&         = 285 
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 05a ,05b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_05a_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05a_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_05a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05a_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none 01a,01b
 BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_05_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_05_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal_v5.fits
 BAND_TOD_INIT_FROM_HDF&&&      = default
-@END 009
+@END 013
 
-@START 010
+@START 014
 @DEFAULT bands/DIRBE/DIRBE_05_CIO_512.defaults
 BAND_LABEL&&&                  = 05b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_05_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_05_nside512_V24b.txt
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 05b  >05a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_05b_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_05b_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_05b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_05b_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none 01a,01b
 BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_05_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_05_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal_v5.fits
 BAND_TOD_INIT_FROM_HDF&&&      = default
-@END 010
+@END 014
 
-@START 011
+@START 015
 @DEFAULT bands/DIRBE/DIRBE_06_CIO_512.defaults
 BAND_LABEL&&&                  = 06a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_06_nside512_V24a.txt
 BAND_TOD_START_SCANID&&&       = 31 8 1 16 31 
 BAND_TOD_END_SCANID&&&         = 285 
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 06a ,06b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_06a_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06a_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_06a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06a_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none 01a,01b
 BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_06_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_06_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal_v5.fits
 BAND_TOD_INIT_FROM_HDF&&&      = default
-@END 011
+@END 015
 
-@START 012
+@START 016
 @DEFAULT bands/DIRBE/DIRBE_06_CIO_512.defaults
 BAND_LABEL&&&                  = 06b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_06_nside512_V24b.txt
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 06b  >06a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_06b_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_06b_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_06b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_06b_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
 BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none 01a,01b
 BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_06_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_06_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal_v5.fits
 BAND_TOD_INIT_FROM_HDF&&&      = default
-@END 012
+@END 016
 
-@START 013
+@START 017
 @DEFAULT bands/DIRBE/DIRBE_07_CIO_512.defaults
 BAND_LABEL&&&                  = 07a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_07_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 07a ,07b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_07a_v10.fits none none mask_solar_feature_v1.fits none mask_solar_07_v5.fits
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07a_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_07a_v10.fits none none mask_solar_feature_v1.fits none mask_solar_07_v5.fits
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07a_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
@@ -579,24 +502,24 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_07_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_07_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dirbe_zodi_07_v2.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 013
+@END 017
 
-@START 014
+@START 018
 @DEFAULT bands/DIRBE/DIRBE_07_CIO_512.defaults
 BAND_LABEL&&&                  = 07b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_07_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = 07b >07a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_07b_v10.fits none
-BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_07b_solar_c0001_k000294.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_07b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_07b_solar_c0001_k000294.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
 BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none 
@@ -605,23 +528,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_07_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_07_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dirbe_zodi_07_v2.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 014
+@END 018
 
-@START 015
+@START 019
 @DEFAULT bands/DIRBE/DIRBE_08_CIO_512.defaults
 BAND_LABEL&&&                  = 08a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_08a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_08a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_08_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 08a ,08b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_08a_v10.fits none mask_solar_feature_v1.fits none mask_solar_08_v5.fits
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_08a_v10.fits none mask_solar_feature_v1.fits none mask_solar_08_v5.fits
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none init_solar_map_08_dirbe_prod_v10.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -631,23 +554,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 31 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_ecl_30deg_n2048.fits mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dirbe_zodi_08_v2.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 015
+@END 019
 
-@START 016
+@START 020
 @DEFAULT bands/DIRBE/DIRBE_08_CIO_512.defaults
 BAND_LABEL&&&                  = 08b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_08b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_08b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_08b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_08_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 08b  >08a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_08b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_08b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none init_solar_map_08_dirbe_prod_v10.fits
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -657,23 +580,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 255 285 271 255
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_08_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dirbe_zodi_08_v2.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 016
+@END 020
 
-@START 017
+@START 021
 @DEFAULT bands/DIRBE/DIRBE_09_CIO_512.defaults
 BAND_LABEL&&&                  = 09a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_09a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_09a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_09_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 09a ,09b none 
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_09a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_09a_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -683,23 +606,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_09_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_09_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal15_v3.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 017
+@END 021
 
-@START 018
+@START 022
 @DEFAULT bands/DIRBE/DIRBE_09_CIO_512.defaults
 BAND_LABEL&&&                  = 09b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_09b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_09b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_09b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_09_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 09b >09a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_09b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_09b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -709,23 +632,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_09_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_09_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal15_v3.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default
-@END 018
+@END 022
 
-@START 019
+@START 023
 @DEFAULT bands/DIRBE/DIRBE_10_CIO_512.defaults
 BAND_LABEL&&&                  = 10a
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10a_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10a_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_V24a.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_10a_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_10a_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_10_nside512_V24a.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 10a ,10b
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_10a_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_10a_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -735,23 +658,23 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 31 
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_10_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_10_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal15_v3.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default 
-@END 019
+@END 023
 
-@START 020
+@START 024
 @DEFAULT bands/DIRBE/DIRBE_10_CIO_512.defaults
 BAND_LABEL&&&                  = 10b
-BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10b_map_c0001_k000294.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.00/chains_dirbe_prod6_c1/tod_10b_rms_c0001_k000294.fits
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_V24b.txt
+BAND_MAPFILE&&&                = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_10b_map_c0001_k000294.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d23/cmbco/dirbe/DR2_v3.02/chains_dirbe_prod6_c1/tod_10b_rms_c0001_k000294.fits
+BAND_TOD_FILELIST&&&           = dirbe/tod/filelist_DIRBE_10_nside512_V24b.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_FLAG&&&               = 26615   # Remove asteroids and comets
 BAND_TOD_SOLAR_CENTRIC_MODEL&&& = none 10b >10a
-BAND_TOD_SOLAR_CENTRIC_MASK&&&  = mask_solar_10b_v10.fits none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&  = dirbe/mask/mask_solar_10b_v10.fits none
 BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MOON_CENTRIC_MODEL&&&    = none 01a,01b
 BAND_TOD_MOON_CENTRIC_MASK&&&     = none
@@ -761,186 +684,186 @@ BAND_TOD_EARTH_CENTRIC_MASK&&&    = none mask_DIRBE_earth_05_v1.dat
 BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none 
 BAND_TOD_START_SCANID&&&       = 1 8 1  
 BAND_TOD_END_SCANID&&&         = 285
-BAND_TOD_MAIN_PROCMASK&&&      = mask_dirbe_flag_10_v1.fits mask_dust_galecl15_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = mask_dirbe_gain_v1.fits
+BAND_TOD_MAIN_PROCMASK&&&      = dirbe/mask/mask_dirbe_flag_10_v1.fits mask_dust_galecl15_v3.fits
+BAND_TOD_SMALL_PROCMASK&&&     = dirbe/mask/mask_dirbe_gain_v1.fits
 BAND_TOD_ZODI_MASK&&&          = mask_dust_gal15_v3.fits
 BAND_TOD_INIT_FROM_HDF&&&      = none default 
-@END 020
+@END 024
 
-@START 021
+@START 025
 @DEFAULT bands/HFI/HFI_857_DIRBE.defaults
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_RMS&&&          = 0.1
 BAND_GAIN_APOD_MASK&&&         = mask_calib_857_v1.fits
 #BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_857-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
-@END 021
-
-@START 022
-@DEFAULT bands/HFI/HFI_545_DIRBE.defaults
-#BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_545-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
-@END 022
-
-@START 028
-@DEFAULT bands/HFI/HFI_353_DIRBE.defaults
-@END 028
-
-@START 029
-@DEFAULT bands/HFI/HFI_217_DIRBE.defaults
-@END 029
-
-@START 030
-@DEFAULT bands/HFI/HFI_143_DIRBE.defaults
-@END 030
-
-@START 031
-@DEFAULT bands/HFI/HFI_100_DIRBE.defaults
-@END 031
-
-@START 033
-@DEFAULT bands/HFI/HFI_100-ds1_DIRBE.defaults
-@END 033
-
-@START 034
-@DEFAULT bands/HFI/HFI_100-ds2_DIRBE.defaults
-@END 034
-
-@START 035
-@DEFAULT bands/HFI/HFI_100-1_DIRBE.defaults
-@END 035
-
-@START 036
-@DEFAULT bands/HFI/HFI_100-2_DIRBE.defaults
-@END 036
-
-@START 037
-@DEFAULT bands/HFI/HFI_100-3_DIRBE.defaults
-@END 037
-
-@START 038
-@DEFAULT bands/HFI/HFI_100-4_DIRBE.defaults
-@END 038
-
-@START 039
-@DEFAULT bands/HFI/HFI_217-1_DIRBE.defaults
-@END 039
-
-@START 040
-@DEFAULT bands/HFI/HFI_217-2_DIRBE.defaults
-@END 040
-
-@START 041
-@DEFAULT bands/HFI/HFI_217-3_DIRBE.defaults
-@END 041
-
-@START 042
-@DEFAULT bands/HFI/HFI_217-4_DIRBE.defaults
-@END 042
-
-@START 043
-@DEFAULT bands/HFI/HFI_217-5_DIRBE.defaults
-@END 043
-
-@START 044
-@DEFAULT bands/HFI/HFI_217-6_DIRBE.defaults
-@END 044
-
-@START 045
-@DEFAULT bands/HFI/HFI_217-7_DIRBE.defaults
-@END 045
-
-@START 046
-@DEFAULT bands/HFI/HFI_217-8_DIRBE.defaults
-@END 046
-
-@START 047
-@DEFAULT bands/HFI/HFI_353-1_DIRBE.defaults
-#BAND_NOISE_RMS&&&_SMOOTH01       = npipe6v20_353-1_bmap_n2048_uK_rms_5deg_n256_v2.fits
-@END 047
-
-@START 048
-@DEFAULT bands/HFI/HFI_353-2_DIRBE.defaults
-@END 048
-
-@START 049
-@DEFAULT bands/HFI/HFI_353-3_DIRBE.defaults
-@END 049
-
-@START 050
-@DEFAULT bands/HFI/HFI_353-4_DIRBE.defaults
-@END 050
-
-@START 051
-@DEFAULT bands/HFI/HFI_353-5_DIRBE.defaults
-@END 051
-
-@START 052
-@DEFAULT bands/HFI/HFI_353-6_DIRBE.defaults
-@END 052
-
-@START 053
-@DEFAULT bands/HFI/HFI_353-7_DIRBE.defaults
-@END 053
-
-@START 054
-@DEFAULT bands/HFI/HFI_353-8_DIRBE.defaults
-@END 054
-
-
-@START 055
-@DEFAULT bands/FIRAS/FIRAS_L0108_map.defaults
-@END 055
-
-@START 056
-@DEFAULT bands/FIRAS/FIRAS_L0149_map.defaults
-@END 056
-
-@START 057
-@DEFAULT bands/FIRAS/FIRAS_L0217_map.defaults
-@END 057
-
-@START 058
-@DEFAULT bands/FIRAS/FIRAS_L0353_map.defaults
-@END 058
-
-@START 023
-@DEFAULT bands/FIRAS/FIRAS_L0544_map.defaults
-@END 023
-
-@START 024
-@DEFAULT bands/FIRAS/FIRAS_H0857_map.defaults
-@END 024
-
-@START 025
-@DEFAULT bands/FIRAS/FIRAS_H1251_map.defaults
 @END 025
 
-@START 061
-@DEFAULT bands/FIRAS/FIRAS_H1809_map.defaults
-@END 061
-
-@START 059
-@DEFAULT bands/FIRAS/FIRAS_H1890_map.defaults
-@END 059
-
-@START 032
-@DEFAULT bands/FIRAS/FIRAS_H1904_map.defaults
-@END 032
-
-@START 060
-@DEFAULT bands/FIRAS/FIRAS_H1918_map.defaults
-@END 060
-
-@START 062
-@DEFAULT bands/FIRAS/FIRAS_H2081_map.defaults
-@END 062
-
 @START 026
-@DEFAULT bands/FIRAS/FIRAS_H2135_map.defaults
+@DEFAULT bands/HFI/HFI_545_DIRBE.defaults
+#BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_545-BPassCorrected_2048_R4.00_full_rms_uK_5deg_n256_v2.fits
 @END 026
 
 @START 027
-@DEFAULT bands/FIRAS/FIRAS_H2802_map.defaults
+@DEFAULT bands/HFI/HFI_353_DIRBE.defaults
 @END 027
+
+@START 028
+@DEFAULT bands/HFI/HFI_217_DIRBE.defaults
+@END 028
+
+@START 029
+@DEFAULT bands/HFI/HFI_143_DIRBE.defaults
+@END 029
+
+@START 030
+@DEFAULT bands/HFI/HFI_100_DIRBE.defaults
+@END 030
+
+@START 031
+@DEFAULT bands/HFI/HFI_100-ds1_DIRBE.defaults
+@END 031
+
+@START 032
+@DEFAULT bands/HFI/HFI_100-ds2_DIRBE.defaults
+@END 032
+
+@START 033
+@DEFAULT bands/HFI/HFI_100-1_DIRBE.defaults
+@END 033
+
+@START 034
+@DEFAULT bands/HFI/HFI_100-2_DIRBE.defaults
+@END 034
+
+@START 035
+@DEFAULT bands/HFI/HFI_100-3_DIRBE.defaults
+@END 035
+
+@START 036
+@DEFAULT bands/HFI/HFI_100-4_DIRBE.defaults
+@END 036
+
+@START 037
+@DEFAULT bands/HFI/HFI_217-1_DIRBE.defaults
+@END 037
+
+@START 038
+@DEFAULT bands/HFI/HFI_217-2_DIRBE.defaults
+@END 038
+
+@START 039
+@DEFAULT bands/HFI/HFI_217-3_DIRBE.defaults
+@END 039
+
+@START 040
+@DEFAULT bands/HFI/HFI_217-4_DIRBE.defaults
+@END 040
+
+@START 041
+@DEFAULT bands/HFI/HFI_217-5_DIRBE.defaults
+@END 041
+
+@START 042
+@DEFAULT bands/HFI/HFI_217-6_DIRBE.defaults
+@END 042
+
+@START 043
+@DEFAULT bands/HFI/HFI_217-7_DIRBE.defaults
+@END 043
+
+@START 044
+@DEFAULT bands/HFI/HFI_217-8_DIRBE.defaults
+@END 044
+
+@START 045
+@DEFAULT bands/HFI/HFI_353-1_DIRBE.defaults
+#BAND_NOISE_RMS&&&_SMOOTH01       = npipe6v20_353-1_bmap_n2048_uK_rms_5deg_n256_v2.fits
+@END 045
+
+@START 046
+@DEFAULT bands/HFI/HFI_353-2_DIRBE.defaults
+@END 046
+
+@START 047
+@DEFAULT bands/HFI/HFI_353-3_DIRBE.defaults
+@END 047
+
+@START 048
+@DEFAULT bands/HFI/HFI_353-4_DIRBE.defaults
+@END 048
+
+@START 049
+@DEFAULT bands/HFI/HFI_353-5_DIRBE.defaults
+@END 049
+
+@START 050
+@DEFAULT bands/HFI/HFI_353-6_DIRBE.defaults
+@END 050
+
+@START 051
+@DEFAULT bands/HFI/HFI_353-7_DIRBE.defaults
+@END 051
+
+@START 052
+@DEFAULT bands/HFI/HFI_353-8_DIRBE.defaults
+@END 052
+
+
+@START 053
+@DEFAULT bands/FIRAS/FIRAS_L0108_map.defaults
+@END 053
+
+@START 054
+@DEFAULT bands/FIRAS/FIRAS_L0149_map.defaults
+@END 054
+
+@START 055
+@DEFAULT bands/FIRAS/FIRAS_L0217_map.defaults
+@END 055
+
+@START 056
+@DEFAULT bands/FIRAS/FIRAS_L0353_map.defaults
+@END 056
+
+@START 057
+@DEFAULT bands/FIRAS/FIRAS_L0544_map.defaults
+@END 057
+
+@START 058
+@DEFAULT bands/FIRAS/FIRAS_H0857_map.defaults
+@END 058
+
+@START 059
+@DEFAULT bands/FIRAS/FIRAS_H1251_map.defaults
+@END 059
+
+@START 060
+@DEFAULT bands/FIRAS/FIRAS_H1809_map.defaults
+@END 060
+
+@START 061
+@DEFAULT bands/FIRAS/FIRAS_H1890_map.defaults
+@END 061
+
+@START 062
+@DEFAULT bands/FIRAS/FIRAS_H1904_map.defaults
+@END 062
+
+@START 063
+@DEFAULT bands/FIRAS/FIRAS_H1918_map.defaults
+@END 063
+
+@START 064
+@DEFAULT bands/FIRAS/FIRAS_H2081_map.defaults
+@END 064
+
+@START 065
+@DEFAULT bands/FIRAS/FIRAS_H2135_map.defaults
+@END 065
+
+@START 066
+@DEFAULT bands/FIRAS/FIRAS_H2802_map.defaults
+@END 066
 
 
 ##############################################################
@@ -1014,31 +937,31 @@ INCLUDE_COMP27                = .false.  # CO-correlated dust
 NUM_CG_SAMPLING_GROUPS = 0 4
 
 @START 01
-CG_SAMPLING_GROUP&&          = AKARI_WIDE-L
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
+CG_SAMPLING_GROUP&&          = AKARI_140
+CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_140_v1.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_WIDE-L
+CG_SAMPLING_GROUP_BANDS&&    = AKARI_140
 @END 01
 
 @START 02
-CG_SAMPLING_GROUP&&          = AKARI_N60
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
+CG_SAMPLING_GROUP&&          = AKARI_065
+CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_140_v1.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_N60
+CG_SAMPLING_GROUP_BANDS&&    = AKARI_065
 @END 02
 
 @START 03
-CG_SAMPLING_GROUP&&          = AKARI_N160
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
+CG_SAMPLING_GROUP&&          = AKARI_160
+CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_140_v1.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_N160
+CG_SAMPLING_GROUP_BANDS&&    = AKARI_160
 @END 03
 
 @START 04
-CG_SAMPLING_GROUP&&          = AKARI_WIDE-S
-CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_wide-l_v1.fits
+CG_SAMPLING_GROUP&&          = AKARI_090
+CG_SAMPLING_GROUP_MASK&&     = akari/mask/mask_zodi_akari_140_v1.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 3
-CG_SAMPLING_GROUP_BANDS&&    = AKARI_WIDE-S
+CG_SAMPLING_GROUP_BANDS&&    = AKARI_090
 @END 04
 
 #@START 02
@@ -1420,8 +1343,7 @@ COMP_INIT_FROM_HDF&&           = default /mn/stornext/u3/hke/data_dirbe/hke/chai
 COMP_LABEL&&                  = stars_diff
 COMP_MBBTAB_TYPE&&            = binned
 COMP_SED_TEMPLATE&&           = faint_WISE_DIRBE_tab_v07.dat
-COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits
- diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
+COMP_AMP_INPUT_MAP&&          = diffuse_stars_may25_mag12_5arcsec_mag7cutoff_dropdupl_diffuse_star_template_DIRBE01_dim_x2000.fits diffuse_may25_mag12_5arcsec_mag7cutoff_dropdupl_x2000.fits
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default /mn/stornext/u3/hke/data_dirbe/hke/chains_burnin_all_v6/chain_c0001.h5:53
 @END 24
@@ -1574,12 +1496,12 @@ ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:e
 # ------------------------------------------------------------------
 NUM_ZODI_COMPS = 7
 
-! PARAMETER VALUE FORMAT: comma separated list of values and priors
-! valid examples:           ZODI_T_0 = 286.0 (no prior)
-!                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
-!                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
-!                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
-!                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
+# PARAMETER VALUE FORMAT: comma separated list of values and priors
+# valid examples:           ZODI_T_0 = 286.0 (no prior)
+#                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
+#                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
+#                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
+#                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
 ZODI_T_0                    = 286.0
 ZODI_T_DELTA                = 0.4668626
 ZODI_G1                     =  0.70
@@ -1741,27 +1663,27 @@ ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/i
 NUM_ZODI_SAMPLING_GROUPS         = 1 6
 
 
+@START 01
+ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
+ZODI_SAMPLING_GROUP_BANDS&& = AKARI_065
+ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
+@END 01
+
 @START 02
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_N60
+ZODI_SAMPLING_GROUP_BANDS&& = AKARI_160
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 02
 
 @START 03
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_N160
+ZODI_SAMPLING_GROUP_BANDS&& = AKARI_090
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 03
 
-@START 01
-ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_WIDE-S
-ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
-@END 01
-
 @START 04
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_WIDE-L
+ZODI_SAMPLING_GROUP_BANDS&& = AKARI_140
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 04
 
@@ -1804,7 +1726,7 @@ NUM_MCMC_SAMPLING_GROUPS = 0 1 12
 MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
 #MCMC_SAMPLING_GROUP_PARAMS&&            = dust_cii:tab@4%0.1,hotPAH:tab@4%0.1,dust_Ha:tab@4%0.1
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
-MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = AKARI_N60
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = AKARI_065
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_DIRBE_SEDtab_v1.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
 @END 01
