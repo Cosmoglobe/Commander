@@ -76,13 +76,13 @@ contains
       
       ! For 2oof, the max psd freq. (samprate/2) is needed for freq. ranges and priors.
       ! samprate is defined in c%read_tod(c%label), but psd params must be defined before this. 
-      if (trim(c%freq) == 'AKARI_N160') then
+      if (trim(c%freq) == 'AKARI_160') then
          band_samprate = 16.86 ! Hz
-      else if (trim(c%freq) == 'AKARI_WIDE-L') then
+      else if (trim(c%freq) == 'AKARI_140') then
          band_samprate = 16.86 ! Hz 
-      else if (trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_090') then
          band_samprate = 25.28 ! Hz
-      else if (trim(c%freq) == 'AKARI_N60') then
+      else if (trim(c%freq) == 'AKARI_065') then
          band_samprate = 25.28 ! Hz
       end if
 
@@ -224,9 +224,9 @@ contains
       ! initialize ramp correction templates
       c%ntempl = 1     ! OBS may change
       allocate(c%nsamp_templ(c%ntempl))
-      if (trim(c%freq) == 'AKARI_N160' .or. trim(c%freq) == 'AKARI_WIDE-L') then
+      if (trim(c%freq) == 'AKARI_160' .or. trim(c%freq) == 'AKARI_140') then
          c%nsamp_templ = [28]
-      else if (trim(c%freq) == 'AKARI_N60' .or. trim(c%freq) == 'AKARI_WIDE-S') then
+      else if (trim(c%freq) == 'AKARI_065' .or. trim(c%freq) == 'AKARI_090') then
          c%nsamp_templ = [44]
       end if
       allocate(c%tod_correction_templ(maxval(c%nsamp_templ),c%ntempl,c%ndet,c%nscan))
@@ -410,6 +410,7 @@ contains
 !!$         self%ntempl = 1     ! OBS may change
 !!$         ! allocate self%nsamp_templ
 !!$         allocate(self%nsamp_templ(self%ntempl, self%ndet, self%nscan))
+!!$         self%nsamp_templ = 0.d0
 !!$         do i = 1, self%nscan
 !!$            ! skip scan if no accepted data
 !!$            if (.not. any(self%scans(i)%d%accept)) cycle

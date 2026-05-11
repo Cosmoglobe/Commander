@@ -1,0 +1,6 @@
+@DEFAULT param_akari.txt
+
+INCLUDE_BAND001                = .false.    # 065 (N60)
+INCLUDE_BAND002                = .true.    # 090 (WIDE-S)
+INCLUDE_BAND003                = .false.    # 140 (WIDE-L)
+INCLUDE_BAND004                = .false.    # 160 (N160)
