@@ -30,7 +30,9 @@ module comm_tod_SPIDER_mod
    !   process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-   use comm_tod_driver_mod
+  use comm_tod_driver_mod
+  use comm_tod_mapmaking_mod
+   use comm_conviqt_mod
    implicit none
  
    private
@@ -132,7 +134,7 @@ module comm_tod_SPIDER_mod
      real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
      class(comm_map),                          intent(inout) :: map_out      ! Combined output map
      class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms 
-     type(map_ptr),     dimension(:,:),   intent(inout), optional :: map_gain
+     type(map_ptr),     dimension(:),   intent(inout), optional :: map_gain
 
    end subroutine process_SPIDER_tod
  

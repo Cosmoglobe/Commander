@@ -80,6 +80,7 @@ contains
     c%nside_def       = 0
     c%fwhm_def        = 0.d0
     c%mono_prior_type = 'none'
+    c%latmask         = -1.d0
     precond_type                = cpar%cg_precond
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)
@@ -315,7 +316,7 @@ contains
 1   close(unit)
   
     if (n < numband .and. cpar%myid == 0) then
-       write(*,'(a,i6)') ' | Warning: Number of channels without a monopole/dipole definition = ', numband-n
+       write(*,'(a,i6)') ' | ERROR: Number of channels without a monopole/dipole definition = ', numband-n, ' Stopping!'
        stop
     end if
 

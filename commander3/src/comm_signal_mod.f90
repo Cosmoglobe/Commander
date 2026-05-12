@@ -105,7 +105,11 @@ contains
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
-          call add_to_complist(c)
+          if(associated(c)) then
+            call add_to_complist(c)
+          else
+            if(cpar%myid == 0) write(*,*) "Component failed to initialize: "//trim(cpar%cs_type(i))
+          end if
        case ("ptsrc")
           c => comm_ptsrc_comp(cpar, ncomp, i)
           call add_to_complist(c)
@@ -206,21 +210,23 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
-
-    integer(i4b) :: stat, i, j, l, m, nactive
+    integer(i4b),      intent(in), optional :: verbosity
+    
+    integer(i4b) :: stat, i, j, l, m, nactive, verbosity_
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
     character(len=32) :: cr_active_bands(100)
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
     class(comm_map),     pointer :: res  => null()
-
-
+    
+    verbosity_ = cpar%verbosity; if (present(verbosity)) verbosity_ = verbosity
+    
     allocate(x(ncr), mask(ncr))
 
     ! Set up component mask for current sample group
@@ -246,7 +252,7 @@ contains
       end do
     end if
    
-    ! Sample point source amplitudes
+    ! Sample point source amplitudes with precomputed amplitudes
     c => compList 
     do while (associated(c))
        select type (c)
@@ -291,9 +297,10 @@ contains
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
-    call initPrecond(cpar%comm_chain)
+    if (.not. allocated(P_cr)) allocate(P_cr(cpar%cg_num_user_samp_groups))
+    call initPrecond(cpar%comm_chain, samp_group, verbosity)
     call update_status(status, "init_precond2")
-    call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
+    call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat, verbosity)
     call cr_x2amp(samp_group, x)
     call update_status(status, "cr_end")
     deallocate(rhs,x)
@@ -303,7 +310,7 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
+          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle, verbosity)
        end select
        c => c%nextComp()
     end do
@@ -319,12 +326,14 @@ contains
                    call c%x%info%i2lm(i,l,m)
                    if (l == 0) then ! monopole
 
-                      write(*,fmt='(a)') " |  Band monopole of '"//&
-                           & trim(c%label)//"' used as zero-level prior"
-                      write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
-                           & c%mono_alm/sqrt(4.d0*pi)
-                      write(*,fmt='(a,f14.3,a)') " |     (Sampled value in CG: ",&
-                           & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
+                      if (verbosity_ > 0) then
+                         write(*,fmt='(a)') " |  Band monopole of '"//&
+                              & trim(c%label)//"' used as zero-level prior"
+                         write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
+                              & c%mono_alm/sqrt(4.d0*pi)
+                         write(*,fmt='(a,f14.3,a)') " |     (Sampled value in CG: ",&
+                              & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
+                      end if
 
                       c%x%alm(i,1) = c%mono_alm  ! revert to pre-CG search value 
                       !monopole in alm_uKRJ = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
@@ -341,7 +350,7 @@ contains
   end subroutine sample_amps_by_CG
 
 
-  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups)
+  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups, verbosity)
     !
     !
     !  Convenience function for performing amplitude sampling over
@@ -353,12 +362,14 @@ contains
     type(comm_params), intent(in)            :: cpar
     type(planck_rng),  intent(inout)         :: handle, handle_noise
     character(len=512), intent(in), optional :: cg_groups
+    integer(i4b),       intent(in), optional :: verbosity
 
 
-    integer(i4b)                          :: samp_group, i, n
+    integer(i4b)                          :: samp_group, i, n, verbosity_
     integer(i4b), dimension(MAXSAMPGROUP) :: group_inds
     character(len=3) :: toks(MAXSAMPGROUP)
 
+    verbosity_ = cpar%verbosity; if (present(verbosity)) verbosity_ = verbosity
 
     if (present(cg_groups)) then
       group_inds = 0
@@ -374,12 +385,12 @@ contains
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (findloc(group_inds, samp_group, dim=1) == 0) cycle
-       if (cpar%myid_chain == 0) then
+       if (cpar%myid_chain == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
           & trim(cpar%cg_samp_group(samp_group))
        end if
-       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity)
 
        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
@@ -388,12 +399,13 @@ contains
 
   end subroutine sample_all_amps_by_CG
 
-  subroutine initPrecond(comm)
+  subroutine initPrecond(comm, samp_group, verbosity)
     implicit none
-    integer(i4b), intent(in) :: comm
-    call initDiffPrecond(comm)
-    call initPtsrcPrecond(comm)
-    call initTemplatePrecond(comm)
+    integer(i4b), intent(in) :: comm, samp_group
+    integer(i4b), intent(in), optional :: verbosity
+    call initDiffPrecond(comm, samp_group)
+    call initPtsrcPrecond(comm, samp_group, verbosity)
+    call initTemplatePrecond(comm, samp_group)
   end subroutine initPrecond
 
   subroutine add_to_complist(c)
@@ -417,7 +429,7 @@ contains
     integer(i4b)              :: i, j, ext(2), initsamp, initsamp2
     character(len=4)          :: ctext
     character(len=6)          :: itext, itext2
-    character(len=512)        :: chainfile, hdfpath
+    character(len=2048)       :: chainfile, hdfpath
     class(comm_comp), pointer :: c => null()
     type(hdf_file) :: file, file2
     class(comm_N),      pointer :: N => null() 
@@ -475,13 +487,13 @@ contains
                   & data(i)%gain)
   
                 call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%label)), ext)
+                     & trim(adjustl(data(i)%instlabel)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)
@@ -496,13 +508,13 @@ contains
                      & data(i)%gain)
   
                 call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%label)), ext)
+                     & trim(adjustl(data(i)%instlabel)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)
@@ -731,6 +743,7 @@ contains
 
     do i = 1, numband
        if (trim(data(i)%tod_type) == 'none') cycle
+       if (.not. allocated(data(i)%tod%bp_delta)) cycle
        ndet = data(i)%ndet
        do j = 1, ndet
           data(i)%bp(j)%p%delta = data(i)%tod%bp_delta(j,:)

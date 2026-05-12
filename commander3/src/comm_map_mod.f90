@@ -47,7 +47,7 @@ module comm_map_mod
      ! Data variables
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
-     logical(lgt) :: pol, dist
+     logical(lgt) :: pol, dist, rms
      integer(i4b) :: comm, myid, nprocs
      integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm, mmax
      integer(c_int), allocatable, dimension(:)   :: rings
@@ -57,6 +57,7 @@ module comm_map_mod
      integer(c_int), allocatable, dimension(:)   :: pix
      real(c_double), allocatable, dimension(:,:) :: W
      integer(i4b),   allocatable, dimension(:)   :: nalms
+     character(len=128)                          :: distribute_type
    contains
      procedure     :: lm2i
      procedure     :: i2lm
@@ -97,7 +98,9 @@ module comm_map_mod
      procedure     :: getSigmaL
      procedure     :: getCrossSigmaL
      procedure     :: smooth
+     procedure     :: map2pix
      procedure     :: bcast_fullsky_map
+     procedure     :: bcast_fullsky_from_root
      procedure     :: bcast_fullsky_alms
      procedure     :: distribute_alms
      procedure     :: get_alm
@@ -155,11 +158,13 @@ subroutine tod2file_dp3(filename,d)
   !**************************************************
   !             Constructors
   !**************************************************
-  function constructor_mapinfo(comm, nside, lmax, nmaps, pol, dist)
+  function constructor_mapinfo(comm, nside, lmax, nmaps, pol, dist, distribute_type, rms)
     implicit none
     integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
     logical(lgt),                 intent(in) :: pol
     logical(lgt),       optional, intent(in) :: dist
+    character(len=128), optional, intent(in) :: distribute_type
+    logical(lgt),       optional, intent(in) :: rms
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
@@ -183,7 +188,7 @@ subroutine tod2file_dp3(filename,d)
     do while (associated(p)) 
        if ((p%nside == nside) .and. (p%lmax == lmax) .and. &
             & (p%nmaps == nmaps) .and. (p%pol .eqv. pol) .and. (p%dist .eqv. distval)) then
-          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps
+          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps, allocated(p%pix)
           constructor_mapinfo => p
           return
        else
@@ -212,6 +217,10 @@ subroutine tod2file_dp3(filename,d)
     p_new%pol    = pol
     p_new%npix   = 12*nside**2
     p_new%dist   = distval
+    p_new%distribute_type = ''
+    if(present(distribute_type)) p_new%distribute_type = distribute_type
+    p_new%rms    = .false.
+    if(present(rms)) p_new%rms = rms
 
 
     ! Select rings and pixels
@@ -347,9 +356,9 @@ subroutine tod2file_dp3(filename,d)
     if (present(filename)) then
        if (present(mask_misspix)) then
           allocate(mask_misspix(0:info%np-1,info%nmaps))
-          call constructor_map%readFITS(filename, mask=mask_misspix, udgrade=udgrade)
+          call constructor_map%readFITS(filename, mask=mask_misspix, udgrade=udgrade, dist_type=info%distribute_type)
        else
-          call constructor_map%readFITS(filename, udgrade=udgrade)
+          call constructor_map%readFITS(filename, udgrade=udgrade, dist_type=info%distribute_type)
        end if
     else
        if (info%np > 0) constructor_map%map = 0.d0
@@ -428,6 +437,7 @@ subroutine tod2file_dp3(filename,d)
 
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
+    if (allocated(self%alm_buff)) deallocate(self%alm_buff)
     nullify(self%info)
 
     if (associated(self%nextLink)) then
@@ -472,9 +482,13 @@ subroutine tod2file_dp3(filename,d)
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
+       if (self%info%nmaps >= 3) then
           call sharp_execute(SHARP_Y, 2, 2, self%alm(:,2:3), self%info%alm_info, &
                & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
+       end if
+       if (self%info%nmaps > 3) then       
+         call sharp_execute(SHARP_Y, 0, self%info%nmaps-3, self%alm(:,4:self%info%nmaps), self%info%alm_info, &
+            & self%map(:,4:self%info%nmaps), self%info%geom_info_T, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
@@ -494,10 +508,15 @@ subroutine tod2file_dp3(filename,d)
     if (self%info%pol) then
        call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
+       if (self%info%nmaps >= 3) then
           call sharp_execute(SHARP_WY, 2, 2, self%alm(:,2:3), self%info%alm_info, &
                & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
+       if (self%info%nmaps > 3) then 
+         call sharp_execute(SHARP_WY, 0, self%info%nmaps-3, self%alm(:,4:self%info%nmaps), self%info%alm_info, &
+            & self%map(:,4:self%info%nmaps), self%info%geom_info_T, comm=self%info%comm)
+       end if
+
     else
        call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
@@ -538,7 +557,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
             & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
-    deallocate(info)
+    !deallocate(info)
     call timer%stop(TOT_SHT)
 
   end subroutine exec_sharp_Y_EB
@@ -553,11 +572,15 @@ subroutine tod2file_dp3(filename,d)
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
-       if (self%info%nmaps == 3) then
+       if (self%info%nmaps >= 3) then
           call sharp_execute(SHARP_Yt, 2, 2, self%alm(:,2:3), self%info%alm_info, &
                & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
-       
+       if (self%info%nmaps > 3) then 
+         call sharp_execute(SHARP_Yt, 0, self%info%nmaps-3, self%alm(:,4:self%info%nmaps), self%info%alm_info, &
+            & self%map(:,4:self%info%nmaps), self%info%geom_info_T, comm=self%info%comm)
+       end if
+
     else
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
@@ -596,6 +619,11 @@ subroutine tod2file_dp3(filename,d)
           call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
                & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
+       if (self%info%nmaps > 3) then 
+         call sharp_execute(SHARP_YtW, 0, self%info%nmaps-3, self%alm(:,4:self%info%nmaps), self%info%alm_info, &
+            & self%map(:,4:self%info%nmaps), self%info%geom_info_T, comm=self%info%comm)
+       end if
+
     else
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)
@@ -770,7 +798,6 @@ subroutine tod2file_dp3(filename,d)
           if (present(hdffile) .and. self%info%lmax == -1) then
              call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           end if
-          call update_status(status, "fits3")
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then
@@ -828,26 +855,153 @@ subroutine tod2file_dp3(filename,d)
     end if
     
   end subroutine writeFITS
+
+!!$  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
+!!$       & hdffile, hdfpath, output_fits, output_hdf_map)
+!!$    implicit none
+!!$
+!!$    class(comm_map),  intent(in) :: self
+!!$    character(len=*), intent(in) :: filename
+!!$    character(len=*), intent(in), optional :: comptype, unit, spectrumfile, ttype
+!!$    real(dp),         intent(in), optional :: nu_ref
+!!$    type(hdf_file),   intent(in), optional :: hdffile
+!!$    character(len=*), intent(in), optional :: hdfpath
+!!$    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
+!!$
+!!$    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+!!$    logical(lgt) :: output_fits_, output_hdf_map_
+!!$    real(sp),     allocatable, dimension(:,:) :: map, alm, buffer
+!!$    integer(i4b), allocatable, dimension(:)   :: p
+!!$    integer(i4b), allocatable, dimension(:,:) :: lm
+!!$    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+!!$
+!!$
+!!$    output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
+!!$    output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
+!!$
+!!$    ! Only the root actually writes to disk; data are distributed via MPI
+!!$    npix  = self%info%npix
+!!$    nmaps = self%info%nmaps
+!!$
+!!$    if (self%info%myid == 0) then
+!!$
+!!$       ! Distribute to other nodes
+!!$       call update_status(status, "fits1")
+!!$       if (output_fits_ .or. output_hdf_map_) then
+!!$          allocate(p(npix), map(0:npix-1,nmaps))
+!!$          map(self%info%pix,:) = self%map
+!!$          do i = 1, self%info%nprocs-1
+!!$             call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             call mpi_recv(map(p(1:np),:), np*nmaps, &
+!!$                  & MPI_REAL, i, 98, self%info%comm, mpistat, ierr)
+!!$          end do
+!!$          call update_status(status, "fits2")
+!!$          if (output_fits_) then
+!!$             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+!!$          end if
+!!$          if (present(hdffile) .and. self%info%lmax == -1) then
+!!$             call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'), map)
+!!$          end if
+!!$          call update_status(status, "fits3")
+!!$       end if
+!!$
+!!$       if (present(hdffile) .and. self%info%lmax >= 0) then
+!!$          allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
+!!$          do j = 0, self%info%nalm-1
+!!$             l   = self%info%lm(1,j)
+!!$             m   = self%info%lm(2,j)
+!!$             ind = l**2 + l + m
+!!$             alm(ind,:) = self%alm(j,:)
+!!$          end do
+!!$          do i = 1, self%info%nprocs-1
+!!$             call mpi_recv(nlm,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             allocate(lm(2,0:nlm-1))
+!!$             call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+!!$             allocate(buffer(0:nlm-1,nmaps))
+!!$             call mpi_recv(buffer, size(buffer), &
+!!$                  & MPI_REAL, i, 98, self%info%comm, mpistat, ierr)
+!!$             !write(*,*) trim(hdfpath), nlm
+!!$             do j = 0, nlm-1
+!!$                l   = lm(1,j)
+!!$                m   = lm(2,j)
+!!$                ind = l**2 + l + m
+!!$                if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind, trim(filename)
+!!$                alm(ind,:) = buffer(j,:)
+!!$             end do
+!!$             deallocate(lm, buffer)
+!!$          end do
+!!$          call update_status(status, "fits4")
+!!$          !write(*,*) 'size', shape(alm) 
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
+!!$          if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'), map)
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
+!!$          call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+!!$          !call update_status(status, "fits5")
+!!$          deallocate(alm)
+!!$       end if
+!!$
+!!$       if (output_fits_ .or. output_hdf_map_) deallocate(p, map)
+!!$
+!!$    else
+!!$
+!!$       if (output_fits_) then
+!!$          call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(real(self%map,sp), size(self%map), MPI_REAL, 0, 98, &
+!!$               & self%info%comm, ierr)
+!!$       end if
+!!$
+!!$       if (present(hdffile) .and. self%info%lmax >= 0) then
+!!$          call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
+!!$          call mpi_send(real(self%alm,sp), size(self%alm),     MPI_REAL, 0, 98, &
+!!$               & self%info%comm, ierr)
+!!$       end if
+!!$    end if
+!!$    
+!!$  end subroutine writeFITS
   
-  subroutine readFITS(self, filename, mask, udgrade)
+  subroutine readFITS(self, filename, mask, udgrade, dist_type)
     implicit none
 
     class(comm_map),                    intent(inout) :: self
     real(dp),         dimension(0:,1:), intent(out), optional :: mask
     logical(lgt),                       intent(in),  optional :: udgrade
     character(len=*),                   intent(in)    :: filename
+    character(len=128),                 intent(in), optional :: dist_type
 
-    integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix
+    integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix, nmaps_in
     real(dp),     allocatable, dimension(:,:) :: map, buffer, map_in
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     ! Check file consistency 
     npix = int(getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps),i4b)
+
     if (nmaps < self%info%nmaps) then
-       if (self%info%myid == 0) write(*,*) 'Incorrect nmaps in ' // trim(filename), nmaps, self%info%nmaps
-       call mpi_finalize(ierr)
-       stop
+      if(present(dist_type)) then
+        if (trim(dist_type) == 'nplus2') then 
+          !distribute the nmaps=3 maps to I,Q,U,I_1,I_2,I_3...
+          if(nmaps > 3) then
+            if (self%info%myid == 0) write(*,*) 'Unbroadcastable nmaps in ' // trim(filename), nmaps, self%info%nmaps
+            call mpi_finalize(ierr)
+            stop
+          end if
+          nmaps_in = nmaps
+        else
+          if (self%info%myid == 0) write(*,*) 'dist_type not supported for ' // trim(filename), nmaps, self%info%nmaps, dist_type
+          call mpi_finalize(ierr)
+          write(*,*)1.0/0.d0
+          stop
+        end if
+      else !crash because we don't know what to do
+          if (self%info%myid == 0) write(*,*) 'Incorrect nmaps in ' // trim(filename), nmaps, self%info%nmaps, present(dist_type), dist_type
+          call mpi_finalize(ierr)
+          stop
+      end if
+    else
+      nmaps_in = self%info%nmaps
     end if
     if (nside /= self%info%nside .and. .not. (present(udgrade))) then
        if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename), 'Expected ', self%info%nside
@@ -861,16 +1015,16 @@ subroutine tod2file_dp3(filename,d)
        ! Read map and convert to RING format if necessary
        allocate(map(0:self%info%npix-1,self%info%nmaps))
        if (present(udgrade)) then
-          allocate(map_in(0:npix-1,self%info%nmaps))
-          call input_map(filename, map_in, npix, self%info%nmaps, ignore_polcconv=.true.)
+          allocate(map_in(0:npix-1, nmaps_in))
+          call input_map(filename, map_in, npix, nmaps_in, ignore_polcconv=.true.)
           if (ordering == 1) then
-             call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
+             call udgrade_ring(map_in, nside, map(:,1:nmaps_in), nside_out=self%info%nside)
           else
-             call udgrade_nest(map_in, nside, map, nside_out=self%info%nside)
+             call udgrade_nest(map_in, nside, map(:,1:nmaps_in), nside_out=self%info%nside)
           end if
           deallocate(map_in)
        else
-          call input_map(filename, map, self%info%npix, self%info%nmaps, ignore_polcconv=.true.)
+          call input_map(filename, map, self%info%npix, nmaps_in, ignore_polcconv=.true.)
        end if
 
        if (present(mask)) then
@@ -883,6 +1037,15 @@ subroutine tod2file_dp3(filename,d)
        if (ordering == 2) then
           do i = 1, self%info%nmaps
              call convert_nest2ring(self%info%nside, map(:,i))
+          end do
+       end if
+
+       if(dist_type == 'nplus2') then !Use I map for I_1,I_2...
+          if(self%info%myid == 0) write(*,'(a,i1,a,a)') "Broadcasting n+2 maps from nmaps= ", nmaps, " for ", trim(filename)
+          do i = 4, self%info%nmaps
+            map(:,i) = map(:,1)
+            ! scale rms maps by sqrt(n)
+            if(self%info%rms) map(:,i) = map(:,i) *sqrt(float(self%info%nmaps - 3))
           end do
        end if
 
@@ -1028,6 +1191,7 @@ subroutine tod2file_dp3(filename,d)
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
+    character(len=8) :: headernum
 
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
@@ -1094,7 +1258,7 @@ subroutine tod2file_dp3(filename,d)
         call add_card(header,"TUNIT4", unit_//'^2',"Map unit")
         call add_card(header)
 
-    else
+    else if(nmaps <= 3) then
         call add_card(header) ! blank line
         call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
         call add_card(header,"TUNIT1", unit_,"Map unit")
@@ -1109,6 +1273,15 @@ subroutine tod2file_dp3(filename,d)
            call add_card(header,"TUNIT3", unit_,"Map unit")
            call add_card(header)
         endif
+    else !Something weird with a nonstandard number of maps, add dummy header
+       call add_card(header)
+       do i = 1, nmaps
+         ! Will crash for nmaps > 99
+         write(headernum, '(I2.2)') i
+         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype") 
+         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+         call add_card(header)
+       end do
     end if
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
@@ -1133,64 +1306,62 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last, nmaps
-    real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
+    integer(i4b) :: i, j, ierr, nmaps, np
+    integer(i4b), allocatable, dimension(:) :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    real(dp), allocatable, dimension(:) :: m_in, m_out, buffer
 
     if (self%info%nside == map_out%info%nside) then
        map_out%map = self%map
        return
     end if
-!!$    else if (self%info%nside > map_out%info%nside) then
-!!$       q = (self%info%nside/map_out%info%nside)**2
-!!$       allocate(tmp(0:map_out%info%npix-1,map_out%info%nmaps))
-!!$       allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
-!!$       tmp = 0.d0
-!!$       do i = 0, self%info%np-1
-!!$          call ring2nest(self%info%nside, self%info%pix(i+1), p_nest)
-!!$          p_nest = p_nest/q
-!!$          call nest2ring(map_out%info%nside, p_nest, p_ring)
-!!$          tmp(p_ring,:) = tmp(p_ring,:) + self%map(i,:)
-!!$       end do
-!!$
-!!$ !call mpi_reduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$do i = 0, map_out%info%npix-1
-!!$   call mpi_reduce(tmp(i,:), buffer(i,:), map_out%info%nmaps, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$end do
-!!$
-!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-!!$!call mpi_allreduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!!$
-!!$       map_out%map = buffer(map_out%info%pix,:)/q
-!!$       deallocate(tmp,buffer)
-!!$    else if (self%info%nside < map_out%info%nside) then
-!!$       write(*,*) ' Should not be here'
-!!$       stop
-!!$    end if
 
     nmaps = size(self%map, dim=2)
-    bsize = 1000
-    allocate(m_in(0:self%info%npix-1,nmaps))
-    allocate(m_out(0:map_out%info%npix-1,nmaps))
-    allocate(buffer(0:map_out%info%npix-1,nmaps))
-    m_in                  = 0.d0
-    m_in(self%info%pix,:) = self%map
-!    write(*,*) 'a', self%info%myid, sum(abs(m_in))
-    call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
-!    write(*,*) 'b', self%info%myid, sum(abs(m_out))
-    call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!    write(*,*) 'c', self%info%myid, sum(abs(buffer))
-!!$i = 0
-!!$do while (i <= map_out%info%npix-1)
-!!$   j = min(i+bsize-1,map_out%info%npix-1)
-!!$   call mpi_reduce(m_out(i:j,:), buffer(i:j,:), size(m_out(i:j,:)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$   i = i+bsize
-!!$end do
-!!$
-!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    if (self%info%myid == 0) then
+       allocate(m_in(0:self%info%npix-1))
+       allocate(m_out(0:map_out%info%npix-1))
+       do j = 1, nmaps
+          ! Collect full map column
+          m_in(self%info%pix) = self%map(:,j)
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(np,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(p(np), buffer(np))
+             call mpi_recv(p,      np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             call mpi_recv(buffer, np, MPI_DOUBLE_PRECISION, i, 98, &
+                  &  self%info%comm, mpistat, ierr)
+             m_in(p) = buffer
+             deallocate(p, buffer)
+          end do
 
-    map_out%map = buffer(map_out%info%pix,:)
-!    write(*,*) 'd', self%info%myid, sum(abs(map_out%map))
-    deallocate(m_in, m_out, buffer)
+          ! Udgrade
+          call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
+
+          ! Distribute result
+          map_out%map(:,j) = m_out(map_out%info%pix)
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(np,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(p(np), buffer(np))
+             call mpi_recv(p,      np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             buffer = m_out(p)
+             call mpi_send(buffer, np, MPI_DOUBLE_PRECISION, i, 98, self%info%comm, ierr)
+             deallocate(p, buffer)
+          end do
+       end do
+       deallocate(m_in, m_out)
+    else
+       do j = 1, nmaps
+          ! Send input map to root
+          call mpi_send(self%info%np,               1, MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%map(:,j), self%info%np,   MPI_DOUBLE_PRECISION, 0, 98, self%info%comm, ierr)
+
+          ! Receive udgraded map from root
+          call mpi_send(map_out%info%np,                1, MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(map_out%info%pix, map_out%info%np, MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_recv(map_out%map(:,j), map_out%info%np, MPI_DOUBLE_PRECISION, 0, 98, &
+               &  self%info%comm, mpistat, ierr)
+       end do
+    end if
 
   end subroutine udgrade
 
@@ -1476,33 +1647,125 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map),                    intent(in)   :: self
     real(dp),         dimension(0:,1:), intent(out)  :: map
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
-    real(dp),     allocatable, dimension(:,:) :: buffer
+    integer(i4b) :: i, npix, np, ierr, nmaps_loc
+    real(dp),     allocatable, dimension(:,:) :: buffer_loc
     integer(i4b), allocatable, dimension(:)   :: p
     
     npix  = self%info%npix
-    nmaps = self%info%nmaps
+    nmaps_loc = size(map, 2)
+
+    ! If we are just broadcasting I or just IQU for an n+2 map
+    !if(size(map, 2) < nmaps) nmaps = size(map, 2)
 
     allocate(p(npix))
     do i = 0, self%info%nprocs-1
        if (self%info%myid == i) then
           np      = self%info%np
           p(1:np) = self%info%pix(1:np)
-          allocate(buffer(np,nmaps))
-          buffer  = self%map
+          allocate(buffer_loc(np,nmaps_loc))
+          buffer_loc  = self%map(:, 1:nmaps_loc)
        end if
-       
+
+ 
        call mpi_bcast(np,       1, MPI_INTEGER, i, self%info%comm, ierr)
        call mpi_bcast(p(1:np), np, MPI_INTEGER, i, self%info%comm, ierr)
-       if (.not. allocated(buffer)) allocate(buffer(np,nmaps))
-       call mpi_bcast(buffer, np*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
-       map(p(1:np),:) = buffer(1:np,:)
-       deallocate(buffer)
+       if (.not. allocated(buffer_loc)) allocate(buffer_loc(np,nmaps_loc))
+       call mpi_bcast(buffer_loc, np*nmaps_loc, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
+       map(p(1:np),:) = buffer_loc(1:np,:)
+       deallocate(buffer_loc)
     end do
     deallocate(p)
 
   end subroutine bcast_fullsky_map
 
+  subroutine map2pix(self, pix, vals)
+    implicit none
+    class(comm_map),                    intent(in)   :: self
+    integer(i4b),     dimension(1:),    intent(in)   :: pix
+    real(sp),         dimension(1:,1:), intent(out)  :: vals ! (nmaps, nobs)
+
+    integer(i4b) :: i, nmaps, npix, np, ierr
+    real(sp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+
+    ! Collect contributions from all cores to root
+    if (self%info%myid == 0) then
+       allocate(map(0:npix-1,nmaps))
+       map(self%info%pix,:) = self%map
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(0:np-1,nmaps))
+          call mpi_recv(p,      np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          call mpi_recv(buffer, np*nmaps, MPI_REAL,    i, 98, self%info%comm, mpistat, ierr)
+          map(p,:) = buffer
+          deallocate(p, buffer)
+       end do
+    else
+       allocate(map(0:self%info%np-1,nmaps))
+       map = self%map
+       call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(map,      size(map), MPI_REAL,    0, 98, self%info%comm, ierr)
+       deallocate(map)
+    end if
+
+    ! Distribute to each core according to pix
+    if (self%info%myid == 0) then
+       vals = transpose(map(pix,:))
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(nmaps,np))
+          call mpi_recv(p,  np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          buffer = transpose(map(p,:))
+          call mpi_send(buffer, np*nmaps, MPI_REAL,    i, 98, self%info%comm, ierr)
+          deallocate(p,buffer)
+       end do
+       deallocate(map)
+    else
+       np = size(pix)
+       call mpi_send(np,   1,        MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_send(pix,  np,       MPI_INTEGER, 0, 98, self%info%comm, ierr)
+       call mpi_recv(vals, np*nmaps, MPI_REAL,    0, 98, self%info%comm, mpistat, ierr)
+    end if
+  end subroutine map2pix
+
+  subroutine bcast_fullsky_from_root(self, map)
+    implicit none
+    class(comm_map),                    intent(inout)            :: self
+    real(dp),         dimension(0:,1:), intent(in),    optional  :: map
+
+    integer(i4b) :: i, nmaps, npix, np, ierr
+    real(dp),     allocatable, dimension(:,:) :: buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+
+    ! Distribute to each core according to pix
+    if (self%info%myid == 0) then
+       self%map = map(self%info%pix,:)
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,        1,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(p(np), buffer(np,nmaps))
+          call mpi_recv(p,  np,       MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          buffer = map(p,:)
+          call mpi_send(buffer, np*nmaps, MPI_DOUBLE_PRECISION,    i, 98, self%info%comm, ierr)
+          deallocate(p,buffer)
+       end do
+    else
+       np = self%info%np
+       call mpi_send(np,             1,        MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_send(self%info%pix,  np,       MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_recv(self%map,       np*nmaps, MPI_DOUBLE_PRECISION, 0, 98, self%info%comm, mpistat, ierr)
+    end if
+  end subroutine bcast_fullsky_from_root
+
+  
   subroutine bcast_fullsky_alms(self)
     implicit none
     class(comm_map),                    intent(inout) :: self

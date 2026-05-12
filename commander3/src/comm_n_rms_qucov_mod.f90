@@ -67,9 +67,9 @@ contains
   !**************************************************
   function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask, map)
     implicit none
-    class(comm_N_rms_QUcov),                  pointer       :: constructor
+    class(comm_N_rms_QUcov),            pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
-    type(comm_mapinfo), target,         intent(in)    :: info
+    type(comm_mapinfo), target,         intent(inout) :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
@@ -156,8 +156,8 @@ contains
 
   subroutine update_N_rms_QUcov(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
-    class(comm_N_rms_QUcov),                   intent(inout)          :: self
-    class(comm_mapinfo),                 intent(in)             :: info
+    class(comm_N_rms_QUcov),             intent(inout)          :: self
+    class(comm_mapinfo),                 intent(inout)          :: info
     type(planck_rng),                    intent(inout)          :: handle
     class(comm_map),                     intent(in),   optional :: mask
     real(dp),          dimension(0:,1:), intent(out),  optional :: regnoise

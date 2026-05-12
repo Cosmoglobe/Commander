@@ -36,7 +36,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
-     logical(lgt)       :: output_localsamp_maps
+     logical(lgt)       :: output_localsamp_maps, apply_dust_ext
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -50,7 +50,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
                                                     ! stores the CG sampling group number for the CG group with "md" and 
                                                     ! nothing more. (= -1 if no pure "md" CG group)
      real(dp)           :: cg_scale(1:3)                                  ! make the cg_scale vary between T and P
-     real(dp)           :: latmask, fwhm_def, test
+     real(dp)           :: latmask, fwhm_def, test 
      real(dp),           allocatable, dimension(:,:)   :: cls
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
      character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal', 'prior'}
@@ -111,10 +111,10 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      real(dp),        dimension(:,:), allocatable :: Z_def      ! (0:nalm-1,ndef)
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
-     type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
-     integer(i4b) :: ntab
-     real(dp), allocatable, dimension(:,:) :: SEDtab        ! (2+npar_tab, nbin)
-     real(dp), allocatable, dimension(:,:) :: SEDtab_buff   ! 
+     type(F_int_ptr), dimension(:,:,:), allocatable :: F_int    ! SED integrator
+     integer(i4b) :: ntab, nastrotab                            ! number of rows in the mbbTab and in the astrodust table
+     real(dp), allocatable, dimension(:,:) :: SEDtab, astrotab   ! (2+npar_tab, nbin) or (3+npar_tab, nbin)
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff 
      real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
@@ -245,24 +245,24 @@ interface
   end subroutine initSpecindProp
 
 
-  module subroutine initDiffPrecond(comm)
+  module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond
 
-  module subroutine initDiffPrecond_diagonal(comm)
+  module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_diagonal
 
 
-  module subroutine initDiffPrecond_pseudoinv(comm)
+  module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
 
   end subroutine initDiffPrecond_pseudoinv
@@ -336,25 +336,28 @@ interface
   end function projectDiffuseBand
 
 
-  module subroutine applyDiffPrecond(x)
+  module subroutine applyDiffPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond
 
 
-  module subroutine applyDiffPrecond_diagonal(x)
+  module subroutine applyDiffPrecond_diagonal(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_diagonal
 
 
-  module subroutine applyDiffPrecond_pseudoinv(x)
+  module subroutine applyDiffPrecond_pseudoinv(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
 
   end subroutine applyDiffPrecond_pseudoinv
@@ -434,8 +437,9 @@ interface
 
 
   
-  module subroutine print_precond_mat
+  module subroutine print_precond_mat(samp_group)
     implicit none
+    integer(i4b),                     intent(in)    :: samp_group
   end subroutine print_precond_mat
 
   module subroutine updateDiffuseFInt(self, band)
@@ -480,10 +484,11 @@ interface
     integer(i4b),                          intent(out) :: ndef
   end subroutine setup_needlets
 
-  module subroutine applyMonoDipolePrior(self, handle)
+  module subroutine applyMonoDipolePrior(self, handle, verbosity)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
+    integer(i4b),             intent(in), optional   :: verbosity
   end subroutine applyMonoDipolePrior
 
   module subroutine nullify_monopole_amp(band)

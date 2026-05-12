@@ -20,6 +20,8 @@ owl2528="$prefix+(2[5-8])+$suffix"
 owl2930="$prefix+(29|30)+$suffix"
 owl3135="$prefix+(3[1-5])+$suffix"
 owl3637="$prefix+(3[6-7])+$suffix"
+owl38="$prefix+(38)+$suffix"
+owl3946="$prefix+(39|4[0-6])+$suffix"
 # Using regex to figure out which beehive I am on.
 prefix="beehive"
 bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
@@ -40,10 +42,12 @@ hya1016="$prefix+(1[0-6])+$suffix"
 hya1719="$prefix+(1[7-9])+$suffix"
 hya20="$prefix+(20)+$suffix"
 hya21="$prefix+(21)+$suffix"
+prefix="pelican"
+pel12="$prefix+([1-2])+$suffix"
 #------------------------------------------------------------------------------
 # Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
-if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]]
+if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]] || [[ "${HOSTNAME}" =~ "pelican"* ]]
 then
 	#------------------------------------------------------------------------------
 	# Getting the total number of CPUs, taken from this answer:
@@ -94,6 +98,10 @@ then
     build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl38 ]]; then
+    build_dir="build_owl38_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $owl3946 ]]; then
+    build_dir="build_owl3946_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
     build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
@@ -128,6 +136,8 @@ then
     build_dir="build_hya20_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
     build_dir="build_hya21_${toolchain}_${buildtype}"
+  elif [[ "${HOSTNAME}" =~ $pel12 ]]; then
+    build_dir="build_pel12_${toolchain}_${buildtype}"
 	fi
   echo $build_dir
 	#------------------------------------------------------------------------------
@@ -152,15 +162,16 @@ then
 	elif [[ "$toolchain" =~ "oneapi" ]]
 	then
 		# Compilers
-		fc="ifort"
-		cc="icc"
-		cxx="icpc"
+		fc="ifx"
+		cc="icx"
+		cxx="icpx"
 		# MPI compilers
-		mpifc="mpiifort" 
-		mpicc="mpiicc"
-		mpicxx="mpiicpc"
+		mpifc="mpiifx" 
+		mpicc="mpiicx"
+		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+    #module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+    module load intel/oneapi compiler/latest mpi/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -172,8 +183,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load gcc/13.1
-    module load openmpi/gcc13/5.0.2
+    module load gcc/13.3.1
+    module load openmpi/gcc13/5.0.5
 		printf "\n"
 		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]

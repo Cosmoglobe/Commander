@@ -30,6 +30,7 @@ module comm_bp_mod
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
      real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
+     real(dp)           :: RJ2data
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
      ! Data procedures
@@ -102,12 +103,12 @@ contains
     class(comm_bp),     pointer                            :: c
 
     integer(i4b)       :: i, j, ndet
-    character(len=512) :: label
+    character(len=512) :: instlabel
     character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-    
-    label = cpar%ds_label(id_abs)
-    
+ 
+    instlabel = cpar%ds_instlabel(id_abs)
+
     ! General parameters
     allocate(c)
     
@@ -184,8 +185,6 @@ contains
                end do
                c%tau0 = c%tau0 / ndet
           else
-               print *, "got to nonzero threshold, aborting"
-               stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & c%threshold, &
                     & c%n, c%nu0, c%tau0)
@@ -212,14 +211,35 @@ contains
 
     ! Read default delta from instrument parameter file
     call read_instrument_file(trim(cpar%cs_inst_parfile), &
-         & 'delta', cpar%ds_label(id_abs), 0.d0, c%delta(1))
+         & 'delta', cpar%ds_instlabel(id_abs), 0.d0, c%delta(1))
 
     ! Initialize active bandpass 
     call c%update_tau(c%delta)
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     c%nu_eff = sum(c%tau*c%nu)/sum(c%tau)
-    
+
+    ! Initialize conversion from RJ to data units
+    select case (trim(cpar%ds_unit(id_abs)))
+    case ('uK_cmb') 
+       c%RJ2data = c%a2t
+    case ('mK_cmb') 
+       c%RJ2data = c%a2t * 1d-3
+    case ('K_cmb') 
+       c%RJ2data = c%a2t * 1d-6
+    case ('MJy/sr') 
+       c%RJ2data = c%a2f
+    case ('y_SZ') 
+       c%RJ2data = c%a2sz
+    case ('uK_RJ') 
+       c%RJ2data = 1.d0
+    case ('K km/s')
+       if(cpar%myid == 0) write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
+       c%RJ2data = 1.d0
+    case default
+       c%RJ2data = 1.d0
+    end select
+
   end function constructor_bp
   
 
@@ -239,7 +259,6 @@ contains
 
     select case (trim(self%model))
     case ('powlaw_tilt')
-
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n
@@ -261,11 +280,18 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       if (trim(self%type) == 'DIRBE' .or. trim(self%type) == 'AKARI' .or. trim(self%type) == 'IRAS') then
+       if (trim(self%type) == 'DIRBE') then
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          ! These overflow in exp(x) due to large x
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
+          ! much CMB
           bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
           sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
+       else if (trim(self%type) == 'AKARI') then
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
+          ! much CMB
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i)) 
+          sz(i)           = comp_sz_thermo(self%nu(i)) 
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))

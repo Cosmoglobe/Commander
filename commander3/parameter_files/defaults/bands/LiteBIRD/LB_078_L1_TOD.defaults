@@ -1,3 +1,5 @@
+@DEFAULT bands/LiteBIRD/bands_common.defaults
+
 BAND_LABEL&&&                 = LB_078_L1
 BAND_INSTRUMENT_LABEL&&&                 = LB_078_L1
 BAND_OBS_PERIOD&&&            = 1
@@ -15,7 +17,7 @@ BAND_NOISE_UNIFORMIZE_FSKY&&& = 0.00
 BAND_MASKFILE&&&              = fullsky
 BAND_MASKFILE_CALIB&&&        = fullsky
 BAND_BEAMTYPE&&&              = b_l
-BAND_BEAM_B_L_FILE&&&         = beam_LB_078_L1_43.8arcmin.fits
+BAND_BEAM_B_L_FILE&&&         = beam_LB_078_L1_fwhm43.8arcmin.fits
 BAND_BEAM_B_PTSRC_FILE&&&     = none
 BAND_PIXEL_WINDOW&&&          = pixel_window_n0512.fits
 BAND_SAMP_NOISE_AMP&&&        = .false.
@@ -47,8 +49,20 @@ BAND_TOD_END_SCANID&&&        = 9142 #9075
 BAND_TOD_TOT_NUMSCAN&&&       = 9142 #8875 #4000
 BAND_TOD_FLAG&&&              = 0
 BAND_TOD_ABSCAL_COMP&&&       = full
-BAND_TOD_DETECTOR_LIST&&&     = data/detectors_LB_078_L1_T+B_4.txt
+BAND_TOD_DETECTOR_LIST&&&     = detectors_LB_078_L1_T+B_4.txt
 BAND_TOD_INIT_FROM_HDF&&&     = default
 BAND_TOD_LEVEL&&&             = L1
 BAND_TOD_ZODI_SUBTRACTION&&&  = .false.
 N_GIBBS_PER_TOD&&&            = 1
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&     = none
+BAND_TOD_MOON_CENTRIC_MASK&&&      = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&   = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.

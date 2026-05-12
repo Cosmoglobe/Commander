@@ -37,3 +37,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
 COMP_AMP_INPUT_MAP&&          = CII_FIRAS_v1_median_n512.fits
 COMP_AMP_PRIOR_MAP&&          = none
 COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

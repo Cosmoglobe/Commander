@@ -1,6 +1,7 @@
 #WMAP Q2 TOD default parameters
 
 BAND_LABEL&&&                  = 040-WMAP_Q2
+BAND_INSTRUMENT_LABEL&&&       = 040-WMAP_Q2
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512
@@ -54,3 +55,14 @@ BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = Q213,Q214,Q223,Q224
 BAND_TOD_INIT_FROM_HDF&&&      = default
 N_GIBBS_PER_TOD&&&             = 1
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&   = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&    = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&& = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
+BAND_TOD_MOON_CENTRIC_MASK&&&     = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&    = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none

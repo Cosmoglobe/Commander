@@ -211,8 +211,8 @@ contains
     type(c_ptr), target    :: map_ptr(nmaps)
 
     mod_flags = SHARP_DP
-    if (present(add) .and. add) then
-       mod_flags = or(mod_flags, SHARP_ADD)
+    if (present(add)) then
+      if (add) mod_flags = or(mod_flags, SHARP_ADD)
     end if
 
     if (spin == 0) then
@@ -220,7 +220,7 @@ contains
     else
        ntrans = nmaps / 2
     end if
-    if (ntrans/=1) print *, "ERROR: ntrans /= 1"
+    !if (ntrans/=1) print *, "ERROR: ntrans /= 1"
 
     ! Set up pointer table to access maps
     alm_ptr(:) = c_null_ptr

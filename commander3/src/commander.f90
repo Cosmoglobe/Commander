@@ -22,6 +22,9 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_tod_objctr_samp_mod
+  use comm_sparse_mod
+  use comm_dust_extinction_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -31,10 +34,6 @@ program commander
   type(planck_rng)    :: handle, handle_noise
   character(len=6)  :: samptext
 
-  ! param_vec for zodi (REMOVE THIS AFTER ATLAS)
-   ! type(zodi_model) :: current_model, previous_model
-   ! real(dp), allocatable :: param_vec(:)
-   
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
@@ -46,15 +45,25 @@ program commander
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)
-  real(dp) :: time_step
-  integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
+  real(dp) :: time_step, lambda, A_ext(1)
+  !integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
 
-  bands_to_sample = (/1,2/)
-  bands_to_calibrate_against= (/1,2/)
+  real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
+  integer(i4b) :: ntot, npar
+  
+  !bands_to_sample = (/1,2/)
+  !bands_to_calibrate_against= (/1,2/)
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
-    call get_command_argument(arg_indx, arg)
+    call get_command_argument(arg_indx, arg, j, stat)
+    if (stat .ne. 0) then
+      if (stat == -1) then
+        write(*,*) 'Command line argument was truncated: ', arg
+      else 
+        write(*,*) 'Command line argument retrieval failed: ', arg
+      end if
+    end if
 
     select case (arg)
       case ('-v', '--version')
@@ -67,10 +76,7 @@ program commander
         call print_help()
         call exit(0)
       case default
-        !print '(2a, /)', 'Unrecognised command-line option: ', arg
-        !call print_help()
-        !call exit(0)
-        exit comm3_args
+         exit comm3_args
     end select
   end do comm3_args
   !----------------------------------------------------------------------------------
@@ -92,43 +98,9 @@ program commander
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
-  status%active = cpar%myid_chain == 0 !.false.
+  status%active = cpar%myid_chain == 1 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
-!!!  if (cpar%myid == cpar%root) then
-!!!      allocate(param_test(200))
-!!!      param_test = 0.5d0
-!!!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
-!!!      write(*,*) "first", param_test(1)
-!!!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      write(*,*) "last", param_test(1)
-!!!  end if
-
-!!$  n = 100000
-!!$  q = 100000
-!!$  allocate(arr(n))
-!!$  do i = 1, n
-!!$     allocate(arr(i)%p(q))
-!!$     arr(i)%p = i
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'up', arr(i)%p(6)
-!!$        call update_status(status, "debug")
-!!$     end if
-!!$  end do
-!!$
-!!$  do i = 1, n
-!!$     deallocate(arr(i)%p)
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'down', i
-!!$        call update_status(status, "debug2")
-!!$     end if
-!!$  end do
-!!$  deallocate(arr)
-!!$  stop
-
-
-  
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call MPI_Finalize(ierr)
@@ -143,14 +115,14 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
-     else
+    else if (cpar%on_the_fly_tod_sim) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime: on-the-fly tod sims followed by standard data processing', '|'
+    else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
      write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
      write(*,fmt='(a,i12,t70,a)') ' |  Number of processors in first chain    = ', cpar%numprocs_chain, '|'
      write(*,fmt='(a,t70,a)')         ' |', '|'
-!     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec', '|'
-!     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec', '|'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
@@ -169,8 +141,10 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
-  call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
-  call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_objctr_mod(cpar);          call update_status(status, "init_objctr")
+  call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
+  call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
+  call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
 
 
@@ -194,15 +168,11 @@ program commander
   call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
-  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
   end if
 
-!write(*,*) 'Setting gain to 1'
-!data(6)%gain = 1.d0
-  
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
@@ -230,7 +200,6 @@ program commander
   ! **************************************************************
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-     !write(*,*) '|'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      write(*,fmt='(a,f12.3,a)') ' |  Time to read data = ', t2-t1, ' sec'
      write(*,*) '|  Starting Gibbs sampling'
@@ -238,35 +207,23 @@ program commander
 
   ! Prepare chains
   call init_chain_file(cpar, first_sample)
-  !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
   else
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
-     !first_sample = 10
-     !first_sample=first_sample-1 ! Reject last sample, which may be corrupt
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
   call timer%stop(TOT_INIT)
-  !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
-  !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
 
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
   first_zodi = .true.
-  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
-  !----------------------------------------------------------------------------------
-  ! Part of Simulation routine
-  !----------------------------------------------------------------------------------
-  ! Will make only one full gibbs loop to produce simulations
-  !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
-  !----------------------------------------------------------------------------------
-
+  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind .or. cpar%mcmc_num_samp_groups > 0)) modfact = 2
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -291,6 +248,7 @@ program commander
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
+     
      !----------------------------------------------------------------------------------
      ! Part of Simulation routine
      !----------------------------------------------------------------------------------
@@ -300,120 +258,54 @@ program commander
        call copy_tod(cpar, ierr)
        call write_filelists_to_disk(cpar, ierr)
      end if
+
      !----------------------------------------------------------------------------------
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-
-      ! Create zodi atlas
-      ! if (.false.) then
-      !    allocate(param_vec(base_zodi_model%N_PARAMETERS))
-      !    do i = 1, base_zodi_model%N_PARAMETERS
-      !       if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: ", i
-      !       do j = 1, 3
-      !          base_zodi_model = sampled_zodi_model
-      !          base_zodi_model%param_i = i
-      !          base_zodi_model%up_down_j = j
-               
-      !          param_vec = base_zodi_model%model_to_param_vec()
-      !          if (j == 1) then
-      !             param_vec(i) = param_vec(i) - 0.1*param_vec(i)
-      !          else if (j == 3) then
-      !             param_vec(i) = param_vec(i) + 0.1*param_vec(i)
-      !          end if
-      !          call base_zodi_model%param_vec_to_model(param_vec)
-      !          call process_all_TODs(cpar, cpar%mychain, iter, handle)
-      !       end do
-      !    end do
-      ! end if 
-      
-   !   if (iter == 1) then ! For faster component separation since we dont sample the cios
-
-        ! First iteration should just be component separation, in case sky model
-        ! is off
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
      end if
 
-     if (cpar%enable_tod_simulations) then
-        ! Skip other steps if TOD simulations
-        exit
-     end if
+     ! Skip other steps if TOD simulations
+     if (cpar%enable_tod_simulations) exit
 
-     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-!     if (.true. .and. cpar%include_tod_zodi) then
-      call timer%start(TOT_ZODI_SAMP)
-      call project_and_downsamp_sky(cpar)
-      if (first_zodi) then
-         ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
-         call downsamp_invariant_structs(cpar)
-         call precompute_lowres_zodi_lookups(cpar)
-      end if
+     ! Sample stationary components
+     !if (first_zodi) then
+        if (cpar%sample_earth_maps) call sample_objctr_map(cpar, handle, 'earth')
+        if (cpar%sample_solar_maps) call sample_objctr_map(cpar, handle, 'solar')
+        if (cpar%sample_moon_maps)  call sample_objctr_map(cpar, handle, 'moon')
+     !end if
 
-!!$      do i = 1, zodi_model%n_comps
-!!$         write(*,*) 'n0', zodi_model%comps(i)%c%n_0
-!!$      end do
+     ! Sample zodi parameters
+     if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+        call timer%start(TOT_ZODI_SAMP)
+        if (first_zodi) then
+           ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
+           call downsamp_invariant_structs(cpar)
+           call create_zodi_sampgroup_mask(cpar, handle)
+           first_zodi = .false.
+        end if
+        call project_and_downsamp_sky(cpar)
+
+        ! Sample non-stationary zodi components with geometric 3D model
+        do i = 1, cpar%zs_num_samp_groups
+           call apply_zodi_sampgroup_mask(cpar, i)
+           select case (trim(adjustl(cpar%zs_sample_method)))
+           case ("powell")
+              call minimize_zodi_with_powell(cpar, iter, handle, i)
+           end select
+        end do
+        
       
-      call compute_downsamp_zodi(cpar, zodi_model)      
-      if (first_zodi) then
-         call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
-         call compute_downsamp_zodi(cpar, zodi_model)
-         call create_zodi_glitch_mask(cpar, handle)
-         first_zodi = .false.
-      end if 
-      call apply_zodi_glitch_mask(cpar)
-      !write(*,*) 'disabling glitch mask'
-
-      ! Sample non-stationary zodi components with geometric 3D model
-      select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("mh")
-         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-      case ("powell")
-         do i = 1, cpar%zs_num_samp_groups
-            if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
-         end do
-      end select
-
-      ! Sample stationary zodi components with 2D model
-      !call sample_static_zodi_map(cpar, handle)
-      !call sample_static_zodi_amps(cpar, handle)
-      
-!!$      if (mod(iter-2,10) == 0) then
-!!$         call zodi_model%params_to_model([&
-!!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
-!!$              & 2.10d0  + 0.0d0*rand_gauss(handle), &
-!!$              & 78.01d0 + 0.d0* rand_gauss(handle), &
-!!$              & 3.72d-2 + 0.000d0 * rand_gauss(handle), &
-!!$              & 8.71d-3 + 0.000d0 * rand_gauss(handle), &
-!!$              & -2.14d-3 + 0.000d0 * rand_gauss(handle), &
-!!$              & 0.951d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 3.50d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 0.822d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 0.183d0 + 0.00d0*rand_gauss(handle), &
-!!$              & 1d-9 + 3d-10*rand_gauss(handle), &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 0.d0, &
-!!$              & 1.d0 + 0.3d0*rand_gauss(handle), &
-!!$              & 3.d0 + 0.3*rand_gauss(handle), &
-!!$              & 286d0, 0.466863d0])
-!!$      end if
-!!$      if (mod(iter-1,2) == 0) then
-!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-!!$      else
-!!$         call minimize_zodi_with_powell(cpar)
-!!$      end if
-
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 1) then
+     if (cpar%sample_signal_amplitudes .and. iter > 0) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
@@ -447,10 +339,13 @@ program commander
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
+
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (iter > 1) then
+     if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
@@ -464,22 +359,15 @@ program commander
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
             end if
         end do
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
-
   end if
      
      ! Output sample to disk
-     call timer%start(TOT_OUTPUT)
+  call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
-
-     ! Sample partial-sky templates
-     !call sample_partialsky_tempamps(cpar, handle)
-
-     !call output_FITS_sample(cpar, 1000, .true.)
-
-
-
 
      call wall_time(t2)
      if (ok) then
@@ -538,13 +426,19 @@ contains
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
+    type(map_ptr), allocatable, dimension(:)     :: s_gain
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
+    logical(lgt)              :: all_bps_equal
 
-    ndelta      = cpar%num_bp_prop + 1
+    if (iter > 1) then
+       ndelta      = cpar%num_bp_prop + 1
+    else
+       ndelta = 1
+    end if
 
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
@@ -578,8 +472,17 @@ contains
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
+       all_bps_equal = .true.
+       do j = 1, ndet
+         do k = i, ndet
+            if (size(data(i)%bp(j)%p%tau0) /= size(data(i)%bp(k)%p%tau0) .or. (.not. all(data(i)%bp(j)%p%tau0 == data(i)%bp(k)%p%tau0))) then
+               all_bps_equal = .false.
+            end if
+         end do
+       end do
+         
        allocate(s_sky(ndet,ndelta))
-       allocate(s_gain(ndet,1))
+       allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -596,12 +499,13 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                     !  write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
+                      !write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
                       do j = 1, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
                       end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
+                      !write(*,*) "delta", l, k, delta(0:ndet,l,k)
                    else
                       !write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
@@ -626,6 +530,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
@@ -636,6 +541,10 @@ contains
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
+             if (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                s_sky(j, k)%p => s_sky(1, k)%p ! Same bandpasses means we don't need separate sky maps
+                cycle
+             end if
              !s_sky(j,k)%p => comm_map(data(i)%info)
              if (trim(data(i)%tod%tod_type) == 'DIRBE') then
                 call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
@@ -649,25 +558,29 @@ contains
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
+                if  (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                   s_gain(j)%p => s_gain(1)%p ! Same bandpasses means we don't need separate gain maps
+                   cycle
+                end if
                 if (associated(gainmap)) then
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., &
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
                      & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
                 else
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false.) 
                 end if
              end do
           end if
 
        end do
 
-              !call s_sky(1,1)%p%writeFITS('sky.fits')
-
+!!$!       call compList%x%writeFITS("sig.fits")
+!!$       call s_sky(1,1)%p%writeFITS('sky.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
+       
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
-       ! Clear zodi cache for next band
-       if (data(i)%subtract_zodi) call data(i)%tod%clear_zodi_cache()
-       
        call timer%incr_numsamp(data(i)%id_abs)
        
        if (cpar%myid_chain == 0) then
@@ -718,7 +631,7 @@ contains
           do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
-          call s_gain(j,1)%p%dealloc
+          call s_gain(j)%p%dealloc
        end do
        deallocate(s_sky, s_gain, delta, eta)
 

@@ -2579,6 +2579,7 @@ contains
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
     call h5tget_size_f(dtype, len, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
     allocate(val(numint))
     f_ptr = c_loc(val)
@@ -5311,7 +5312,9 @@ contains
     character(len=*) :: group
     integer(hid_t)   :: gid
     call h5gcreate_f(file%filehandle, group, gid, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create group "//trim(file%filename)//', '//trim(group))
     call h5gclose_f(gid, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot close group "//trim(file%filename)//', '//trim(group))
   end subroutine
 
   ! **********************

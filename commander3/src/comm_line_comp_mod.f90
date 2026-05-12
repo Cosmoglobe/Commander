@@ -64,7 +64,8 @@ contains
     ! General parameters
     allocate(c)
     c%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
-    call c%initDiffuse(cpar, id, id_abs)
+    allocate(c%poltype(1))
+    c%poltype  = 1
 
     ! Read line template file
     call read_line_template(trim(cpar%cs_SED_template(1,id_abs)), &
@@ -92,7 +93,10 @@ contains
     allocate(c%pol_pixreg_type(3,c%npar))
     c%pol_pixreg_type = 0
 
+    call c%initDiffuse(cpar, id, id_abs)
+    
     allocate(c%theta_def(n), c%p_gauss(2,n), c%p_uni(2,n))
+    if (allocated(c%poltype)) deallocate(c%poltype)
     allocate(c%poltype(n), c%indlabel(n), c%line2RJ(n))
     n         = 0
     do i = 1, numband
@@ -135,7 +139,6 @@ contains
        if (c%lmax_ind >= 0) call c%theta(i)%p%YtW_scalar
     end do
 
-
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
     j = 1
@@ -151,7 +154,7 @@ contains
              do k = 0, data(i)%ndet
 !                write(*,*) 'line disabled'
                 c%F_int(l,i,k)%p => comm_F_line(c, data(i)%bp(k)%p, .true., &
-                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%RJ2data(k), j)
+                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%bp(k)%p%RJ2data, j)
              end do
              j = j+1
           else
@@ -356,4 +359,6 @@ contains
 
   end subroutine sampleLineRatios
   
-end module comm_line_comp_mod
+
+ end module comm_line_comp_mod
+ 

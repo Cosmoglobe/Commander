@@ -1,4 +1,4 @@
- New Local sampling parameters, 'ame'
+# New Local sampling parameters, 'ame'
 COMP_NU_P_INT_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_NU_P_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_NU_P_INT_LNLTYPE&&       = marginal    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
