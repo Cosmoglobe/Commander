@@ -194,16 +194,16 @@ comm_n_rms_qucov_mod.o      : comm_n_mod.o
 comm_noise_mod.o            : comm_n_mod.o comm_n_rms_mod.o comm_n_qucov_mod.o comm_n_lcut_mod.o comm_n_rms_qucov_mod.o 
 
 comm_tod_simulations_mod.o  : comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o 
-comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_jump_mod.o         : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_map_mod.o
 comm_tod_mod.o              : comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o comm_shared_arr_mod.o
 comm_tod_pointing_mod.o     : comm_tod_mod.o 
-comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o
+comm_tod_noise_mod.o        : comm_tod_mod.o invsamp_mod.o comm_tod_noise_psd_mod.o comm_status_mod.o
+comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_gain_mod.o         : comm_tod_noise_mod.o 
    comm_tod_gain_smod.o     : comm_tod_gain_mod.o
 comm_tod_mapmaking_mod.o    : comm_tod_mod.o
-comm_tod_bandpass_mod.o     : comm_tod_mod.o 
+comm_tod_bandpass_mod.o     : comm_tod_mod.o comm_tod_utils.o comm_status_mod.o
 comm_tod_adc_mod.o          : comm_tod_mod.o
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o

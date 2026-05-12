@@ -20,19 +20,22 @@
 !================================================================================
 module comm_tod_bandpass_mod
   use comm_tod_mod
+  use comm_utils
+  use comm_status_mod
   implicit none
 
 contains
 
-  subroutine sample_bp(tod, iter, delta, map_sky, handle, chisq_S)
+!   subroutine sample_bp(tod, iter, delta, map_sky, handle, chisq_S)
+  subroutine sample_bp(tod, handle, chisq_S, delta)
     implicit none
     class(comm_tod),                          intent(inout)  :: tod
-    integer(i4b),                             intent(in)     :: iter
-    real(dp),            dimension(0:,1:,1:), intent(inout)  :: delta
-    !type(shared_2d_sp),  dimension(0:,1:),    intent(inout)  :: smap_sky
-    real(sp),            dimension(1:,1:,0:,1:), intent(inout)  :: map_sky
     type(planck_rng),                         intent(inout)  :: handle
     real(dp),            dimension(1:,1:),    intent(in)     :: chisq_S
+    real(dp),            dimension(0:,1:,1:), intent(inout)  :: delta
+   !  integer(i4b),                             intent(in)     :: iter
+    !type(shared_2d_sp),  dimension(0:,1:),    intent(inout)  :: smap_sky
+   !  real(sp),            dimension(1:,1:,0:,1:), intent(inout)  :: map_sky
 
     integer(i4b) :: i, k, ierr, ndelta, current
     logical(lgt) :: accept

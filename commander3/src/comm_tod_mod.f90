@@ -28,6 +28,9 @@ module comm_tod_mod
   USE ISO_C_BINDING
   implicit none
 
+  private
+  public comm_tod, comm_scan, comm_detscan !, comm_scandata, comm_detdata, initialize_tod_mod
+
   ! Structure for individual detectors
   type :: comm_detscan
      character(len=30) :: label                             ! Detector label

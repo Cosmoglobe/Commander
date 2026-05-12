@@ -20,6 +20,7 @@
 !================================================================================
 module comm_tod_pointing_mod
    use comm_tod_mod
+   use comm_utils
    implicit none
 
 contains
