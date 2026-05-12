@@ -88,7 +88,7 @@ contains
       allocate(c)
 
       ! Set up noise PSD type and priors
-      samprate          = 8.d0 ! Hz
+      samprate          = 0.2d0 ! Hz
       c%freq            = cpar%ds_label(id_abs)
       c%n_xi            = 3
       c%noise_psd_model = 'oof'
@@ -109,7 +109,7 @@ contains
       
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
-      c%samprate_lowres = 8.  ! Lowres samprate in Hz
+      c%samprate_lowres = 0.2  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
       c%baseline_order  = 1

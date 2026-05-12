@@ -861,9 +861,9 @@ BAND_GAIN_PRIOR_RMS&&&          = 1.
 @INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
-BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/tod_1.4-CHIPASS_map_c0001_k000005.fits
+BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/tod_1.4-CHIPASS_map_c0001_k000005.fits
 #BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/tod_1.4-CHIPASS_rms_c0001_k000005.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/tod_1.4-CHIPASS_rms_c0001_k000005.fits
 BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
@@ -883,7 +883,7 @@ BAND_UNIT&&&                   = mK_cmb
 #BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
 BAND_TOD_START_SCANID&&&       = 1
 BAND_TOD_END_SCANID&&&         = 50690
-BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_comb5/chain_c0001.h5:90
+BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/chain_c0001.h5:5
 BAND_TOD_LEVEL&&&              = L1
 #BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
 BAND_TOD_JUMPLIST&&&           = none
@@ -987,7 +987,7 @@ COMP_CL_DEFAULT_BETA_T&&      = 60d0
 COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init16/synch_c0001_k000003.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/synch_c0001_k000005.fits
 COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           = -2.62
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1050,7 +1050,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @START 06
 @DEFAULT components/freefree/freefree_LFI.defaults
 #COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init16/ff_c0001_k000003.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/ff_c0001_k000005.fits
 COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits
 COMP_AMP_LMAX&&               = 1000 2955
 COMP_APOD_LMAX&&              = 1000 2955
