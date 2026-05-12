@@ -193,23 +193,23 @@ contains
       !end do
 
       ! Initialize dynamic mask
-      c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 1000
-      c%dynmask%output_det              = 1
-      c%dynmask%apply_pixhist           = .true.
-      c%dynmask%remove_isolated_samples = .true.
-      c%dynmask%threshold_longchunks    = 0.3
-      c%dynmask%window_longchunks       = 2000
-      c%dynmask%threshold_cr            = 6.   ! sigma
-      c%dynmask%width_cr_mask           = 5
-      allocate(c%dynmask%templ_cr(-5:5))
-      c%dynmask%templ_cr    = 1.
-      c%dynmask%templ_cr(0) = 10.
-      c%dynmask%templ_cr(1) = 5.
-      c%dynmask%templ_cr(2) = 2.5
-      c%dynmask%templ_cr(3) = 1.25
-      c%dynmask%templ_cr(4) = 1.
-      c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
+      ! c%dynmask => comm_dynmask(c, cpar)
+      ! c%dynmask%output_scan             = 1000
+      ! c%dynmask%output_det              = 1
+      ! c%dynmask%apply_pixhist           = .true.
+      ! c%dynmask%remove_isolated_samples = .true.
+      ! c%dynmask%threshold_longchunks    = 0.3
+      ! c%dynmask%window_longchunks       = 2000
+      ! c%dynmask%threshold_cr            = 6.   ! sigma
+      ! c%dynmask%width_cr_mask           = 5
+      ! allocate(c%dynmask%templ_cr(-5:5))
+      ! c%dynmask%templ_cr    = 1.
+      ! c%dynmask%templ_cr(0) = 10.
+      ! c%dynmask%templ_cr(1) = 5.
+      ! c%dynmask%templ_cr(2) = 2.5
+      ! c%dynmask%templ_cr(3) = 1.25
+      ! c%dynmask%templ_cr(4) = 1.
+      ! c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
       
 
 !!$      if (trim(self%freq) == 'AKARI_N160') then
@@ -312,7 +312,7 @@ contains
       type(hdf_file) :: tod_file
 
       integer(i4b), dimension(1) :: col_def = [1]  ! Only T
-      class(comm_cgmap), pointer :: cgmap
+      ! class(comm_cgmap), pointer :: cgmap
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -393,7 +393,7 @@ contains
       !------------------------------------
 
       ! Create pixel histograms
-      if (self%first_call) call compute_tod_pixhist(self)
+      ! if (self%first_call) call compute_tod_pixhist(self)
       
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then

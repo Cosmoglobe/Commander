@@ -32,9 +32,9 @@ module comm_tod_iras_mod
    !       Routine which processes the time ordered data
    !
   use comm_tod_driver_mod
-  use comm_tod_pixhist_mod
+  ! use comm_tod_pixhist_mod
   use comm_tod_mapmaking_mod
-  use comm_tod_cgmap_mod
+  ! use comm_tod_cgmap_mod
    implicit none
 
    private
@@ -44,12 +44,12 @@ module comm_tod_iras_mod
       integer(i4b)                                  :: ntempl       ! Number of tod correction templates
       integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! length of each template [ntempl]
       real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
-      class(comm_dynmask), pointer :: dynmask
+      ! class(comm_dynmask), pointer :: dynmask
    contains
      procedure     :: process_tod             => process_iras_tod
-     procedure     :: apply_fast_flags_inst   => apply_fast_flags_iras
-     procedure     :: construct_corrtemp_inst => construct_corrtemp_iras
-     procedure     :: sample_ramp
+    !  procedure     :: apply_fast_flags_inst   => apply_fast_flags_iras
+    !  procedure     :: construct_corrtemp_inst => construct_corrtemp_iras
+    !  procedure     :: sample_ramp
    end type comm_iras_tod
 
    interface comm_iras_tod
