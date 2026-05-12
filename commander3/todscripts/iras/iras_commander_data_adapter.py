@@ -101,8 +101,11 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
 
 
         # All (alive) detectors have the same number of files
-        # Using det 30 to compute the number.    
-        self.num_chunks     = len(glob.glob(f"{self.data_dir}/*/*/det30_continuous.npz"))
+        # Previously used det 30 to compute the number.    
+        # self.num_chunks     = len(glob.glob(f"{self.data_dir}/*/*/det30_continuous.npz"))
+        # Use manually fixed number for simplicity/safety
+        self.num_chunks     = int(5787) 
+
         self.num_segments   = int(np.ceil(self.num_chunks / self.num_files_per_segment))
 
         self.todreaders = {}
@@ -110,7 +113,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         self.chunksizes = {}
 
         for band in self.bands:
-            print(f"Preparing files for band {band}", end="... ", flush=True)
+            # print(f"Preparing files for band {band}", end="...\n", flush=True)
             self.todreaders[band] = IRASTODReader(
                 iras_npz_dir    = self.data_dir, 
                 band            = band, 
@@ -119,8 +122,12 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
                 )
             self.filelist[band] = self.todreaders[band].filelist
             self.chunksizes[band] = self.todreaders[band].chunksizes
-            print("Done")
-            print()
+        # print("Done!")
+        # print()
+        # for i in range(1, 1 + self.get_num_segments(band)):
+        #     c = self.get_chunk_indices(band, i)
+        #     print(f"{len(c)=}: {c[:5], c[-5:]}")
+        # exit()
 
 
     def _process_iras_flags(self):

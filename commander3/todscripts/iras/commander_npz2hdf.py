@@ -147,17 +147,7 @@ def run_multiple_band_write_external(
         band_dets               = BAND_DETS,
         ):
 
-    if Path(outpath).exists() and not overwrite:
-        # Prevent overwrite when called from external script
-        print(f"Output dir for version{version} already exists and overwrite=False. Aborting")
-        return
-    # Double protection in case of maximum stupidity.
-    Path(outpath).mkdir(parents=True, exist_ok=False) 
-
-    N_dets = [len(BAND_DETS[band]) for band in BANDS]
-    print(f"Storing h5 files for band {BANDS} with {N_dets} detectors")
-
-    t0 = time()
+    # Initialize data adapter
     iras_comm_data_adapter = IRASCommanderDataAdapter(
         data_dir                = IRAS_NPZ_DIR, 
         nside                   = nside, 
@@ -166,7 +156,18 @@ def run_multiple_band_write_external(
         bands                   = bands,
         band_dets               = band_dets
         )
+    
+    if Path(outpath).exists() and not overwrite:
+        # Prevent overwrite when called from external script
+        print(f"Output dir for version{version} already exists and overwrite=False. Aborting")
+        return
 
+    Path(outpath).mkdir(parents=True, exist_ok=True) 
+    
+    N_dets = [len(band_dets[band]) for band in bands]
+    print(f"Storing h5 files for band {bands} with {N_dets} detectors")
+
+    t0 = time()
     # Write hdf files.
     comm_todwriter = CommanderHDFWriter(iras_comm_data_adapter)
     comm_todwriter.write_hdf_files(
