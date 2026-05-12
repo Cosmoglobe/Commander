@@ -432,13 +432,8 @@ contains
                  write(*,fmt='(a,a12)',advance='no') ' |   ', trim(c%label)
                  do i = 1, c%ntab
                     if (c%theta_steplen(c%npar+i,l) > 0) then
-                      !!this is a 3 because 1 and 2 are the nu_min, nu_max? 
-                      !!not great though if we have just nu_central 
                        write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(c%npar_tab+2,i)
                        do j = c%npar_tab+2, size(c%SEDtab(:,i))
-                        !! npar is 2 for MBB tab type, one for beta and one for T?
-                        !!RAELYN: Add theta_steplen for the astrodust in the case of the astrodust spline and 
-                        !! add loop to sample those amplitudes jointly? 
                           c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l) * mh_scale(l)
                        end do
                        write(*,fmt='(a,f16.8)') ', prop = ',  c%SEDtab(c%npar_tab+2,i)
@@ -956,8 +951,7 @@ contains
               do while (associated(c))
                  if (trim(c%label) == trim(comp_names(1))) then
                    !       (beta+T+ntab, n_mcmc_samp_groups)
-                  !!!RAELYN: should you change this to 3+m, with the 3rd for the astrotab scale?
-                   c%theta_steplen(c%npar+m,i) = sigma !! changed this to c%npar from 2 or 3?
+                   c%theta_steplen(c%npar+m,i) = sigma !! changed this to c%npar from 2 
                  end if
                  c => c%nextComp()
               end do
@@ -983,7 +977,6 @@ contains
                  end if
                  c => c%nextComp()
               end do
-              !!!RAELYN: check if this is right?
             else if (comp_names(2)(1:7) == 'adScale') then
               ! if (c%npar /= 3) then 
               !   if (cpar%myid == 0) then

@@ -51,7 +51,6 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
                                                     ! nothing more. (= -1 if no pure "md" CG group)
      real(dp)           :: cg_scale(1:3)                                  ! make the cg_scale vary between T and P
      real(dp)           :: latmask, fwhm_def, test 
-    !  real(dp)           :: nu_join         ! frequency where to join the MBB and the tabulated values
      real(dp),           allocatable, dimension(:,:)   :: cls
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
      character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal', 'prior'}
@@ -115,7 +114,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int    ! SED integrator
      integer(i4b) :: ntab, nastrotab                            ! number of rows in the mbbTab and in the astrodust table
      real(dp), allocatable, dimension(:,:) :: SEDtab, astrotab   ! (2+npar_tab, nbin) or (3+npar_tab, nbin)
-     real(dp), allocatable, dimension(:,:) :: SEDtab_buff !astrotab_buff   ! 
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff 
      real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse

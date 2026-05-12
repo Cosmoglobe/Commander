@@ -87,9 +87,6 @@ contains
     c%comm          = cpar%comm_chain
     c%numprocs      = cpar%numprocs_chain
    
-    ! write(*,*) 'cpar%cs_P_gauss(id_abs,1,1)', cpar%cs_P_gauss(id_abs,1,1)
-    ! write(*,*) 'cpar%cs_P_gauss(id_abs,2,1)', cpar%cs_P_gauss(id_abs,2,1)
-    
     c%P             = [cpar%cs_P_gauss(id_abs,1,1), cpar%cs_P_gauss(id_abs,2,1)]
     c%init_from_HDF = cpar%cs_initHDF(id_abs)
 
