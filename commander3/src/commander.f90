@@ -115,7 +115,9 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
-     else
+    else if (cpar%on_the_fly_tod_sim) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime: on-the-fly tod sims followed by standard data processing', '|'
+    else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
      write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
@@ -357,9 +359,9 @@ program commander
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
             end if
         end do
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
-     ! Do CG group sampling
-     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk
@@ -430,6 +432,7 @@ contains
     class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
+    logical(lgt)              :: all_bps_equal
 
     if (iter > 1) then
        ndelta      = cpar%num_bp_prop + 1
@@ -469,6 +472,15 @@ contains
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
+       all_bps_equal = .true.
+       do j = 1, ndet
+         do k = i, ndet
+            if (size(data(i)%bp(j)%p%tau0) /= size(data(i)%bp(k)%p%tau0) .or. (.not. all(data(i)%bp(j)%p%tau0 == data(i)%bp(k)%p%tau0))) then
+               all_bps_equal = .false.
+            end if
+         end do
+       end do
+         
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))
@@ -518,6 +530,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
@@ -528,6 +541,10 @@ contains
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
+             if (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                s_sky(j, k)%p => s_sky(1, k)%p ! Same bandpasses means we don't need separate sky maps
+                cycle
+             end if
              !s_sky(j,k)%p => comm_map(data(i)%info)
              if (trim(data(i)%tod%tod_type) == 'DIRBE') then
                 call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
@@ -541,6 +558,10 @@ contains
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
+                if  (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                   s_gain(j)%p => s_gain(1)%p ! Same bandpasses means we don't need separate gain maps
+                   cycle
+                end if
                 if (associated(gainmap)) then
                    call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
                      & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 

@@ -36,6 +36,7 @@ module comm_MBBtab_comp_mod
      real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
+
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
@@ -273,9 +274,10 @@ contains
             if (val > EXP_OVERFLOW) then
                evalSED_mbbtab = HUGE(0.d0)
                if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is huge, possible unstable spline behaviour.'
-            else if (val < -16) then
+            else if (val < -16 .and. .not. spline_warning_printed) then
                evalSED_mbbtab = 0.d0
                if (self%x%info%myid == 0) write(*,*) 'Warning, dust spline value is very small, possible unstable spline behaviour.'
+               spline_warning_printed = .true.
             else
                evalSED_mbbtab = self%posneg*exp(val) 
             end if 
@@ -660,6 +662,7 @@ contains
       real(dp),                intent(in) :: beta, T
       integer(i4b), optional,  intent(in) :: npts
       real(dp),    optional,   intent(in) :: nu_min, nu_max
+
 
       integer(i4b) :: unit, i, N
       real(dp) :: nu1, nu2, dlognu, nu, sed
