@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 200    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/chain_c0001.h5:5
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/chain_c0001.h5:5
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -861,9 +861,9 @@ BAND_GAIN_PRIOR_RMS&&&          = 1.
 @INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
-BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init19/tod_1.4-CHIPASS_map_c0001_k000007.fits
+BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/tod_1.4-CHIPASS_map_c0001_k000005.fits
 #BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init19/tod_1.4-CHIPASS_rms_c0001_k000007.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init24/tod_1.4-CHIPASS_rms_c0001_k000005.fits
 BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
@@ -922,7 +922,7 @@ INCLUDE_COMP06                = .true.  # freefree
 INCLUDE_COMP07                = .false.  # Low-freq AME
 INCLUDE_COMP08                = .false.  # CMB relativistic quadrupole
 
-NUM_CG_SAMPLING_GROUPS = 2 3 #4
+NUM_CG_SAMPLING_GROUPS = 3 #4
 
 #@START 01
 #CG_SAMPLING_GROUP&&          = radio
@@ -939,10 +939,10 @@ CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPAS
 @END 01
 
 @START 02
-CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP&&          = 0.4-Haslam,0.820-Dwingeloo,003.15-Arcade2,003.41-Arcade2
 CG_SAMPLING_GROUP_MASK&&     = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 7
-CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,003.15-Arcade2,003.41-Arcade2
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,003.15-Arcade2,003.41-Arcade2
 @END 02
 
 @START 03
@@ -1087,7 +1087,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 08
 
-NUM_MCMC_SAMPLING_GROUPS = 1 2
+NUM_MCMC_SAMPLING_GROUPS = 2
 
 #@START 01
 #MCMC_SAMPLING_GROUP_PARAMS&&            = synch:beta%0.01
@@ -1098,16 +1098,16 @@ NUM_MCMC_SAMPLING_GROUPS = 1 2
 #@END 01
 
 @START 01
-MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.01,gain:0.820-Dwingeloo%0.01,gain:1.4-CHIPASS%0.01
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.003,gain:0.820-Dwingeloo%0.003
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__3410_MHz_ARCADE2_nside16_mask.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
 @END 01
 
 @START 02
-MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.01
-MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,3
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.003
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 0.4-Haslam
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__2303_MHz_S-PASS_nside1024_mask.fits
 MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10

@@ -56,7 +56,8 @@ program commander
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
-    call get_command_argument(arg_indx, arg, j, stat)
+    stat = 0
+    call get_command_argument(arg_indx, value=arg, length=j, status=stat)
     if (stat .ne. 0) then
       if (stat == -1) then
         write(*,*) 'Command line argument was truncated: ', arg

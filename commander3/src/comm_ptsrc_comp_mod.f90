@@ -1237,47 +1237,55 @@ contains
        call mpi_bcast(buffer, n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
        b(1:n, :) = buffer
        deallocate(buffer)
-          
-       ! Find number of pixels belonging to current processor
-       allocate(mypix(n,2), mybeam(n,T%nmaps))
-       T%np = 0
-       i    = 1
-       j    = locate(data(band)%info%pix, ind(i))
-       do while (j == -1 .and. i < n) 
-          i = i+1
-          j = locate(data(band)%info%pix, ind(i))
-       end do
-       if (j >= 0) then
-          do while (.true.)
-             if (ind(i) == data(band)%info%pix(j)) then
-                T%np            = T%np + 1
-                mypix(T%np,1)   = j-1
-                mypix(T%np,2)   = data(band)%info%pix(j)
-                mybeam(T%np,:)  = b(i,:)
-                i               = i+1
-                j               = j+1
-             else if (ind(i) < data(band)%info%pix(j)) then
-                i               = i+1
-             else
-                j               = j+1
-             end if
-             if (i > n) exit
-             if (j > data(band)%info%np) exit
-          end do
-       end if
 
-       ! Store pixels that belong to current processor
-       allocate(T%pix(T%np,2), T%map(T%np,T%nmaps), T%Omega_b(T%nmaps))
-       T%pix = mypix(1:T%np,:)
+       ! Compute solid angle
+       allocate(T%Omega_b(T%nmaps))
        do i = 1, T%nmaps
-          T%map(:,i)   = mybeam(1:T%np,i) / maxval(b(:,i))
           T%Omega_b(i) = sum(b(:,i))/maxval(b(:,i)) * 4.d0*pi/(12.d0*T%nside**2)
        end do
+       
+       ! Find number of pixels belonging to current processor
+       if (data(band)%info%np > 0) then
+          allocate(mypix(n,2), mybeam(n,T%nmaps))
+          T%np = 0
+          i    = 1
+          j    = locate(data(band)%info%pix, ind(i))
+          do while (j == -1 .and. i < n) 
+             i = i+1
+             j = locate(data(band)%info%pix, ind(i))
+          end do
+          if (j >= 0) then
+             do while (.true.)
+                if (ind(i) == data(band)%info%pix(j)) then
+                   T%np            = T%np + 1
+                   mypix(T%np,1)   = j-1
+                   mypix(T%np,2)   = data(band)%info%pix(j)
+                   mybeam(T%np,:)  = b(i,:)
+                   i               = i+1
+                   j               = j+1
+                else if (ind(i) < data(band)%info%pix(j)) then
+                   i               = i+1
+                else
+                   j               = j+1
+                end if
+                if (i > n) exit
+                if (j > data(band)%info%np) exit
+             end do
+          end if
+          
+          ! Store pixels that belong to current processor
+          allocate(T%pix(T%np,2), T%map(T%np,T%nmaps))
+          T%pix = mypix(1:T%np,:)
+          do i = 1, T%nmaps
+             T%map(:,i)   = mybeam(1:T%np,i) / maxval(b(:,i))
+          end do
 
-       ! Adjusting for main beam efficiency
-       !    if (trim(label) == '0.4-Haslam') T%map = 1.3 * T%map 
+          ! Adjusting for main beam efficiency
+          !    if (trim(label) == '0.4-Haslam') T%map = 1.3 * T%map 
 
-       deallocate(ind, b, mypix, mybeam)
+          deallocate(mypix, mybeam)
+       end if
+       deallocate(ind, b)
     end do
 
     if (myid_pre == 0) call close_hdf_file(file)
