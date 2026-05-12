@@ -33,8 +33,6 @@ module comm_MBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     !real(dp), allocatable, dimension(:,:) :: SEDtab
-     !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
      real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
@@ -93,8 +91,7 @@ contains
        write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
        stop
     end if
-    
-   ! write(*,*) 'nu_join =', c%nu_join
+
 
     allocate(c%poltype(c%npar))
     do i = 1, c%npar 
@@ -118,7 +115,6 @@ contains
 
     if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
       c%indlabel  = ['beta', 'T   ', 'adScale']
-      ! write(*,*) 'theta read', c%theta_def(1), c%theta_def(2),c%theta_def(3)
     else
       c%indlabel  = ['beta', 'T   ']
     end if 
@@ -176,13 +172,9 @@ contains
       c%nastrotab = 0
    end if 
 
-   ! write(*,*) 'nastrotab =', c%astrotab(1,10)
-   ! write(*,*) 'nastrotab =', c%astrotab(2,10)
-
     ! Make the initial spline if the right type
     if (trim(c%mbbtab_type) == 'spline_log') then
-      ! pol=1
-      call c%update_spline(c%theta_def(1), c%theta_def(2), 1)
+      call c%update_spline(c%theta_def(1), c%theta_def(2), 1) !1 is for pol, not set up for polarization currently
       c%spl_buff=c%spl
     else if (trim(c%mbbtab_type) == 'spline_astrodust')  then
       call c%update_spline_astrodust(c%theta_def(1), c%theta_def(2), c%theta_def(3), 1)
@@ -233,8 +225,6 @@ contains
          stop
       end if
 
-      ! if (self%x%info%myid == 0) write(*,*) 'theta in', theta(1), theta(2), theta(3)
-
     ! First check if requested frequency is in tabulated range
     ! SED table has nu_min nu_max SED or nu_central, SED for spline_astrodust
     ! SED table should be ordered from lowest to highest 
@@ -253,7 +243,6 @@ contains
 
       if (trim(self%mbbtab_type) == 'spline_log' .or. trim(self%mbbtab_type) == 'spline_astrodust') then
          if (nu<=minnu) then
-            ! if (self%x%info%myid == 0) write(*,*) 'mbb min, max, max, nu', minnu, maxnu, maxnu_ast, nu
             ! evaluates the low frequency range as a MBB
             beta    = theta(1)
             T       = theta(2)
@@ -264,10 +253,8 @@ contains
             end if
             x_ref   = h*self%nu_ref(pol) / (k_b*T)
             evalSED_mbbtab = self%posneg*(nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
-            ! if (self%x%info%myid == 0) write(*,*) 'mbb nu, sed', nu, evalSED_mbbtab
             return
          else if (nu > minnu .and. nu <= maxnu) then 
-            ! if (self%x%info%myid == 0) write(*,*) 'tab min, max, max, nu', minnu, maxnu, maxnu_ast, nu
             ! evaluates the spline for the tabulated values
             val = splint(self%spl, log(nu))
             if (.not. ieee_is_finite(val)) then
@@ -293,29 +280,16 @@ contains
                evalSED_mbbtab = self%posneg*exp(val) 
             end if 
             evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
-            ! if (self%x%info%myid == 0) write(*,*) 'tab nu, sed', nu, evalSED_mbbtab
             return
          else if (nu > maxnu .and. nu <= maxnu_ast) then 
-            ! if (self%x%info%myid == 0) write(*,*) 'astro min, max, max, nu', minnu, maxnu, maxnu_ast, nu
             ! evaluates the astrotab values with linear between the bins, scaled by the astrodust scaling and posneg
             ! this should not evaluate if masnu_ast is set to maxnu-1, in which case there is no astrotab
             ! and higher than the maximum tabulated value will return zero. 
-            ! do i = 1, self%nastrotab-1
-            !    if (nu > self%astrotab(1,i) .and. nu <= self%astrotab(1,i+1)) then
             i = locate_dp(self%astrotab(1,1:),nu)
-            ! if (self%x%info%myid == 0) write(*,*) 'i, posneg, adscale, nu_ref', i, self%posneg, theta(3), self%nu_ref(pol)
-            ! if (self%x%info%myid == 0) write(*,*) 'adval', self%astrotab(2,i), nu - self%astrotab(1,i), (self%astrotab(2,i) - self%astrotab(2,i+1))/(self%astrotab(1,i) - self%astrotab(1,i+1))
-            ! theta(3) should be instead of 1
-            ! if (self%x%info%myid == 0) write(*,*) 'Warning, astrodust scale not implemented correctly yet'
             evalSED_mbbtab = self%posneg*theta(3)*(self%nu_ref(pol)/nu)**2 * (self%astrotab(2,i) + (nu - self%astrotab(1,i))*(self%astrotab(2,i) - self%astrotab(2,i+1))/(self%astrotab(1,i) - self%astrotab(1,i+1)))
-            ! if (self%x%info%myid == 0) write(*,*) 'astro nu, sed', nu, evalSED_mbbtab
             return
-               ! end if 
-            ! end do
          else
-            ! if (self%x%info%myid == 0) write(*,*) 'bigger min, max, max, nu', minnu, maxnu, maxnu_ast, nu
             evalSED_mbbtab = 0.d0
-            ! if (self%x%info%myid == 0) write(*,*) 'bigger nu, sed', nu, evalSED_mbbtab
             return
          end if
       else
@@ -406,7 +380,6 @@ contains
     character(len=1024) :: line
 
     unit = getlun()
-    !!RAELYN, add nastrotab as a parameter!! - done in comm_diffuse_comp_smod?
     self%nastrotab = 0
     open(unit, file=trim(filename))
     do while (.true.)
@@ -420,7 +393,6 @@ contains
 
     allocate(self%astrotab(2,self%nastrotab)) 
     ! npar_tab is zero for astrodust and we want 2 columns, frequency and SED amplitude
-   !  allocate(self%astrotab_buff(2,self%nastrotab))
     open(unit, file=trim(filename))
     i = 0
     do while (.true.)
@@ -435,7 +407,6 @@ contains
 
     !!! astrodust type SED table only have the central frequency node and the amplitude, not two frequencies and the amplitude
     self%astrotab(1,:) = self%astrotab(1,:) * 1d9
-   !  self%astrotab_buff = self%astrotab
   end subroutine read_astrodust_table
 
 
@@ -659,7 +630,6 @@ contains
     ! there should not be any frequency overlap between the two tables
     MBBbound = (beta + 3.d0) - xnu * exp(xnu) / (exp(xnu) - 1.0)
     Astbound = (y(ind)-y(ind-1))/(x(ind)-x(ind-1))
-    ! if (self%x%info%myid == 0) write(*,*) "MBBbound", MBBbound
 
 
 
