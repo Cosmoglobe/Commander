@@ -141,7 +141,7 @@ BAND_TOD_DETECTOR_LIST&&&          = AKARI_065-01,AKARI_065-02,AKARI_065-03,AKAR
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_065_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FLAG&&&                   = 2097149   # Apply all flags, except moon
 BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_065.txt
 @END 001
 
@@ -153,7 +153,7 @@ BAND_TOD_DETECTOR_LIST&&&          = AKARI_090-01,AKARI_090-02,AKARI_090-03,AKAR
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_090_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FLAG&&&                   = 2097149   # Apply all flags, except moon
 BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_090.txt
 @END 002
 
@@ -165,7 +165,7 @@ BAND_TOD_DETECTOR_LIST&&&          = AKARI_140-01,AKARI_140-02,AKARI_140-03,AKAR
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_140_v1_n4096.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FLAG&&&                   = 2097149   # Apply all flags, except moon
 BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_140.txt
 @END 003
 
@@ -177,7 +177,7 @@ BAND_TOD_DETECTOR_LIST&&&          = AKARI_160-01,AKARI_160-02,AKARI_160-03,AKAR
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = akari/mask/bitmask_akari_160_v1_n4096.fits 
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # Apply all flags, except moon
+BAND_TOD_FLAG&&&                   = 2097149   # Apply all flags, except moon
 BAND_TOD_FILELIST&&&               = akari/tod/eirik_newhdf/v4/n4196/filelist_160.txt
 @END 004 
 

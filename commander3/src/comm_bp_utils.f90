@@ -50,8 +50,18 @@ contains
 
     x = h*nu/(k_b*T_cmb)
 
-    compute_sz_thermo_single = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
+   !  compute_sz_thermo_single = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
     
+    if (x < 700.d0) then
+         compute_sz_thermo_single = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
+    else
+         ! try to avoid overflow here but should probably have the comp_nu_max such that you don't 
+         ! need this
+         compute_sz_thermo_single= T_cmb * (x-4.d0)
+    endif
+
+
+
   end function compute_sz_thermo_single
 
   function compute_sz_thermo_array(nu) result (y)
@@ -116,7 +126,7 @@ contains
 
     do i = 1, size(nu)
        x = h*nu(i) / (k_B*T_CMB)
-       if (x < 700.d0) then
+       if (x < 500.d0) then
          compute_bnu_prime_array(i) = (2.d0*h*nu(i)**3/(c**2*(exp(x)-1.d0))) * &
             & (exp(x) / (exp(x)-1.d0)) * h*nu(i)/(k_B*T_CMB**2)
        else
@@ -137,9 +147,15 @@ contains
     real(dp)     :: x
 
     x = h*nu / (k_B*T_CMB)
-    compute_bnu_prime_single = (2.d0*h*nu**3/(c**2*(exp(x)-1.d0))) * &
-         & (exp(x) / (exp(x)-1.d0)) * h*nu/(k_B*T_CMB**2)
-    
+    if (x < 500.d0) then
+         compute_bnu_prime_single = (2.d0*h*nu**3/(c**2*(exp(x)-1.d0))) * &
+            & (exp(x) / (exp(x)-1.d0)) * h*nu/(k_B*T_CMB**2)
+    else
+         ! try to avoid overflow here but should probably have the comp_nu_max such that you don't 
+         ! need this
+         compute_bnu_prime_single= (2.d0*h*nu**3/(c**2)) * exp(-x) * h*nu/(k_B*T_CMB**2)
+    endif
+
   end function compute_bnu_prime_single
 
   function compute_bnu_prime_RJ_array(nu)

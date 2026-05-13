@@ -278,9 +278,15 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       if (trim(self%type) == 'DIRBE' .or. trim(self%type) == 'AKARI') then
+       if (trim(self%type) == 'DIRBE') then
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          ! The CMB comp_mu_max should be set to avoid carrying around bands without
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
+          ! much CMB
+          bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
+          sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
+       else if (trim(self%type) == 'AKARI') then
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
           ! much CMB
           bnu_prime(i)    = comp_bnu_prime(self%nu(i)) 
           sz(i)           = comp_sz_thermo(self%nu(i)) 
