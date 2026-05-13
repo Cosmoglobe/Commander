@@ -218,9 +218,14 @@ class AKARITODReader:
 
         # Flip vectors so that they all lie in positive x axis.
         L[L[:,0] < 0] *= -1
-        theta, phi = hp.vec2ang(L.mean(axis=0))
+        theta, phi = hp.vec2ang(np.nanmean(L, axis=0))
+        if np.any(~np.isfinite(L)):
+            print('found a nan', theta, phi)
 
-        outAng = np.array([theta[0], phi[0]])
+        if np.all(Ln == 0):
+            outAng = np.array([0,0])
+        else:
+            outAng = np.array([theta[0], phi[0]])
 
 
         return outAng

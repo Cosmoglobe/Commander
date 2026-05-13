@@ -7,7 +7,7 @@ AKARI_FITS_DIR = '/mn/stornext/d23/cmbco/akari/akari_TSD/www.ir.isas.jaxa.jp/~ya
 
 OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/eirik_newhdf/'
 OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/duncan_testhdf/'
-NSIDE = 1024
+NSIDE = 8192
 NUM_SEGMENT_PROCESSES = 60
 # Do this if you want error messages
 #NUM_SEGMENT_PROCESSES = None

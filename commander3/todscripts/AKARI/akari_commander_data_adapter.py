@@ -440,7 +440,13 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                 vecs = c.galactic.cartesian.get_xyz().value.T
                 spin_axis_arr[:,detidx] = self.todreaders[band]._ring_spin_axis(vecs)
 
-            todreader_data[band]['spin_axis'] = spin_axis_arr.mean(axis=1)
+            if np.any(~np.isfinite(spin_axis_arr)):
+                mu = np.nanmean(spin_axis_arr, axis=1)
+                print('Got another nan', mu, start_idx,
+                        self.chunk_file_map[band][self.chunk_idx], c)
+            else:
+                mu = spin_axis_arr.mean(axis=1)
+            todreader_data[band]['spin_axis'] = mu
 
 
             ra = curr_data['ra']
