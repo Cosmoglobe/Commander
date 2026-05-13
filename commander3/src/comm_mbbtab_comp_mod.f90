@@ -209,6 +209,7 @@ contains
 
     integer(i4b) :: i
     real(dp) :: x, x_ref, beta, T,maxnu,minnu, val,maxnu_ast
+    logical, save :: spline_warning_printed = .false.
     
    ! nu, pol and theta are not in fact optional for this code so we should check we actually are getting those
     if (.not. present(nu)) then
