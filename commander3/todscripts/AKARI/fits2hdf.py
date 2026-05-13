@@ -7,14 +7,14 @@ AKARI_FITS_DIR = '/mn/stornext/d23/cmbco/akari/akari_TSD/www.ir.isas.jaxa.jp/~ya
 
 OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/eirik_newhdf/'
 OUTPATH = '/mn/stornext/d23/cmbco/globe/akari/tod/duncan_testhdf/'
-NSIDE = 2048
+NSIDE = 1024
 NUM_SEGMENT_PROCESSES = 60
 # Do this if you want error messages
 #NUM_SEGMENT_PROCESSES = None
 # You can run all together, but it's typically faster to start four different
 # instances, one for each band
 #BANDS = ['065', '090', '140', '160']
-BANDS = ['065']
+BANDS = ['140']
 
 def run_single_band_write(band):
     akari_comm_data_adapter = akari_commander_data_adapter.AKARICommanderDataAdapter(

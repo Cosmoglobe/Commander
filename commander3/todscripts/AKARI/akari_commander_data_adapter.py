@@ -419,6 +419,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             gads_flags = load_gads_flags(files[0], band)
             detlons, detlats = load_lonlat_pkl(files[0], band)
 #            print(gads_flags)
+
+            spin_axis_arr = np.zeros((2, len(self.band_dets[band])))
             for detidx, det in enumerate(self.band_dets[band]):
                 todreader_data[band][det] = {}
                 if self.should_compress:
@@ -435,6 +437,10 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                                                                   c.galactic.b.value,
                                                                   lonlat=True)
 
+                vecs = c.galactic.cartesian.get_xyz().value.T
+                spin_axis_arr[:,detidx] = self.todreaders[band]._ring_spin_axis(vecs)
+
+            todreader_data[band]['spin_axis'] = spin_axis_arr.mean(axis=1)
 
 
             ra = curr_data['ra']
@@ -446,9 +452,6 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                                                          lonlat=True)
 
 
-            vecs = c.galactic.cartesian.get_xyz().value.T
-            spin_axis = self.todreaders[band]._ring_spin_axis(vecs)
-            todreader_data[band]['spin_axis'] = spin_axis
 
             if 'start_time' not in todreader_data:
                 starttime = curr_data['aftime'][0]
