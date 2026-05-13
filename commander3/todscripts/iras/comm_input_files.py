@@ -142,7 +142,7 @@ def make_rms_files(nside=512):
     for band in BANDS:
         outfname = f"{OUTDIR}/rms/iras_{band}_temprms_n{nside}.fits"
         rms_map = np.ones(healpy.nside2npix(nside))
-        healpy.write_cl(outfname, rms_map)
+        healpy.write_map(outfname, rms_map, overwrite=True)
 
 def make_bp_files(version):
     """
@@ -251,5 +251,6 @@ def _common_mask_fullsky_512():
 
 if __name__ == '__main__':
     # make_tod_files(version=1, copy_new_filelists=False)
-    make_tod_detector_lists()
+    # make_tod_detector_lists()
+    make_rms_files()
     # pass
