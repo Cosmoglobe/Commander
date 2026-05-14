@@ -304,10 +304,10 @@ contains
       ! Define useful sd operation codes
       if (sample_ncorr) then
          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-              & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+              & SD_TOD,SD_SKY,SD_INST,SD_ZODI, SD_NCORR]) !SD_ORB,SD_SL,
       else
          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-              & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+              & SD_TOD,SD_SKY,SD_INST,SD_ZODI]) !SD_ORB,SD_SL,
       end if
 
       ! Initialize index-based sky map and mask
@@ -500,7 +500,9 @@ contains
       ! Clean up
       call binmap%dealloc()
       if (allocated(slist)) deallocate(slist)
-      deallocate(map_sky, procmask, procmask2)
+      if (allocated(map_sky)) deallocate(map_sky)
+      if (allocated(procmask)) deallocate(procmask)
+      if (allocated(procmask2)) deallocate(procmask2)
 
       ! Parameter to check if this is first time routine has been
       self%first_call = .false.

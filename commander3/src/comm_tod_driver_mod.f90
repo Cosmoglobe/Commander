@@ -548,7 +548,7 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
-       call tod%downsample_tod(sd%s_orb(:,1,0), ext)
+   !    call tod%downsample_tod(sd%s_orb(:,1,0), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
