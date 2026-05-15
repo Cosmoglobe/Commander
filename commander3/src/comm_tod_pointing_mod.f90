@@ -63,7 +63,7 @@ contains
      class(comm_tod),      intent(in)             :: tod
      class(comm_scandata), intent(inout)          :: sd
  
-     integer(i4b) :: i, j, k, d, h, hp, p, nmaps, scan, ndet
+     integer(i4b) :: i, j, d_cache, k, d, h, hp, p, nmaps, scan, ndet
      logical(lgt) :: do_gain, do_bp
      real(sp)     :: s, eff
 
@@ -80,6 +80,7 @@ contains
 
      do j = 1, ndet ! Loop over detectors
         d = sd%det(j)
+        d_cache = d; if (tod%equal_det_bp_beam) d_cache = 0
 
         if (.not. tod%scans(scan)%d(d)%accept) then
            sd%s_sky(:,j,:,:) = 0.
@@ -98,18 +99,18 @@ contains
               end if
               do k = 1, sd%nbp ! Loop over bandpass models
                  if (nmaps == 3) then
-                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k) + &
-                         & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
-                         &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
+                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d_cache,k) + &
+                         & eff*(tod%pixcache%map_sky(2,p,d_cache,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                         &      tod%pixcache%map_sky(3,p,d_cache,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
                    ! write(*,*) j, i, p, sd%s_sky(i,j,hp,k), eff, tod%pixcache%map_sky(1:3,p,d,k), tod%pixcache%cos2psi(sd%psi(i,d,h)), tod%pixcache%sin2psi(sd%psi(i,d,h))
                     if (do_gain .and. k == 1) then
-                       sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d) + &
-                            & eff*(tod%pixcache%map_gain(2,p,d) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
-                            &      tod%pixcache%map_gain(3,p,d) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
+                       sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d_cache) + &
+                            & eff*(tod%pixcache%map_gain(2,p,d_cache) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
+                            &      tod%pixcache%map_gain(3,p,d_cache) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
                     end if
                  else 
-                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k)
-                    if (do_gain .and. k == 1) sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d)
+                    sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d_cache,k)
+                    if (do_gain .and. k == 1) sd%s_gain(i,j,hp) = tod%pixcache%map_gain(1,p,d_cache)
                  end if
 
                  if (do_bp) then
