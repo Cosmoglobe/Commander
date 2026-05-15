@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 200    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/chain_c0001.h5:5
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init29/chain_c0001.h5:28
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -58,7 +58,7 @@ INCLUDE_BAND003                = .false.   # 70 GHz
 INCLUDE_BAND004                = .false.    # 857 GHz
 
 # Haslam T
-INCLUDE_BAND005                =  .true.    # Haslam
+INCLUDE_BAND005                = .true.    # Haslam
 
 # HFI P
 INCLUDE_BAND006                = .false.   # 353 GHz P
@@ -107,8 +107,8 @@ INCLUDE_BAND042                = .false.    #   1420 MHz  S+V-E     - Fazlu
 INCLUDE_BAND043                = .true.    #   2303 MHz  SPASS     - Simran
 INCLUDE_BAND044                = .false. .true.    #   2326 MHz  HartRao   - Wang
 INCLUDE_BAND045                = .false. .true.    #   2720 MHz  Stockert  - Lukas Hergt
-INCLUDE_BAND046                =  .true.    #   3150 MHZ  Arcade2   - Valentina
-INCLUDE_BAND047                =  .true.    #   3410 MHZ  Arcade2   - Valentina
+INCLUDE_BAND046                = .true.    #   3150 MHZ  Arcade2   - Valentina
+INCLUDE_BAND047                = .true.    #   3410 MHZ  Arcade2   - Valentina
 INCLUDE_BAND048                = .false.    #   7970 MHZ  Arcade2   - Valentina
 INCLUDE_BAND049                = .false.    #   8330 MHZ  Arcade2   - Valentina
 INCLUDE_BAND050                = .false.    #   9720 MHZ  Arcade2   - Valentina
@@ -861,9 +861,9 @@ BAND_GAIN_PRIOR_RMS&&&          = 1.
 @INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
 #BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
-BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/tod_1.4-CHIPASS_map_c0001_k000005.fits
+BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init29/tod_1.4-CHIPASS_map_c0001_k000028.fits
 #BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/tod_1.4-CHIPASS_rms_c0001_k000005.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init29/tod_1.4-CHIPASS_rms_c0001_k000028.fits
 BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
@@ -877,13 +877,14 @@ BAND_TOD_MAIN_PROCMASK&&&      = /mn/stornext/d16/personal/daniersp/data/mask_fi
 BAND_TOD_SMALL_PROCMASK&&&     = /mn/stornext/d16/personal/daniersp/data/mask_file_lambda_chipass_healpix_r10.fits
 BAND_TOD_BP_INIT_PROP&&&       = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/bp_init_CHIPASS.dat
 BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
-BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_new_pointing/filelist_1395.txt
+BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_elev/filelist_1395.txt
 #BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_cal_Tsys_mK/filelist_1395.txt
+BAND_TOD_START_SCANID&&&       = 1 #3
+BAND_TOD_END_SCANID&&&         = 5069 #44072
+BAND_TOD_TOT_NUMSCAN&&&        = 5069 #45860
 BAND_UNIT&&&                   = mK_cmb
 #BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
-BAND_TOD_START_SCANID&&&       = 1
-BAND_TOD_END_SCANID&&&         = 50690
-BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/chain_c0001.h5:5
+BAND_TOD_INIT_FROM_HDF&&&      = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init27/chain_c0001.h5:20
 BAND_TOD_LEVEL&&&              = L1
 #BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
 BAND_TOD_JUMPLIST&&&           = none
@@ -987,7 +988,7 @@ COMP_CL_DEFAULT_BETA_T&&      = 60d0
 COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/synch_c0001_k000005.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init29/synch_c0001_k000028.fits
 COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           = -2.62
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1042,7 +1043,7 @@ COMP_ALPHA_PRIOR_UNI_HIGH&&    =   0.5
 COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
-COMP_INIT_FROM_HDF&&           = none default
+COMP_INIT_FROM_HDF&&           = default
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 05
 
@@ -1050,7 +1051,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @START 06
 @DEFAULT components/freefree/freefree_LFI.defaults
 #COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init25/ff_c0001_k000005.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init29/ff_c0001_k000028.fits
 COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits
 COMP_AMP_LMAX&&               = 1000 2955
 COMP_APOD_LMAX&&              = 1000 2955
@@ -1106,7 +1107,7 @@ MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
 @END 01
 
 @START 02
-MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.003
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:002.3-SPASS%0.01
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 0.4-Haslam
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__2303_MHz_S-PASS_nside1024_mask.fits

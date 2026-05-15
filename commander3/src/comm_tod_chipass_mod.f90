@@ -95,13 +95,13 @@ contains
       allocate(c%xi_n_nu_fit(c%n_xi,2))
       allocate(c%xi_n_P_uni(c%n_xi,2))
       allocate(c%xi_n_P_rms(c%n_xi))
-      c%xi_n_P_rms      = [1.d0, 0.1d0, 0.2d0] 
+      c%xi_n_P_rms      = [1.d0, 0.01d0, 0.2d0] 
       ! [sigma0, fknee, alpha]; sigma0 is not used
       c%xi_n_nu_fit(1,:) = [0.001d0, 0.99*samprate/2]        ! sigma0
       c%xi_n_nu_fit(2,:) = [0.001d0, 0.99*samprate/2]         ! fknee
       c%xi_n_nu_fit(3,:) = [0.001d0, 0.99*samprate/2]         ! alpha
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
-      c%xi_n_P_uni(2,:)  = [0.00001d0, 3d0]  ! fknee
+      c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
       
       ! Initialize common parameters
@@ -109,7 +109,7 @@ contains
       
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
-      c%samprate_lowres = 0.2  ! Lowres samprate in Hz
+      c%samprate_lowres = 0.2d0  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
       c%baseline_order  = 1
@@ -295,7 +295,7 @@ contains
 
       ! Initialize index-based sky map and mask
       ! NOTE: CHIPASS TOD given in Jy beam^-1 but parameter file assumes MJy/sr
-            ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793   
+      ! for a 14.3 arcmin beam the conversion factor is roughly 0.057793
       call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
       call timer%stop(TOD_ALLOC, self%band)
       call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
@@ -392,6 +392,7 @@ contains
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+               call write_hdf(tod_file, '/flag', sd%flag)
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
                call write_hdf(tod_file, '/n_corr', sd%n_corr)

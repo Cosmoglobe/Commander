@@ -1208,6 +1208,7 @@ contains
 
     self%ntod = m
     self%ext_lowres(1)   = -5    ! Lowres padding
+
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
 
     ! Read common scan data

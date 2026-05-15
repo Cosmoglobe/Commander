@@ -2532,14 +2532,14 @@ contains
           unit = getlun()
           if (first_call) then
              open(unit, file=trim(filename), recl=1024)
-             write(unit,*) '# Band          M_def       X_def       Y_def'//&
+             write(unit,*) '# Band              M_def       X_def       Y_def'//&
                   & '      Z_def     M_mean      X_mean      Y_mean      Z_mean'// &
                   & '      M_rms       D_rms'
              first_call = .false.
           else
              open(unit, file=trim(filename), recl=1024, position='append')
           end if
-          write(unit,'(a12,10e12.3)') trim(self%label), vals
+          write(unit,'(a20,10e12.3)') trim(self%label), vals
           close(unit)
        end if
     else

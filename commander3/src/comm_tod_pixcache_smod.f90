@@ -288,7 +288,7 @@ contains
 
 
     end do
-    
+
     if (present(scale)) then
        self%map_sky = scale * self%map_sky
        if (present(map_gain)) self%map_gain = scale * self%map_gain
