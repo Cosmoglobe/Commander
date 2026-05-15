@@ -1030,11 +1030,11 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 # Radio sources
 @START 05
 @DEFAULT components/radio/radio_LFI.defaults
-COMP_CATALOG&&                 = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh_100mJy.dat
-COMP_INIT_CATALOG&&            = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh_100mJy.dat
-COMP_PTSRC_TEMPLATE&&          = /mn/stornext/u3/hke/data_chipass/comm_ptsrc_cat_NVSS_ASKAP_thresh.h5
-COMP_AMP_RMS_SCALE_FACTOR&&    = 10.         # Scale amp rms by this factor
-COMP_MIN_DIST_BETWEEN_SRC&&    = 15       ! arcmin
+COMP_CATALOG&&                 = /mn/stornext/d16/personal/daniersp/data/comm_ptsrc_cat_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin.dat
+COMP_INIT_CATALOG&&            = /mn/stornext/d16/personal/daniersp/data/comm_ptsrc_cat_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin.dat
+COMP_PTSRC_TEMPLATE&&          = /mn/stornext/d16/personal/daniersp/data/ptsrc_template_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin.h5
+COMP_AMP_RMS_SCALE_FACTOR&&    = 1.         # Scale amp rms by this factor
+COMP_MIN_DIST_BETWEEN_SRC&&    = 0.       ! arcmin
 COMP_NU_REF&&                  = 1.4
 COMP_NU_REF_T&&                = 1.4
 COMP_ALPHA_PRIOR_UNI_LOW&&     =  -2
@@ -1042,7 +1042,7 @@ COMP_ALPHA_PRIOR_UNI_HIGH&&    =   0.5
 COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
-COMP_INIT_FROM_HDF&&           = default
+COMP_INIT_FROM_HDF&&           = none default
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 05
 
@@ -1098,7 +1098,7 @@ NUM_MCMC_SAMPLING_GROUPS = 2
 #@END 01
 
 @START 01
-MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.003,gain:0.820-Dwingeloo%0.003
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:0.4-Haslam%0.001,gain:0.820-Dwingeloo%0.001
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = processed_maps/AST9240__3410_MHz_ARCADE2_nside16_mask.fits
