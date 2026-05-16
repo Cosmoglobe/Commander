@@ -38,9 +38,14 @@ module comm_tod_chipass_mod
    public comm_chipass_tod
 
    type, extends(comm_tod) :: comm_chipass_tod
+      integer(i4b)  :: tsys_order
+      real(dp)      :: tsys_eta0
+      real(dp), allocatable, dimension(:,:)    :: tsys_fit ! ndet, tsys_order+1
    contains
       procedure     :: process_tod          => process_chipass_tod
+      procedure     :: read_scan_inst          => read_scan_inst_chipass
       procedure     :: construct_corrtemp_inst => construct_corrtemp_chipass
+      procedure     :: dumpToHDF_inst          => dumpToHDF_chipass
    end type comm_chipass_tod
 
    interface comm_chipass_tod
@@ -133,6 +138,12 @@ contains
       nmaps_beam                  = 1
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
+
+      ! allocate CHIPASS-specific instrument file data
+      c%tsys_order      = 4
+      c%tsys_eta0       = 58.0d0
+      allocate(c%tsys_fit(c%ndet, 0:c%tsys_order))
+      c%tsys_fit = 0.d0
 
       ! Get detector labels
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -235,7 +246,7 @@ contains
       type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
-      logical(lgt)        :: select_data, sample_gain, output_scanlist, sample_ncorr, sample_baseline
+      logical(lgt)        :: select_data, sample_gain, output_scanlist, sample_ncorr, sample_baseline, sample_tsys
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -270,7 +281,8 @@ contains
       !sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_baseline       = iter > 1
+      sample_baseline       = .false.
+      sample_tsys           = iter > 1
       sample_gain           = iter > 1                         ! Gain sampling
       sample_ncorr          = iter > 1
          
@@ -324,6 +336,18 @@ contains
          call timer%start(TOD_WAIT, self%band)
          call mpi_barrier(self%comm, ierr)
          call timer%stop(TOD_WAIT, self%band)
+      end if
+
+      ! TODO: sample tsys_eta0
+
+      ! sample Tsys
+      if (sample_tsys) then
+         ! do
+         if (self%myid == 0) then
+            write(*,*) '|    --> Sampling Tsys'
+         end if
+         call update_status(status, "Tsys")
+         call sample_chipass_Tsys(self, oper_default)
       end if
 
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -441,8 +465,8 @@ contains
       if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
       if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
       ! added
-      if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] output_n_maps:', self%output_n_maps
-      if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'baseline'//trim(postfix))
+      !if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] output_n_maps:', self%output_n_maps
+      !if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'baseline'//trim(postfix))
 
       ! Clean up
       call binmap%dealloc()
@@ -537,49 +561,161 @@ contains
 
   end subroutine sample_chipass_baseline
 
+  subroutine read_scan_inst_chipass(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads CHIPASS-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_chipass_tod)
+    !           CHIPASS-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_chipass_tod),             intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_chipass
+
+  subroutine sample_chipass_Tsys(self, oper_default)
+    !
+    !  Sample CHIPASS Tsys(eta)
+    !
+    !  Arguments:
+    !  ----------
+    !  self:     derived class (comm_chipass_tod)
+    !            CHIPASS-specific TOD object
+    !
+    !  Returns:
+    !  --------
+    !  None, but updates TOD object
+    !
+    implicit none
+    class(comm_chipass_tod), intent(inout) :: self
+    integer(i4b), intent(in)               :: oper_default
+
+    integer(i4b) :: i, j, k, n
+    real(dp), allocatable, dimension(:) :: x, y, elev
+    type(hdf_file) :: file
+    character(len=6)   :: slabel
+    type(comm_scandata) :: sd
+
+    allocate(x(50690*150), y(50690*150))
+
+    do j = 1, self%ndet
+       n = 0
+       do i = 1, self%nscan
+          if (.not. any(self%scans(i)%d%accept)) cycle
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0)
+          ! TODO: read info in through read_scan_inst_chipass
+          !call read_scan_inst_chipass(self, file, slabel, detlabels, self%scans(i))
+          call open_hdf_file(self%hdfname(i), file, 'r')
+          allocate(elev(self%scans(i)%ntod))
+          call int2string(self%scanid(i), slabel)
+          call read_hdf(file, slabel//'/'//trim(self%label(j))//'/elev', elev) ! det: label(j)
+          call close_hdf_file(file)
+          do k = 1, self%scans(i)%ntod
+             if (sd%flag(k, j) < 1) then
+                n    = n + 1
+                x(n) = elev(k) - self%tsys_eta0
+                y(n) = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
+             end if
+          end do
+          deallocate(elev)
+          call dealloc_scan_data(sd)
+       end do
+       if (n > self%tsys_order+1) call fit_polynomial(x(1:n), y(1:n), self%tsys_fit(j, 0:self%tsys_order))
+    end do
+
+    deallocate(x, y)
+
+  end subroutine sample_chipass_Tsys
+
   subroutine construct_corrtemp_chipass(self, sd, det)
-    !  Construct a CHIPASS instrument-specific correction template; for now contains baseline
+    !
+    !  Construct a CHIPASS instrument-specific correction template; for now contains tsys
     !
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
-    !  pix: int
-    !       index for pixel
-    !  psi: int
-    !       integer label for polarization angle
+    !        CHIPASS-specific TOD object
+    !  sd:   comm_scandata object
+    !  det:  int
+    !        detector number
     !
     !  Returns:
     !  --------
-    !  s:   real (sp)
-    !       output template timestream
+    !  None, but modifies sd
+    !
     implicit none
-    class(comm_chipass_tod), intent(in)             :: self
+    class(comm_chipass_tod), intent(in)          :: self
     class(comm_scandata), intent(inout)          :: sd
     integer(i4b),         intent(in),   optional :: det
 
-    integer(i4b) :: i, j, k, d, nbin, b, scan
-    real(dp)     :: dt, t
+    integer(i4b) :: i, j, k, d, scan
+    real(dp), allocatable, dimension(:) :: elev
+    type(hdf_file) :: file
+    character(len=6) :: slabel
 
-    !if (self%myid == 0) write(*,*) '    [comm_tod_chipass_mod] construct_corrtemp_chipass 0'
     scan      = sd%scan
-    dt        = 1.d0 / self%scans(scan)%ntod
-    sd%s_inst = 0.
+    sd%s_inst = 0.d0
     do j = 1, self%ndet
        d = j; if (present(det)) d = det
-       t = 0.d0
        if (.not. self%scans(scan)%d(d)%accept) cycle
+       call open_hdf_file(self%hdfname(scan), file, 'r')
+       allocate(elev(self%scans(scan)%ntod))
+       call int2string(self%scanid(scan), slabel)
+       call read_hdf(file, slabel//'/'//trim(self%label(j))//'/elev', elev) ! det: label(j)
+       call close_hdf_file(file)
        do k = 1, self%scans(scan)%ntod
-          t      = t + dt
-          do i = 0, self%baseline_order
-             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
+          do i = 0, self%tsys_order
+             sd%s_inst(k,j) = sd%s_inst(k,j) + self%tsys_fit(j, i) * (elev(k) - self%tsys_eta0)**i
           end do
        end do
+       deallocate(elev)
     end do
-    !if (self%myid == 0) write(*,*) '    [comm_tod_chipass_mod] construct_corrtemp_chipass 1'
-
   end subroutine construct_corrtemp_chipass
+
+  subroutine dumpToHDF_chipass(self, chainfile, path)
+    ! 
+    ! Writes instrument-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:      derived class (comm_tod)
+    !            TOD object
+    ! chainfile: derived type (hdf_file)
+    !            Already open HDF file handle to existing chainfile
+    ! path:      string
+    !            HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_chipass_tod), intent(in)     :: self
+    type(hdf_file),          intent(in)     :: chainfile
+    character(len=*),        intent(in)     :: path
+
+    if (self%myid == 0 .and. trim(self%level) == 'L1') then
+       call write_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', self%tsys_eta0)
+       call write_hdf(chainfile, trim(adjustl(path))//'tsys_fit', self%tsys_fit)
+    end if
+
+  end subroutine dumpToHDF_chipass
 
 end module comm_tod_chipass_mod
