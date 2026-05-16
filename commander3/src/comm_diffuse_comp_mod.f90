@@ -91,7 +91,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      integer(i4b)       :: mono_prior_nside, mono_prior_Nthresh
      real(dp), allocatable, dimension(:) :: mono_prior_threshold
      class(comm_map),               pointer     :: mono_prior_map => null()
-     class(comm_map),               pointer     :: mask => null()
+     class(map_ptr),  dimension(:), allocatable :: mask
      class(comm_map),               pointer     :: procmask => null()
      class(map_ptr),  dimension(:), allocatable :: indmask
      class(comm_map),               pointer     :: defmask => null()

@@ -151,12 +151,46 @@ contains
        end do
     end if
     
-    ! Read component mask
-    if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
-       self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
-            & udgrade=.true.)
-    end if
+!!$    ! Read component mask
+!!$    if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
+!!$       self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
+!!$            & udgrade=.true.)
+!!$    end if
 
+    ! Read component mask; downgrade to each channel; re-use for equal Nsides
+    if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
+       indmask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
+            & udgrade=.true.)
+       allocate(self%mask(numband))
+       do i = 1, numband
+          exist = .false.
+          do j = 1, i-1
+             if (data(i)%info%nside == data(j)%info%nside .and. &
+                  & data(i)%info%nmaps == data(j)%info%nmaps) then
+                self%mask(i)%p => self%mask(j)%p
+                exist = .true.
+                exit
+             end if
+          end do
+          if (.not. exist) then
+             info_ud => comm_mapinfo(cpar%comm_chain, indmask%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             mask_ud => comm_map(info_ud)
+             do j = 1, min(data(i)%info%nmaps, indmask%info%nmaps)
+                mask_ud%map(:,j) = indmask%map(:,j)
+             end do
+             self%mask(i)%p => comm_map(data(i)%info)
+             call mask_ud%udgrade(self%mask(i)%p)
+             where (self%mask(i)%p%map > 0.5d0)
+                self%mask(i)%p%map = 1.d0
+             elsewhere
+                self%mask(i)%p%map = 0.d0
+             end where
+             call mask_ud%dealloc(); deallocate(mask_ud)
+          end if
+       end do
+       call indmask%dealloc(); deallocate(indmask)
+    end if
+    
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
        self%procmask => comm_map(self%x%info, trim(cpar%ds_procmask), &
@@ -2129,17 +2163,16 @@ contains
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
     
-    if (apply_mixmat) then
+    if (apply_mixmat .or. allocated(self%mask)) then
        ! Scale to correct frequency through multiplication with mixing matrix
-
-
-       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext)) .and. .not. allocated(self%mask)) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
           call m%Y()
           m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
+          if (allocated(self%mask)) m%map = m%map * self%mask(band)%p%map
           call m%YtW()
        end if
     end if
@@ -2205,13 +2238,14 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext))) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0 .and. .not. (self%apply_dust_ext .and. associated(data(band)%A_ext)) .and. .not. allocated(self%mask)) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
        if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
+       if (allocated(self%mask)) m%map = m%map * self%mask(band)%p%map
        call m%YtW()
     end if
     call m%alm_equal(m_out)
