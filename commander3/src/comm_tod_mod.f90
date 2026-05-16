@@ -203,6 +203,7 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
+     logical(lgt) :: enable_fft_magic
      character(len=16), allocatable, dimension(:) :: incl_objctr
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
@@ -575,6 +576,7 @@ contains
     self%enable_tod_simulations = cpar%enable_tod_simulations
     self%on_the_fly_tod_sim = cpar%on_the_fly_tod_sim
     self%level         = cpar%ds_tod_level(id_abs)
+    self%enable_fft_magic    = .true.
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
@@ -1194,7 +1196,9 @@ contains
     ! Find array sizes
     call read_hdf(file, slabel // "/" // "common/ntod",   n)
 
-    if (tod%halfring_split == 0) then
+    if (.not. tod%enable_fft_magic) then
+       m = n
+    else if (tod%halfring_split == 0) then
       m = get_closest_fft_magic_number(n)
     else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
       m = get_closest_fft_magic_number(n/2)
@@ -1478,7 +1482,9 @@ contains
 
     call read_hdf(file, slabel // "/" // "common/ntod",   n)
 
-    if (tod%halfring_split == 0) then
+    if (.not. tod%enable_fft_magic) then
+      m = n
+    else if (tod%halfring_split == 0) then
       m = get_closest_fft_magic_number(n)
     else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
       m = get_closest_fft_magic_number(n/2)

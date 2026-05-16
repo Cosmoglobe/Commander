@@ -114,6 +114,7 @@ contains
       
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
+      c%enable_fft_magic = .false.
       c%samprate_lowres = 0.2d0  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
