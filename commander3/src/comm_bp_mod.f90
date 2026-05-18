@@ -363,7 +363,7 @@ contains
       ! f = flux intensity [MJy/sr]
       ! sz = ?
        denom=tsum(self%nu, self%tau*bnu_prime)
-       if (denom < 1e-30) then 
+       if (denom <= 0.d0) then !choose a value to avoid divide by zero errors
          self%a2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
          self%f2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else
@@ -372,7 +372,7 @@ contains
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        end if 
        denom=tsum(self%nu, self%tau*bnu_prime*sz)
-       if (denom<1e-30) then
+       if (denom <= 0.d0) then
          self%a2sz    = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else 
          self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
