@@ -70,6 +70,7 @@ contains
     real(dp), allocatable, dimension(:)              :: y
 
     real(dp), allocatable, dimension(:) :: x
+    integer(i4b) :: i
 
     allocate(x(size(nu)), y(size(nu)))
     x = h*nu/(k_b*T_cmb)
