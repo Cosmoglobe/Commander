@@ -67,98 +67,100 @@ module comm_param_mod
      integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
 
      ! Global parameters
-     character(len=24)  :: operation
-     logical(lgt)       :: resamp_CMB
-     integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
-     integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
-     integer(i4b)       :: num_gibbs_iter, thinning, num_init_chains
+     character(len=24)   :: operation
+     logical(lgt)        :: resamp_CMB
+     integer(i4b)        :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
+     integer(i4b)        :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
+     integer(i4b)        :: num_gibbs_iter, thinning, num_init_chains
      character(len=2048) :: chain_status, init_chain_prefix
-     real(dp)           :: T_CMB
+     real(dp)            :: T_CMB
      character(len=2048) :: MJysr_convention
      character(len=2048) :: fft_magic_number_file
      character(len=2048) :: ephemerides_file
      character(len=2048) :: output_comps
-     logical(lgt)       :: only_pol, only_I
-     logical(lgt)       :: enable_TOD_analysis
-     logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
-     integer(i4b)       :: tod_freq
-     integer(i4b)       :: resamp_hard_gain_prior_nth_iter
-     integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
-     logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
-     integer(i4b)       :: zodi_solar_nside
-     logical(lgt)       :: sample_solar_maps, sample_moon_maps, sample_earth_maps
+     logical(lgt)        :: only_pol, only_I
+     logical(lgt)        :: enable_TOD_analysis
+     logical(lgt)        :: enable_TOD_simulations !< make and write sims to disc and then quit
+     logical(lgt)        :: on_the_fly_tod_sim     !< make sims in memory and continue analysing them
+     integer(i4b)        :: tod_freq
+     integer(i4b)        :: resamp_hard_gain_prior_nth_iter
+     integer(i4b)        :: output_4D_map_nth_iter, output_aux_maps
+     logical(lgt)        :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
+     integer(i4b)        :: zodi_solar_nside
+     logical(lgt)        :: sample_solar_maps, sample_moon_maps, sample_earth_maps
      character(len=2048) :: zodi_solar_initmap, zodi_moon_initmap, zodi_earth_initmap, zodi_static_bands
-     real(dp),           allocatable, dimension(:)     :: fwhm_smooth
-     real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
-     integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
-     integer(i4b),       allocatable, dimension(:)     :: nside_smooth
+     character(len=2048) :: sims_output_dir !< simulations directory
+     real(dp),            allocatable, dimension(:)     :: fwhm_smooth
+     real(dp),            allocatable, dimension(:)     :: fwhm_postproc_smooth
+     integer(i4b),        allocatable, dimension(:)     :: lmax_smooth
+     integer(i4b),        allocatable, dimension(:)     :: nside_smooth
      character(len=2048), allocatable, dimension(:)     :: pixwin_smooth
      character(len=2048), allocatable, dimension(:)     :: init_chain_prefixes
-     character(len=2048)                                :: sims_output_dir !< simulations directory
 
      ! alm-sampler
-     integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
-     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
+     integer(i4b)        :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
+     logical(lgt)        :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
 
      ! Output parameters
      character(len=2048) :: outdir
-     integer(i4b)       :: nside_chisq, nmaps_chisq
-     logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
-     integer(i4b)       :: output_cg_freq
-     logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec
+     integer(i4b)        :: nside_chisq, nmaps_chisq
+     logical(lgt)        :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
+     integer(i4b)        :: output_cg_freq
+     logical(lgt)        :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
+     logical(lgt)        :: sample_signal_amplitudes, sample_specind, sample_powspec
 
      ! Numerical parameters
      character(len=2048) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
-     logical(lgt)       :: cg_init_zero, set_noise_to_mean
-     real(dp)           :: cg_tol
-     integer(i4b)       :: num_bp_prop
+     integer(i4b)        :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups
+     integer(i4b)        :: cg_miniter, cg_check_conv_freq, cg_samp_group_md
+     logical(lgt)        :: cg_init_zero, set_noise_to_mean
+     real(dp)            :: cg_tol
+     integer(i4b)        :: num_bp_prop
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
-     integer(i4b),       dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
+     integer(i4b),        dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
      character(len=2048), dimension(MAXSAMPGROUP) :: cg_samp_group_bands
 
      ! Data parameters
-     integer(i4b)       :: numband
+     integer(i4b)        :: numband
      character(len=2048) :: datadir, ds_sourcemask, ds_procmask
-     logical(lgt),       allocatable, dimension(:)   :: ds_active
-     integer(i4b),       allocatable, dimension(:)   :: ds_period
-     logical(lgt),       allocatable, dimension(:)   :: ds_polarization
-     integer(i4b),       allocatable, dimension(:)   :: ds_nside
-     integer(i4b),       allocatable, dimension(:)   :: ds_lmax
+     logical(lgt),        allocatable, dimension(:)   :: ds_active
+     integer(i4b),        allocatable, dimension(:)   :: ds_period
+     logical(lgt),        allocatable, dimension(:)   :: ds_polarization
+     integer(i4b),        allocatable, dimension(:)   :: ds_nside
+     integer(i4b),        allocatable, dimension(:)   :: ds_lmax
      character(len=2048), allocatable, dimension(:)   :: ds_label
      character(len=2048), allocatable, dimension(:)   :: ds_instlabel
      character(len=2048), allocatable, dimension(:)   :: ds_unit
      character(len=2048), allocatable, dimension(:)   :: ds_noise_format
-     integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
+     integer(i4b),        allocatable, dimension(:)   :: ds_noise_lcut
      character(len=2048), allocatable, dimension(:)   :: ds_mapfile
      character(len=2048), allocatable, dimension(:)   :: ds_noisefile
      character(len=2048), allocatable, dimension(:)   :: ds_regnoise
      character(len=2048), allocatable, dimension(:,:) :: ds_noise_rms_smooth
-     real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
+     real(dp),            allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=2048), allocatable, dimension(:)   :: ds_maskfile
      character(len=2048), allocatable, dimension(:)   :: ds_maskfile_calib
      character(len=2048), allocatable, dimension(:)   :: ds_beamtype
      character(len=2048), allocatable, dimension(:)   :: ds_blfile
      character(len=2048), allocatable, dimension(:)   :: ds_btheta_file
      character(len=2048), allocatable, dimension(:)   :: ds_pixwin
-     logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
+     logical(lgt),        allocatable, dimension(:)   :: ds_samp_noiseamp
      character(len=2048), allocatable, dimension(:)   :: ds_bptype
      character(len=2048), allocatable, dimension(:)   :: ds_bpfile
      character(len=2048), allocatable, dimension(:)   :: ds_bpmodel
-     real(dp),           allocatable, dimension(:)   :: ds_nu_c
-     logical(lgt),       allocatable, dimension(:)   :: ds_sample_gain
-     real(dp),           allocatable, dimension(:,:) :: ds_gain_prior
+     real(dp),            allocatable, dimension(:)   :: ds_nu_c
+     logical(lgt),        allocatable, dimension(:)   :: ds_sample_gain
+     real(dp),            allocatable, dimension(:,:) :: ds_gain_prior
      character(len=2048), allocatable, dimension(:)   :: ds_gain_calib_comp
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmin
-     integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
+     integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmin
+     integer(i4b),        allocatable, dimension(:)   :: ds_gain_lmax
      character(len=2048), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=2048), allocatable, dimension(:)   :: ds_gain_fwhm
-     real(dp),           allocatable, dimension(:,:) :: ds_defaults
+     real(dp),            allocatable, dimension(:,:) :: ds_defaults
      character(len=2048), allocatable, dimension(:)   :: ds_component_sensitivity
-     real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
-     logical(lgt),       allocatable, dimension(:)   :: ds_zodi_reference_band
+     real(dp),            allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
+     logical(lgt),        allocatable, dimension(:)   :: ds_zodi_reference_band
 
      !TOD data parameters
      character(len=2048), allocatable, dimension(:)   :: ds_tod_type
@@ -174,13 +176,13 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_initHDF
      character(len=2048), allocatable, dimension(:)   :: ds_tod_level
      character(len=2048), allocatable, dimension(:)   :: ds_tod_abscal
-     integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
-     integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
+     integer(i4b),        allocatable, dimension(:,:) :: ds_tod_scanrange
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_tot_numscan
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_flag
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_halfring
+     logical(lgt),        allocatable, dimension(:)   :: ds_tod_orb_abscal
+     logical(lgt),        allocatable, dimension(:)   :: ds_tod_subtract_zodi
+     integer(i4b),        allocatable, dimension(:)   :: ds_tod_freq
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_mask
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_model
      character(len=2048), allocatable, dimension(:)   :: ds_tod_solar_init
@@ -194,20 +196,20 @@ module comm_param_mod
      ! Component parameters
      character(len=2048) :: cs_inst_parfile
      character(len=2048) :: cs_init_inst_hdf
-     integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
-     logical(lgt)       :: cs_output_localsamp_maps
-     real(dp)           :: cmb_dipole_prior(3)
+     integer(i4b)        :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
+     logical(lgt)        :: cs_output_localsamp_maps
+     real(dp)            :: cmb_dipole_prior(3)
      character(len=2048) :: cmb_dipole_prior_mask
-     logical(lgt),       allocatable, dimension(:)     :: cs_include
+     logical(lgt),        allocatable, dimension(:)     :: cs_include
      character(len=2048), allocatable, dimension(:)     :: cs_initHDF
      character(len=2048), allocatable, dimension(:)     :: cs_label
      character(len=2048), allocatable, dimension(:)     :: cs_type
      character(len=2048), allocatable, dimension(:)     :: cs_class
-     logical(lgt),       allocatable, dimension(:)     :: cs_polarization
-     real(dp),           allocatable, dimension(:,:)   :: cs_cg_scale
-     integer(i4b),       allocatable, dimension(:)     :: cs_nside
-     integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
-     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
+     logical(lgt),        allocatable, dimension(:)     :: cs_polarization
+     real(dp),            allocatable, dimension(:,:)   :: cs_cg_scale
+     integer(i4b),        allocatable, dimension(:)     :: cs_nside
+     integer(i4b),        allocatable, dimension(:,:)   :: cs_poltype
+     integer(i4b),        allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
      character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
      character(len=2048), allocatable, dimension(:,:,:) :: cs_spec_pixreg
      character(len=2048), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
@@ -221,13 +223,13 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:,:)   :: cs_spec_mono_type
      character(len=2048), allocatable, dimension(:,:)   :: cs_almsamp_init
      character(len=2048), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
-     real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
-     real(dp),           allocatable, dimension(:,:)   :: cs_spec_corr_limit
-     real(dp),           allocatable, dimension(:,:,:,:) :: cs_theta_prior
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
-     logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
+     integer(i4b),        allocatable, dimension(:,:,:) :: cs_spec_nprop_init
+     real(dp),            allocatable, dimension(:,:,:) :: cs_spec_proplen_init
+     real(dp),            allocatable, dimension(:,:)   :: cs_spec_corr_limit
+     real(dp),            allocatable, dimension(:,:,:,:) :: cs_theta_prior
+     integer(i4b),        allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
+     logical(lgt),        allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
+     logical(lgt),        allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
      logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_mono_combined
      logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_corr_convergence
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
@@ -265,6 +267,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:,:)   :: cs_SED_template
      character(len=2048), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
+     real(dp),           allocatable, dimension(:)     :: cs_nu_join
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
@@ -304,17 +307,22 @@ module comm_param_mod
 
 
      ! MH spectral index sampling parameters
-     integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
-     integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
-     character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
+     integer(i4b)                                :: mcmc_num_user_samp_groups   ! NUM_MCMC_SAMPLING_GROUPS
+     integer(i4b)                                :: mcmc_num_samp_groups        ! NUM_MCMC_SAMPLING_GROUPS
+     character(len=2048), allocatable            :: mcmc_samp_groups(:)         ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
      character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
      character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
-     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
-                                                                                                  ! Sample using specificed cg
-                                                                                                  ! groups. If none, skip amplitude
-                                                                                                  ! sampling
+     character(len=2048), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups      ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
+                                                                                ! Sample using specificed cg
+                                                                                ! groups. If none, skip amplitude
+                                                                                ! sampling
      integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
      integer(i4b), allocatable, dimension(:)     :: mcmc_samp_group_numstep
+
+     ! on-the-fly sims parameters
+     logical(lgt)        :: sim_noisepar
+     character(len=24)   :: noisepar_ver
+
   end type comm_params
 
 
@@ -533,8 +541,18 @@ contains
     !----------------------------------------------------------------------------------
     ! Commander3 simulations parameters
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
-    if (cpar%enable_TOD_simulations) cpar%num_gibbs_iter = 1
+    ! for this option commander write sims to disc and then quit
+    if (cpar%enable_TOD_simulations) cpar%num_gibbs_iter = 1 
     call get_parameter_hashtable(htbl, 'SIMS_OUTPUT_DIRECTORY',    par_string=cpar%sims_output_dir)
+    ! in on-the-fly mode, commander generates sims in memory in the begining of the first iteration, and then
+    ! continue to analyze them (as data) for the number of gibbs iternations specified in the param file
+    call get_parameter_hashtable(htbl, 'ON_THE_FLY_TOD_SIM',       par_lgt=cpar%on_the_fly_tod_sim)
+    if (cpar%on_the_fly_tod_sim) then
+       call get_parameter_hashtable(htbl, 'SIMULATE_NOISE_PARAMS', par_lgt=cpar%sim_noisepar)
+       if (cpar%sim_noisepar) then
+          call get_parameter_hashtable(htbl, 'NOISEPAR_VERSION',   par_string=cpar%noisepar_ver)
+       end if
+    end if
     !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)
@@ -870,7 +888,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
-    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n))
+    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n), cpar%cs_nu_join(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -935,7 +953,7 @@ contains
           case ('MBB')
              call read_mbb_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('MBBtab')
-             call read_mbb_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+             call read_mbbtab_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('freefree')
              call read_freefree_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)             
           case ('freefreeEM')
@@ -2704,6 +2722,227 @@ contains
        end if
     end do         
 
+  end subroutine read_mbb_params_hash
+
+  subroutine read_mbbtab_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+    implicit none
+
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
+
+    logical(lgt),       intent(inout) :: bool_flag
+    character(len=2048), intent(in) :: pol_labels(3)
+    character(len=2),   intent(in) :: itext
+    integer(i4b),       intent(in) :: len_itext, i
+    integer(i4b)                   :: j, k
+
+
+    call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
+    k = cpar%cs_poltype(1,i)
+    if (.not. cpar%cs_polarization(i)) k = 1 
+    do j = 1,k
+       call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_LMAX'//itext, &
+            & len_itext=len_itext,        par_int=cpar%cs_lmax_ind_pol(j,1,i))
+       if (cpar%cs_lmax_ind_pol(j,1,i) < 0) then
+          call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PIXREG'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg(j,1,i))
+          call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_LNLTYPE'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_lnLtype(j,1,i))
+          if (trim(cpar%cs_spec_lnLtype(j,1,i)) == 'prior') then
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PRIOR_MEAN'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_theta_prior(1,j,1,i))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PRIOR_RMS'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_theta_prior(2,j,1,i))
+          else
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_SAMPLE_NPROP'//itext, &
+                  & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_nprop(j,1,i))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
+                  & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
+                  & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
+          end if
+       end if
+       if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+          call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
+               & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
+          call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
+          call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PIXREG_PRIORS'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_priors(j,1,i))
+       end if
+    end do
+    do j = 1,k
+       if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+          call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_MAP'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i), path=.true.)
+          exit
+       end if
+    end do
+    bool_flag=.false.
+    do j = 1,k
+       if (cpar%cs_lmax_ind_pol(j,1,i) < 0 ) bool_flag=.true.
+    end do
+    if (bool_flag .or. cpar%almsamp_pixreg) &
+         & call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_INITVALUE_MAP'//itext, &
+         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i), path=.true.)
+    if (any(cpar%cs_lmax_ind_pol(:k,1,i) >= 0)) &
+         & call get_parameter_hashtable(htbl, 'COMP_BETA_ALMSAMP_INIT'//itext, &
+         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i), path=.true.)
+    if (bool_flag) then
+       call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_spec_uni_nprop(1,1,i))
+       call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_spec_uni_nprop(2,1,i))
+       call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
+            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+       call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+            & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+       if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+            & 'COMP_BETA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+            & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+       call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+            & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+       if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+            & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1), path=.true.)
+       if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+            & 'COMP_BETA_COMBINED_MONOPOLE_TYPE'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+       if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+            & 'COMP_BETA_COMBINED_MONOPOLE_FREEZE'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
+    end if
+    call get_parameter_hashtable(htbl, 'COMP_BETA_INPUT_MAP'//itext, len_itext=len_itext,        &
+         & par_string=cpar%cs_input_ind(1,i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_BETA_DEFAULT'//itext, len_itext=len_itext,          &
+         & par_dp=cpar%cs_theta_def(1,i))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_UNI_LOW'//itext, len_itext=len_itext,    &
+         & par_dp=cpar%cs_p_uni(i,1,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_UNI_HIGH'//itext, len_itext=len_itext,   &
+         & par_dp=cpar%cs_p_uni(i,2,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+         & par_dp=cpar%cs_p_gauss(i,1,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+         & par_dp=cpar%cs_p_gauss(i,2,1))
+
+    call get_parameter_hashtable(htbl, 'COMP_T_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
+    k = cpar%cs_poltype(2,i)
+    if (.not. cpar%cs_polarization(i)) k = 1 
+    do j = 1,k
+       call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_LMAX'//itext, &
+            & len_itext=len_itext,        par_int=cpar%cs_lmax_ind_pol(j,2,i))
+       if (cpar%cs_lmax_ind_pol(j,2,i) < 0) then
+          call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PIXREG'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg(j,2,i))
+          call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_LNLTYPE'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_lnLtype(j,2,i))
+          if (trim(cpar%cs_spec_lnLtype(j,2,i)) == 'prior') then
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PRIOR_MEAN'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_theta_prior(1,j,2,i))
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PRIOR_RMS'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_theta_prior(2,j,2,i))
+          else
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_SAMPLE_NPROP'//itext, &
+                  & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_nprop(j,2,i))
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
+                  & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,2,i))
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
+                  & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,2,i))
+             call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
+                  & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
+          end if
+       end if
+       if (trim(cpar%cs_spec_pixreg(j,2,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+          call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
+               & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,2,i))
+          call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,2,i))
+          call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PIXREG_PRIORS'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_priors(j,2,i))
+       end if
+    end do
+    do j = 1,k
+       if (trim(cpar%cs_spec_pixreg(j,2,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+          call get_parameter_hashtable(htbl, 'COMP_T_PIXREG_MAP'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(2,i), path=.true.)
+          exit
+       end if
+    end do
+    bool_flag=.false.
+    do j = 1,k
+       if (cpar%cs_lmax_ind_pol(j,2,i) < 0 ) bool_flag=.true.
+    end do
+    if (bool_flag .or. cpar%almsamp_pixreg) &
+         & call get_parameter_hashtable(htbl, 'COMP_T_PIXREG_INITVALUE_MAP'//itext, &
+         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(2,i), path=.true.)
+    if (any(cpar%cs_lmax_ind_pol(:k,2,i) >= 0)) &
+         & call get_parameter_hashtable(htbl, 'COMP_T_ALMSAMP_INIT'//itext, &
+         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(2,i), path=.true.)
+    if (bool_flag) then
+       call get_parameter_hashtable(htbl, 'COMP_T_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_spec_uni_nprop(1,2,i))
+       call get_parameter_hashtable(htbl, 'COMP_T_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_spec_uni_nprop(2,2,i))
+       call get_parameter_hashtable(htbl, 'COMP_T_MASK'//itext, & 
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_T_NPROP'//itext, & 
+            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
+       call get_parameter_hashtable(htbl, 'COMP_T_PROPLEN'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_proplen(2,i))
+       call get_parameter_hashtable(htbl, 'COMP_T_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+            & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(2,i))
+       if (cpar%cs_spec_corr_convergence(2,i))  call get_parameter_hashtable(htbl, &
+            & 'COMP_T_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+            & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
+       call get_parameter_hashtable(htbl, 'COMP_T_COMBINED_MONOPOLE_SAMPLING'//itext, &
+            & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+       if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+            & 'COMP_T_COMBINED_MONOPOLE_MASK'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2), path=.true.)
+       if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+            & 'COMP_T_COMBINED_MONOPOLE_TYPE'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,2))
+       if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+            & 'COMP_T_COMBINED_MONOPOLE_FREEZE'//itext, &
+            & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,2))
+    end if
+    call get_parameter_hashtable(htbl, 'COMP_T_INPUT_MAP'//itext, len_itext=len_itext,        &
+         & par_string=cpar%cs_input_ind(2,i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_T_DEFAULT'//itext, len_itext=len_itext,          &
+         & par_dp=cpar%cs_theta_def(2,i))
+    call get_parameter_hashtable(htbl, 'COMP_T_PRIOR_UNI_LOW'//itext, len_itext=len_itext,    &
+         & par_dp=cpar%cs_p_uni(i,1,2))
+    call get_parameter_hashtable(htbl, 'COMP_T_PRIOR_UNI_HIGH'//itext, len_itext=len_itext,   &
+         & par_dp=cpar%cs_p_uni(i,2,2))
+    call get_parameter_hashtable(htbl, 'COMP_T_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+         & par_dp=cpar%cs_p_gauss(i,1,2))
+    call get_parameter_hashtable(htbl, 'COMP_T_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+         & par_dp=cpar%cs_p_gauss(i,2,2))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
+         & par_int=cpar%cs_smooth_scale(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_T_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
+         & par_int=cpar%cs_smooth_scale(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min_beta(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max_beta(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
+    do j=1,2
+       if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
+          write(*,fmt='(a,i2,a,i2,a,i2,a,i2)') 'Smoothing scale ',cpar%cs_smooth_scale(i,j), &
+               & ' for index nr. ',j,' in component nr. ', i,' is larger than the number of smoothing scales: ', &
+               & cpar%num_smooth_scales
+          stop
+       end if
+    end do         
+
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
@@ -2711,9 +2950,119 @@ contains
             & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
+       if (trim(cpar%cs_MBBtab_type(i)) == 'spline_astrodust') then
+            call get_parameter_hashtable(htbl, 'COMP_ADSED_TEMPLATE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_SED_template(2,i), path=.true.)
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_DEFAULT'//itext, len_itext=len_itext, &
+            & par_dp=cpar%cs_theta_def(3,i))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_POLTYPE'//itext, len_itext=len_itext, &
+            & par_int=cpar%cs_poltype(3,i))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NU_MIN'//itext, len_itext=len_itext, &  
+            & par_dp=cpar%cs_nu_min_beta(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NU_MAX'//itext, len_itext=len_itext, & 
+            & par_dp=cpar%cs_nu_max_beta(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_INPUT_MAP'//itext, len_itext=len_itext,        &
+            & par_string=cpar%cs_input_ind(3,i), path=.true.)
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_UNI_LOW'//itext, len_itext=len_itext,    &
+            & par_dp=cpar%cs_p_uni(i,1,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_UNI_HIGH'//itext, len_itext=len_itext,   &
+            & par_dp=cpar%cs_p_uni(i,2,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+            & par_dp=cpar%cs_p_gauss(i,1,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_p_gauss(i,2,3))
+            call get_parameter_hashtable(htbl, 'COMP_ADSCALE_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
+            & par_int=cpar%cs_smooth_scale(i,3))
+            call get_parameter_hashtable(htbl, 'COMP_NU_JOIN'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_nu_join(i))
+                k = cpar%cs_poltype(2,i)
+          if (.not. cpar%cs_polarization(i)) k = 1 
+          do j = 1,k
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_LMAX'//itext, &
+                    & len_itext=len_itext,        par_int=cpar%cs_lmax_ind_pol(j,3,i))
+               if (cpar%cs_lmax_ind_pol(j,2,i) < 0) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PIXREG'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_LNLTYPE'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_lnLtype(j,3,i))
+                    if (trim(cpar%cs_spec_lnLtype(j,2,i)) == 'prior') then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PRIOR_MEAN'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_theta_prior(1,j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PRIOR_RMS'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_theta_prior(2,j,3,i))
+                    else
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_SAMPLE_NPROP'//itext, &
+                         & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_nprop(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
+                         & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
+                         & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
+                         & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,3,i))
+                    end if
+               end if
+               if (trim(cpar%cs_spec_pixreg(j,3,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
+                         & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,3,i))
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_'//trim(pol_labels(j))//'_PIXREG_PRIORS'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_priors(j,3,i))
+               end if
+          end do
+          do j = 1,k
+               if (trim(cpar%cs_spec_pixreg(j,3,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
+                    call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PIXREG_MAP'//itext, &
+                         & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(3,i), path=.true.)
+                    exit
+               end if
+          end do
+          bool_flag=.false.
+          do j = 1,k
+               if (cpar%cs_lmax_ind_pol(j,3,i) < 0 ) bool_flag=.true.
+          end do
+          if (bool_flag .or. cpar%almsamp_pixreg) &
+               & call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PIXREG_INITVALUE_MAP'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(3,i), path=.true.)
+          if (any(cpar%cs_lmax_ind_pol(:k,3,i) >= 0)) &
+               & call get_parameter_hashtable(htbl, 'COMP_ADSCALE_ALMSAMP_INIT'//itext, &
+               & len_itext=len_itext, par_string=cpar%cs_almsamp_init(3,i), path=.true.)
+          if (bool_flag) then
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
+                    & par_int=cpar%cs_spec_uni_nprop(1,3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
+                    & par_int=cpar%cs_spec_uni_nprop(2,3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_MASK'//itext, & 
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mask(3,i), path=.true.)
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_NPROP'//itext, & 
+                    & len_itext=len_itext, par_string=cpar%cs_spec_nprop(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_PROPLEN'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_proplen(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                    & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(3,i))
+               if (cpar%cs_spec_corr_convergence(3,i))  call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                    & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(3,i))
+               call get_parameter_hashtable(htbl, 'COMP_ADSCALE_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                    & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,3))
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_MASK'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,3), path=.true.)
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_TYPE'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,3))
+               if (cpar%cs_spec_mono_combined(i,3)) call get_parameter_hashtable(htbl, &
+                    & 'COMP_ADSCALE_COMBINED_MONOPOLE_FREEZE'//itext, &
+                    & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,3))
+          end if
+       end if
     end if
+  end subroutine read_mbbtab_params_hash
 
-  end subroutine read_mbb_params_hash
+  
+
+
+
 
   subroutine read_freefree_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
     implicit none
