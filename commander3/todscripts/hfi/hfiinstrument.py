@@ -45,8 +45,7 @@ def main():
 
     parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/beams')
 
-    tbol_file="/mn/stornext/u3/raelynsu/code/ParameterFiles/Tbol_SI.txt"
-    # /mn/stornext/d23/cmbco/globe/orig/planck/aux/Tbol_SI.txt"
+    tbol_file="/mn/stornext/d23/cmbco/globe/orig/planck/aux/Tbol_SI.txt"
 
     args = parser.parse_args()
     outDir = args.out_dir
