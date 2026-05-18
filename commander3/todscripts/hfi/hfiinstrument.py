@@ -28,7 +28,11 @@ import argparse
 import sys
 from astropy.io import fits
 from astropy.table import Table
-sys.path.append('/mn/stornext/u3/raelynsu/code/Commander/commander3/python')
+
+## Fill in path to the Commander python below!! ###
+sys.path.append('../Commander/commander3/python')
+####################
+# sys.path.append('/mn/stornext/u3/raelynsu/code/Commander/commander3/python')
 #sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
 from commander_tools.tod_tools.hfi import hfi
 from commander_tools.tod_tools.lfi import lfi
