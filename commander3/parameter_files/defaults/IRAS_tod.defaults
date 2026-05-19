@@ -18,6 +18,7 @@ TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
 FFTW3_MAGIC_NUMBERS           = common/aux/fft3_magic_numbers_230810.txt
+EPHEMERIDES_FILE              = common/aux/earth_pos_1980-2050_ephem_de432s.txt
 
 ENABLE_TOD_SIMULATIONS        = .false. # Not sure
 ON_THE_FLY_TOD_SIM            = .false. # make on-the-fly tod sims and continue analyzing them
@@ -53,7 +54,7 @@ POLARIZATION_CHISQ            = .true.
 OUTPUT_MIXING_MATRIX          = .false.
 OUTPUT_RESIDUAL_MAPS          = .true.
 OUTPUT_CHISQ_MAP              = .true.
-OUTPUT_EVERY_NTH_CG_ITERATION = 0
+OUTPUT_EVERY_NTH_CG_ITERATION = 1
 OUTPUT_CG_PRECOND_EIGENVALS   = .false.
 OUTPUT_INPUT_MODEL            = .false.
 OUTPUT_DEBUG_SEDS             = .false.
