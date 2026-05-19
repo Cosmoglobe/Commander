@@ -296,6 +296,10 @@ contains
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
           sz(i)           = comp_sz_thermo(self%nu(i))
+       else if (trim(self%type) == 'IRAS') then
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = comp_sz_thermo(self%nu(i))
        else
           a(i)            = comp_a2t(self%nu(i))          
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
