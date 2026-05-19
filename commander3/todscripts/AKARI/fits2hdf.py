@@ -18,7 +18,8 @@ BANDS = ['065']
 
 def run_single_band_write(band):
     akari_comm_data_adapter = akari_commander_data_adapter.AKARICommanderDataAdapter(
-        AKARI_FITS_DIR, NSIDE, bands=[band])
+        AKARI_FITS_DIR, NSIDE, bands=[band],
+        extend_reset_flag=EXTEND_RESET_FLAG)
     comm_todwriter = CommanderHDFWriter(akari_comm_data_adapter)
     comm_todwriter.write_hdf_files(OUTPATH, overwrite=True,
                                    num_processes=NUM_SEGMENT_PROCESSES,

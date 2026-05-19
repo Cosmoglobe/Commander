@@ -296,11 +296,13 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     """
     def __init__(self, akari_fits_dir, nside, bands=BANDS,
                  num_detectors=NUM_DETECTORS, band_dets=BAND_DETS,
-                 reference_time=REFERENCE_TIME):
+                 reference_time=REFERENCE_TIME,
+                 extend_reset_flag=False):
         self.bands = bands
         self.num_detectors = num_detectors
         self.band_dets = band_dets
         self.nside = nside
+        self.extend_reset_flag = extend_reset_flag
 
 
         self.fsamp = {
@@ -419,7 +421,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                 todreader_data[band][det]['flag'] = self._process_akari_flags(
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
-                    curr_data['status_flag'], gads_flags[det], mode)
+                    curr_data['status_flag'], gads_flags[det], mode,
+                    extend_reset_flag=self.extend_reset_flag)
                 c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs', distance=1*u.AU)
                 todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
                                                                   c.galactic.l.value,
@@ -477,7 +480,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                              statusflag_array, gadsflag_array,
                              mode, pixflagmap=PIX_FLAG_MAP, frameflagmap=FRAME_FLAG_MAP,
                              statusflagmap=STATUS_FLAG_MAP, gadsflagmap=GADS_FLAG_MAP,
-                             desired_flags=DESIRED_FLAGS):
+                             desired_flags=DESIRED_FLAGS, extend_reset_flag=False):
         """
         Internal function that takes the flags coming from the fits files and turns them into the
         bitmasks needed for the HDF file"""
@@ -497,6 +500,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             for flag_name, target_bit in desired_flags[flagtype].items():
                 flag_idx = flagmap[flag_name]
                 curr_mask = flag_arr[:, flag_idx]
+                if extend_reset_flag and flagtype == 'pix_flags' and flag_name == 'reset':
+                    # If this option is set, we want to extend the reset flag
+                    # to cover four samples rather than one.
+                    for i in range(1, 4):
+                        curr_mask[i:] = curr_mask[i:] | curr_mask[:-i]
                 outflags[curr_mask] += 2 ** int(target_bit)
         modeflags = desired_flags['mode']
         # These numbers are the modes of the pixflag_array field, listed in the AKARI fits data user
