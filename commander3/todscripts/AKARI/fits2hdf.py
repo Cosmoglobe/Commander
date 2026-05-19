@@ -20,8 +20,10 @@ def run_single_band_write(band):
     akari_comm_data_adapter = akari_commander_data_adapter.AKARICommanderDataAdapter(
         AKARI_FITS_DIR, NSIDE, bands=[band])
     comm_todwriter = CommanderHDFWriter(akari_comm_data_adapter)
-    comm_todwriter.write_hdf_files(OUTPATH, overwrite=True, num_processes=NUM_SEGMENT_PROCESSES,
-                                   bands=[band])
+    comm_todwriter.write_hdf_files(OUTPATH, overwrite=True,
+                                   num_processes=NUM_SEGMENT_PROCESSES,
+                                   bands=[band],
+                                   include_solarcentric_pixpointing=True)
 
 def main():
     for band in BANDS:
