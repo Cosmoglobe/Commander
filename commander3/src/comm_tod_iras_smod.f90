@@ -62,7 +62,7 @@ contains
 
       ! Set up noise PSD type and priors
       c%freq            = cpar%ds_label(id_abs)
-      c%noise_psd_model = '2oof'
+      c%noise_psd_model = 'oof'
 
       if (trim(c%noise_psd_model) == 'oof') then
          c%n_xi            = 3
