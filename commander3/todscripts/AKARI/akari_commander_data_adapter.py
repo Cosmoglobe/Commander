@@ -429,21 +429,30 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
                     curr_data['status_flag'], gads_flags[det], mode)
-                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
+                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs', distance=1*u.AU)
                 todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
                                                                   c.galactic.l.value,
                                                                   c.galactic.b.value,
                                                                   lonlat=True)
 
+                theta = 0.5 * np.pi - c.hcrs.dec.radian
+                phi = c.hcrs.ra.radian
+                todreader_data[band][det]['pix_solarcentric'] = healpy.ang2pix(
+                    self.nside, theta, phi)
 
 
             ra = curr_data['ra']
             dec = curr_data['dec']
-            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs', distance=1*u.AU)
             todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
                                                          c.galactic.l.value,
                                                          c.galactic.b.value,
                                                          lonlat=True)
+
+            theta = 0.5 * np.pi - c.hcrs.dec.radian
+            phi = c.hcrs.ra.radian
+            todreader_data[band]['pix_solarcentric'] = healpy.ang2pix(
+                self.nside, theta, phi)
 
 
             vecs = c.galactic.cartesian.get_xyz().value.T
@@ -537,7 +546,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             tod = self.all_chunk_data[band][det]['tod']
         psi_arr = np.zeros_like(self.all_chunk_data[band][det]['pix'], dtype=int)
         return (tod,
-                self.all_chunk_data[band][det]['pix'],
+                np.array([self.all_chunk_data[band][det]['pix'],
+                          self.all_chunk_data[band][det]['pix_solarcentric']]),
                 psi_arr,
                 self.all_chunk_data[band][det]['flag'])
 
