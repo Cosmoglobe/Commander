@@ -4,7 +4,7 @@ module comm_zodi_comp_mod
    implicit none
 
    type, abstract :: ZodiComponent
-      real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
+      real(dp) :: x_0, y_0, z_0, incl, Omega, n_0, sed_ampl, sed_cutoff, sed_b
       real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
       real(dp), allocatable :: emissivity(:), albedo(:)
    contains
@@ -62,7 +62,7 @@ module comm_zodi_comp_mod
    end interface
 
    type, extends(ZodiComponent) :: ZodiCloud
-      real(dp) :: alpha, beta, gamma, mu, sed_ampl, sed_cutoff, sed_b
+      real(dp) :: alpha, beta, gamma, mu
    contains
       procedure :: init => init_cloud
       procedure :: get_density => get_density_cloud
@@ -238,6 +238,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.8d-3]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.3d-3]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [1.d0, 2.d0, 1.34d0, -1.d0] ! alpha
       scale(start_ind+6,:) = [1.d0, 0.02d0]
@@ -247,12 +253,6 @@ contains
       scale(start_ind+8,:) = [1.d0, 0.03d0]
       prior(:,start_ind+9) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
       scale(start_ind+9,:) = [1.d0, 0.013d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
     end subroutine init_cloud_priors_and_scales
 
     subroutine init_band_priors_and_scales(self, start_ind, prior, scale)
@@ -275,6 +275,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.2d-3]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.3d-3]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
       scale(start_ind+6,:) = [1.d0, 0.14d0]
@@ -308,6 +314,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 1d-3]
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 1d-3]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
       scale(start_ind+6,:) = [1.d0, 0.01d0]
@@ -341,6 +353,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 1d-3]      
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 1d-3]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
       scale(start_ind+6,:) = [1.d0, 0.01d0]
@@ -374,6 +392,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 0.0d0, 0d0, -1.d0] ! R, inactive
       scale(start_ind+6,:) = [1.d0, 0.d0]
@@ -401,6 +425,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [5d0, 15d0, 0d0, -1.d0] ! Q
       scale(start_ind+6,:) = [1.d0, 0.d0]
@@ -434,6 +464,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [1d0, 5d0, 0d0, -1.d0] ! P
       scale(start_ind+6,:) = [1.d0, 0.d0]
@@ -466,6 +502,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [ 1.d0,   1.5d0,  1.2186d0, -1.d0] ! p1 - radial density exponent
       scale(start_ind+6,:) = [1.d0, 0.01d0]
@@ -522,6 +564,12 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+10,:) = [1.d-1, 1.d-2]
+      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+11,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+12,:) = [1.d0, 1.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [ 1.d0,   2.0d0,  1.3849d0, -1.d0] ! q1 - 10 x (sin i)_max for band 1
       scale(start_ind+6,:) = [1.d0, 0.01d0]
@@ -548,13 +596,13 @@ contains
       self%x_0          = x(4)
       self%y_0          = x(5)
       self%z_0          = x(6)
-      self%alpha        = x(7)
-      self%beta         = x(8)
-      self%gamma        = x(9)
-      self%mu           = x(10)
-      self%sed_ampl     = x(11)
-      self%sed_cutoff   = x(12)
-      self%sed_b        = x(13)       
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
+      self%alpha        = x(10)
+      self%beta         = x(11)
+      self%gamma        = x(12)
+      self%mu           = x(13)       
     end subroutine param2model_cloud
 
     subroutine model2param_cloud(self, x)
@@ -567,13 +615,13 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%alpha 
-      x(8)  = self%beta  
-      x(9)  = self%gamma 
-      x(10) = self%mu  
-      x(11) = self%sed_ampl      
-      x(12) = self%sed_cutoff    
-      x(13) = self%sed_b           
+      x(7)  = self%sed_ampl 
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b 
+      x(10) = self%alpha  
+      x(11) = self%beta      
+      x(12) = self%gamma    
+      x(13) = self%mu           
     end subroutine model2param_cloud
 
     subroutine param2model_band(self, x)
@@ -586,10 +634,13 @@ contains
       self%x_0        = x(4)
       self%y_0        = x(5)
       self%z_0        = x(6)
-      self%delta_zeta = x(7)
-      self%delta_r    = x(8)
-      self%v          = x(9)
-      self%p          = x(10)      
+      self%sed_ampl   = x(7)
+      self%sed_cutoff = x(8)
+      self%sed_b      = x(9)
+      self%delta_zeta = x(10)
+      self%delta_r    = x(11)
+      self%v          = x(12)
+      self%p          = x(13)     
     end subroutine param2model_band
 
     subroutine model2param_band(self, x)
@@ -602,10 +653,13 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%delta_zeta 
-      x(8)  = self%delta_r
-      x(9)  = self%v
-      x(10) = self%p    
+      x(7)  = self%sed_ampl   
+      x(8)  = self%sed_cutoff 
+      x(9)  = self%sed_b      
+      x(10) = self%delta_zeta 
+      x(11) = self%delta_r    
+      x(12) = self%v          
+      x(13) = self%p             
     end subroutine model2param_band
 
     subroutine param2model_ring(self, x)
@@ -618,11 +672,14 @@ contains
       self%x_0         = x(4)
       self%y_0         = x(5)
       self%z_0         = x(6)
-      self%R_0         = x(7)
-      self%sigma_r     = x(8)
-      self%sigma_z     = x(9)
-      self%theta_0     = x(10)
-      self%sigma_theta = x(11)      
+      self%sed_ampl    = x(7)
+      self%sed_cutoff  = x(8)
+      self%sed_b       = x(9)
+      self%R_0         = x(10)
+      self%sigma_r     = x(11)
+      self%sigma_z     = x(12)
+      self%theta_0     = x(13)
+      self%sigma_theta = x(14)      
     end subroutine param2model_ring
 
     subroutine model2param_ring(self, x)
@@ -634,12 +691,15 @@ contains
       x(3)  = self%Omega 
       x(4)  = self%x_0   
       x(5)  = self%y_0   
-      x(6)  = self%z_0   
-      x(7)  = self%R_0 
-      x(8)  = self%sigma_r  
-      x(9)  = self%sigma_z 
-      x(10) = self%theta_0
-      x(11) = self%sigma_theta
+      x(6)  = self%z_0 
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b       
+      x(10) = self%R_0         
+      x(11) = self%sigma_r     
+      x(12) = self%sigma_z      
+      x(13) = self%theta_0     
+      x(14) = self%sigma_theta 
     end subroutine model2param_ring
 
     subroutine param2model_feature(self, x)
@@ -652,11 +712,14 @@ contains
       self%x_0         = x(4)
       self%y_0         = x(5)
       self%z_0         = x(6)
-      self%R_0         = x(7)
-      self%sigma_r     = x(8)
-      self%sigma_z     = x(9)
-      self%theta_0     = x(10)
-      self%sigma_theta = x(11)      
+      self%sed_ampl    = x(7)
+      self%sed_cutoff  = x(8)
+      self%sed_b       = x(9)
+      self%R_0         = x(10)
+      self%sigma_r     = x(11)
+      self%sigma_z     = x(12)
+      self%theta_0     = x(13)
+      self%sigma_theta = x(14)   
     end subroutine param2model_feature
 
     subroutine model2param_feature(self, x)
@@ -669,23 +732,29 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%R_0 
-      x(8)  = self%sigma_r  
-      x(9)  = self%sigma_z 
-      x(10) = self%theta_0
-      x(11) = self%sigma_theta
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b       
+      x(10) = self%R_0         
+      x(11) = self%sigma_r     
+      x(12) = self%sigma_z      
+      x(13) = self%theta_0     
+      x(14) = self%sigma_theta 
     end subroutine model2param_feature
 
     subroutine param2model_interstellar(self, x)
       implicit none
       class(ZodiInterstellar),                intent(inout) :: self
       real(dp),                dimension(1:), intent(in)    :: x
-      self%n_0   = x(1)
-      self%incl  = x(2)
-      self%Omega = x(3)
-      self%x_0   = x(4)
-      self%y_0   = x(5)
-      self%z_0   = x(6)
+      self%n_0          = x(1)
+      self%incl         = x(2)
+      self%Omega        = x(3)
+      self%x_0          = x(4)
+      self%y_0          = x(5)
+      self%z_0          = x(6)
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
     end subroutine param2model_interstellar
 
     subroutine model2param_interstellar(self, x)
@@ -698,6 +767,9 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b  
     end subroutine model2param_interstellar
 
     subroutine param2model_fan(self, x)
@@ -710,11 +782,14 @@ contains
       self%x_0          = x(4)
       self%y_0          = x(5)
       self%z_0          = x(6)
-      self%Q            = x(7)
-      self%P            = x(8)
-      self%gamma        = x(9)
-      self%Z_midplane_0 = x(10)
-      self%R_outer      = x(11)
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
+      self%Q            = x(10)
+      self%P            = x(11)
+      self%gamma        = x(12)
+      self%Z_midplane_0 = x(13)
+      self%R_outer      = x(14)
     end subroutine param2model_fan
 
     subroutine model2param_fan(self, x)
@@ -727,11 +802,14 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%Q 
-      x(8)  = self%P  
-      x(9)  = self%gamma 
-      x(10) = self%Z_midplane_0
-      x(11) = self%R_outer
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b  
+      x(10)  = self%Q 
+      x(11)  = self%P  
+      x(12)  = self%gamma 
+      x(13) = self%Z_midplane_0
+      x(14) = self%R_outer
     end subroutine model2param_fan
 
     subroutine param2model_comet(self, x)
@@ -744,10 +822,13 @@ contains
       self%x_0          = x(4)
       self%y_0          = x(5)
       self%z_0          = x(6)
-      self%P            = x(7)
-      self%Z_midplane_0 = x(8)
-      self%R_inner      = x(9)
-      self%R_outer      = x(10)      
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
+      self%P            = x(10)
+      self%Z_midplane_0 = x(11)
+      self%R_inner      = x(12)
+      self%R_outer      = x(13)      
     end subroutine param2model_comet
 
     subroutine model2param_comet(self, x)
@@ -760,38 +841,44 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%P 
-      x(8)  = self%Z_midplane_0  
-      x(9)  = self%R_inner
-      x(10) = self%R_outer    
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b   
+      x(10)  = self%P 
+      x(11)  = self%Z_midplane_0  
+      x(12)  = self%R_inner
+      x(13) = self%R_outer    
     end subroutine model2param_comet
 
     subroutine param2model_WrightCloudRing(self, x)
       implicit none
       class(ZodiWrightCloudRing),                intent(inout) :: self
       real(dp),                   dimension(1:), intent(in)    :: x
-      self%n_0   = x(1)
-      self%incl  = x(2)
-      self%Omega = x(3)
-      self%x_0   = x(4)
-      self%y_0   = x(5)
-      self%z_0   = x(6)
-      self%p1    = x(7)
-      self%p3    = x(8)
-      self%p4    = x(9)
-      self%p5    = x(10)
-      self%p6    = x(11)
-      self%p7    = x(12)
-      self%p8    = x(13)
-      self%p9    = x(14)
-      self%p10   = x(15)
-      self%p13   = x(16)
-      self%p14   = x(17)
-      self%p15   = x(18)
-      self%p16   = x(19)
-      self%p17   = x(20)
-      self%p18   = x(21)
-      self%p19   = x(22)
+      self%n_0          = x(1)
+      self%incl         = x(2)
+      self%Omega        = x(3)
+      self%x_0          = x(4)
+      self%y_0          = x(5)
+      self%z_0          = x(6)
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
+      self%p1           = x(10)
+      self%p3           = x(11)
+      self%p4           = x(12)
+      self%p5           = x(13)
+      self%p6           = x(14)
+      self%p7           = x(15)
+      self%p8           = x(16)
+      self%p9           = x(17)
+      self%p10          = x(18)
+      self%p13          = x(19)
+      self%p14          = x(20)
+      self%p15          = x(21)
+      self%p16          = x(22)
+      self%p17          = x(23)
+      self%p18          = x(24)
+      self%p19          = x(25)
     end subroutine param2model_WrightCloudRing
 
     subroutine model2param_WrightCloudRing(self, x)
@@ -804,40 +891,46 @@ contains
       x(4)  = self%x_0   
       x(5)  = self%y_0   
       x(6)  = self%z_0   
-      x(7)  = self%p1
-      x(8)  = self%p3
-      x(9)  = self%p4
-      x(10) = self%p5
-      x(11) = self%p6
-      x(12) = self%p7
-      x(13) = self%p8
-      x(14) = self%p9
-      x(15) = self%p10
-      x(16) = self%p13
-      x(17) = self%p14
-      x(18) = self%p15
-      x(19) = self%p16
-      x(20) = self%p17
-      x(21) = self%p18
-      x(22) = self%p19
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b   
+      x(10)  = self%p1
+      x(11)  = self%p3
+      x(12)  = self%p4
+      x(13) = self%p5
+      x(14) = self%p6
+      x(15) = self%p7
+      x(16) = self%p8
+      x(17) = self%p9
+      x(18) = self%p10
+      x(19) = self%p13
+      x(20) = self%p14
+      x(21) = self%p15
+      x(22) = self%p16
+      x(23) = self%p17
+      x(24) = self%p18
+      x(25) = self%p19
     end subroutine model2param_WrightCloudRing
 
     subroutine param2model_WrightBand(self, x)
       implicit none
       class(ZodiWrightBand),                intent(inout) :: self
       real(dp),              dimension(1:), intent(in)    :: x
-      self%n_0   = x(1)
-      self%incl  = x(2)
-      self%Omega = x(3)
-      self%x_0   = x(4)
-      self%y_0   = x(5)
-      self%z_0   = x(6)
-      self%q1    = x(7)
-      self%q5    = x(8)
-      self%q6    = x(9)
-      self%q7    = x(10)
-      self%q8    = x(11)
-      self%R_1   = x(12)
+      self%n_0          = x(1)
+      self%incl         = x(2)
+      self%Omega        = x(3)
+      self%x_0          = x(4)
+      self%y_0          = x(5)
+      self%z_0          = x(6)
+      self%sed_ampl     = x(7)
+      self%sed_cutoff   = x(8)
+      self%sed_b        = x(9)
+      self%q1           = x(10)
+      self%q5           = x(11)
+      self%q6           = x(12)
+      self%q7           = x(13)
+      self%q8           = x(14)
+      self%R_1          = x(15)
     end subroutine param2model_WrightBand
 
     subroutine model2param_WrightBand(self, x)
@@ -849,13 +942,16 @@ contains
       x(3)  = self%Omega 
       x(4)  = self%x_0   
       x(5)  = self%y_0   
-      x(6)  = self%z_0   
-      x(7)  = self%q1
-      x(8)  = self%q5
-      x(9)  = self%q6
-      x(10) = self%q7
-      x(11) = self%q8
-      x(12) = self%R_1
+      x(6)  = self%z_0
+      x(7)  = self%sed_ampl    
+      x(8)  = self%sed_cutoff  
+      x(9)  = self%sed_b   
+      x(10)  = self%q1
+      x(11)  = self%q5
+      x(12)  = self%q6
+      x(13) = self%q7
+      x(14) = self%q8
+      x(15) = self%R_1
     end subroutine model2param_WrightBand
     
     

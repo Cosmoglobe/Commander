@@ -673,7 +673,7 @@ contains
                
                call wall_time(t3)
                do h = 1, nhorn
-                  call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
+                  call get_zodi_emission_mbb(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
                        & scan, j, zodi_model, s_zodi(:,h))
                end do
                call wall_time(t4)
