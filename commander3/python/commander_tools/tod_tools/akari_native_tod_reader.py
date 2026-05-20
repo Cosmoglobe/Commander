@@ -207,6 +207,18 @@ class AKARITODReader:
 
     @staticmethod
     def _ring_spin_axis(vecs):
+        """
+        vecs - ntod x 3 array, corresponding to pointing of a single AKARI detector.
+
+        Since the instrument scans along great circles, the spin angular momentum
+        of the pixels is relatively stable. We estimate this using the classical angular 
+        momentum formula and estimate the linear momentum per pointing.
+
+        In the case of undefined angular momentum, zero is returned.
+
+        Note that the spin axis may be flipped from the true spin angular momentum,
+        since we take the convention that the x-axis of the spin is positive.
+        """
 
         p = np.gradient(vecs, axis=0)
         L = np.cross(vecs, p)
