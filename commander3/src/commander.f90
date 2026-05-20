@@ -235,6 +235,8 @@ program commander
         write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
+     !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 5000+iter, .true.)
+     
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then

@@ -106,9 +106,11 @@ contains
       c%xi_n_nu_fit(2,:) = [0.001d0, 0.99*samprate/2]         ! fknee
       c%xi_n_nu_fit(3,:) = [0.001d0, 0.99*samprate/2]         ! alpha
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
-      c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
-      c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
-      
+      !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
+      !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
+      c%xi_n_P_uni(2,:)  = [0.001d0, 0.0011d0]  ! fknee
+      c%xi_n_P_uni(3,:)  = [-1.5d0,   -1.4d0]  ! alpha
+
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
       
@@ -411,17 +413,18 @@ contains
          !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] self%scanid(i):', self%scanid(i)
          if (.true.) then
             ! scan id appears to be the worst chi2
-            if (mod(self%scanid(i), 1690) == 0) then
+            if (mod(self%scanid(i), 500) == 0) then
                !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
-               call write_hdf(tod_file, '/tod', sd%tod)
+               call write_hdf(tod_file, '/tod', sd%tod/self%scans(i)%d(1)%gain)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
                call write_hdf(tod_file, '/flag', sd%flag)
-               call write_hdf(tod_file, '/todz', d_calib(1, :, :))
+               call write_hdf(tod_file, '/calib', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
-               call write_hdf(tod_file, '/n_corr', sd%n_corr)
-               call write_hdf(tod_file, '/s_sl', sd%s_sl)
+               call write_hdf(tod_file, '/n_corr', sd%n_corr/self%scans(i)%d(1)%gain)
+               call write_hdf(tod_file, '/s_inst', sd%s_inst/self%scans(i)%d(1)%gain)
+               !call write_hdf(tod_file, '/s_sl', sd%s_sl)
                !call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)

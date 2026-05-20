@@ -384,6 +384,7 @@ contains
 
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
+       !call output_FITS_sample(cpar, 1000+samp_group, .true.)
        if (findloc(group_inds, samp_group, dim=1) == 0) cycle
        if (cpar%myid_chain == 0 .and. verbosity_ > 0) then
           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
@@ -391,8 +392,10 @@ contains
           & trim(cpar%cg_samp_group(samp_group))
        end if
        call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity)
+       !call output_FITS_sample(cpar, 2000+samp_group, .true.)
 
        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+       !call output_FITS_sample(cpar, 3000+samp_group, .true.)
 
     end do
     call timer%stop(TOT_AMPSAMP)
