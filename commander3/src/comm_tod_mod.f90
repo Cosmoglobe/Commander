@@ -99,6 +99,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: pix_sol        ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
      integer(i4b),       allocatable, dimension(:,:)   :: pix_moon       ! Discretized pointing in Moon centric coordinates, for zodi and sidelobe mapping
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
+     real(dp),           allocatable, dimension(:)     :: elev           ! Elevation
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:,:) :: zodi_sampgroup_mask
@@ -320,6 +321,7 @@ module comm_tod_mod
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
      integer(i4b), allocatable, dimension(:) :: split
+     logical(lgt)                            :: read_elev
 
      ! Bandpass, pointer to comm_data%bp
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
@@ -591,6 +593,7 @@ contains
     self%sample_mono     = .false.
     self%nside_pixhist   = -1
     self%sigma0_threshold = 1d30
+    self%read_elev       = .false.
  
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
@@ -1289,6 +1292,11 @@ contains
        if (tod%baseline_order >= 0) then
           allocate(self%d(i)%baseline(0:tod%baseline_order))
           self%d(i)%baseline = 0.
+       end if
+
+       if (tod%read_elev) then
+          allocate(self%d(i)%elev(n))
+          self%d(i)%elev = 0.d0
        end if
 
        if (trim(tod%noise_psd_model) == 'white') then
