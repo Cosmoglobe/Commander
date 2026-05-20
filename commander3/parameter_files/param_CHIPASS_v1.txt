@@ -31,6 +31,8 @@ CG_CONVERGENCE_CRITERION       = residual   # {residual, chisquare}
 CG_MINITER                     =     3
 CG_TOLERANCE                   = 1.d-6   # Fractional CG convergence criterion
 
+NSIDE_CHISQ                    = 256
+
 FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_magic_numbers_230810.txt
 
 NSIDE_CHISQ                    = 256
@@ -39,7 +41,7 @@ NSIDE_CHISQ                    = 256
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY               = chains_compsep
+OUTPUT_DIRECTORY               = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_10
 OUTPUT_SIGNALS_PER_BAND        = .false.
 OUTPUT_MIXING_MATRIX           = .false.
 THINNING_FACTOR                = 1      # output only every nth sample
