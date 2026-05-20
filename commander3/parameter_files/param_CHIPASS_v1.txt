@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 1000    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init45/chain_c0001.h5:20
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/chain_c0001.h5:124
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -1001,7 +1001,7 @@ COMP_CL_DEFAULT_BETA_T&&      = 15d0
 COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init45/synch_c0001_k000020.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/synch_c0001_k000124.fits
 COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           = -2.62
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1066,7 +1066,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @DEFAULT components/freefree/freefreeEM_DIRBE.defaults
 #COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
 COMP_AMP_INPUT_MAP&&          = init_ff_amp_EM05.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init45/ff_c0001_k000020.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/ff_c0001_k000124.fits
 #COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits
 #COMP_AMP_LMAX&&               = 1000 2955
 #COMP_APOD_LMAX&&              = 1000 2955
