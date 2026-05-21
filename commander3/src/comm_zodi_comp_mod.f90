@@ -238,21 +238,21 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.8d-3]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.3d-3]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [1.d0, 2.d0, 1.34d0, -1.d0] ! alpha
-      scale(start_ind+6,:) = [1.d0, 0.02d0]
-      prior(:,start_ind+7) = [3.d0, 5d0, 4.14d0, -1.d0] ! beta
-      scale(start_ind+7,:) = [1.d0, 0.05d0]
-      prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! gamma
-      scale(start_ind+8,:) = [1.d0, 0.03d0]
-      prior(:,start_ind+9) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
-      scale(start_ind+9,:) = [1.d0, 0.013d0]
+      prior(:,start_ind+9) = [1.d0, 2.d0, 1.34d0, -1.d0] ! alpha
+      scale(start_ind+9,:) = [1.d0, 0.02d0]
+      prior(:,start_ind+10) = [3.d0, 5d0, 4.14d0, -1.d0] ! beta
+      scale(start_ind+10,:) = [1.d0, 0.05d0]
+      prior(:,start_ind+11) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! gamma
+      scale(start_ind+11,:) = [1.d0, 0.03d0]
+      prior(:,start_ind+12) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
+      scale(start_ind+12,:) = [1.d0, 0.013d0]
     end subroutine init_cloud_priors_and_scales
 
     subroutine init_band_priors_and_scales(self, start_ind, prior, scale)
@@ -275,23 +275,23 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.2d-3]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.3d-3]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
-      scale(start_ind+6,:) = [1.d0, 0.14d0]
-      prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
-      scale(start_ind+7,:) = [1.d0, 0.005d0]
+      prior(:,start_ind+9) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
+      scale(start_ind+9,:) = [1.d0, 0.14d0]
+      prior(:,start_ind+10) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
+      scale(start_ind+10,:) = [1.d0, 0.005d0]
       !prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
-      prior(:,start_ind+8) = [0.01d0, 3.d0, 0.942d0, -1.d0] ! v
-      scale(start_ind+8,:) = [1.d0, 0.1d0]      
+      prior(:,start_ind+11) = [0.01d0, 3.d0, 0.942d0, -1.d0] ! v
+      scale(start_ind+11,:) = [1.d0, 0.1d0]      
       !prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
-      prior(:,start_ind+9) = [2.d0, 6.d0, 0.189d0, -1.d0] ! p
-      scale(start_ind+9,:) = [1.d0, 1d-6]      
+      prior(:,start_ind+12) = [2.d0, 6.d0, 0.189d0, -1.d0] ! p
+      scale(start_ind+12,:) = [1.d0, 1d-6]      
     end subroutine init_band_priors_and_scales
 
     subroutine init_ring_priors_and_scales(self, start_ind, prior, scale)
@@ -314,23 +314,23 @@ contains
       scale(start_ind+4,:) = [1.d0, 1d-3]
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 1d-3]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-      scale(start_ind+6,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-      scale(start_ind+7,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-      scale(start_ind+8,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+9) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
+      prior(:,start_ind+9) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
       scale(start_ind+9,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      prior(:,start_ind+10) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
       scale(start_ind+10,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+11) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+      scale(start_ind+11,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+12) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
+      scale(start_ind+12,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+13) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      scale(start_ind+13,:) = [1.d0, 0.01d0]
     end subroutine init_ring_priors_and_scales
 
     subroutine init_feature_priors_and_scales(self, start_ind, prior, scale)
@@ -353,23 +353,23 @@ contains
       scale(start_ind+4,:) = [1.d0, 1d-3]      
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 1d-3]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-      scale(start_ind+6,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-      scale(start_ind+7,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-      scale(start_ind+8,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+9) = [-20.d0, 20.d0, 0.d0, -1.d0] ! theta
+      prior(:,start_ind+9) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
       scale(start_ind+9,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      prior(:,start_ind+10) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
       scale(start_ind+10,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+11) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+      scale(start_ind+11,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+12) = [-20.d0, 20.d0, 0.d0, -1.d0] ! theta
+      scale(start_ind+12,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+13) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      scale(start_ind+13,:) = [1.d0, 0.01d0]
     end subroutine init_feature_priors_and_scales
 
     subroutine init_interstellar_priors_and_scales(self, start_ind, prior, scale)
@@ -392,17 +392,17 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [0.d0, 0.0d0, 0d0, -1.d0] ! R, inactive
-      scale(start_ind+6,:) = [1.d0, 0.d0]
-      prior(:,start_ind+7) = [0.d0, 0.0d0, 0.2d0, -1.d0] ! alpha, inactive
-      scale(start_ind+7,:) = [1.d0, 0.d0]
+      prior(:,start_ind+9) = [0.d0, 0.0d0, 0d0, -1.d0] ! R, inactive
+      scale(start_ind+9,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [0.d0, 0.0d0, 0.2d0, -1.d0] ! alpha, inactive
+      scale(start_ind+10,:) = [1.d0, 0.d0]
     end subroutine init_interstellar_priors_and_scales
 
     subroutine init_fan_priors_and_scales(self, start_ind, prior, scale)
@@ -425,23 +425,23 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [5d0, 15d0, 0d0, -1.d0] ! Q
-      scale(start_ind+6,:) = [1.d0, 0.d0]
-      prior(:,start_ind+7) = [1.d0, 3d0, 0.2d0, -1.d0] ! P
-      scale(start_ind+7,:) = [1.d0, 0.d0]
-      prior(:,start_ind+8) = [0.5d0, 2d0, 0.1d0, -1.d0] ! Gamma
-      scale(start_ind+8,:) = [1.d0, 0.d0]
-      prior(:,start_ind+9) = [0.d0, 0.3d0, 0.d0, -1.d0] ! Z
+      prior(:,start_ind+9) = [5d0, 15d0, 0d0, -1.d0] ! Q
       scale(start_ind+9,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [1.d0, 5.d0, 0.d0, -1.d0] ! R_max
+      prior(:,start_ind+10) = [1.d0, 3d0, 0.2d0, -1.d0] ! P
       scale(start_ind+10,:) = [1.d0, 0.d0]
+      prior(:,start_ind+11) = [0.5d0, 2d0, 0.1d0, -1.d0] ! Gamma
+      scale(start_ind+11,:) = [1.d0, 0.d0]
+      prior(:,start_ind+12) = [0.d0, 0.3d0, 0.d0, -1.d0] ! Z
+      scale(start_ind+12,:) = [1.d0, 0.d0]
+      prior(:,start_ind+13) = [1.d0, 5.d0, 0.d0, -1.d0] ! R_max
+      scale(start_ind+13,:) = [1.d0, 0.d0]
     end subroutine init_fan_priors_and_scales
 
     subroutine init_comet_priors_and_scales(self, start_ind, prior, scale)
@@ -464,21 +464,21 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [1d0, 5d0, 0d0, -1.d0] ! P
-      scale(start_ind+6,:) = [1.d0, 0.d0]
-      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! z_mid
-      scale(start_ind+7,:) = [1.d0, 0.d0]
-      prior(:,start_ind+8) = [0.5d0, 1.5d0, 0.1d0, -1.d0] ! R_inner
-      scale(start_ind+8,:) = [1.d0, 0.d0]
-      prior(:,start_ind+9) = [1.5d0, 5.d0, 0.d0, -1.d0] ! R_outer
+      prior(:,start_ind+9) = [1d0, 5d0, 0d0, -1.d0] ! P
       scale(start_ind+9,:) = [1.d0, 0.d0]
+      prior(:,start_ind+10) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! z_mid
+      scale(start_ind+10,:) = [1.d0, 0.d0]
+      prior(:,start_ind+11) = [0.5d0, 1.5d0, 0.1d0, -1.d0] ! R_inner
+      scale(start_ind+11,:) = [1.d0, 0.d0]
+      prior(:,start_ind+12) = [1.5d0, 5.d0, 0.d0, -1.d0] ! R_outer
+      scale(start_ind+12,:) = [1.d0, 0.d0]
     end subroutine init_comet_priors_and_scales
 
     ! See Appendix in Wright (1998) for details; https://iopscience.iop.org/article/10.1086/305345/pdf
@@ -502,45 +502,45 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [ 1.d0,   1.5d0,  1.2186d0, -1.d0] ! p1 - radial density exponent
-      scale(start_ind+6,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+7) = [ 3.d0,   4d0,    3.6122d0, -1.d0] ! p3 - vertical "scale height"
-      scale(start_ind+7,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+8) = [ 0.7d0,  1.1d0,  0.9285d0, -1.d0] ! p4 - vertical density exponent
-      scale(start_ind+8,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+9) = [-1.8d0, -1.2d0, -1.4766d0, -1.d0] ! p5 - ln(sin i) at break
-      scale(start_ind+9,:) = [1.d0, 0.01d0] 
-      prior(:,start_ind+10) = [ -1.d0,  1.d0,  0.3705d0, -1.d0] ! p6 - 10 x cloud pole x component
+      prior(:,start_ind+9) = [ 1.d0,   1.5d0,  1.2186d0, -1.d0] ! p1 - radial density exponent
+      scale(start_ind+9,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+10) = [ 3.d0,   4d0,    3.6122d0, -1.d0] ! p3 - vertical "scale height"
       scale(start_ind+10,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+11) = [ -1.d0,  1.d0, -0.0736d0, -1.d0] ! p7 - 10 x cloud pole y component
+      prior(:,start_ind+11) = [ 0.7d0,  1.1d0,  0.9285d0, -1.d0] ! p4 - vertical density exponent
       scale(start_ind+11,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+12) = [ -1.d0,  1.d0, -0.0235d0, -1.d0] ! p8 - 10 x cloud offset x component
-      scale(start_ind+12,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+13) = [-1.d0,   1.d0, -0.0081d0, -1.d0] ! p9 - 10 x cloud offset y component
+      prior(:,start_ind+12) = [-1.8d0, -1.2d0, -1.4766d0, -1.d0] ! p5 - ln(sin i) at break
+      scale(start_ind+12,:) = [1.d0, 0.01d0] 
+      prior(:,start_ind+13) = [ -1.d0,  1.d0,  0.3705d0, -1.d0] ! p6 - 10 x cloud pole x component
       scale(start_ind+13,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+14) = [ 0.1d0,  3.d0,  0.7548d0, -1.d0] ! p10 - 10 x density contrast of Dermott ring
+      prior(:,start_ind+14) = [ -1.d0,  1.d0, -0.0736d0, -1.d0] ! p7 - 10 x cloud pole y component
       scale(start_ind+14,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+15) = [ 0.1d0,  1.d0,  0.4284d0, -1.d0] ! p13 - "dimple" in Dermott ring
+      prior(:,start_ind+15) = [ -1.d0,  1.d0, -0.0235d0, -1.d0] ! p8 - 10 x cloud offset x component
       scale(start_ind+15,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+16) = [ 0.d0,  50.d0, 27.7741d0, -1.d0] ! p14 - vertical scale for Dermott ring
-      scale(start_ind+16,:) = [1.d0, 1.d0]
-      prior(:,start_ind+17) = [-0.1d0, 0.1d0, -0.0251d0, -1.d0] ! p15 - spherical term in vertical density
+      prior(:,start_ind+16) = [-1.d0,   1.d0, -0.0081d0, -1.d0] ! p9 - 10 x cloud offset y component
+      scale(start_ind+16,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+17) = [ 0.1d0,  3.d0,  0.7548d0, -1.d0] ! p10 - 10 x density contrast of Dermott ring
       scale(start_ind+17,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+18) = [-0.2d0, 0.2d0,  0.0249d0, -1.d0] ! p16 - (sin i)**2 term in vertical density
+      prior(:,start_ind+18) = [ 0.1d0,  1.d0,  0.4284d0, -1.d0] ! p13 - "dimple" in Dermott ring
       scale(start_ind+18,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+19) = [-0.2d0, 0.2d0, -0.0456d0, -1.d0] ! p17 - Additional density at sin i ~ 0.5
-      scale(start_ind+19,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+20) = [-0.2d0, 0.2d0, -0.1276d0, -1.d0] ! p18 - Additional density at sin i ~ 0.25
+      prior(:,start_ind+19) = [ 0.d0,  50.d0, 27.7741d0, -1.d0] ! p14 - vertical scale for Dermott ring
+      scale(start_ind+19,:) = [1.d0, 1.d0]
+      prior(:,start_ind+20) = [-0.1d0, 0.1d0, -0.0251d0, -1.d0] ! p15 - spherical term in vertical density
       scale(start_ind+20,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+21) = [-0.2d0, 0.2d0, -0.0103d0, -1.d0] ! p19 - Additional density at sin i ~ 0.17
+      prior(:,start_ind+21) = [-0.2d0, 0.2d0,  0.0249d0, -1.d0] ! p16 - (sin i)**2 term in vertical density
       scale(start_ind+21,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+22) = [-0.2d0, 0.2d0, -0.0456d0, -1.d0] ! p17 - Additional density at sin i ~ 0.5
+      scale(start_ind+22,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+23) = [-0.2d0, 0.2d0, -0.1276d0, -1.d0] ! p18 - Additional density at sin i ~ 0.25
+      scale(start_ind+23,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+24) = [-0.2d0, 0.2d0, -0.0103d0, -1.d0] ! p19 - Additional density at sin i ~ 0.17
+      scale(start_ind+24,:) = [1.d0, 0.01d0]
     end subroutine init_WrightCloudRing_priors_and_scales
 
     ! See Appendix in Wright (1998) for details; https://iopscience.iop.org/article/10.1086/305345/pdf
@@ -564,25 +564,25 @@ contains
       scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5,:) = [1.d0, 0.d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
+      prior(:,start_ind+6) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
+      scale(start_ind+6,:) = [1.d-1, 1.d-4]
+      prior(:,start_ind+7) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
+      scale(start_ind+7,:) = [1.d3, 0.3d5]
+      prior(:,start_ind+8) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
+      scale(start_ind+8,:) = [1.d-1, 1.d0]
       ! Component-specific parameters
-      prior(:,start_ind+6) = [ 1.d0,   2.0d0,  1.3849d0, -1.d0] ! q1 - 10 x (sin i)_max for band 1
-      scale(start_ind+6,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+7) = [-0.3d0, 0.3d0,   0.1735d0, -1.d0] ! q5 - 10 x band pole x component
-      scale(start_ind+7,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+8) = [-0.3d0, 0.3d0,  -0.2088d0, -1.d0] ! q6 - 10 x band pole y component 
-      scale(start_ind+8,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+9) = [-2.d0, 2.d0,    -1.5723d0, -1.d0] ! q7 - 10 x band offset x component
-      scale(start_ind+9,:) = [1.d0, 0.1d0] 
-      prior(:,start_ind+10) = [ -2.d0, 2.d0,  -0.2225d0, -1.d0] ! q8 - 10 x band offset y component
+      prior(:,start_ind+9) = [ 1.d0,   2.0d0,  1.3849d0, -1.d0] ! q1 - 10 x (sin i)_max for band 1
+      scale(start_ind+9,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+10) = [-0.3d0, 0.3d0,   0.1735d0, -1.d0] ! q5 - 10 x band pole x component
       scale(start_ind+10,:) = [1.d0, 0.01d0]
-      prior(:,start_ind+11) = [ 2.d0,  4.d0,   3.14d0,   -1.d0] ! R_1 - Outer radius
+      prior(:,start_ind+11) = [-0.3d0, 0.3d0,  -0.2088d0, -1.d0] ! q6 - 10 x band pole y component 
       scale(start_ind+11,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+12) = [-2.d0, 2.d0,    -1.5723d0, -1.d0] ! q7 - 10 x band offset x component
+      scale(start_ind+12,:) = [1.d0, 0.1d0] 
+      prior(:,start_ind+13) = [ -2.d0, 2.d0,  -0.2225d0, -1.d0] ! q8 - 10 x band offset y component
+      scale(start_ind+13,:) = [1.d0, 0.01d0]
+      prior(:,start_ind+14) = [ 2.d0,  4.d0,   3.14d0,   -1.d0] ! R_1 - Outer radius
+      scale(start_ind+14,:) = [1.d0, 0.01d0]
     end subroutine init_WrightBand_priors_and_scales
     
     

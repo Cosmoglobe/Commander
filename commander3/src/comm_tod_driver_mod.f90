@@ -552,9 +552,17 @@ contains
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
+
+       !write(*,*) "sample 1: ext(1)= ", ext(1), " ext(2)= ", ext(2)
+
        do j = 1, tod%ndet
-          if (.not. tod%scans(i)%d(j)%accept) cycle
-          call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
+
+          if (.not. tod%scans(i)%d(j)%accept) then 
+            write(*,*) "sample_calibration is cycling"
+            cycle
+          end if
+          
+          call tod%downsample_tod(sd%mask(:,j), ext, mask=mask_lowres(:,j), threshold=threshold)
           !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
              if (trim(tod%abscal_comps) == 'orbital') then
@@ -582,6 +590,8 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
+
+       !write(*,*) "sample 2: ext(1)= ", ext(1), " ext(2)= ", ext(2)
 
        ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)

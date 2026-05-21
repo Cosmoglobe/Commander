@@ -2436,12 +2436,16 @@ contains
       n    = int(ntod / w) + 1
       if (.not. present(tod_out)) then
          ext = [-npad, n+npad]
+         !write(*,*) "downsample: ext(1)= ", ext(1), " ext(2)= ", ext(2)
          return
       end if
 
       do i = 1, n-1
          j = (i-1)*w+1
          k = min(i*w,ntod)
+
+         !write(*,*) "i= ",i, "  j= ", j, "  k= ", k, " n= ", n, " w= ", w
+         !write(*,*) "downsample: n= ", n, "npad = ", npad, " ext(1)= ", ext(1), " ext(2)= ", ext(2) 
 
          if (present(mask)) then
             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
