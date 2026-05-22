@@ -19,6 +19,7 @@ contains
 
     integer(i4b) :: i, j, k, ierr, pix, npix_hist, bin, iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det, oper, ind
     real(sp)     :: val, center, mu, sigma, x0, x1, delta0, f_threshold
+    real(dp)     :: bin_tmp
     logical(lgt) :: refine
     type(comm_detdata) :: dd
     character(len=6) :: pix_text
@@ -84,6 +85,8 @@ contains
           do k = 1, dd%ntod
              pix = dd%pix(k)
              if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
+             bin_tmp = (dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix)
+             if (bin_tmp > 1d6) cycle ! Too large values causes issues with int() below. 
              bin = int((dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix))+1
              if (bin < 1 .or. bin > NBIN_HIST) bin = 0 ! Sample out of range; discarded
              hist(bin,pix) = hist(bin,pix) + 1
