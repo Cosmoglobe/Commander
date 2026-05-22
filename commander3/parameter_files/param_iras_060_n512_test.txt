@@ -2,7 +2,6 @@
 
 NUM_GIBBS_ITER   = 10       # Length of each Markov chain
 OUTPUT_INPUT_MODEL            = .false.
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/vetleav/IRAS/chains/test
 
 
 @START 003

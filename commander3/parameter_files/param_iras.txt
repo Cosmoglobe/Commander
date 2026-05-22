@@ -41,7 +41,7 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = /mn/stornext/d5/data/vetleav/IRAS/commander_output
+OUTPUT_DIRECTORY              = /mn/stornext/d5/data/vetleav/IRAS/chains/tmp
 NSIDE_CHISQ                   = 512
 
 ##############################################################
