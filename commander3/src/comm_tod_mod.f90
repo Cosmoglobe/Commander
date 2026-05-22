@@ -38,7 +38,7 @@ module comm_tod_mod
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
-     logical(lgt) :: fullsky
+     logical(lgt) :: fullsky, equal_dets
      integer(i4b), allocatable, dimension(:)   :: ind2pix ! List of observed pixels
      integer(i4b), allocatable, dimension(:)   :: ind2pix_nest ! List of observed pixels in nested ordering
      integer(i4b), allocatable, dimension(:)   :: ind2sl  ! Sidelobe
@@ -169,6 +169,7 @@ module comm_tod_mod
      logical(lgt) :: on_the_fly_tod_sim !< if you want to make simulated tods in memory during first sample
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
+     logical(lgt) :: equal_det_bp_beam                            ! All detector bandpasses and beams equal? If so, save memory and time
      logical(lgt) :: L2_exist
      character(len=512) :: L2file
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
@@ -430,10 +431,10 @@ module comm_tod_mod
 
   
 interface
-  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets) result(c)
     implicit none
     integer(i4b),             intent(in) :: nside, nside_sl, nmaps
-    logical(lgt),             intent(in) :: fullsky
+    logical(lgt),             intent(in) :: fullsky, equal_dets
     class(comm_tod_pixcache), pointer    :: c
   end function constructor_tod_pixcache
 
@@ -571,6 +572,7 @@ contains
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%equal_det_bp_beam   = .false.
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%apply_inst_corr = .false.
@@ -1480,7 +1482,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)

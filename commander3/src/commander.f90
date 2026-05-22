@@ -224,6 +224,7 @@ program commander
   first = .true.
   first_zodi = .true.
   modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind .or. cpar%mcmc_num_samp_groups > 0)) modfact = 2
+  call update_status(status, "pre_gibbs")
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -263,6 +264,7 @@ program commander
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
+        call update_status(status, "pre_tod")
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
      end if
@@ -472,14 +474,14 @@ contains
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
-       all_bps_equal = .true.
-       do j = 1, ndet
-         do k = i, ndet
-            if (size(data(i)%bp(j)%p%tau0) /= size(data(i)%bp(k)%p%tau0) .or. (.not. all(data(i)%bp(j)%p%tau0 == data(i)%bp(k)%p%tau0))) then
-               all_bps_equal = .false.
-            end if
-         end do
-       end do
+!!$       all_bps_equal = .true.
+!!$       do j = 1, ndet
+!!$         do k = i, ndet
+!!$            if (size(data(i)%bp(j)%p%tau0) /= size(data(i)%bp(k)%p%tau0) .or. (.not. all(data(i)%bp(j)%p%tau0 == data(i)%bp(k)%p%tau0))) then
+!!$               all_bps_equal = .false.
+!!$            end if
+!!$         end do
+!!$       end do
          
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))
@@ -526,6 +528,7 @@ contains
              end do
           end if
 
+          call update_status(status, "pre_gibbs")
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
@@ -541,7 +544,7 @@ contains
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
-             if (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+             if (data(i)%tod%equal_det_bp_beam .and. ndelta == 1 .and. j > 1) then
                 s_sky(j, k)%p => s_sky(1, k)%p ! Same bandpasses means we don't need separate sky maps
                 cycle
              end if
@@ -554,11 +557,12 @@ contains
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
+          call update_status(status, "s_sky")
 
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
-                if  (all_bps_equal .and. ndelta == 1 .and. j > 1) then
+                if  (data(i)%tod%equal_det_bp_beam .and. ndelta == 1 .and. j > 1) then
                    s_gain(j)%p => s_gain(1)%p ! Same bandpasses means we don't need separate gain maps
                    cycle
                 end if
@@ -570,6 +574,7 @@ contains
                 end if
              end do
           end if
+          call update_status(status, "s_gain")
 
        end do
 

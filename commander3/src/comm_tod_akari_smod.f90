@@ -121,9 +121,11 @@ contains
 
       ! Initialize instrument-specific parameters
       !read(c%freq(1:2),*) c%zodiband
-      c%samprate_lowres = 8.  ! Lowres samprate in Hz
-      c%nhorn           = 1
-      c%ndiode          = 1
+      c%samprate_lowres   = 8.  ! Lowres samprate in Hz
+      c%nhorn             = 1
+      c%ndiode            = 1
+      c%equal_det_bp_beam =.true.
+
       if (trim(c%level) == 'L1') then
           c%compressed_tod  = .true.
       else
@@ -167,7 +169,7 @@ contains
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam)
       call c%precompute_lookups()
 
       ! Load the instrument file
@@ -486,7 +488,7 @@ contains
       end if
 
       ! Initialize CG mapmaker, maptype = 1 = T-only
-      cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
+      !cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
       
       ! Perform loop over scans to prepare data to make maps
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -543,7 +545,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! Feed CG mapmaker calibrated and cleaned data
-         call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+         !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
                   
          !write(*,*) "Scan = ", self%scanid(i), ', num moon = ', count(iand(sd%flag,2)==2)
          
@@ -652,9 +654,9 @@ contains
       ! endif
 
       ! Solve for CG map
-      call cgmap%solve(map_out)
-      call dealloc_cgmap(cgmap)
-      call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
+      !call cgmap%solve(map_out)
+      !call dealloc_cgmap(cgmap)
+      !call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
       !call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
       ! Clean up

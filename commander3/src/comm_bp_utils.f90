@@ -52,7 +52,7 @@ contains
 
    !  compute_sz_thermo_single = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
     
-    if (x < 700.d0) then
+    if (x < 500.d0) then
          compute_sz_thermo_single = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
     else
          ! try to avoid overflow here but should probably have the comp_nu_max such that you don't 
@@ -70,10 +70,19 @@ contains
     real(dp), allocatable, dimension(:)              :: y
 
     real(dp), allocatable, dimension(:) :: x
+    integer(i4b) :: i
 
     allocate(x(size(nu)), y(size(nu)))
     x = h*nu/(k_b*T_cmb)
-    y = T_cmb * (x*(exp(x)+1.d0)/(exp(x)-1.d0)-4.d0)
+    do i = 1, size(nu)
+       if (x(i) < 500.d0) then
+         y(i) = T_cmb * (x(i)*(exp(x(i))+1.d0)/(exp(x(i))-1.d0)-4.d0)
+       else
+         ! try to avoid overflow here but should probably have the comp_nu_max such that you don't 
+         ! need this
+         y(i)= T_cmb * (x(i)-4.d0)
+       endif
+    end do 
     deallocate(x)
 
   end function compute_sz_thermo_array
