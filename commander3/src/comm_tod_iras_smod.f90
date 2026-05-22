@@ -124,6 +124,8 @@ contains
       c%samprate_lowres = 8.  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
+      c%equal_det_bp_beam =.true.
+      
       if (trim(c%level) == 'L1') then
           c%compressed_tod  = .true.
       else
@@ -167,7 +169,7 @@ contains
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam)
       call c%precompute_lookups()
 
       ! Load the instrument file
@@ -394,7 +396,7 @@ contains
 
       ! Create pixel histograms
       if (self%first_call) call compute_tod_pixhist(self)
-      
+
       ! Sample gain components in separate TOD loops; marginal with respect to n_corr
       if (sample_gain) then
          ! 'abscal': the global constant gain factor
