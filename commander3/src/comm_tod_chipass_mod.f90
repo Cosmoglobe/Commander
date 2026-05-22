@@ -45,6 +45,7 @@ module comm_tod_chipass_mod
       procedure     :: process_tod          => process_chipass_tod
       procedure     :: read_scan_inst          => read_scan_inst_chipass
       procedure     :: construct_corrtemp_inst => construct_corrtemp_chipass
+      procedure     :: initHDF_inst            => initHDF_chipass
       procedure     :: dumpToHDF_inst          => dumpToHDF_chipass
    end type comm_chipass_tod
 
@@ -144,7 +145,7 @@ contains
       c%nside_beam      = nside_beam
 
       ! allocate CHIPASS-specific instrument file data
-      c%tsys_order      = 3
+      c%tsys_order      = 4
       c%tsys_eta0       = 58.0d0
       allocate(c%tsys_fit(c%ndet, 0:c%tsys_order))
       c%tsys_fit = 0.d0
@@ -666,6 +667,59 @@ contains
        end do
     end do
   end subroutine construct_corrtemp_chipass
+
+  subroutine initHDF_chipass(self, chainfile, path)
+    ! 
+    ! Initializes CHIPASS-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:      derived class (comm_chipass_tod)
+    !            CHIPASS-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !            Already open HDF file handle to existing chainfile
+    ! path:      string
+    !            HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_chipass_tod),             intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: baseline
+    real(dp), allocatable, dimension(:,:)   :: tsys_fit
+    real(dp) :: tsys_eta0
+
+    allocate(baseline(self%nscan_tot, self%ndet, 0:self%baseline_order))
+    allocate(tsys_fit(self%ndet, 0:self%tsys_order))
+    if (self%myid == 0) then
+       call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
+       call read_hdf(chainfile, trim(adjustl(path))//'tsys_fit', tsys_fit)
+       call read_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', tsys_eta0)
+    end if
+
+    call mpi_bcast(baseline, size(baseline), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(tsys_fit, size(tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(tsys_eta0, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+    self%tsys_eta0 = tsys_eta0
+    do j = 1, self%ndet
+       self%tsys_fit(j, :) = tsys_fit(j, :)
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%scans(i)%d(j)%baseline = baseline(k, j, :) 
+       end do
+    end do
+
+    deallocate(baseline, tsys_fit)
+
+  end subroutine initHDF_chipass
 
   subroutine dumpToHDF_chipass(self, chainfile, path)
     ! 
