@@ -457,7 +457,7 @@ contains
       end if
       call timer%stop(TOD_INSTCORR, self%band)
 
-      ! Create dynamic mask
+       ! Create dynamic mask
       if (select_data) then
          if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
          do i = 1, self%nscan

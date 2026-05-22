@@ -308,7 +308,8 @@ program commander
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 0) then
+      !if (cpar%sample_signal_amplitudes .and. iter > 0) then
+      if (cpar%sample_signal_amplitudes .and. iter > 5) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
@@ -327,8 +328,8 @@ program commander
      call timer%stop(TOT_CLS)
 
      
-     if (iter > 1) then
-     !if (iter > 3) then
+     !if (iter > 1) then
+     if (iter > 5) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
               if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
@@ -338,7 +339,7 @@ program commander
      end if
 
      ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
+     if (iter > 5 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
@@ -348,7 +349,7 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
+     if (iter > 5 .and. cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
@@ -532,6 +533,9 @@ contains
              end do
              call update_mixing_matrices(i, update_F_int=.true.)
 
+             ! Set external gain to unity; account for that in TOD gain
+             data(i)%gain = 1.d0
+             
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)

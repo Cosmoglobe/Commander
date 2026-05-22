@@ -41,7 +41,8 @@ module comm_tod_chipass_mod
       integer(i4b)  :: tsys_order
       real(dp)      :: tsys_eta0
       real(dp), allocatable, dimension(:,:)    :: tsys_fit ! ndet, tsys_order+1
-   contains
+      class(comm_dynmask), pointer :: dynmask
+    contains
       procedure     :: process_tod          => process_chipass_tod
       procedure     :: read_scan_inst          => read_scan_inst_chipass
       procedure     :: construct_corrtemp_inst => construct_corrtemp_chipass
@@ -108,8 +109,8 @@ contains
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
       !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
-      c%xi_n_P_uni(2,:)  = [0.001d0, 0.0011d0]  ! fknee
-      c%xi_n_P_uni(3,:)  = [-1.5d0,   -1.4d0]  ! alpha
+      c%xi_n_P_uni(2,:)  = [0.001d0, 0.1d0]  ! fknee
+      c%xi_n_P_uni(3,:)  = [-1.501d0, -1.499d0]  ! alpha
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -179,6 +180,25 @@ contains
 
       !c%orb_dp => comm_orbdipole(comm=c%comm)
 
+      ! Initialize dynamic mask
+      c%dynmask => comm_dynmask(c, cpar)
+      c%dynmask%output_scan             = 1000
+      c%dynmask%output_det              = 1
+      c%dynmask%threshold_singlesamp    = 10
+      !c%dynmask%apply_pixhist           = .false.
+      !c%dynmask%remove_isolated_samples = .false.
+      !c%dynmask%threshold_longchunks    = -0.3
+      !c%dynmask%window_longchunks       = -2000
+      !c%dynmask%threshold_cr            = -6.   ! sigma
+      !c%dynmask%width_cr_mask           = -5
+      !allocate(c%dynmask%templ_cr(-5:5))
+      !c%dynmask%templ_cr    = 1.
+      !c%dynmask%templ_cr(0) = 10.
+      !c%dynmask%templ_cr(1) = 5.
+      !c%dynmask%templ_cr(2) = 2.5
+      !c%dynmask%templ_cr(3) = 1.25
+      !c%dynmask%templ_cr(4) = 1.
+      !c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
 
       ! Initialize all baseline corrections to zero
       do i = 1, c%nscan
@@ -283,12 +303,12 @@ contains
       !if (self%myid == 0) write(*, *) '[comm_tod_chipass_mod.f90] size(delta,3) > 1:', size(delta,3) > 1, size(delta,1), size(delta,2), size(delta,3)
       !sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       !sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
-      select_data           = .false. !self%first_call        ! only perform data selection the first time
+      select_data           = iter == 5        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_baseline       = iter > 1
+      sample_baseline       = iter > 2
       sample_tsys           = iter > 1
-      sample_gain           = iter > 1                         ! Gain sampling
-      sample_ncorr          = iter > 1
+      sample_gain           = iter > 3                         ! Gain sampling
+      sample_ncorr          = iter > 4
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -365,9 +385,27 @@ contains
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          call sample_calibration(self, 'relcal', oper_default, handle)         
          ! 'deltaG': the time-variable and detector-variable gain
-         !call sample_calibration(self, 'deltaG', oper_default, handle)
+         call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
+       ! Create dynamic mask
+      if (select_data) then
+         if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+         do i = 1, self%nscan
+            ! Skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               call self%dynmask%create(sd, j)
+            end do
+            call dealloc_scan_data(sd)
+         end do
+         ! Synchronize and output flagging statistics in first iteration
+         call self%dynmask%report
+      end if
+
+      
       ! Prepare intermediate data structures
       call binmap%init(self, .true., .false.)
 
