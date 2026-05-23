@@ -12,10 +12,10 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
-NUM_GIBBS_ITER   = 1000    # Length of each Markov chain
+NUM_GIBBS_ITER   = 100    # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/chain_c0001.h5:124
+INIT_CHAIN01     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init58/chain_c0001.h5:15
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -29,9 +29,7 @@ TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
 
 CG_CONVERGENCE_CRITERION       = residual   # {residual, chisquare}
 CG_MINITER                     =     3
-CG_TOLERANCE                   = 1.d-6   # Fractional CG convergence criterion
-
-NSIDE_CHISQ                    = 256
+CG_TOLERANCE                   = 1.d-7   # Fractional CG convergence criterion
 
 FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_magic_numbers_230810.txt
 
@@ -41,7 +39,7 @@ NSIDE_CHISQ                    = 256
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY               = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_10
+OUTPUT_DIRECTORY               = chains_compsep
 OUTPUT_SIGNALS_PER_BAND        = .false.
 OUTPUT_MIXING_MATRIX           = .false.
 THINNING_FACTOR                = 1      # output only every nth sample
@@ -210,7 +208,7 @@ BAND_MAPFILE&&&                = haslam_n0512_60arcmin_uK.fits
 BAND_MASKFILE&&&               = mask_haslam_brightsources_v1.fits
 BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
 #BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_1pct_0.8K.fits
-BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_6.9K.fits # 0.8K * 60 arcmin / Nside=512 pixel width
+BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_0.8K.fits # 0.8K * 60 arcmin / Nside=512 pixel width
 BAND_REG_NOISEFILE&&&          = BP_haslam_rmsreg_v2.fits  none
 BAND_NUM_BP_PROPOSALS_PER_ITER&&& = -1
 BAND_SAMP_GAIN&&&              = .false.
@@ -881,8 +879,8 @@ BAND_GAIN_CALIB_COMP&&&        = synch,ff
 BAND_GAIN_PRIOR_RMS&&&          = 0.
 BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
 BAND_TOD_TYPE&&&               = CHIPASS
-BAND_TOD_MAIN_PROCMASK&&&      = /mn/stornext/d16/personal/daniersp/data/mask_file_lambda_chipass_healpix_r10.fits
-BAND_TOD_SMALL_PROCMASK&&&     = /mn/stornext/d16/personal/daniersp/data/mask_file_lambda_chipass_healpix_r10.fits
+BAND_TOD_MAIN_PROCMASK&&&      = bitmask_chipass_v1.fits
+BAND_TOD_SMALL_PROCMASK&&&     = bitmask_chipass_v1.fits
 BAND_TOD_BP_INIT_PROP&&&       = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/bp_init_CHIPASS.dat
 BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
 BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_elev/filelist_1395.txt
@@ -892,7 +890,7 @@ BAND_TOD_END_SCANID&&&         = 5069 #44072
 BAND_TOD_TOT_NUMSCAN&&&        = 5069 #45860
 BAND_UNIT&&&                   = mK_cmb
 #BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
-BAND_TOD_INIT_FROM_HDF&&&      = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init37/chain_c0001.h5:72
+BAND_TOD_INIT_FROM_HDF&&&      = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init57/chain_c0001.h5:15
 BAND_TOD_LEVEL&&&              = L1
 #BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
 BAND_TOD_JUMPLIST&&&           = none
@@ -998,12 +996,12 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @DEFAULT components/synch/synch_CHIPASS.defaults
 COMP_AMP_LMAX&&               = 2000
 COMP_APOD_LMAX&&              = 2000
-COMP_OUTPUT_FWHM&&            = 15         # arcmin
-COMP_CL_DEFAULT_BETA_T&&      = 15d0
+COMP_OUTPUT_FWHM&&            = 30         # arcmin
+COMP_CL_DEFAULT_BETA_T&&      = 30d0
 COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/synch_c0001_k000124.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init57/synch_c0001_k000014_30arc.fits
 COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           = -2.62
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1058,7 +1056,7 @@ COMP_ALPHA_PRIOR_UNI_HIGH&&    =   0.5
 COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
-COMP_INIT_FROM_HDF&&           = default
+COMP_INIT_FROM_HDF&&           = none default
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 05
 
@@ -1067,8 +1065,8 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 #@DEFAULT components/freefree/freefree_LFI.defaults
 @DEFAULT components/freefree/freefreeEM_DIRBE.defaults
 #COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
-COMP_AMP_INPUT_MAP&&          = init_ff_amp_EM05.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init46/ff_c0001_k000124.fits
+#COMP_AMP_INPUT_MAP&&          = init_ff_amp_EM05.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init57/ff_c0001_k000015.fits
 #COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits
 #COMP_AMP_LMAX&&               = 1000 2955
 #COMP_APOD_LMAX&&              = 1000 2955
@@ -1120,7 +1118,7 @@ MCMC_SAMPLING_GROUP_PARAMS&&            = ff:scale%0.01
 MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3
 MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2
 MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = AST9240__ARCADE2_nside16_prodmask.fits AST9240__3410_MHz_ARCADE2_nside16_mask.fits processed_maps/AST9240__3410_MHz_ARCADE2_nside16_mask.fits
-MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 10
 @END 01
 
 @START 01

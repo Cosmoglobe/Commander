@@ -337,10 +337,10 @@ contains
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
-       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,j) = sd%tod(:,j) - sd%s_mono(:,j)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,j) = sd%tod(:,j) - sd%s_jump(:,j)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
+       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,j) = sd%tod(:,j) - sd%s_spike(:,j)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
     

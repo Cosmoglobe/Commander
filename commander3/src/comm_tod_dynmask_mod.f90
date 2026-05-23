@@ -221,6 +221,7 @@ contains
        if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0) then
           call ring2nest(self%tod%nside, sd%pix(i,det,1), pix_nest)
           pix_nest = pix_nest / q
+          !write(*,*) det, i, self%tod%pixhist(4,pix_nest,det), sd%tod(i,det), self%tod%pixhist(5,pix_nest,det)
           if (sd%tod(i,det) < self%tod%pixhist(4,pix_nest,det) .or. &
                & sd%tod(i,det) > self%tod%pixhist(5,pix_nest,det)) then
              mask_dyn(i)    = 0.

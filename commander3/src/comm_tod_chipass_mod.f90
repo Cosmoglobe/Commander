@@ -32,7 +32,8 @@ module comm_tod_chipass_mod
    !
   use comm_tod_mapmaking_mod
   use comm_tod_driver_mod
-   implicit none
+  use comm_tod_pixhist_mod
+  implicit none
 
    private
    public comm_chipass_tod
@@ -46,6 +47,7 @@ module comm_tod_chipass_mod
       procedure     :: process_tod          => process_chipass_tod
       procedure     :: read_scan_inst          => read_scan_inst_chipass
       procedure     :: construct_corrtemp_inst => construct_corrtemp_chipass
+      procedure     :: initHDF_inst            => initHDF_chipass
       procedure     :: dumpToHDF_inst          => dumpToHDF_chipass
    end type comm_chipass_tod
 
@@ -109,8 +111,8 @@ contains
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
       !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
-      c%xi_n_P_uni(2,:)  = [0.001d0, 0.1d0]  ! fknee
-      c%xi_n_P_uni(3,:)  = [-1.501d0, -1.499d0]  ! alpha
+      c%xi_n_P_uni(2,:)  = [0.003d0, 0.0031d0]  ! fknee
+      c%xi_n_P_uni(3,:)  = [-2.001d0, -1.999d0]  ! alpha
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -143,9 +145,10 @@ contains
       nmaps_beam                  = 1
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
-
+      c%nside_pixhist   = 64
+      
       ! allocate CHIPASS-specific instrument file data
-      c%tsys_order      = 3
+      c%tsys_order      = 4
       c%tsys_eta0       = 58.0d0
       allocate(c%tsys_fit(c%ndet, 0:c%tsys_order))
       c%tsys_fit = 0.d0
@@ -182,10 +185,13 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 1000
+      c%dynmask%output_scan             = 201
       c%dynmask%output_det              = 1
-      c%dynmask%threshold_singlesamp    = 10
-      !c%dynmask%apply_pixhist           = .false.
+      c%dynmask%threshold_singlesamp    = 10  ! Exclude 10 sigma outliers
+      c%dynmask%window_excessRMS(1)     = 7   ! Search for windows of 7 samples
+      c%dynmask%threshold_excessRMS(1)  = 10  ! Exclude 10 sigma outliers; planets?
+
+      c%dynmask%apply_pixhist           = .true.
       !c%dynmask%remove_isolated_samples = .false.
       !c%dynmask%threshold_longchunks    = -0.3
       !c%dynmask%window_longchunks       = -2000
@@ -303,12 +309,12 @@ contains
       !if (self%myid == 0) write(*, *) '[comm_tod_chipass_mod.f90] size(delta,3) > 1:', size(delta,3) > 1, size(delta,1), size(delta,2), size(delta,3)
       !sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       !sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
-      select_data           = iter == 5        ! only perform data selection the first time
+      select_data           = iter == 4        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_baseline       = iter > 2
+      sample_baseline       = iter > 1
       sample_tsys           = iter > 1
-      sample_gain           = iter > 3                         ! Gain sampling
-      sample_ncorr          = iter > 4
+      sample_gain           = iter > 2                         ! Gain sampling
+      sample_ncorr          = iter > 3
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -347,13 +353,13 @@ contains
 
       ! TODO: sample tsys_eta0
 
-      ! sample Tsys
+      ! sample Tsys; marginal over baseline -- must be directly followd by baseline sampling
       if (sample_tsys) then
          if (self%myid == 0) then
             write(*,*) '|    --> Sampling Tsys'
          end if
          call update_status(status, "Tsys")
-         call sample_chipass_Tsys(self, oper_default)
+         call sample_chipass_Tsys(self, oper_default, handle)
       end if
 
       ! sample baseline
@@ -388,6 +394,10 @@ contains
          call sample_calibration(self, 'deltaG', oper_default, handle)
       end if
 
+      ! Create pixel histograms
+      if (self%first_call) call compute_tod_pixhist(self, spur_level=100)
+      call update_status(status, "tod_hist"//ctext)
+      
        ! Create dynamic mask
       if (select_data) then
          if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
@@ -445,7 +455,7 @@ contains
 
          ! For debugging: write TOD to hdf
          if (.true.) then
-            if (mod(self%scanid(i), 500) == 0) then
+            if (mod(self%scanid(i), 201) == 0) then
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod/self%scans(i)%d(1)%gain)
@@ -600,7 +610,7 @@ contains
 
   end subroutine read_scan_inst_chipass
 
-  subroutine sample_chipass_Tsys(self, oper_default)
+  subroutine sample_chipass_Tsys(self, oper_default, handle)
     !
     !  Sample CHIPASS Tsys(eta)
     !
@@ -615,47 +625,104 @@ contains
     !
     implicit none
     class(comm_chipass_tod), intent(inout) :: self
-    integer(i4b), intent(in)               :: oper_default
+    integer(i4b),            intent(in)    :: oper_default
+    type(planck_rng),        intent(inout) :: handle
 
-    type(hdf_file)      :: file
-    !character(len=6)    :: slabel
     type(comm_scandata) :: sd
-    integer(i4b)        :: i, j, k, l, n
-    real(dp)            :: t, dt
-    real(dp), allocatable, dimension(:) :: x, y !, elev
+    integer(i4b)        :: i, j, k, l, m, nout, ierr
+    real(dp)            :: t, dt, x, y, eta
+    real(sp), allocatable, dimension(:,:)   :: tsys
+    real(dp), allocatable, dimension(:)   :: b
+    real(dp), allocatable, dimension(:,:) :: A
 
-    !allocate(x(50690*150), y(50690*150))
-    n = 0
-    do i = 1, self%nscan
-        n = n + self%scans(i)%ntod
-    end do
-    allocate(x(n), y(n))
-    if (self%myid == 0) write(*,*) 'ntod tot:', n
+    allocate(A(0:self%tsys_order,0:self%tsys_order), b(0:self%tsys_order))
 
+    ! Build linear system, A * x = b, for current core
     do j = 1, self%ndet
-       n = 0
+       A = 0.d0; b = 0.d0
        do i = 1, self%nscan
           if (.not. any(self%scans(i)%d%accept)) cycle
-          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0)
+          call init_scan_data(self, i, oper_default, TODMASK_PROC, sd, spur_level=0)
           dt = 1.d0 / self%scans(i)%ntod
           t  = 0.d0
           do k = 1, self%scans(i)%ntod
              t = t + dt
-             if (sd%flag(k, j) < 1) then
-                n    = n + 1
-                x(n) = self%scans(i)%d(j)%elev(k) - self%tsys_eta0
-                y(n) = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
-                do l = 0, self%baseline_order
-                   y(n) = y(n) - self%scans(i)%d(j)%baseline(l) * t**l
+             if (sd%mask(k,j) == 1) then
+                ! Prepare data 
+                x = self%scans(i)%d(j)%elev(k) - self%tsys_eta0
+                y = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
+!!$                do l = 0, self%baseline_order
+!!$                   y = y - self%scans(i)%d(j)%baseline(l) * t**l
+!!$                end do
+                ! Add current sample to linear system
+                do l = 0, self%tsys_order
+                   b(l) = b(l) + y * x**l / self%scans(i)%d(j)%N_psd%sigma0**2
+                   do m = 0, self%tsys_order
+                      A(l,m) = A(l,m) + x**l * x**m / self%scans(i)%d(j)%N_psd%sigma0**2
+                   end do
                 end do
              end if
           end do
           call dealloc_scan_data(sd)
        end do
-       call fit_polynomial(x(1:n), y(1:n), self%tsys_fit(j, 0:self%tsys_order))
-    end do
 
-    deallocate(x, y)
+       ! Draw a sample of Tsys parameters
+       if (self%myid == 0) then
+          ! Collect contributions from all cores
+          call mpi_reduce(mpi_in_place, A, size(A), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+          call mpi_reduce(mpi_in_place, b, size(b), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+          
+          ! Compute best-fit solution
+          call invert_matrix(A, cholesky=.true.)
+          self%tsys_fit(j,:) = matmul(A, b)
+
+          ! Add random fluctuation
+          call compute_hermitian_root(A, 0.5d0)
+          do l = 0, self%tsys_order
+             b(l) = rand_gauss(handle)
+          end do
+          self%tsys_fit(j,:) = self%tsys_fit(j,:) + matmul(A, b)
+       else
+          ! Send contribution to root
+          call mpi_reduce(A, A, size(A), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+          call mpi_reduce(b, b, size(b), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       end if
+    end do    
+    
+    ! Distribute new sample
+    call mpi_bcast(self%tsys_fit, size(self%tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)       
+
+    ! Output to ASCII
+    if (self%myid == 0) then
+       nout = 1000
+       allocate(tsys(nout,self%ndet))
+       do i = 1, nout
+          eta = 30.d0 + real(i-1,sp)/real(nout-1,sp) * 60d0 ! Elevation in degrees
+          tsys(i,:) = 0.
+          do j = 1, self%ndet
+             do l = 0, self%tsys_order
+                tsys(i,j) = tsys(i,j) + self%tsys_fit(j,l) * (eta - self%tsys_eta0)**l
+             end do
+          end do
+       end do
+       do j = 1, self%ndet
+          tsys(:,j) = tsys(:,j) - minval(tsys(1:600,j))
+       end do
+       
+       open(58, file='Tsys.dat', recl=10000)
+       do i = 1, nout
+          eta = 30.d0 + real(i-1,sp)/real(nout-1,sp) * 60d0 ! Elevation in degrees
+          write(58,*) real(eta,sp), tsys(i,:)
+       end do
+       close(58)
+       deallocate(tsys)
+    end if
+    
+    deallocate(A, b)
 
   end subroutine sample_chipass_Tsys
 
@@ -689,21 +756,74 @@ contains
     scan      = sd%scan
     dt        = 1.d0 / self%scans(scan)%ntod
     sd%s_inst = 0.d0
-    do j = 1, self%ndet
+    do j = 1, sd%ndet
        d = j; if (present(det)) d = det
        t = 0.d0
        if (.not. self%scans(scan)%d(d)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
           do i = 0, self%baseline_order
-             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
+             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
           end do
           do i = 0, self%tsys_order
-             sd%s_inst(k,j) = sd%s_inst(k,j) + self%tsys_fit(j, i) * (self%scans(scan)%d(j)%elev(k) - self%tsys_eta0)**i
+             sd%s_inst(k,j) = sd%s_inst(k,j) + self%tsys_fit(d,i) * (self%scans(scan)%d(d)%elev(k) - self%tsys_eta0)**i
           end do
        end do
     end do
   end subroutine construct_corrtemp_chipass
+
+  subroutine initHDF_chipass(self, chainfile, path)
+    ! 
+    ! Initializes CHIPASS-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:      derived class (comm_chipass_tod)
+    !            CHIPASS-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !            Already open HDF file handle to existing chainfile
+    ! path:      string
+    !            HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_chipass_tod),             intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+
+    integer(i4b) :: ierr, i, j, k
+    real(dp), allocatable, dimension(:,:,:) :: baseline
+    real(dp), allocatable, dimension(:,:)   :: tsys_fit
+    real(dp) :: tsys_eta0
+
+    allocate(baseline(self%nscan_tot, self%ndet, 0:self%baseline_order))
+    allocate(tsys_fit(self%ndet, 0:self%tsys_order))
+    if (self%myid == 0) then
+       call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
+       call read_hdf(chainfile, trim(adjustl(path))//'tsys_fit', tsys_fit)
+       call read_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', tsys_eta0)
+    end if
+
+    call mpi_bcast(baseline, size(baseline), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(tsys_fit, size(tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(tsys_eta0, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+    self%tsys_eta0 = tsys_eta0
+    do j = 1, self%ndet
+       self%tsys_fit(j, :) = tsys_fit(j, :)
+       do i = 1, self%nscan
+          k = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%scans(i)%d(j)%baseline = baseline(k, j, :) 
+       end do
+    end do
+
+    deallocate(baseline, tsys_fit)
+
+  end subroutine initHDF_chipass
 
   subroutine dumpToHDF_chipass(self, chainfile, path)
     ! 

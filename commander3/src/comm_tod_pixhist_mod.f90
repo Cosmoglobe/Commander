@@ -13,11 +13,12 @@ module comm_tod_pixhist_mod
 
 contains
 
-  subroutine compute_tod_pixhist(tod)
+  subroutine compute_tod_pixhist(tod, nonlin_level, spur_level)
     implicit none
-    class(comm_tod),                              intent(inout) :: tod
+    class(comm_tod),     intent(inout)          :: tod
+    integer(i4b),        intent(in),   optional :: nonlin_level, spur_level
 
-    integer(i4b) :: i, j, k, ierr, pix, npix_hist, bin, iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det, oper, ind
+    integer(i4b) :: i, j, k, ierr, pix, npix_hist, bin, iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det, oper, ind, nonlin_lvl, spur_lvl
     real(sp)     :: val, center, mu, sigma, x0, x1, delta0, f_threshold
     logical(lgt) :: refine
     type(comm_detdata) :: dd
@@ -33,8 +34,10 @@ contains
 
     ndet      = tod%ndet
     npix_hist = 12*tod%nside_pixhist**2
-    oper      = get_sd_operation_code([SD_BASE,SD_TOD,SD_MASK,SD_IND])
-
+    oper      = get_sd_operation_code([SD_BASE,SD_TOD,SD_MASK,SD_IND,SD_INST])
+    nonlin_lvl = 0; if (present(nonlin_level)) nonlin_lvl = nonlin_level
+    spur_lvl = 0;   if (present(spur_level))   spur_lvl = spur_level
+    
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1,ndet))  ! (mu, rms, nhit, min, max)
     allocate(delta(0:npix_hist-1))  ! (mu, rms, nhit, min, max)
@@ -47,7 +50,7 @@ contains
     do det = 1, ndet
     
        ! Set up full-mission scan data
-       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd, nonlin_level=0, spur_level=0)
+       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd, nonlin_level=nonlin_lvl, spur_level=spur_lvl)
        call timer%start(TOD_PIXHIST, tod%band)
        
 !!$       if (tod%myid == 0 .and. det == 2) then
