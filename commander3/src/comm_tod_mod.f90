@@ -974,7 +974,6 @@ contains
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det", det_buf, n)
-
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
@@ -1088,15 +1087,20 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
-          ns(j)         = ns(j) + 1
+          if (self%scans(i)%d(j)%gain > huge(dp)) then
+            self%scans(i)%d(j)%accept  = .false.
+          else
+            self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
+            ns(j)         = ns(j) + 1
+          end if
        end do
     end do
     call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
-    
+
+
     self%gain0(0) = sum(self%gain0)/sum(ns)
 
     where (ns > 0)
@@ -1717,8 +1721,8 @@ contains
                end do
             end if
             
-!!$            write(*,*) '|'
-!!$            write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+            write(*,*) '|'
+            write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if
 
@@ -1728,10 +1732,10 @@ contains
             proc(i) = (i-1)/n_per_core
          end do
 
-!!$         write(*,*) '    Scan        Core'
-!!$         do k = 1, n_tot
-!!$            write(*,*) k, proc(k)
-!!$         end do
+         write(*,*) '    Scan        Core'
+         do k = 1, n_tot
+            write(*,*) k, proc(k)
+         end do
                   
          deallocate(filenum)
 

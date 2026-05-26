@@ -67,7 +67,12 @@ contains
     c%nhorn           = 1
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic lat rate for now    
     c%nmaps           = info%nmaps
-    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+       c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+    else
+       c%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
+
     c%noise_psd_model = 'oof'       ! Not fitted parameters yet
 
     ! Initialize common parameters
@@ -138,7 +143,12 @@ contains
 
     
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+       call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
+    else
+       call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
+    end if
+
 
     ! Identify partners
     c%partner = -1
@@ -453,8 +463,7 @@ contains
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
        !call compute_calibrated_data(self, i, sd, d_calib)
-       d_calib(1,:,:) = sd%tod
-       write(*,*) "Sum and shape of tod is", sum(sd%tod), shape(sd%tod)
+       d_calib(1,:,:) = -abs(sd%tod)
        sd%flag = 0
        sd%mask = 1
 
