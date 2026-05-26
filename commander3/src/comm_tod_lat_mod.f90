@@ -44,7 +44,6 @@ module comm_tod_lat_mod
 
   type, extends(comm_tod) :: comm_lat_tod
      real(sp) :: f_spin
-     integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_dynmask), pointer :: dynmask
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
@@ -56,14 +55,7 @@ module comm_tod_lat_mod
      procedure     :: initHDF_inst            => initHDF_lat
      procedure     :: dumpToHDF_inst          => dumpToHDF_lat
      procedure     :: construct_corrtemp_inst => construct_corrtemp_lat
-     procedure     :: apply_nonlin_corr_inst  => apply_nonlin_corr_lat
 
-     procedure, private     :: stitch_lat_dc_level
-     procedure, private     :: lat_dark_correction
-     procedure, private     :: estimate_lat_4k_lines
-     procedure, private     :: deconvolve_rolloff
-     procedure, private     :: fill_gaps
-     procedure, private     :: compute_adu_range
   end type comm_lat_tod
 
   interface comm_lat_tod
@@ -179,91 +171,6 @@ interface
   end subroutine load_instrument_lat
 
 
-  module subroutine sample_lat_baselines(self, tod, scan, handle, subtract_s_tot)
-
-    ! 
-    ! Estimates baselines for MODULATED data, separate for odd and even samples
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_scandata)
-    !           LAT-specific TOD object
-    ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
-    ! scan:     scan ID
-    ! handle:   planck_rng derived type
-    !           Healpix definition for random number generation
-    !           so that the same sequence can be resumed later on from that same
-    !           point
-    !           
-    !
-    ! Returns
-    ! ----------
-    !   None, but updates tod%scans(scan)%d(:)%baseline  (for odd samples)
-    !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
-    !                     tod%scans(scan)%d(:)%gain (temporary solution)
-    !
-    implicit none
-    class(comm_scandata),                 intent(in)    :: self
-    class(comm_lat_tod),                  intent(inout) :: tod
-    integer(i4b),                         intent(in)    :: scan
-    type(planck_rng),                     intent(inout) :: handle
-    logical(lgt),                         intent(in), optional :: subtract_s_tot
-  end subroutine sample_lat_baselines
-
-  module subroutine set_modulation_phase(self, tod, scan)
-    ! 
-    ! Estimates baselines for MODULATED data, separate for odd and even samples
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_scandata)
-    !           lat-specific TOD object
-    ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
-    ! scan:     scan ID
-    ! handle:   planck_rng derived type
-    !           Healpix definition for random number generation
-    !           so that the same sequence can be resumed later on from that same
-    !           point
-    !           
-    !
-    ! Returns
-    ! ----------
-    !   None, but updates tod%scans(scan)%d(:)%baseline1  (for odd samples)
-    !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
-    !                     tod%scans(scan)%d(:)%gain (temporary solution)
-    !
-    implicit none
-    class(comm_scandata),                 intent(in)    :: self
-    class(comm_lat_tod),                  intent(inout) :: tod
-    integer(i4b),                         intent(in)    :: scan
-  end subroutine set_modulation_phase
-  
-
-  module subroutine demodulate_tod(self, tod, scan)
-    ! 
-    ! Demodulate LAT TOD
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_scandata)
-    !           LAT-specific TOD object
-    ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
-    ! scan:     Scan ID
-    !
-    ! Returns
-    ! ----------
-    !   None, but updates self%tod
-    !
-    implicit none
-    class(comm_scandata),                         intent(inout) :: self
-    class(comm_lat_tod),                          intent(in)    :: tod
-    integer(i4b),                                 intent(in)    :: scan
-  end subroutine demodulate_tod
-
-  
   module subroutine read_tod_inst_lat(self, file)
     ! 
     ! Reads LAT-specific common fields from TOD fileset
@@ -383,178 +290,8 @@ interface
     integer(i4b),         intent(in),   optional :: det
   end subroutine construct_corrtemp_lat
 
-  module subroutine apply_nonlin_corr_lat(self, sd, nonlin_lvl, handle, det)
-    !  Construct and apply LAT instrument-specific non-linear corrections
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
-    !
-    !  sd: comm_scandata
-    !       structure holding the scan data
-    !
-    !  Returns:
-    !  --------
-    !  s:   real (sp)
-    !       output template timestream
-    implicit none
-    class(comm_lat_tod),                   intent(inout) :: self
-    class(comm_scandata),                  intent(inout) :: sd
-    integer(i4b),                          intent(in)    :: nonlin_lvl
-    type(planck_rng),            optional, intent(inout) :: handle
-    integer(i4b),                optional, intent(in)    :: det
-  end subroutine apply_nonlin_corr_lat
 
-  module subroutine stitch_lat_dc_level(self, scan, sd)
-    !  Construct and apply LAT instrument-specific non-linear corrections
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
-    !  sd: comm_scandata object
-    !       structure holding the data for each scan
-    !
-    implicit none
-    class(comm_lat_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    class(comm_scandata),                  intent(inout) :: sd
-  end subroutine stitch_lat_dc_level
 
-  module subroutine lat_dark_correction(self, scan, sd)
-    !  Construct and apply lat instrument-specific corrections
-    !  from dark bolometer timestreams
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
-    !  sd: comm_scandata object
-    !       structure holding the data for each scan
-    !
-    implicit none
-    class(comm_lat_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    class(comm_scandata),                  intent(inout) :: sd
-  end subroutine lat_dark_correction
-
-  module subroutine estimate_lat_4k_lines(self, scan, sd)
-    !  Construct and apply lat instrument-specific corrections
-    !  from 4k lines
-    !
-    !  Arguments:
-    !  ----------
-    !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
-    !  sd: comm_scandata object
-    !       structure holding the data for each scan
-    !
-    implicit none
-    class(comm_lat_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    class(comm_scandata),                  intent(inout) :: sd
-  end subroutine estimate_lat_4k_lines
-
-  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, nomono, ps_output)
-    ! Deconvolves high frequency rolloff in noise spectrum
-    !
-    ! Arguments:
-    ! ----------
-    ! self: comm_tod object
-    !
-    ! tod: real(sp) array
-    !      residual tod
-    ! scan: int
-    !       scan number
-    ! i_det: int
-    !        detector id
-    ! s_sub: real(sp) array
-    !        sky signal template
-    ! mask:  real(sp) array
-    !        mask
-    ! nomono: logical
-    !         option to remove monopole
-    ! ps_output: string
-    !            filename to output corrected power spectrum
-    implicit none
-    class(comm_lat_tod),                       intent(inout) :: self
-    real(sp),                   dimension(1:), intent(inout) :: tod
-    integer(i4b),                              intent(in)    :: scan, i_det
-    real(sp),                   dimension(1:), intent(in)    :: s_sub
-    real(sp),         optional, dimension(1:), intent(in)    :: mask
-    logical(lgt),     optional,                intent(in)    :: nomono
-    character(len=*), optional,                intent(in)    :: ps_output
-  end subroutine deconvolve_rolloff
-
-  module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
-    ! Fill gaps in flagged samples
-    !
-    ! Arguments:
-    ! ----------
-    ! self: comm_tod object
-    !
-    ! tod: real(sp) array
-    !      residual tod
-    ! handle: planck_rng
-    !         rng handle
-    ! scan: int
-    !       scan number
-    ! i_det: int
-    !        detector id
-    ! s_sub: real(sp) array
-    !        sky signal template
-    ! mask:  real(sp) array
-    !        mask
-    ! pix:   int array
-    !         
-    ! nomono: logical
-    !         option to remove monopole
-    ! dospike: logical
-    !          option to flag spikes
-    ! ps_output: string
-    !            filename to output corrected power spectrum
-    ! filling: string
-    !          filling mod (white noise, chunks, zero)
-    implicit none
-    class(comm_lat_tod),                     intent(in)    :: self
-    real(sp),              dimension(1:),    intent(inout) :: tod
-    type(planck_rng),                        intent(inout) :: handle
-    integer(i4b),                            intent(in)    :: scan, i_det
-    real(sp),              dimension(1:),    intent(in)    :: mask, s_sub
-    integer(i4b),          dimension(1:,1:), intent(in)    :: pix
-    logical(lgt),                  optional, intent(in)    :: nomono
-    logical(lgt),                  optional, intent(in)    :: dospike
-    character(len=*),              optional, intent(in)    :: ps_output
-    character(len=*),              optional, intent(in)    :: filling
-  end subroutine fill_gaps
-
-  module subroutine compute_adu_range(self)
-    ! 
-    ! Computes ADU range over all scans and unmasked samples; for ADC correction
-    ! Must be called after dynamic mask definition
-    !
-    ! Arguments:
-    ! ----------
-    ! self:      comm_tod derived type
-    !             contains TOD-specific information         
-    ! Returns
-    ! ----------
-    !   None, but updates tod%adu_range
-    !
-    implicit none
-    class(comm_lat_tod),                  intent(inout) :: self
-  end subroutine compute_adu_range
-
-  
 end interface
 
 end module comm_tod_lat_mod
