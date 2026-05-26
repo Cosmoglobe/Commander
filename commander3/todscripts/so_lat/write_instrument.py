@@ -132,6 +132,8 @@ def _add_fields(
     # Add central wavelength
     instrument_file.add_field(band_label + "/centFreq", data=[central_wavelength])
 
+    instrument_file.add_field(band_label + "/polEff", data=[1.0])
+
 
 def main() -> None:
 
