@@ -1,7 +1,10 @@
 import glob
 import fitsio
 import numpy as np
+import healpy as hp
 import pickle
+import random
+import math
 
 """
 A class for reading AKARI TODs within a given range.
@@ -120,7 +123,7 @@ class AKARITODReader:
         return [start_idx, end_idx]
 
 
-    def get_data(self, start_idx, end_idx):
+    def get_data(self, start_idx, end_idx, should_compress=False):
         """Given global indices, gets the contiguous data corresponding to that index range.
         
         The output data are formatted according to what's given by fits2output_formatter.
@@ -161,7 +164,8 @@ class AKARITODReader:
                     file_end_idx = currfile[1].get_nrows()
                 n_points = file_end_idx - file_start_idx
                 curr_data = self.fits2output_formatter(currfile, file_start_idx,
-                                                       file_end_idx, self.band)
+                                                       file_end_idx, self.band,
+                                                       should_compress=should_compress)
             if data is None:
                 data = {}
                 for field, field_data in curr_data.items():
@@ -199,3 +203,41 @@ class AKARITODReader:
         file_indices = [i for i in range(start_fileind, end_fileind+1)]
 
         return file_indices
+
+
+    @staticmethod
+    def _ring_spin_axis(vecs):
+        """
+        vecs - ntod x 3 array, corresponding to pointing of a single AKARI detector.
+
+        Since the instrument scans along great circles, the spin angular momentum
+        of the pixels is relatively stable. We estimate this using the classical angular 
+        momentum formula and estimate the linear momentum per pointing.
+
+        In the case of undefined angular momentum, zero is returned.
+
+        Note that the spin axis may be flipped from the true spin angular momentum,
+        since we take the convention that the x-axis of the spin is positive.
+        """
+
+        p = np.gradient(vecs, axis=0)
+        L = np.cross(vecs, p)
+        Ln = np.linalg.norm(L, axis=1, keepdims=True)
+
+        # Normalize
+        good = Ln[:,0] > 0
+        L[good] /= Ln[good]
+
+        # Flip vectors so that they all lie in positive x axis.
+        L[L[:,0] < 0] *= -1
+        theta, phi = hp.vec2ang(np.nanmean(L, axis=0))
+        if np.any(~np.isfinite(L)):
+            print('found a nan', theta, phi)
+
+        if np.all(Ln == 0):
+            outAng = np.array([0,0])
+        else:
+            outAng = np.array([theta[0], phi[0]])
+
+
+        return outAng

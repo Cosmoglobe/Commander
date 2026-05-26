@@ -38,7 +38,7 @@ module comm_tod_mod
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
-     logical(lgt) :: fullsky
+     logical(lgt) :: fullsky, equal_dets
      integer(i4b), allocatable, dimension(:)   :: ind2pix ! List of observed pixels
      integer(i4b), allocatable, dimension(:)   :: ind2pix_nest ! List of observed pixels in nested ordering
      integer(i4b), allocatable, dimension(:)   :: ind2sl  ! Sidelobe
@@ -166,8 +166,10 @@ module comm_tod_mod
      character(len=512) :: noise_psd_model  
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
+     logical(lgt) :: on_the_fly_tod_sim !< if you want to make simulated tods in memory during first sample
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
+     logical(lgt) :: equal_det_bp_beam                            ! All detector bandpasses and beams equal? If so, save memory and time
      logical(lgt) :: L2_exist
      character(len=512) :: L2file
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
@@ -389,7 +391,7 @@ module comm_tod_mod
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
 
-  ! Class for uncompressed data for a given scan                    ! Defined in init_scan data 
+  ! Class for uncompressed data for a given scan                    ! Defined in init_scan_data 
   type :: comm_scandata                                             ! in comm_tod_driver_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
@@ -429,10 +431,10 @@ module comm_tod_mod
 
   
 interface
-  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets) result(c)
     implicit none
     integer(i4b),             intent(in) :: nside, nside_sl, nmaps
-    logical(lgt),             intent(in) :: fullsky
+    logical(lgt),             intent(in) :: fullsky, equal_dets
     class(comm_tod_pixcache), pointer    :: c
   end function constructor_tod_pixcache
 
@@ -565,10 +567,12 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%on_the_fly_tod_sim = cpar%on_the_fly_tod_sim
     self%level         = cpar%ds_tod_level(id_abs)
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%equal_det_bp_beam   = .false.
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%apply_inst_corr = .false.
@@ -1483,7 +1487,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -2668,8 +2672,9 @@ contains
     class(comm_scandata), intent(inout)          :: sd
     integer(i4b),         intent(in),   optional :: det
 
-    integer(i4b) :: i, j, d, h, scan
-
+    integer(i4b) :: i, j, d, h, scan, dsamp, ntod
+    real(dp)     :: spinrate, dpsi, psi0
+    
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
@@ -2682,7 +2687,8 @@ contains
 !!$          end if
           if (minval(sd%psi(:,j,h)) <= 0) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', fix input HDF files. Perhaps zero-based psi?'
-            stop
+            !stop
+            where (sd%psi(:,j,h) <= 0) sd%psi(:,j,h) = sd%psi(:,j,h) + self%npsi  !FIXME
           end if
           if (maxval(sd%psi(:,j,h)) > self%npsi) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', greater than npsi,', self%npsi,'; fix input HDF files'
@@ -2692,6 +2698,7 @@ contains
          if (self%polang(d) /= 0.) then
             sd%psi(:,j,h) = sd%psi(:,j,h) + nint(self%polang(d)/(2.d0*pi)*self%npsi)
          end if
+         !if (self%on_the_fly_tod_sim) write(*,*) 'on the fly pix', sd%pix(1,j,h), j, h
       end do
    end do
    where (sd%psi < 1)
@@ -2700,6 +2707,58 @@ contains
       sd%psi = sd%psi - self%npsi
    end where
 
+   ! if on-the-fly tod sim mode, we will now overwrite psi with 0.3 rpm
+   if (.not. self%on_the_fly_tod_sim) return
+
+!   if (self%myid == 0) then
+!      open(18, file='psi_input.dat')
+!      do i = 1, size(sd%psi(:,1,1))
+!         write(18,*) i, sd%psi(i,1,1)
+!      end do
+!      close(18)
+!   end if
+   
+   ! spin rate in rpm
+   spinrate = 0.3
+   ! time per round = 1/0.3 min *60s/min =60/0.3 s = 200s = 3 min + 20 s
+   ! samples per round = 200s * samprate = 200 * 19
+   ! psi increase per samp in radians = 2*pi / (samprate *60/spinrate) = 2*pi*spinrate /(60*samprate)
+   ! psi increase per samp in quantized integer = 2*pi*spinrate /(60*samprate) * 4096/(2*pi)
+   ! when psi is quantized into 4096 buckets
+   dpsi = self%npsi * spinrate / (60.d0*self%samprate)
+
+   ! spinrate for telescope was 0.05, now we want 0.3
+   ! we are now moving 0.3/0.05 = 6 times faster and need to downsample pix with a factor of six
+   dsamp = int(spinrate/0.05)
+   
+    do j = 1, sd%ndet
+       d = j; if (present(det)) d = det
+       do h = 1, self%nhorn
+          ! finding length of tod
+          ntod = size(sd%psi(:,j,h))
+          ! using psi as buffer for pix
+          sd%psi(:,j,h) = sd%pix(:,j,h)
+          ! downsampling pix to match given spinrate
+          do i = 1, ntod
+             sd%pix(i,j,h) = sd%psi(modulo((i-1)*dsamp,ntod/dsamp)+1,j,h)
+          end do
+          ! distributing psi0 for the four detectors evenly between 0 and 90 degrees
+          psi0 = 0.d0 + d * self%npsi/(4.d0*(sd%ndet + 1))
+          ! simulate new psi with given spinrate
+          do i = 1, ntod
+             sd%psi(i,j,h) = modulo(int(psi0 + i * dpsi), self%npsi) + 1
+          end do
+       end do
+    end do
+       
+   !if (self%myid == 0) then
+   !   open(18, file='psi_output.dat')
+   !   do i = 1, size(sd%psi(:,1,1))
+   !      write(18,*) i, sd%psi(i,1,1)
+   !   end do
+   !   close(18)
+   !end if
+      
  end subroutine decompress_pointing
 
   subroutine decompress_flags(self, sd, det)

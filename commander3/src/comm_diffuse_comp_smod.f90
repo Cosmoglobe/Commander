@@ -2491,7 +2491,7 @@ contains
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit, nnu, nuc
     integer(i4b)       :: p, p_min, p_max, npr, npol
-    real(dp)           :: vals(10),theta(2)
+    real(dp)           :: vals(10),theta(3)
     real(dp)           :: nu1, nu2, dlognu, nu, sed
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -2560,8 +2560,6 @@ contains
           map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale(i)  ! Output in requested units
        end do
 
-       !call update_status(status, "writeFITS_2")
-
        if (output_hdf) then
           call int2string(iter, itext)
           path = '/'//trim(adjustl(itext))//'/'//trim(adjustl(self%label))
@@ -2569,7 +2567,6 @@ contains
           if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
        end if
 
-       !call update_status(status, "writeFITS_3")
 
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call self%B_out%conv(trans=.false., map=map)
@@ -2577,7 +2574,6 @@ contains
        do i = 1, map%info%nmaps
           map%alm(:,i) = self%x%alm(:,i) * self%RJ2unit_(i) * self%cg_scale(i)  ! Replace convolved with original alms
        end do
-       !call update_status(status, "writeFITS_4")
 
        !call self%apply_proc_mask(map)
 
@@ -2626,7 +2622,6 @@ contains
           if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
        deallocate(sigma_l)
-       !call update_status(status, "writeFITS_7")
 
        ! Write spectral index maps
        do i = 1, self%npar
@@ -2784,28 +2779,47 @@ contains
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
          call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         
+
          !!write the mbbTab SED for a range of frequencies from nu1 to nu2
          ! this could maybe be updated for a more custom 'range' of frequencies in the future,
          ! currently runs from 30GHz to the higher frequency in the table, and for 
-         ! 500 logarithmically spaced samples between those two frequencies (this could
-         ! also maybe be done more cleanly)
+         ! 500 logarithmically spaced samples between those two frequencies
          filename = trim(dir)// '/mbbTab_SED_' // trim(self%label) //'_'  // trim(postfix) // '.dat'
          unit = getlun()
          open(unit, file=trim(filename), status='replace')
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
-         nu2=self%SEDtab(2,self%ntab)
+
+         if (allocated(self%astrotab)) then
+            !!!go start of ASTROTAB if it exists 
+            nu2=self%astrotab(1,2)
+            theta(1)=self%theta(1)%p%map(1,1)
+            theta(2)=self%theta(2)%p%map(1,1)
+            theta(3)=self%theta(3)%p%map(1,1)
+         else 
+            nu2=self%SEDtab(2,self%ntab)
+            theta(1)=self%theta(1)%p%map(1,1)
+            theta(2)=self%theta(2)%p%map(1,1)
+         end if 
+         
          dlognu = (log(nu2) - log(nu1)) / 500d0
-         theta(1)=self%theta(1)%p%map(1,1)
-         theta(2)=self%theta(2)%p%map(1,1)
+         
          do nuc = 0, 500
             nu  = exp(log(nu1) + dlognu*nuc)
             sed = self%S(nu=nu, pol=1, theta=theta)
             write(unit,'(2E20.10)') nu, sed
          end do
+         if (allocated(self%astrotab)) then
+            do i =3,self%nastrotab
+               write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
+            end do 
+         end if 
          close(unit)
        end if
        
+
+
        ! Write mixing matrices
        if (self%output_mixmat) then
           do i = 1, numband
@@ -3196,11 +3210,11 @@ contains
 
     call invert_matrix(invM, cholesky=.true.)
 
-    if (self%x%info%myid == 0) then
-       do i = 0, 3
-!          write(*,*) real(invM(i,0:3),sp)
-       end do
-    end if
+!     if (self%x%info%myid == 0) then
+!        do i = 0, 3
+! !          write(*,*) real(invM(i,0:3),sp)
+!        end do
+!     end if
 
     ! Store matrix rows
     q = 0
