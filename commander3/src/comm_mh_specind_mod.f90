@@ -334,9 +334,6 @@ contains
         !  force_update = .true.
        end if
 
-
-
-
        deallocate(scales)
 
     end do
@@ -435,27 +432,38 @@ contains
                  write(*,fmt='(a,a12)',advance='no') ' |   ', trim(c%label)
                  do i = 1, c%ntab
                     if (c%theta_steplen(c%npar+i,l) > 0) then
-                       write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(3,i)
-                       do j = 3, size(c%SEDtab(:,i))
+                       if (i == 1) then
+                        write(*,fmt='(a,i4,a,f16.8)',advance='no') ', bin = ', i, ', old = ', c%SEDtab(c%npar_tab+2,i)
+                       else
+                        write(*,fmt='(a,i4,a,f16.8)',advance='no') ' |                 bin = ', i, ', old = ', c%SEDtab(c%npar_tab+2,i)
+                       end if
+                       do j = c%npar_tab+2, size(c%SEDtab(:,i))
                           c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l) * mh_scale(l)
                        end do
-                       write(*,fmt='(a,f16.8)') ', prop = ',  c%SEDtab(3,i)
+                       write(*,fmt='(a,f16.8)') ', prop = ',  c%SEDtab(c%npar_tab+2,i)
                     end if
                  end do
                end if
-               negative = negative .or. any(c%SEDtab(3:,:) < 0.d0)
+               negative = negative .or. any(c%SEDtab(c%npar_tab+2:,:) < 0.d0)
             end if
+            
             call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
             call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
 
-            if (c%mbbtab_type == 'spline_log') then
+            if (c%mbbtab_type == 'spline_log') then 
                 c%spl_buff=c%spl
                 ! beta    = theta(1)
                 ! T       = theta(2)
                 ! pol is set to 1, mbbTab not currently setup to support polarization
                 call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
+            else if (c%mbbtab_type == 'spline_astrodust') then
+                c%spl_buff=c%spl
+                ! beta    = theta(1)
+                ! T       = theta(2)
+                ! astrodust scale = theta(3)
+                call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%theta(3)%p%map(1,pol),pol)              
             end if 
           end select
           
@@ -493,13 +501,13 @@ contains
                 if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
                    if (cpar%myid_chain .eq. 0) then
                       do i = 1, c%ntab
-                         c%SEDtab(3:,i) = c%SEDtab_buff(3:,i)
+                         c%SEDtab(c%npar_tab+2:,i) = c%SEDtab_buff(c%npar_tab+2:,i)
                       end do
                    end if
                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
                         & 0, data(1)%info%comm, ierr)
                 end if
-                if (c%mbbtab_type == 'spline_log') then
+                if (c%mbbtab_type == 'spline_log' .or. c%mbbtab_type == 'spline_astrodust') then
                     c%spl=c%spl_buff
                 end if 
              end select
@@ -657,15 +665,24 @@ contains
             class is (comm_MBBtab_comp)
             !if this is a spline type then the spline needs to be recalculated since the left derivative and leftmost spline
             !point is defined by the MBB 
-               if (c%mbbtab_type == 'spline_log') then
-                 c%spl_buff=c%spl
-                 pol=1
-                 call c%update_spline(c%theta(1)%p%map(1,pol), c%theta(2)%p%map(1,pol), pol)
-               end if 
+              if (c%mbbtab_type == 'spline_log') then 
+                  c%spl_buff=c%spl
+                  pol=1
+                  ! beta    = theta(1)
+                  ! T       = theta(2)
+                  ! pol is set to 1, mbbTab not currently setup to support polarization
+                  call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
+              else if (c%mbbtab_type == 'spline_astrodust') then
+                  c%spl_buff=c%spl
+                  pol=1
+                  ! beta    = theta(1)
+                  ! T       = theta(2)
+                  ! astrodust scale = theta(3)
+                  call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%theta(3)%p%map(1,pol),pol)              
+              end if 
             end select
                 ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
                               ! & 0, data(1)%info%comm, ierr)
-
           end do
           
           !go to next component
@@ -734,12 +751,10 @@ contains
             
             select type (c)
             class is (comm_MBBtab_comp)
-               if (c%mbbtab_type == 'spline_log') then
+               if (c%mbbtab_type == 'spline_log' .or. c%mbbtab_type == 'spline_astrodust') then
                   c%spl=c%spl_buff
                end if 
             end select
-
-            !go to next component
             c => c%nextComp()
                 
          end do
@@ -922,9 +937,6 @@ contains
                  end if
                  c => c%nextComp()
               end do
-
-
-
             else if (comp_names(2)(1:3) == 'tab') then
               ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
@@ -943,7 +955,7 @@ contains
               do while (associated(c))
                  if (trim(c%label) == trim(comp_names(1))) then
                    !       (beta+T+ntab, n_mcmc_samp_groups)
-                   c%theta_steplen(2+m,i) = sigma
+                   c%theta_steplen(c%npar+m,i) = sigma !! changed this to c%npar from 2 
                  end if
                  c => c%nextComp()
               end do
@@ -963,8 +975,25 @@ contains
               do while (associated(c))
                 if (trim(c%label) == trim(comp_names(1))) then
                    !       (beta+T+ntab, n_mcmc_samp_groups)
+                   ! or    (beta+T+astroDustScale+ntab, n_mcmc_samp_groups)
                    ! or    (beta+T,      n_mcmc_samp_groups)
                    c%theta_steplen(2,i) = sigma
+                 end if
+                 c => c%nextComp()
+              end do
+            else if (comp_names(2)(1:7) == 'adScale') then
+              ! if (c%npar /= 3) then 
+              !   if (cpar%myid == 0) then
+              !     write(*,*) 'Error: Npar should be 3 for an astroDustScale (adScale) component. Something is wrong.'
+              !     stop
+              !   end if
+              ! end if 
+              c => compList
+              do while (associated(c))
+                if (trim(c%label) == trim(comp_names(1))) then
+                   !       (beta+T+astrotab+ntab, n_mcmc_samp_groups)
+                   ! or    (beta+T,astrotab?      n_mcmc_samp_groups)
+                   c%theta_steplen(3,i) = sigma
                  end if
                  c => c%nextComp()
               end do

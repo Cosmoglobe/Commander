@@ -235,12 +235,12 @@ contains
     case ('uK_RJ') 
        c%RJ2data = 1.d0
     case ('K km/s')
-       write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
+       if(cpar%myid == 0) write(*,*) 'Conversion from RJ to Kkm/s not implemented yet'
        c%RJ2data = 1.d0
     case default
        c%RJ2data = 1.d0
     end select
-    
+
   end function constructor_bp
   
 
@@ -251,6 +251,7 @@ contains
     class(comm_bp),                       intent(inout) :: self
     real(dp),       dimension(self%npar), intent(in)    :: delta
     real(dp), allocatable, dimension(:)  :: a, bnu_prime, bnu_prime_RJ, sz
+    real(dp)                                            :: denom
 
     integer(i4b) :: i, n
 
@@ -281,11 +282,18 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       if (trim(self%type) == 'DIRBE' .or. trim(self%type) == 'AKARI') then
+       if (trim(self%type) == 'DIRBE') then
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          ! These overflow in exp(x) due to large x
-          bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
-          sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
+          ! much CMB
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i)) !set to 1.d0 if causing crashes
+          sz(i)           = comp_sz_thermo(self%nu(i)) !set to 1.d0 if causing crashes
+       else if (trim(self%type) == 'AKARI') then
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          ! The CMB comp_nu_max should be set to avoid carrying around bands without
+          ! much CMB
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i)) 
+          sz(i)           = comp_sz_thermo(self%nu(i)) 
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
@@ -357,17 +365,26 @@ contains
       ! t = thermodynamic temperature [K_CMB]
       ! f = flux intensity [MJy/sr]
       ! sz = ?
-
-       self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
-       self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
-                       & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
-       self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
+       denom=tsum(self%nu, self%tau*bnu_prime)
+       if (denom <= 0.d0) then !choose a value to avoid divide by zero errors
+         self%a2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%f2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+       else
+         self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
+         self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
+       end if 
+       denom=tsum(self%nu, self%tau*bnu_prime*sz)
+       if (denom <= 0.d0) then
+         self%a2sz    = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+       else 
+         self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
+                       & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
+       end if 
        self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)) * 1d14
        self%a2f_arr = bnu_prime_RJ / (self%nu_c / self%nu)**ind_iras * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau)
        !self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
 
     ! NEW !
     case ('dame')

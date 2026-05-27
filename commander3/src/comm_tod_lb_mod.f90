@@ -162,7 +162,7 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup table
-    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam)
     call c%precompute_lookups()
     
     ! Load the instrument file
@@ -549,6 +549,12 @@ contains
     else if (trim(cpar%noisepar_ver) == 'debug570') then
        nband = 1
        sigma0 = [233.1]
+    else if (trim(cpar%noisepar_ver) == 'test118') then
+       nband = 1
+       sigma0 = [5.15]
+    else if (trim(cpar%noisepar_ver) == 'test182') then
+       nband = 1
+       sigma0 = [3.73]
     end if
 
     if (numband /= nband) then

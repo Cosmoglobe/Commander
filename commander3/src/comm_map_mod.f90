@@ -303,13 +303,21 @@ subroutine tod2file_dp3(filename,d)
     weight_file = trim(healpixdir)//'/data/weight_ring_n' // nside_text // '.fits'
     if (nmaps == 1) then
        allocate(p_new%W(2*nside,1))
-       call read_dbintab(weight_file, p_new%W, 2*nside, 1, nullval, anynull)
+       if (nside <= 8192) then
+          call read_dbintab(weight_file, p_new%W, 2*nside, 1, nullval, anynull)
+       else
+          p_new%W = 0.d0
+       end if
        p_new%W = p_new%W + 1.d0
        call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
             & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
     else
        allocate(p_new%W(2*nside,2))
-       call read_dbintab(weight_file, p_new%W, 2*nside, 2, nullval, anynull)
+       if (nside <= 8192) then
+          call read_dbintab(weight_file, p_new%W, 2*nside, 2, nullval, anynull)
+       else
+          p_new%W = 0.d0
+       end if
        p_new%W(:,:) = p_new%W + 1.d0
        call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
             & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)

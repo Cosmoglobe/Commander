@@ -17,7 +17,7 @@ import akari_utils
 
 # TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/akari/data"
 TEMP_OUTPUT_PATH = "/mn/stornext/u3/eirikgje/data/akari_analysis/akari_instrumentfile/"
-NSIDE = 128
+NSIDE = 16384
 
 # temporary values that needs to be updated
 TEMP_LMAX = NSIDE * 3
@@ -50,7 +50,7 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
         instrument_file.add_bandpass(f"AKARI_{detector}", frequencies, weights)
 
         for i in range(1, akari_utils.NDETS[band] + 1):
-            band_group_name = f"{detector}_{i:02}"
+            band_group_name = f"{detector}-{i:02}"
             instrument_file.add_bandpass(
                 f"AKARI_{band_group_name}", frequencies, weights
             )
@@ -63,6 +63,7 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
                 * 180
                 / np.pi
                 * 60,  # In arcminutes instead of radians - Commander requires arcminutes
+#                fwhm=5,
                 elip=TEMP_ELIP,
                 psi_ell=TEMP_PSI_ELL,
                 mbeam_Eff=TEMP_MBEAM_EFF,
@@ -103,7 +104,8 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 4
+    version = 5
+    # Version 5: Update detector names to new naming convention and make nside=16384 instead of 128
     # Version 4: Update correct order of columns when extracting data from
     # original bandpass file
     write_akari_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)

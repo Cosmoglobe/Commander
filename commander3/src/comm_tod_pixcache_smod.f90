@@ -21,10 +21,10 @@
 submodule (comm_tod_mod) comm_tod_pixcache_smod
 contains
 
-  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets) result(c)
     implicit none
     integer(i4b),             intent(in) :: nside, nside_sl, nmaps
-    logical(lgt),             intent(in) :: fullsky
+    logical(lgt),             intent(in) :: fullsky, equal_dets
     class(comm_tod_pixcache), pointer    :: c
 
     allocate(c)
@@ -34,6 +34,7 @@ contains
     c%fullsky      = fullsky
     c%nmax         = 1
     c%nobs         = 0
+    c%equal_dets   = equal_dets
     allocate(c%ind2pix(c%nmax))
     
   end function constructor_tod_pixcache
@@ -253,7 +254,11 @@ contains
     integer(i4b) :: i, j, k, l, ndet, ndelta
     real(sp), allocatable, dimension(:,:) :: buffer
 
-    ndet   = size(map_sky,1)
+    if (self%equal_dets) then
+       ndet = 0
+    else
+       ndet   = size(map_sky,1)
+    end if
     ndelta = size(map_sky,2)
 
     ! Allocate storage in first call
@@ -271,25 +276,30 @@ contains
 
     ! Distribute sky and (optionally) gain maps
     do j = 1, ndelta
-       do i = 1, ndet
-          call map_sky(i,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,i,j))
+       if (self%equal_dets) then
+          ! Fill detector average only
+          call map_sky(1,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,0,j))
           if (present(map_gain) .and. j == 1) then
-             call map_gain(i)%p%map2pix(self%ind2pix, self%map_gain(:,:,i))
+             call map_gain(1)%p%map2pix(self%ind2pix, self%map_gain(:,:,0))
           end if
-       end do
-
-       ! Compute detector average
-       do k = 1, self%nobs
-          do l = 1, self%nmaps
-             self%map_sky(l,k,0,j) = sum(self%map_sky(l,k,1:ndet,j))/ndet
+       else
+          do i = 1, ndet
+             call map_sky(i,j)%p%map2pix(self%ind2pix, self%map_sky(:,:,i,j))
              if (present(map_gain) .and. j == 1) then
-                self%map_gain(l,k,0) = sum(self%map_gain(l,k,1:ndet))/ndet
+                call map_gain(i)%p%map2pix(self%ind2pix, self%map_gain(:,:,i))
              end if
           end do
-       end do
-!!$       write(*,*) 'nobs', j, self%nobs, ndet, ndelta
 
-
+          ! Compute detector average
+          do k = 1, self%nobs
+             do l = 1, self%nmaps
+                self%map_sky(l,k,0,j) = sum(self%map_sky(l,k,1:ndet,j))/ndet
+                if (present(map_gain) .and. j == 1) then
+                   self%map_gain(l,k,0) = sum(self%map_gain(l,k,1:ndet))/ndet
+                end if
+             end do
+          end do
+       end if
     end do
     
     if (present(scale)) then

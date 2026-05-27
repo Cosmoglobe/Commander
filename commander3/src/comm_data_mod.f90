@@ -440,11 +440,11 @@ contains
 
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
-    write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
+    write(unit,*) '             # Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
          & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]  a2f [MJy/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a11,a10,f12.3,f14.3,3e18.5,3e17.5,3e18.5,3e14.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+       write(unit,fmt='(a20,a10,f12.3,f14.3,3e18.5,3e17.5,3e18.5,3e14.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
              & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6, data(q)%bp(0)%p%a2f * 1d6
     end do
     close(unit)

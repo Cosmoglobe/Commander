@@ -1,0 +1,11 @@
+# AKARI 065 default parameters
+
+@DEFAULT bands/AKARI/AKARI_065_v1.defaults
+BAND_NSIDE&&&                  = 8192
+BAND_LMAX&&&                   = 16400
+BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n8192.fits
+
+BAND_TOD_FLAG&&&               = 2097149   # Apply all flags
+
+BAND_MAPFILE&&&                = akari/maps/akari_160_1_8192.fits
+BAND_NOISEFILE&&&              = akari/rms/akari_160_temprms_8192.fits

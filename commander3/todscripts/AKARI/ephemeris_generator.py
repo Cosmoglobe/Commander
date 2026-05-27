@@ -71,6 +71,7 @@ class EphemerisGenerator:
         ).mjd
         * u.day,
         time_step: Optional[u.quantity.Quantity] = 3600 * u.s,
+        times: Optional[u.quantity.Quantity] = None,
     ) -> None:
         """Initialize ephemeris generation parameters and time grid.
 
@@ -86,18 +87,30 @@ class EphemerisGenerator:
             Time step as an Astropy quantity (default 3600 s).
         """
         self.body_names = body_names
-        self.start_time = start_time
-        self.end_time = end_time
-        self.time_step = time_step
-        self.time_arr = (
-            Time(self.start_time, format="mjd", scale="tdb")
-            + np.arange(
-                0,
-                (self.end_time - self.start_time).to(u.min).value,
-                int(np.round(self.time_step.to(u.min).value)),
+
+        if times is not None:
+            if len(times) < 2:
+                raise ValueError(
+                    "Time array must contain at least two entries. "
+                    "Alternatively provide start_time, end_time, and time_step to generate a time grid."
+                )
+            self.time_arr = times
+            self.start_time = times[0]
+            self.end_time = times[-1]
+            self.time_step = times[1] - times[0]
+        else:
+            self.start_time = start_time
+            self.end_time = end_time
+            self.time_step = time_step
+            self.time_arr = (
+                Time(self.start_time, format="mjd", scale="tdb")
+                + np.arange(
+                    0,
+                    (self.end_time - self.start_time).to(u.min).value,
+                    int(np.round(self.time_step.to(u.min).value)),
+                )
+                * u.min
             )
-            * u.min
-        )
 
         self.jpl_horizons_query_limit = 90024
         self.number_of_query_batches = max(
@@ -571,11 +584,19 @@ def main() -> None:
         # Default: 2049-12-31 23:59:59 TDB
         end_time = Time("2049-12-31 23:59:59", format="iso", scale="tdb").mjd * u.day
 
+    times = (
+        Time(start_time, format="mjd", scale="tdb")
+        + np.arange(
+            0,
+            (end_time - start_time).to(u.min).value,
+            int(np.round((args.time_step * u.s).to(u.min).value)),
+        )
+        * u.min
+    )
+
     ephem_gen = EphemerisGenerator(
         body_names=args.bodies,
-        time_step=args.time_step * u.s,
-        start_time=start_time,
-        end_time=end_time,
+        times=times,
     )
 
     ephem_gen.define_bodies()
