@@ -71,7 +71,7 @@ contains
      do_bp   = btest(sd%oper,SD_BP)
      do_bp = .false.
      
-     !if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
+     if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
      
      ! s = T + eff*(Q * cos(2*psi) + U * sin(2*psi))
      ! T - temperature; Q, U - Stoke's parameters
@@ -99,6 +99,12 @@ contains
               end if
               do k = 1, sd%nbp ! Loop over bandpass models
                  if (nmaps == 3) then
+                    write(*,*) "hey there1", tod%pixcache%map_sky(1,p,d,k)
+                    write(*,*) "hey there2", tod%pixcache%map_sky(2,p,d,k)
+                    write(*,*) "hey there3", tod%pixcache%map_sky(3,p,d,k)
+                    write(*,*) "hi there", sd%psi(i,j,h)
+                    write(*,*) "ho there", tod%pixcache%cos2psi(sd%psi(i,j,h))
+
                     sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k) + &
                          & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
                          &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))

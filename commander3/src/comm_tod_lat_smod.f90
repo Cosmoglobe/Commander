@@ -181,7 +181,7 @@ contains
     call c%precompute_lookups()
     
     ! Load the instrument file
-    ! call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Collect Sun velocities from all scans
     ! call c%collect_v_sun
@@ -341,7 +341,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_BP, SD_SKY])
 
     
     ! Initialize local variables
@@ -365,7 +365,7 @@ contains
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Initialize index-based sky map and mask
-    !call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
+    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
 
 
