@@ -1948,8 +1948,6 @@ contains
 
        do l = 0, data(i)%ndet
 
-          write(*,*) "checking on my ndet ", l, " out of ", data(i)%ndet
-          
           if (self%F_null(i,l)) then
              ! Don't update null mixing matrices
              if (present(df)) df(i)%p%map = 0.d0

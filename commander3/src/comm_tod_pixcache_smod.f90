@@ -268,8 +268,6 @@ contains
        if (present(map_gain)) then
           allocate(self%map_gain(self%nmaps,self%nobs,0:ndet))
        end if
-     else
-       write(*,*) "Map sky is already allocated?"
     end if
 
     ! Distribute sky and (optionally) gain maps

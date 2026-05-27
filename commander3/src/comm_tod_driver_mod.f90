@@ -609,7 +609,7 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
-       call tod%downsample_tod(sd%s_orb(:,1,0), ext)
+       call tod%downsample_tod(sd%s_tot(:,1,0,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
@@ -1060,7 +1060,11 @@ contains
     d_calib = 0.d0
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       if (abs(tod%scans(scan)%d(j)%gain) < tiny(1.0)) then
+         inv_gain = 0.0
+       else
+         inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       end if
        ! sky signal
        d_calib(1,:,j) = sd%tod(:,j) * inv_gain
        if (allocated(sd%n_corr))   d_calib(1,:,j) = d_calib(1,:,j) - sd%n_corr(:,j) * inv_gain

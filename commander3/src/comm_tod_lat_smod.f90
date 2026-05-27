@@ -88,6 +88,7 @@ contains
     c%apply_inst_corr   = .false.
     c%orb_4pi_beam      = .false.
     c%symm_flags        = .false.
+    c%equal_det_bp_beam = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
@@ -108,9 +109,9 @@ contains
     allocate(c%xi_n_P_rms(c%n_xi))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Signa0
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
     c%xi_n_P_uni(2,:)  = [0.001d0, 20d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.3d0]   ! alpha
+    c%xi_n_P_uni(3,:)  = [-4d0, -0.3d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
@@ -125,21 +126,9 @@ contains
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
     
     ! Channel specific parameters
-    if (c%freq(1:3) == "100") then
-       c%chisq_threshold  = 120.d0
-       c%sigma0_threshold = 100.d0
-       c%accept_threshold = 0.8d0
-       c%correct_sl       = .false.
-    else if (c%freq(1:3) == "353") then
-       c%chisq_threshold  = 1000.d0
-       c%sigma0_threshold = 1000.d0
-       c%accept_threshold = 0.8d0
-       c%correct_sl       = .false.
-    else
-       c%chisq_threshold  = 100.d0 
-       c%accept_threshold = 0.5d0
-       c%correct_sl       = .false.
-    end if
+    c%chisq_threshold  = 1000000.d0 
+    c%accept_threshold = 0.5d0
+    c%correct_sl       = .false.
 
     
     ! Get detector labels
@@ -301,14 +290,13 @@ contains
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     sample_rel_bandpass   = .false.
-    if (.true.) then ! Debug
+    if (.false.) then ! Debug
        ! Do data selection, then start sampling
-       sample_gain           = .false.
+       sample_gain           = .true.
        make_dyn_mask         = .false.
-       sample_ncorr          = .false.
+       sample_ncorr          = .true.
        sample_xi_n           = .false.
        select_data           = .false.
-       sample_adc            = .false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
@@ -316,15 +304,14 @@ contains
        sample_ncorr          = iter > 4 !.true.
        sample_xi_n           = iter > 5 
        select_data           = iter == 3 ! self%first_call  
-       sample_adc            = .false. !iter  > 6 ! 3 !.true.
     else
        ! Do data selection, then start sampling
        sample_gain           = iter  > 1 !.true.                 
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
-       sample_xi_n           = iter > 1 !.false.
+       make_dyn_mask         = .false.
+       sample_ncorr          = iter  > 2 !.true.
+       sample_xi_n           = iter > 5
        select_data           = iter == 1 ! self%first_call  
-       sample_adc            = iter  > 1 !.true.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -348,7 +335,7 @@ contains
     end if
     if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
-    self%output_n_maps = 1
+    self%output_n_maps = 3
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -463,7 +450,7 @@ contains
        !d_calib(1,:,:) = -abs(sd%tod)
 
        ! For debugging: write TOD to hdf
-       if (.true.) then
+       if (.false.) then
           !if (self%scanid(i) == 915) then 
              !print *, self%scanid(i)
              call int2string(self%scanid(i), scantext)

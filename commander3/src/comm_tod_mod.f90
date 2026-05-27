@@ -1780,10 +1780,10 @@ contains
 !!$            proc(i) = (i-1)/n_per_core
 !!$         end do
 
-         write(*,*) '    Scan        Core'
-         do k = 1, n_tot
-            write(*,*) k, proc(k)
-         end do
+!!$         write(*,*) '    Scan        Core'
+!!$         do k = 1, n_tot
+!!$            write(*,*) k, proc(k)
+!!$         end do
                   
          deallocate(filenum)
       end if
