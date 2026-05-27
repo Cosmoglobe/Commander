@@ -1885,7 +1885,7 @@ contains
                       td%map(:,k) = t%map(:,k)
                    end do
                 end do
-                call t%dealloc(); deallocate(t)
+                if(associated(t)) call t%dealloc(); deallocate(t)
              end if
 
              ! if any polarization is local sampled. Only set theta using polarizations with local sampling
@@ -2018,7 +2018,7 @@ contains
              end if
              
              ! Polarization
-             if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
+             if (self%nmaps == 3 .and. data(i)%info%pol ) then
                 ! Stokes Q
                 if (self%npar == 0) then
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) * A_ext
@@ -2120,6 +2120,7 @@ contains
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
     info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, nmaps==3)
     m     => comm_map(info)
+
     if (present(amp_in)) then
        m%alm(:,1:nmaps) = amp_in(:,1:nmaps)
        !m%alm(:,1:nmaps) = amp_in
@@ -2127,10 +2128,6 @@ contains
        call self%x%alm_equal(m)
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    
-!!$    call m%Y()
-!!$    call m%writeFITS("test1.fits")
-
     
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -2146,15 +2143,10 @@ contains
           call m%YtW()
        end if
     end if
-!!$    call m%Y()
-!!$    call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-!!$    call m%Y()
-!!$    call m%writeFITS("test3.fits")
 
-       
     ! Return correct data product
     if (alm_out_) then
        if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()
@@ -3875,10 +3867,10 @@ contains
           write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
                & self%mono_prior_gaussian_mean*self%cg_scale(1), &
                & self%mono_prior_gaussian_rms*self%cg_scale(1) 
-          write(*,fmt='(a,f14.3,f14.3)') '   New value             ', &
+          write(*,fmt='(a,f14.3)') '   New value             ', &
                & mean_intersect*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
+          write(*,fmt='(a,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
+          write(*,fmt='(a,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
           write(*,fmt='(a)') ' | '
        end if
 

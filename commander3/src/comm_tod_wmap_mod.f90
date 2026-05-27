@@ -30,6 +30,7 @@ module comm_tod_WMAP_mod
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   use comm_tod_driver_mod
+  use comm_tod_simulations_mod
   use comm_tod_mapmaking_mod
    use comm_conviqt_mod
    implicit none

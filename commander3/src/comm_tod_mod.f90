@@ -26,6 +26,7 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_tod_Tbol_mod
+  use comm_tod_spike_mod
   use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
@@ -81,7 +82,8 @@ module comm_tod_mod
      real(dp)          :: baseline1, baseline2
      integer(i4b)      :: nsamp_unmasked                    ! Number of unmasked samples
      logical(lgt)      :: accept
-     class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
+     class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
+     class(comm_tod_spike), pointer :: spike                             ! Spike object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -166,6 +168,7 @@ module comm_tod_mod
      character(len=512) :: noise_psd_model  
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
+     logical(lgt) :: on_the_fly_tod_sim !< if you want to make simulated tods in memory during first sample
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: L2_exist
@@ -190,13 +193,14 @@ module comm_tod_mod
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
-     logical(lgt) :: apply_inst_corr               
+     logical(lgt) :: apply_inst_corr
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
      character(len=16), allocatable, dimension(:) :: incl_objctr
@@ -346,6 +350,7 @@ module comm_tod_mod
      procedure                           :: apply_nonlin_corr_inst
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
+     procedure                           :: construct_spike_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -389,11 +394,13 @@ module comm_tod_mod
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
 
-  ! Class for uncompressed data for a given scan                    ! Defined in init_scan data 
+  ! Class for uncompressed data for a given scan                    ! Defined in init_scan_data 
   type :: comm_scandata                                             ! in comm_tod_driver_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
+     logical(lgt) :: enable_fft = .false.
+     integer*8    :: plan_fwd, plan_back
      integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing [ntod,ndet,nhorn]
@@ -413,6 +420,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_zodi        ! Zodiacal emission
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
+     real(sp),     allocatable, dimension(:,:)     :: s_spike       ! Spike correction [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
@@ -565,10 +573,12 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%on_the_fly_tod_sim = cpar%on_the_fly_tod_sim
     self%level         = cpar%ds_tod_level(id_abs)
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%max_npole_Tbol      = 0
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%apply_inst_corr = .false.
@@ -1642,7 +1652,7 @@ contains
             do i = 1, n_tot
                proc(i) = mod(filenum(i),self%numprocs)
             end do
-         else
+         else 
             ! Compute symmetry axis
             v0 = 0.d0
             do i = 2, n_tot
@@ -1678,6 +1688,40 @@ contains
                do k = 1, n_tot
                   pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
+            else if (.true.) then
+               ! Consecutive weighted
+               call QuickSort(id, sid)
+               
+               proc    = -1
+               w       = 0.d0
+               j       = 1
+               do i = 0, np-1
+                  proc(id(j)) = i
+                  w           = w + weight(id(j))
+                  j           = j+1
+                  do while (w + weight(id(j)) <=(i+1)*w_tot/np)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     j           = j+1
+                     if (j > n_tot) exit
+                  end do
+                  if (j > n_tot) exit
+               end do
+               do while (j <= n_tot)
+                  proc(id(j)) = np-1
+                  j = j+1
+               end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
+               if (any(pweight == 0.d0)) then
+                  write(*,*) '  Warning: Number of processors with no scans = ', count(pweight == 0.d0)
+               end if
+               
+!!$               do k = 0, np-1
+!!$                  write(*,*) k, pweight(k)
+!!$               end do
             else if ((index(filelist, '-WMAP_') .ne. 0) .or. (index(filelist, '_DIRBE_') .ne. 0)) then
                pweight = 0d0
                ! Greedy after sorting
@@ -1724,13 +1768,15 @@ contains
             write(*,*) '|'
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
+!         else
+!            deallocate(id, pweight, weight, sid, spinaxis)
          end if
 
-         ! Distribute according to consecutive PID
-         n_per_core = int(real(n_tot,sp)/np)+1
-         do i = 1, n_tot
-            proc(i) = (i-1)/n_per_core
-         end do
+!!$         ! Distribute according to consecutive PID
+!!$         n_per_core = int(real(n_tot,sp)/np)+1
+!!$         do i = 1, n_tot
+!!$            proc(i) = (i-1)/n_per_core
+!!$         end do
 
          write(*,*) '    Scan        Core'
          do k = 1, n_tot
@@ -1738,7 +1784,6 @@ contains
          end do
                   
          deallocate(filenum)
-
       end if
    end if
 
@@ -1792,6 +1837,7 @@ contains
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
     allocate(output(self%nscan_tot,self%ndet,npar))
     allocate(  mjds(self%nscan_tot))
+
 
     ! Collect all parameters
     output = 0.d0
@@ -1855,7 +1901,6 @@ contains
 !!$             end where
           end do
        end do
-
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
@@ -2331,7 +2376,7 @@ contains
           end if
           
           call self%orb_dp%compute_orbital_dipole(d, v_ref, v_ref_next, self%nu_c(d), &
-               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f)
+               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f*self%bp(j)%p%Kcmb2unit)
           !write(*,*) 'orb', d, j, sd%s_orb(1:5,j,hp)
        end do
     end do
@@ -2339,6 +2384,38 @@ contains
 
   end subroutine construct_orbital_dipole
 
+  subroutine construct_spike_corr(self, sd, det)
+    ! construct spike correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output spike template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ntod, ndet, scan
+
+    scan         = sd%scan
+    ntod         = sd%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, self%ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
+    end do
+
+  end subroutine construct_spike_corr
+  
   
   subroutine output_scan_list(self, slist)
     implicit none
@@ -2673,8 +2750,9 @@ contains
     class(comm_scandata), intent(inout)          :: sd
     integer(i4b),         intent(in),   optional :: det
 
-    integer(i4b) :: i, j, d, h, scan
-
+    integer(i4b) :: i, j, d, h, scan, dsamp, ntod
+    real(dp)     :: spinrate, dpsi, psi0
+    
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
@@ -2687,7 +2765,8 @@ contains
 !!$          end if
           if (minval(sd%psi(:,j,h)) <= 0) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', fix input HDF files. Perhaps zero-based psi?'
-            stop
+            !stop
+            where (sd%psi(:,j,h) <= 0) sd%psi(:,j,h) = sd%psi(:,j,h) + self%npsi  !FIXME
           end if
           if (maxval(sd%psi(:,j,h)) > self%npsi) then
             write(*,*) 'Psi bin ranges from ', minval(sd%psi(:,j,h)), maxval(sd%psi(:,j,h)), ', greater than npsi,', self%npsi,'; fix input HDF files'
@@ -2697,6 +2776,7 @@ contains
          if (self%polang(d) /= 0.) then
             sd%psi(:,j,h) = sd%psi(:,j,h) + nint(self%polang(d)/(2.d0*pi)*self%npsi)
          end if
+         !if (self%on_the_fly_tod_sim) write(*,*) 'on the fly pix', sd%pix(1,j,h), j, h
       end do
    end do
    where (sd%psi < 1)
@@ -2705,6 +2785,58 @@ contains
       sd%psi = sd%psi - self%npsi
    end where
 
+   ! if on-the-fly tod sim mode, we will now overwrite psi with 0.3 rpm
+   if (.not. self%on_the_fly_tod_sim) return
+
+!   if (self%myid == 0) then
+!      open(18, file='psi_input.dat')
+!      do i = 1, size(sd%psi(:,1,1))
+!         write(18,*) i, sd%psi(i,1,1)
+!      end do
+!      close(18)
+!   end if
+   
+   ! spin rate in rpm
+   spinrate = 0.3
+   ! time per round = 1/0.3 min *60s/min =60/0.3 s = 200s = 3 min + 20 s
+   ! samples per round = 200s * samprate = 200 * 19
+   ! psi increase per samp in radians = 2*pi / (samprate *60/spinrate) = 2*pi*spinrate /(60*samprate)
+   ! psi increase per samp in quantized integer = 2*pi*spinrate /(60*samprate) * 4096/(2*pi)
+   ! when psi is quantized into 4096 buckets
+   dpsi = self%npsi * spinrate / (60.d0*self%samprate)
+
+   ! spinrate for telescope was 0.05, now we want 0.3
+   ! we are now moving 0.3/0.05 = 6 times faster and need to downsample pix with a factor of six
+   dsamp = int(spinrate/0.05)
+   
+    do j = 1, sd%ndet
+       d = j; if (present(det)) d = det
+       do h = 1, self%nhorn
+          ! finding length of tod
+          ntod = size(sd%psi(:,j,h))
+          ! using psi as buffer for pix
+          sd%psi(:,j,h) = sd%pix(:,j,h)
+          ! downsampling pix to match given spinrate
+          do i = 1, ntod
+             sd%pix(i,j,h) = sd%psi(modulo((i-1)*dsamp,ntod/dsamp)+1,j,h)
+          end do
+          ! distributing psi0 for the four detectors evenly between 0 and 90 degrees
+          psi0 = 0.d0 + d * self%npsi/(4.d0*(sd%ndet + 1))
+          ! simulate new psi with given spinrate
+          do i = 1, ntod
+             sd%psi(i,j,h) = modulo(int(psi0 + i * dpsi), self%npsi) + 1
+          end do
+       end do
+    end do
+       
+   !if (self%myid == 0) then
+   !   open(18, file='psi_output.dat')
+   !   do i = 1, size(sd%psi(:,1,1))
+   !      write(18,*) i, sd%psi(i,1,1)
+   !   end do
+   !   close(18)
+   !end if
+      
  end subroutine decompress_pointing
 
   subroutine decompress_flags(self, sd, det)
@@ -3439,7 +3571,64 @@ contains
         !end do
      end if
 
-   end subroutine get_s_static
+  end subroutine get_s_static
+
+  subroutine print_powspec(self, tod, scan, ps_output)
+    ! Prints the power spectrum of the given timestream of data
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      tod of the scan
+    ! scan: int
+    !       scan number
+    ! ps_output: string
+    !            output filename
+    implicit none
+    class(comm_tod),                           intent(inout) :: self
+    real(sp),                   dimension(1:), intent(in)    :: tod
+    integer(i4b),                              intent(in)    :: scan
+    character(len=*),                          intent(in)    :: ps_output
+
+    integer(i4b) :: l, n, ntod, nomp, nfft, err
+    integer*8    :: plan_fwd
+    real(sp)     :: samprate, ls, ps
+    real(sp),     allocatable, dimension(:)   :: dt
+    complex(spc), allocatable, dimension(:)   :: dv
+
+    ntod = self%scans(scan)%ntod
+    nomp     = 1
+    samprate = self%samprate
+    nfft     = 2 * ntod
+    n        = nfft / 2 + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)  
+
+    allocate(dt(nfft), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+
+    ! FFT
+    dt = 0.d0; dv = 0.d0
+    dt(1:ntod)           = tod(:)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+    open(58,file=ps_output, recl=1024)
+    do l = 1, n-1
+       ls = l*(samprate/2)/(n-1)
+       ps = abs(dv(l))** 2 / ntod
+       write(58,*) ls, ps
+    end do
+    close(58)
+
+    deallocate(dt, dv)
+    call dfftw_destroy_plan(plan_fwd)
+
+  end subroutine print_powspec
 
   function get_sd_operation_code(op_list) result(oper)
     implicit none

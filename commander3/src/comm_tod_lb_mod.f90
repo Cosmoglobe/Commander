@@ -32,8 +32,10 @@ module comm_tod_LB_mod
   !
   use comm_tod_mod
   use comm_tod_driver_mod
+  use comm_tod_simulations_mod
   use comm_conviqt_mod
   use comm_tod_mapmaking_mod
+  use comm_hdf_mod
   implicit none
 
   !private
@@ -95,17 +97,20 @@ contains
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_nu_fit(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
-    
-    c%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
-    if (.true.) then
-       c%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
-       c%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
-       c%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-       c%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-    else
-       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(c%freq)
-       stop
-    end if
+
+    ! Correlated noise parameters
+    c%xi_n_nu_fit(1,:) = [1.d0, 8.5d0]   ! Freq range for sigma0 in Hz
+    c%xi_n_nu_fit(2,:) = [1d-3, 1.d0]    ! Freq range for fknee in Hz
+    c%xi_n_nu_fit(3,:) = [1d-3, 1.d0]    ! Freq range for alpha in Hz
+      
+    c%xi_n_P_uni(1,:)  = [1d-6, 1d-3]     ! Uniform prior for sigma0
+    c%xi_n_P_uni(2,:)  = [1d-6, 1.d0]     ! Uniform prior for fknee
+    c%xi_n_P_uni(3,:)  = [-4d0, -0.5d0]   ! Uniform prior for alpha
+      
+    ! Set rms of all parameters to 0.05 for initial test phase. 
+    c%xi_n_P_rms(1)    = 1.00d0           ! Prior rms for sigma0
+    c%xi_n_P_rms(2)    = 0.1d0            ! Prior rms for fknee
+    c%xi_n_P_rms(3)    = 0.2d0            ! Prior rms for alpha
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -150,13 +155,16 @@ contains
 
     ! Read the actual TOD
     call c%read_tod(c%label)
-
+    ! option to set noise parameters by hand for on-the-fly litebird sims
+    if (c%on_the_fly_tod_sim .and. cpar%sim_noisepar) call overwrite_noisepar(c, cpar)
+    
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
-    ! Construct lookup tables
+    ! Construct lookup table
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
     call c%precompute_lookups()
-
+    
     ! Load the instrument file
     call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
@@ -208,7 +216,7 @@ contains
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_LB_tod),                      intent(inout) :: self
+    class(comm_LB_tod),                       intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -220,24 +228,31 @@ contains
     
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, h, ierr, ndelta, nside, npix, nmaps, oper_default
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr, sample_xi_n
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename
     character(len=512), allocatable, dimension(:) :: slist
-
+    class(comm_map),                      pointer :: buffer
+    
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
+    type(hdf_file) :: tod_file
+    
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band) 
 
+    ! Output input sky model
+    call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+    
     ! Toggle optional operations
-    sample_ncorr          = .false.
+    sample_ncorr          = .true. !.true. OBS
+    sample_xi_n           = .true. !.false. ! OBS
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
@@ -247,10 +262,14 @@ contains
     ! Define useful sd operation codes
     if (sample_ncorr) then
        oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+            & SD_TOD,SD_SKY, SD_NCORR])
+            !& SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI, SD_NCORR])
+            ! OBS FIXME include V_SUN, sidelobes and zodi in litebird files!
     else
        oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,&
-            & SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+            & SD_TOD,SD_SKY])
+            !& SD_TOD,SD_SKY,SD_SL,SD_ORB,SD_INST,SD_ZODI])
+            ! OBS FIXME include V_SUN, sidelobes and zodi in litebird files!
     end if
     
     ! Initialize local variables
@@ -271,7 +290,9 @@ contains
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
     ! Initialize index-based sky map and mask
-    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain)
+    ! OBS: input sky maps are in uK as usual, while LiteBIRD tods are in K
+    ! Therefore we are scaling sky maps to K, using the optional scale parameter
+    call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain, scale=1e-6)  
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -323,16 +344,32 @@ contains
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        allocate(s_buf(sd%ntod,sd%ndet))
 
-       ! Sample correlated noise, or call Simulation Routine
+       ! call simulate_tod if we want to make and output tod sims
        if (self%enable_tod_simulations) then
-          !call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+          call simulate_tod(self, i, sd%s_tot(:,:,0,1), sd%n_corr, handle)
        end if
 
+       ! call simulate_tod_on_the_fly if we want to make tod sim in memory and continue analyzing it
+       ! but only if this is the first sample
+       if (self%on_the_fly_tod_sim .and. self%first_call) then
+          call simulate_tod_on_the_fly(self, sd, handle)
+          ! we have now overwritten tod in self, and also have to update uncompresses data in sd
+          call dealloc_scan_data(sd)
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+       end if
+
+       ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
-          !call sample_noise_psd(self, sd%tod, handle, chaindir, i, sd%mask, sd%s_tot, sd%n_corr)
+          if (sample_xi_n) then
+             call sample_noise_psd(self, sd, handle, chaindir)
+          else
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+          end if
+       else
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
        end if
-      
+       
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -349,6 +386,35 @@ contains
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
 
+       ! For debugging: write TOD to hdf
+       !if (.true.) then
+       if (self%on_the_fly_tod_sim .and. self%first_call) then
+          ! scan id appears to be the worst chi2
+          if (self%scanid(i) == 1) then 
+             !print *, self%scanid(i)
+             call int2string(self%scanid(i), scantext)
+             call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
+             call write_hdf(tod_file, '/tod', sd%tod)
+             call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+             call write_hdf(tod_file, '/flag', sd%flag)
+             call write_hdf(tod_file, '/caltod', d_calib(1, :, :))
+             call write_hdf(tod_file, '/s_sky', sd%s_sky)
+             !call write_hdf(tod_file, '/s_inst', sd%s_inst)
+             call write_hdf(tod_file, '/n_corr', sd%n_corr)
+             !call write_hdf(tod_file, '/s_sl', sd%s_sl)
+             !call write_hdf(tod_file, '/s_orb', sd%s_orb)
+             call write_hdf(tod_file, '/res', d_calib(2, :, :))
+             !call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
+             call write_hdf(tod_file, '/mask', sd%mask)
+             !call write_hdf(tod_file, '/accept', real(self%scans(i)%d(:)%accept,dp))
+             call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
+             call write_hdf(tod_file, '/gain', self%scans(i)%d%gain)
+             call close_hdf_file(tod_file)
+          end if
+       end if
+
+
+       
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
        
@@ -391,8 +457,19 @@ contains
     end if
 
     ! Output maps to disk
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+    ! set missing pixels to healpix bad value before writing map and rms to disk
+    buffer => comm_map(map_out)
+    where (rms_out%map == 0.d0)
+       buffer%map = hpx_dbadval
+    end where
+    call buffer%writeFITS(trim(prefix)//'map'//trim(postfix))
+    buffer%map = rms_out%map
+    where (rms_out%map == 0.d0)
+       buffer%map = hpx_dbadval
+    end where
+    call buffer%writeFITS(trim(prefix)//'rms'//trim(postfix))
+    call buffer%dealloc
+    ! obs: not marking missing pixels in the remaining components
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
     !if (self%output_n_maps > 3) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
@@ -412,12 +489,101 @@ contains
        end do
     end if
 
-    ! Parameter to check if this is first time routine has been
+    ! Parameter to check if this is first time routine has been called
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
     call timer%stop(TOD_TOT, self%band) 
   end subroutine process_LB_tod   
 
+  subroutine overwrite_noisepar(self, cpar)
+    ! setting noise parameters sigma0, fknee and alpha by hand for on-the-fly litebird sims
+    ! hardcoded sigma0 values for 11-13 specific litebird channels
+    ! overwriting existing values in memory for self%scans(k)%d(j)%N_psd%xi_n
+    implicit none
+    class(comm_LB_tod),   intent(inout) :: self
+    type(comm_params),    intent(in)    :: cpar
+    real(sp), allocatable, dimension(:) :: sigma0
+    real(dp)                            :: root_nsamp_per_arcmin
+    integer(i4b)                        :: i, j, k, numband, nband
 
+    if (self%nscan == 0) return
+
+    !if (self%myid==0) write(*,*) 'band ', self%band, trim(self%freq) 
+    !if (self%myid==0) write(*,*) 'sigma0 before ', self%scans(1)%d(1)%N_psd%sigma0 
+    !if (self%myid==0) write(*,*) 'fknee  before ', self%scans(1)%d(1)%N_psd%xi_n(2) 
+    !if (self%myid==0) write(*,*) 'alpha  before ', self%scans(1)%d(1)%N_psd%xi_n(3)
+
+    numband = count(cpar%ds_active)
+    allocate(sigma0(numband))
+
+    ! table of sigma0 values to pick from for different litebird configurations
+    ! unit uK_cmb*root(arcmin ^2)  (not uK_cmb*sqrt(s))
+    ! sensitivity for Q and U separately
+    !         L1-40  L2-50  L1-61  L2-77  M1-94  M2-118 M1-145 M2-182 H1-217 H2-280 H1-334 H2-402 H3-570
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62,   0.0] !postKDP2
+    !sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessLF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  8.05,  4.71,  4.94,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF1 
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  5.15,  4.41,  3.73,  8.59, 11.27, 14.93, 33.62, 233.1] !lessMF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93,  0.00, 233.1] !noHF2
+    !sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59,  0.00, 14.93, 29.13, 233.1] !newHF2
+
+    if (trim(cpar%noisepar_ver) == 'postKDP2') then
+       nband = 12
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62]
+    else if (trim(cpar%noisepar_ver) == 'lessLF2') then
+       nband = 13
+       sigma0 = [35.96, 25.24, 18.90, 12.87,  7.20,  4.71,  4.41,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'lessMF1') then
+       nband = 13
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  8.05,  4.71,  4.94,  3.40,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'lessMF2') then
+       nband = 13
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  5.15,  4.41,  3.73,  8.59, 11.27, 14.93, 33.62, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'noHF2') then
+       nband = 11
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 14.93, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'newHF2') then
+       nband = 12
+       sigma0 = [35.96, 20.61, 18.90, 10.51,  7.20,  4.71,  4.41,  3.40,  8.59, 14.93, 29.13, 233.1]
+    else if (trim(cpar%noisepar_ver) == 'debug570') then
+       nband = 1
+       sigma0 = [233.1]
+    end if
+
+    if (numband /= nband) then
+       write(*,*) trim(cpar%noisepar_ver), ' assumes', nband ,' bands, not', numband
+    end if
+
+    ! num arcmin_square on a sphere: 41252.96 degree_square * 3600 arcmin_square/degree_square
+    ! numsamp for a frequency band: 65536 samples per scan * 9142 number of scans * numdets per band
+    ! (all litebird sim scans has the same number of samples (ntod))
+    ! nsamp_per_arcmin_square = 65536*9142*4/41252.96/3600.d0
+    root_nsamp_per_arcmin = sqrt( self%scans(1)%ntod * real(self%nscan_tot * self%ndet,dp)/41252.96/3600.d0 )
+ 
+    !write(*,*) 'root_nsamp_per_arcmin', root_nsamp_per_arcmin 
+    !write(*,*) 'root_nsamp_per_arcmin', sqrt(65536*9142/41252.96/3600.d0*4)
+    !write(*,*) 'ntod, nscan_tot, ndet', self%scans(1)%ntod, self%nscan_tot, self%ndet
+
+    
+    ! loop over scans and set new noise parameters
+    do k = 1, self%nscan
+       do j = 1, self%ndet
+          ! want sigm0 (aka xi_n(1)) in K (litebird tods are in K), while table above is in uK*arcmin
+          ! given sigma0 is for Q and U so the total sensitivity is sqrt(2) higher
+          self%scans(k)%d(j)%N_psd%sigma0  = sigma0(self%id) * root_nsamp_per_arcmin * 1e-6 /sqrt(2.d0) !*sqrt(3.d0) !obs ds
+          self%scans(k)%d(j)%N_psd%xi_n(2) = 0.05                 ! fknee = 50 mHz
+          self%scans(k)%d(j)%N_psd%xi_n(3) = -1                   ! alpha
+       end do
+    end do
+    deallocate(sigma0)
+
+    if (self%myid==0) then
+       write(*,*) '|> Put sigma0 =', self%scans(1)%d(1)%N_psd%sigma0
+       write(*,*) '|       fknee =', self%scans(1)%d(1)%N_psd%xi_n(2)
+       write(*,*) '|       alpha =', self%scans(1)%d(1)%N_psd%xi_n(3)
+    end if
+       
+  end subroutine overwrite_noisepar
+    
 end module comm_tod_LB_mod

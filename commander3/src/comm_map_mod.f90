@@ -155,6 +155,8 @@ subroutine tod2file_dp3(filename,d)
    close(unit)
  end subroutine tod2file_dp3
 
+
+
   !**************************************************
   !             Constructors
   !**************************************************
@@ -403,7 +405,7 @@ subroutine tod2file_dp3(filename,d)
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      if (info%nmaps == 3) then
+      if (info%pol) then
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
       end if
@@ -463,7 +465,7 @@ subroutine tod2file_dp3(filename,d)
        deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
        call sharp_destroy_alm_info(self%alm_info)
        call sharp_destroy_geom_info(self%geom_info_T)
-       if (self%nmaps == 3) call sharp_destroy_geom_info(self%geom_info_P)
+       if (self%pol) call sharp_destroy_geom_info(self%geom_info_P)
     end if
 
   end subroutine comm_mapinfo_finalize
