@@ -1704,7 +1704,6 @@ subroutine tod2file_dp3(filename,d)
 
     ! Collect contributions from all cores to root
     if (self%info%myid == 0) then
-       write(*,*) "Am I in this place now?"
        allocate(map(0:npix-1,nmaps))
        map(self%info%pix,:) = self%map
        do i = 1, self%info%nprocs-1

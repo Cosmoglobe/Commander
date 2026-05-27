@@ -263,10 +263,8 @@ contains
 
     ! Allocate storage in first call
     if (.not. allocated(self%map_sky)) then
-       write(*,*) "Allocating map_sky"
        allocate(self%map_sky(self%nmaps,self%nobs,0:ndet,ndelta))
        allocate(self%bitmask(self%nobs))
-       write(*,*) associated(map_sky(i,j)%p), 'This thing is associated'
        if (present(map_gain)) then
           allocate(self%map_gain(self%nmaps,self%nobs,0:ndet))
        end if

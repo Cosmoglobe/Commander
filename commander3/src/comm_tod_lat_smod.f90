@@ -82,7 +82,7 @@ contains
 
     c%compressed_tod    = .true.
     c%correct_sl        = .false.
-    c%correct_orb       = .true.
+    c%correct_orb       = .false.
     c%correct_S_crosstalk = .false.
     c%correct_N_crosstalk = .false.
     c%apply_inst_corr   = .false.
@@ -96,7 +96,7 @@ contains
     c%ndiode          = 1
     nmaps_beam        = 3
     pol_beam          = .true.
-    c%nside_beam      = 512
+    c%nside_beam      = 128
     c%nside_pixhist   = 64
     c%sol_elong_range = cpar%zs_sol_elong
     
@@ -187,7 +187,7 @@ contains
     ! call c%collect_v_sun
     
     ! Allocate sidelobe convolution data structures
-    ! if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
+    if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
     
     allocate(c%orb_dp)
     !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
@@ -216,16 +216,8 @@ contains
     ! Initialize dynamic mask
     c%dynmask => comm_dynmask(c, cpar)
     c%dynmask%apply_pixhist           = .true.
-    c%dynmask%apply_solar_mask        = .true.
+    c%dynmask%apply_solar_mask        = .false.
     c%dynmask%remove_isolated_samples = .true.
-    if (c%freq(1:3) /= "353") then
-       c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
-       c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
-       c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
-       c%dynmask%window_excessRMS(1)    =    5  ! window size in number of samples
-       c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
-       c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
-    end if
     
     call timer%stop(TOD_INIT, id_abs)
 
@@ -341,7 +333,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_BP, SD_SKY])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_BP, SD_SKY, SD_MASK])
 
     
     ! Initialize local variables
@@ -375,6 +367,14 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
+    if (sample_gain) then
+       ! 'abscal': the global constant gain factor
+       call sample_calibration(self, 'abscal', oper_default, handle)
+       ! 'relcal': the gain factor that is constant in time but varying between detectors
+       call sample_calibration(self, 'relcal', oper_default, handle)
+       ! 'deltaG': the time-variable and detector-variable gain
+       !call sample_calibration(self, 'deltaG', oper_default, handle)
+    end if
     
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
@@ -421,17 +421,17 @@ contains
        end if
 
 
-       !! if (sample_ncorr) then
-       !!    call sample_n_corr(self, sd, handle)
-       !!    if (sample_xi_n) then
-       !!       call sample_noise_psd(self, sd, handle, chaindir)
-       !!    else
-       !!       call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
-       !!    end if
-       !! else
-       !!    call sample_n_corr(self, sd, handle, onlymono=.true.)
-       !!    call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
-       !! end if
+       if (sample_ncorr) then
+          call sample_n_corr(self, sd, handle)
+          if (sample_xi_n) then
+             call sample_noise_psd(self, sd, handle, chaindir)
+          else
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+          end if
+       else
+          call sample_n_corr(self, sd, handle, onlymono=.true.)
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+       end if
        
        ! Compute chisquare
        !! do j = 1, sd%ndet
@@ -461,8 +461,6 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
        !d_calib(1,:,:) = -abs(sd%tod)
-       sd%flag = 0
-       sd%mask = 1
 
        ! For debugging: write TOD to hdf
        if (.true.) then

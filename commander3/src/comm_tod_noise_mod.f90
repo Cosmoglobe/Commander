@@ -631,12 +631,14 @@ contains
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
 
+
     if (only_sigma0_) then
        ! Sample sigma_0 from pairwise differenced TOD
        ntod0 = ntod; if (present(dec_wn)) ntod0 = ntod/dec_wn-1
        allocate(res0(ntod0), mask0(ntod0))
        do i = 1, ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
+
 
           if (present(dec_wn)) then
              do j = 1, ntod0
@@ -657,7 +659,9 @@ contains
           else
              !res0  = sd%tod(:,i) - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1) - sd%n_corr(:,i)
              res0  = sd%tod(:,i)
-             if (allocated(sd%s_tot))  res0 = res0 - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1)
+             if (allocated(sd%s_tot))  then
+               res0 = res0 - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1)
+             end if
              if (allocated(sd%n_corr)) res0 = res0 - sd%n_corr(:,i)
              if (allocated(sd%s_spur)) res0 = res0 - sd%s_spur(:,i)
              mask0 = sd%mask(:,i)
