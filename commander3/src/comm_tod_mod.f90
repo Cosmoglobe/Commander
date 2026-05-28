@@ -1701,13 +1701,13 @@ contains
                   proc(id(j)) = i
                   w           = w + weight(id(j))
                   j           = j+1
+                  if (j > n_tot) exit
                   do while (w + weight(id(j)) <=(i+1)*w_tot/np)
                      proc(id(j)) = i
                      w           = w + weight(id(j))
                      j           = j+1
                      if (j > n_tot) exit
                   end do
-                  if (j > n_tot) exit
                end do
                do while (j <= n_tot)
                   proc(id(j)) = np-1
