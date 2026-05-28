@@ -15,6 +15,7 @@ NUM_SEGMENT_PROCESSES = 60
 # instances, one for each band
 #BANDS = ['065', '090', '140', '160']
 BANDS = ['065']
+EXTEND_RESET_FLAG = True
 
 def run_single_band_write(band):
     akari_comm_data_adapter = akari_commander_data_adapter.AKARICommanderDataAdapter(
