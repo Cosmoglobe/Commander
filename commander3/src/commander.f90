@@ -41,7 +41,7 @@ program commander
   !----------------------------------------------------------------------------------
   ! Command line arguments
   character(len=*), parameter :: version = '1.0.0'
-  character(len=32)           :: arg
+  character(len=1024)         :: arg
   integer                     :: arg_indx
 
   real(dp), allocatable :: param_test(:)

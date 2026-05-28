@@ -2818,10 +2818,6 @@ contains
          close(unit)
        end if
        
-       if (output_hdf .and. allocated(self%astrotab) .and. self%x%info%myid == 0) then
-         call write_hdf(chainfile, trim(path)//'/astroDustTab', self%astrotab)
-       end if
-
 
 
        ! Write mixing matrices
@@ -2884,8 +2880,6 @@ contains
 
        if (trim(self%type) == 'MBBtab') then
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
-         ! will this throw an error if the astrotab does not exist?
-         call read_hdf(hdffile, trim(adjustl(path))//'/astroDustTab', self%astrotab)
        end if
 
        do i = 1, self%npar
