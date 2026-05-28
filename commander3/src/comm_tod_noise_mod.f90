@@ -763,12 +763,12 @@ contains
              xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-             !if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
+             if (self%scanid(scan) == 10 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
           end do
        end do
 
-       if (mod(self%scanid(scan),5000) == 0) then
-       !if (self%scanid(scan) == 1) then
+       !if (mod(self%scanid(scan),10) == 0) then
+       if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -795,6 +795,8 @@ contains
     call sfftw_destroy_plan(plan_fwd)
 
     call timer%stop(TOD_XI_N, self%band)
+
+    write(*,*) 'Finished sampling the thing ', self%band, TOD_XI_N
     
 
   contains

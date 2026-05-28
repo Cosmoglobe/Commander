@@ -208,6 +208,9 @@ contains
 
     inv_sigmasq = 1d0
     eff = 1d0
+
+
+    write(*,*) "Inside the function"
  
     call timer%start(TOD_MAPBIN, tod%band)
     do det = 1, size(pix,2) ! loop over all the detectors
@@ -287,6 +290,7 @@ contains
        end do
 
     end do
+    write(*,*) "Outside of the bin tod?"
     call timer%stop(TOD_MAPBIN, tod%band)
     
   end subroutine bin_TOD

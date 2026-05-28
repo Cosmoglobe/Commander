@@ -71,7 +71,7 @@ contains
      do_bp   = btest(sd%oper,SD_BP)
      do_bp = .false.
      
-     if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
+     ! if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
      
      ! s = T + eff*(Q * cos(2*psi) + U * sin(2*psi))
      ! T - temperature; Q, U - Stoke's parameters

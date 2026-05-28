@@ -21,6 +21,7 @@
 submodule (comm_tod_lat_mod) comm_tod_lat_mod
 contains
 
+
   !**************************************************
   !             Constructor
   !**************************************************
@@ -110,8 +111,8 @@ contains
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
     c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
-    c%xi_n_P_uni(2,:)  = [0.001d0, 20d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-4d0, -0.3d0]   ! alpha
+    c%xi_n_P_uni(2,:)  = [10d0, 20d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-3.0d0, -2.0d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
@@ -139,26 +140,6 @@ contains
     end if
 
 
-    ! Identify partners
-    c%partner = -1
-    do i = 1, c%ndet
-       if (len(trim(c%label(i))) == 5) cycle ! Spider web
-       ! Search for detector with a instead of b
-       pstring = trim(adjustl(c%label(i)))
-       if (pstring(6:6) == 'a') then
-          pstring(6:6) = 'b'
-       else
-          pstring(6:6) = 'a'
-       end if
-       do j = 1, c%ndet
-          if (pstring == trim(adjustl(c%label(j)))) then
-             c%partner(i) = j
-             !if (c%myid == 0) write(*,*) 'Partners = ', trim(adjustl(c%label(i))), '<->', trim(adjustl(c%label(c%partner(i))))
-             exit
-          end if
-       end do
-    end do
-    
     ! Read the actual TOD
     call c%read_tod(c%label)
     
@@ -411,7 +392,9 @@ contains
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
+             write(*,*) "Sampling noise psd"
              call sample_noise_psd(self, sd, handle, chaindir)
+             write(*,*) "Done sampling noise psd"
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
           end if
@@ -420,6 +403,8 @@ contains
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
        end if
        
+
+       write(*,*) "Would be calculating chisq"
        ! Compute chisquare
        !! do j = 1, sd%ndet
        !!    if (.not. self%scans(i)%d(j)%accept) cycle
@@ -427,6 +412,7 @@ contains
        !! end do
 
        ! Select data
+       write(*,*) "Removing bad data"
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
 
@@ -440,12 +426,15 @@ contains
           end do
        end if
 
+       write(*,*) "sampling abs bandpass"
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
+       write(*,*) "allocating"
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
+       write(*,*) "computing calibrated data"
        call compute_calibrated_data(self, i, sd, d_calib)
        !d_calib(1,:,:) = -abs(sd%tod)
 
@@ -464,10 +453,12 @@ contains
        end if
        
        ! Bin TOD
+       write(*,*) "Binning tod"
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
        
        ! Update scan list
        call wall_time(t2)
+       write(*,*) "updating scan list"
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
        self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
        if (output_scanlist) then
@@ -477,14 +468,20 @@ contains
        end if
 
        ! Clean up
+       write(*,*) "udeallocating"
        call dealloc_scan_data(sd)
        deallocate(d_calib)
 
     end do
 
+    write(*,*) "out of hte loop"
+
     call timer%start(TOD_WAIT, self%band)
+    write(*,*) "starting a barrier"
     call mpi_barrier(self%comm, ierr) ! Improve timing information
+    write(*,*) "finishing a barrier"
     call timer%stop(TOD_WAIT, self%band)
+    write(*,*) "stopping the timer?"
     call update_status(status, "tod_postloop"//ctext)
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -494,17 +491,6 @@ contains
        ! criteria
        !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
        call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
-       
-       if (self%symm_flags) then
-          ! Remove partners for rejected scans
-          do j = 1, self%ndet
-             if (self%partner(j) == -1) cycle
-             do i = 1, self%nscan
-                if (.not. self%scans(i)%d(j)%accept) &
-                     & self%scans(i)%d(self%partner(j))%accept = .false.
-             end do
-          end do
-       end if
           
        do i = 1, self%nscan
           do j = 1, self%ndet
@@ -689,33 +675,6 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
 
-    integer(i4b) :: ierr, i, j, k
-    real(dp), allocatable, dimension(:,:,:) :: base
-    real(sp), allocatable, dimension(:,:)   :: phase
-    real(sp), allocatable, dimension(:,:)   :: Q
-
-    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
-    if (self%myid == 0) then
-       call read_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
-       call read_hdf(chainfile, trim(adjustl(path))//'mod_phase',    phase)
-
-    end if
-
-    call mpi_bcast(base,  size(base) , MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-    call mpi_bcast(phase, size(phase), MPI_REAL, 0, self%comm, ierr)
-
-    do j = 1, self%ndet
-       do i = 1, self%nscan
-          k = self%scanid(i)
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          self%scans(i)%d(j)%baseline1 = base(k,j,1) 
-          self%scans(i)%d(j)%baseline2 = base(k,j,2) 
-          self%mod_phase(j,i)          = phase(k,j)
-       end do
-    end do
-
-    
-    deallocate(base, phase)
 
   end subroutine initHDF_lat
   
@@ -741,38 +700,6 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
 
-    integer(i4b) :: ierr, i, j, k
-    real(dp), allocatable, dimension(:,:,:) :: base
-    real(sp), allocatable, dimension(:,:)   :: phase
-    real(sp), allocatable, dimension(:,:)   :: Q
-
-    allocate(base(self%nscan_tot,self%ndet,2), phase(self%nscan_tot,self%ndet))
-    base  = 0.d0
-    phase = 0.0
-    do j = 1, self%ndet
-       do i = 1, self%nscan
-          k = self%scanid(i)
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          base(k,j,1) = self%scans(i)%d(j)%baseline1
-          base(k,j,2) = self%scans(i)%d(j)%baseline2
-          phase(k,j)  = self%mod_phase(j,i)
-       end do
-    end do
-    if (self%myid == 0) then
-       call mpi_reduce(mpi_in_place, base, size(base), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-       call write_hdf(chainfile, trim(adjustl(path))//'baseline_adc', base)
-       call mpi_reduce(mpi_in_place, phase, size(phase), &
-            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
-       call write_hdf(chainfile, trim(adjustl(path))//'mod_phase', phase)
-
-    else
-       call mpi_reduce(base,         base, size(base), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-       call mpi_reduce(phase,        phase, size(phase), &
-            & MPI_REAL, MPI_SUM, 0, self%comm, ierr)
-    end if
-    deallocate(base, phase)
 
   end subroutine dumpToHDF_lat
 
