@@ -204,6 +204,7 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, 3, .false.)
     call c%precompute_lookups()
 
     ! allocate LFI specific instrument file data
@@ -1216,6 +1217,7 @@ contains
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
        call init_scan_data(tod, i, oper, TODMASK_PROC, sd, 0)
+
        !call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
@@ -1230,6 +1232,8 @@ contains
           do k = 1, tod%scans(i)%ntod
              if (sd%tod(k,j) /= sd%tod(k,j)) then
                 write(*,*) tod%scanid(i), j, k, sd%tod(k,j), tod%scans(i)%d(j)%gain, sd%s_sky(k,j,0,1), sd%s_sl(k,j,0), sd%s_orb(k,j,0)
+                write(*,*) "NaN in tod during 1Hz spike"
+                stop
              end if
              !res(k) = 1/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &
              !     & sd%s_sl(k,j) + sd%s_orb(k,j))
@@ -1398,14 +1402,14 @@ contains
 
     call timer%start(TOD_ALLOC, self%band)
 
+    oper = get_sd_operation_code([SD_BASE, SD_TOD])
+
     if (self%L2_exist) then
        if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
        call update_status(status, "Opened HDF file")
+       oper = get_sd_operation_code([SD_BASE])
     end if
-
-    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
     
     ! Reduce all scans
     do i = 1, self%nscan
@@ -1427,8 +1431,9 @@ contains
 
        ! Store relevant data
        do j = 1, self%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle 
           if (any(isnan(tod(:,j)))) self%scans(i)%d(j)%accept = .false.
+          if (any(isnan(tod(:,j)))) write(*,*) 'NaN in L2 TOD', i, j
+          if (.not. self%scans(i)%d(j)%accept) cycle 
           allocate(self%scans(i)%d(j)%tod(n))
           self%scans(i)%d(j)%tod = tod(:,j)
        end do
@@ -1447,6 +1452,7 @@ contains
         end do
         call huff_deallocate(self%scans(i)%todkey)
         deallocate(tod)
+        call dealloc_scan_data(sd)
      end do
      if (self%L2_exist) call close_hdf_file(h5_file)
 

@@ -1122,6 +1122,8 @@ contains
        end do
     end do
     
+    call self%collect_v_sun
+
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
@@ -1405,11 +1407,18 @@ contains
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       !TODO: this needs to be generalized to work for both floats and ints
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_int(hsymb,htree,self%todkey)
-       deallocate(hsymb, htree)
+       if(trim(tod%tod_type)=='LFI') then ! if you have a float TOD type
+        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+        call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
+        deallocate(hsymb_sp)
+       else
+        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+        call hufmak_precomp_int(hsymb,htree,self%todkey)
+        deallocate(hsymb)
+       end if
+       deallocate(htree)
     end if
 
     ! Read instrument-specific infomation
@@ -2751,6 +2760,8 @@ contains
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
+       if(.not. self%scans(scan)%d(d)%accept) cycle
+
        do h = 1, self%nhorn
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%pix(h)%p,  sd%pix(:,j,h))
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%psi(h)%p,  sd%psi(:,j,h))
@@ -2845,6 +2856,7 @@ contains
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
+       if(.not. self%scans(scan)%d(d)%accept) cycle
        call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%flag, sd%flag(:,j))
        ! Apply dynamic mask if it exists
        if (allocated(self%scans(scan)%d(d)%mask_dyn)) then
