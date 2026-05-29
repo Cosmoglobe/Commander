@@ -210,18 +210,19 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity, operation)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
     integer(i4b),      intent(in), optional :: verbosity
+    character(len=*),  intent(in), optional :: operation
     
     integer(i4b) :: stat, i, j, l, m, nactive, verbosity_
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
-    character(len=32) :: cr_active_bands(100)
+    character(len=32) :: cr_active_bands(100), oper
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
     class(comm_map),     pointer :: res  => null()
     
@@ -294,7 +295,8 @@ contains
 
    
     ! Solve the linear system
-    call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
+    oper = cpar%operation; if (present(operation)) oper = operation
+    call cr_computeRHS(oper, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
     if (.not. allocated(P_cr)) allocate(P_cr(cpar%cg_num_user_samp_groups))
@@ -350,7 +352,7 @@ contains
   end subroutine sample_amps_by_CG
 
 
-  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups, verbosity)
+  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups, verbosity, operation)
     !
     !
     !  Convenience function for performing amplitude sampling over
@@ -363,6 +365,7 @@ contains
     type(planck_rng),  intent(inout)         :: handle, handle_noise
     character(len=512), intent(in), optional :: cg_groups
     integer(i4b),       intent(in), optional :: verbosity
+    character(len=*),   intent(in), optional :: operation
 
 
     integer(i4b)                          :: samp_group, i, n, verbosity_
@@ -391,7 +394,7 @@ contains
           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
           & trim(cpar%cg_samp_group(samp_group))
        end if
-       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity)
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, verbosity, operation)
        !call output_FITS_sample(cpar, 2000+samp_group, .true.)
 
        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)

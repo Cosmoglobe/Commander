@@ -41,7 +41,9 @@ module comm_tod_chipass_mod
    type, extends(comm_tod) :: comm_chipass_tod
       integer(i4b)  :: tsys_order
       real(dp)      :: tsys_eta0
+      real(dp), allocatable, dimension(:)      :: el_min, el_max
       real(dp), allocatable, dimension(:,:)    :: tsys_fit ! ndet, tsys_order+1
+      type(spline_type), allocatable, dimension(:) :: tsys_spline
       class(comm_dynmask), pointer :: dynmask
     contains
       procedure     :: process_tod          => process_chipass_tod
@@ -111,8 +113,8 @@ contains
       c%xi_n_P_uni(1,:)  = [0.001d0, 10.d0]       ! sigma0
       !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
-      c%xi_n_P_uni(2,:)  = [0.003d0, 0.0031d0]  ! fknee
-      c%xi_n_P_uni(3,:)  = [-2.001d0, -1.999d0]  ! alpha
+      c%xi_n_P_uni(2,:)  = [0.002d0, 0.0021d0]  ! fknee
+      c%xi_n_P_uni(3,:)  = [-1.801d0, -1.799d0]  ! alpha
 
       ! Initialize common parameters
       call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -133,7 +135,7 @@ contains
       c%symm_flags      = .false.
       c%read_elev       = .true.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      c%chisq_threshold = 50000.
+      c%chisq_threshold = 15d8
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
          c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
@@ -185,7 +187,7 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 201
+      c%dynmask%output_scan             = 500
       c%dynmask%output_det              = 1
       c%dynmask%threshold_singlesamp    = 10  ! Exclude 10 sigma outliers
       c%dynmask%window_excessRMS(1)     = 7   ! Search for windows of 7 samples
@@ -219,6 +221,24 @@ contains
             if (c%scans(i)%d(j)%N_psd%sigma0 == 0.d0) c%scans(i)%d(j)%accept = .false.
          end do 
       end do      
+
+      ! Compute elevation range
+      allocate(c%el_min(c%ndet), c%el_max(c%ndet))
+      c%el_min = 90.d0
+      c%el_max =  0.d0
+      do j = 1, c%ndet
+         do i = 1, c%nscan
+            if (c%scans(i)%d(j)%accept) then
+               c%el_min = min(c%el_min, minval(c%scans(i)%d(j)%elev,c%scans(i)%d(j)%elev>0.d0))
+               c%el_max = max(c%el_max, maxval(c%scans(i)%d(j)%elev,c%scans(i)%d(j)%elev>0.d0))
+            end if
+         end do 
+      end do
+      call mpi_allreduce(mpi_in_place, c%el_min, size(c%el_min), &
+           & MPI_DOUBLE_PRECISION, MPI_MIN,  c%comm, ierr)
+      call mpi_allreduce(mpi_in_place, c%el_max, size(c%el_max), &
+           & MPI_DOUBLE_PRECISION, MPI_MAX,  c%comm, ierr)
+      if (c%myid == 0) write(*,fmt='(a,2f8.3)') '  Elevation range, det 1 = ', c%el_min(1), c%el_max(1)
 
       
       call timer%stop(TOD_INIT, id_abs)
@@ -309,12 +329,28 @@ contains
       !if (self%myid == 0) write(*, *) '[comm_tod_chipass_mod.f90] size(delta,3) > 1:', size(delta,3) > 1, size(delta,1), size(delta,2), size(delta,3)
       !sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       !sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
-      select_data           = iter == 4        ! only perform data selection the first time
+
+      if (.false.) then
+         ! Debug
+         select_data     = iter == 2
+         sample_baseline = iter > 2
+         sample_tsys     = iter > 2
+         sample_gain     = iter > 2                         ! Gain sampling
+         sample_ncorr    = iter > 2
+      else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
+         select_data     = iter == 10                   ! in param file. Takes you to 'else' below
+         sample_baseline = iter > 1
+         sample_tsys     = iter > 1
+         sample_gain     = iter > 2                         ! Gain sampling
+         sample_ncorr    = iter > 3
+      else
+         select_data     = iter == 1                    
+         sample_baseline = iter > 1
+         sample_tsys     = iter > 1
+         sample_gain     = iter > 1                         ! Gain sampling
+         sample_ncorr    = iter > 0
+      end if
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_baseline       = iter > 1
-      sample_tsys           = iter > 1
-      sample_gain           = iter > 2                         ! Gain sampling
-      sample_ncorr          = iter > 3
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -404,7 +440,7 @@ contains
          do i = 1, self%nscan
             ! Skip scan if no accepted data
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd) 
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                call self%dynmask%create(sd, j)
@@ -447,6 +483,9 @@ contains
             if (.not. self%scans(i)%d(j)%accept) cycle
             call self%compute_tod_chisq(sd, j)
          end do
+
+         ! Select data
+         if (select_data) call remove_bad_data(self, i, sd%flag)
          
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
@@ -455,7 +494,7 @@ contains
 
          ! For debugging: write TOD to hdf
          if (.true.) then
-            if (mod(self%scanid(i), 201) == 0) then
+            if (mod(self%scanid(i), 500) == 0) then
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod/self%scans(i)%d(1)%gain)
@@ -502,6 +541,9 @@ contains
       call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
       map_out%map = binmap%outmaps(1)%p%map
 
+      ! Inpaint missing pixels
+      call map_out%inpaint_misspix(rms_out, map_in(1,1)%p, 30.d0, handle)
+      
       ! Output maps to disk
       call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
@@ -559,9 +601,13 @@ contains
              n    = n + 1
              x(n) = t
              y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
-             do i = 0, tod%tsys_order
-                y(n) = y(n) - tod%tsys_fit(j, i) * (tod%scans(scan)%d(j)%elev(k) - tod%tsys_eta0)**i
-             end do
+             if (allocated(tod%tsys_spline)) then
+                y(n) = y(n) - splint(tod%tsys_spline(j),tod%scans(scan)%d(j)%elev(k))
+             else
+                do i = 0, tod%tsys_order
+                   y(n) = y(n) - tod%tsys_fit(j, i) * (tod%scans(scan)%d(j)%elev(k) - tod%tsys_eta0)**i
+                end do
+             end if
           end if
        end do
 
@@ -628,51 +674,87 @@ contains
     integer(i4b),            intent(in)    :: oper_default
     type(planck_rng),        intent(inout) :: handle
 
+    character(len=2) :: dtext
     type(comm_scandata) :: sd
-    integer(i4b)        :: i, j, k, l, m, nout, ierr
-    real(dp)            :: t, dt, x, y, eta
-    real(sp), allocatable, dimension(:,:)   :: tsys
-    real(dp), allocatable, dimension(:)   :: b
+    integer(i4b)        :: i, j, k, l, m, nout, ierr, bin, nbin
+    real(dp)            :: t, dt, x, y, eta, del, el_min, el_max, tsys, alpha, var_scale
+    real(dp), allocatable, dimension(:)   :: b, el, mu, sigma
     real(dp), allocatable, dimension(:,:) :: A
 
     allocate(A(0:self%tsys_order,0:self%tsys_order), b(0:self%tsys_order))
+    if (.not. allocated(self%tsys_spline)) allocate(self%tsys_spline(self%ndet))
 
-    ! Build linear system, A * x = b, for current core
+    del       = 1.d0  ! Delta elevation; bin width
+    alpha     = 3.d4  ! Spline stiffness
+    var_scale = 10.d0 ! Scaling factor between real and white noise variance for binned Tsys
+
     do j = 1, self%ndet
-       A = 0.d0; b = 0.d0
+       el_min = self%el_min(j)
+       el_max = self%el_max(j)
+       nbin   = int((el_max-el_min)/del)+1
+       allocate(mu(nbin), sigma(nbin), el(nbin))
+       mu    = 0.d0
+       sigma = 0.d0
+       do i = 1, nbin
+          el(i) = el_min + real(i-0.5,dp)*del ! Elevation in degrees
+       end do
+
+       ! Compute binned Tsys
        do i = 1, self%nscan
           if (.not. any(self%scans(i)%d%accept)) cycle
           call init_scan_data(self, i, oper_default, TODMASK_PROC, sd, spur_level=0)
-          dt = 1.d0 / self%scans(i)%ntod
-          t  = 0.d0
           do k = 1, self%scans(i)%ntod
-             t = t + dt
              if (sd%mask(k,j) == 1) then
                 ! Prepare data 
-                x = self%scans(i)%d(j)%elev(k) - self%tsys_eta0
-                y = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
+                x   = self%scans(i)%d(j)%elev(k) - self%tsys_eta0
+                y   = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
+                bin = min(max(int((self%scans(i)%d(j)%elev(k)-el_min)/del),1),nbin)
+                mu(bin)    = mu(bin)    +    y/self%scans(i)%d(j)%N_psd%sigma0**2
+                sigma(bin) = sigma(bin) + 1.d0/self%scans(i)%d(j)%N_psd%sigma0**2
 !!$                do l = 0, self%baseline_order
 !!$                   y = y - self%scans(i)%d(j)%baseline(l) * t**l
 !!$                end do
-                ! Add current sample to linear system
-                do l = 0, self%tsys_order
-                   b(l) = b(l) + y * x**l / self%scans(i)%d(j)%N_psd%sigma0**2
-                   do m = 0, self%tsys_order
-                      A(l,m) = A(l,m) + x**l * x**m / self%scans(i)%d(j)%N_psd%sigma0**2
-                   end do
-                end do
              end if
           end do
           call dealloc_scan_data(sd)
        end do
-
-       ! Draw a sample of Tsys parameters
+    
+       ! Reduce binned Tsys
        if (self%myid == 0) then
-          ! Collect contributions from all cores
-          call mpi_reduce(mpi_in_place, A, size(A), &
+          call mpi_reduce(mpi_in_place, mu, size(mu), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-          call mpi_reduce(mpi_in_place, b, size(b), &
+          call mpi_reduce(mpi_in_place, sigma, size(sigma), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       else
+          call mpi_reduce(mu, mu, size(mu), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+          call mpi_reduce(sigma, sigma, size(sigma), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       end if
+    
+       ! Sample splined Tsys
+       if (self%myid == 0) then
+
+          where(sigma > 0.d0)
+             mu    = mu / sigma
+             sigma = sqrt(1./sigma) ! Sigma
+          elsewhere
+             mu    = 0.d0
+             sigma = 1.d10
+          end where
+
+          ! Method 1: Polynomial fit to binned Tsys
+          A = 0.d0
+          b = 0.d0
+          do i = 1, nbin
+             x = el(i) - self%tsys_eta0
+             do l = 0, self%tsys_order
+                b(l) = b(l) + mu(i) * x**l / sigma(i)**2
+                do m = 0, self%tsys_order
+                   A(l,m) = A(l,m) + x**l * x**m / sigma(i)**2
+                end do
+             end do
+          end do
           
           ! Compute best-fit solution
           call invert_matrix(A, cholesky=.true.)
@@ -684,43 +766,44 @@ contains
              b(l) = rand_gauss(handle)
           end do
           self%tsys_fit(j,:) = self%tsys_fit(j,:) + matmul(A, b)
-       else
-          ! Send contribution to root
-          call mpi_reduce(A, A, size(A), &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-          call mpi_reduce(b, b, size(b), &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-       end if
-    end do    
-    
-    ! Distribute new sample
-    call mpi_bcast(self%tsys_fit, size(self%tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)       
 
-    ! Output to ASCII
-    if (self%myid == 0) then
-       nout = 1000
-       allocate(tsys(nout,self%ndet))
-       do i = 1, nout
-          eta = 30.d0 + real(i-1,sp)/real(nout-1,sp) * 60d0 ! Elevation in degrees
-          tsys(i,:) = 0.
-          do j = 1, self%ndet
-             do l = 0, self%tsys_order
-                tsys(i,j) = tsys(i,j) + self%tsys_fit(j,l) * (eta - self%tsys_eta0)**l
-             end do
+          ! Method 2: Smoothed spline with random variations
+          do i = 1, nbin
+             mu(i) = mu(i) + rand_gauss(handle) * sigma(i)
           end do
-       end do
-       do j = 1, self%ndet
-          tsys(:,j) = tsys(:,j) - minval(tsys(1:600,j))
-       end do
-       
-       open(58, file='Tsys.dat', recl=10000)
-       do i = 1, nout
-          eta = 30.d0 + real(i-1,sp)/real(nout-1,sp) * 60d0 ! Elevation in degrees
-          write(58,*) real(eta,sp), tsys(i,:)
-       end do
-       close(58)
-       deallocate(tsys)
-    end if
+          call smooth_spline(el, mu, self%tsys_spline(j), "inv_var", alpha, var_scale*sigma**2)
+          
+          ! Output to ascii
+          call int2string(j, dtext)
+          open(58, file='Tsys'//dtext//'.dat', recl=128)
+          do i = 1, nbin
+             tsys = 0.
+             do l = 0, self%tsys_order
+                tsys = tsys + self%tsys_fit(j,l) * (el(i) - self%tsys_eta0)**l
+             end do
+             write(58,fmt='(f8.3,4e16.8)') el(i), mu(i), sigma(i), tsys, splint(self%tsys_spline(j), el(i))
+          end do
+          close(58)
+       else
+          if (.not. allocated(self%tsys_spline(j)%x)) then
+             ! Initialize spline structures
+             allocate(self%tsys_spline(j)%x(nbin),self%tsys_spline(j)%y(nbin),self%tsys_spline(j)%y2(nbin))
+             self%tsys_spline(j)%boundary = 1d30
+             self%tsys_spline(j)%regular  = .false.
+             self%tsys_spline(j)%linear   = .false.
+             self%tsys_spline(j)%verbose  = .false.
+          end if
+       end if
+
+       ! Distribute new sample
+       call mpi_bcast(self%tsys_fit(j,:), size(self%tsys_fit(j,:)), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+       call mpi_bcast(self%tsys_spline(j)%x,  nbin, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+       call mpi_bcast(self%tsys_spline(j)%y,  nbin, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+       call mpi_bcast(self%tsys_spline(j)%y2, nbin, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+       ! Clean up
+       deallocate(el, mu, sigma)
+    end do
     
     deallocate(A, b)
 
@@ -765,9 +848,13 @@ contains
           do i = 0, self%baseline_order
              sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
           end do
-          do i = 0, self%tsys_order
-             sd%s_inst(k,j) = sd%s_inst(k,j) + self%tsys_fit(d,i) * (self%scans(scan)%d(d)%elev(k) - self%tsys_eta0)**i
-          end do
+          if (allocated(self%tsys_spline)) then
+             sd%s_inst(k,j) = sd%s_inst(k,j) + splint(self%tsys_spline(d),self%scans(scan)%d(d)%elev(k))
+          else
+             do i = 0, self%tsys_order
+                sd%s_inst(k,j) = sd%s_inst(k,j) + self%tsys_fit(d,i) * (self%scans(scan)%d(d)%elev(k) - self%tsys_eta0)**i
+             end do
+          end if
        end do
     end do
   end subroutine construct_corrtemp_chipass
@@ -794,19 +881,28 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
 
-    integer(i4b) :: ierr, i, j, k
-    real(dp), allocatable, dimension(:,:,:) :: baseline
+    integer(i4b) :: ierr, i, j, k, ext(3), nbin
+    real(dp), allocatable, dimension(:,:,:) :: baseline, buffer
     real(dp), allocatable, dimension(:,:)   :: tsys_fit
     real(dp) :: tsys_eta0
 
     allocate(baseline(self%nscan_tot, self%ndet, 0:self%baseline_order))
     allocate(tsys_fit(self%ndet, 0:self%tsys_order))
+
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_fit', tsys_fit)
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', tsys_eta0)
+
+       call get_size_hdf(chainfile, trim(adjustl(path))//'tsys_spline', ext)
+       allocate(buffer(ext(1), ext(2), ext(3)))
+       call read_hdf(chainfile, trim(adjustl(path))//'tsys_spline', buffer)
     end if
 
+    call mpi_bcast(ext, 3, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    if (self%myid /= 0) allocate(buffer(ext(1), ext(2), ext(3)))
+    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    
     call mpi_bcast(baseline, size(baseline), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(tsys_fit, size(tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(tsys_eta0, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -821,7 +917,20 @@ contains
        end do
     end do
 
-    deallocate(baseline, tsys_fit)
+    if (.not. allocated(self%tsys_spline)) allocate(self%tsys_spline(self%ndet))
+    do j = 1, self%ndet
+       nbin = count(buffer(:,1,j) /= -1.d30)
+       allocate(self%tsys_spline(j)%x(nbin),self%tsys_spline(j)%y(nbin),self%tsys_spline(j)%y2(nbin))       
+       self%tsys_spline(j)%x(1:nbin)  = buffer(1:nbin,1,j)
+       self%tsys_spline(j)%y(1:nbin)  = buffer(1:nbin,2,j)
+       self%tsys_spline(j)%y2(1:nbin) = buffer(1:nbin,3,j)
+       self%tsys_spline(j)%boundary   = 1d30
+       self%tsys_spline(j)%regular    = .false.
+       self%tsys_spline(j)%linear     = .false.
+       self%tsys_spline(j)%verbose    = .false.
+    end do
+    
+    deallocate(baseline, tsys_fit, buffer)
 
   end subroutine initHDF_chipass
 
@@ -847,9 +956,29 @@ contains
     type(hdf_file),          intent(in)     :: chainfile
     character(len=*),        intent(in)     :: path
 
+    integer(i4b) :: i, nbin
+    real(dp), allocatable, dimension(:,:,:) :: buffer
+    
     if (self%myid == 0 .and. trim(self%level) == 'L1') then
        call write_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', self%tsys_eta0)
        call write_hdf(chainfile, trim(adjustl(path))//'tsys_fit', self%tsys_fit)
+
+       if (allocated(self%tsys_spline)) then
+          nbin = 0
+          do i = 1, self%ndet
+             nbin = max(nbin,size(self%tsys_spline(i)%x))
+          end do
+          allocate(buffer(nbin,3,self%ndet))
+          buffer = -1.d30
+          do i = 1, self%ndet
+             nbin = size(self%tsys_spline(i)%x)
+             buffer(1:nbin,1,i) = self%tsys_spline(i)%x
+             buffer(1:nbin,2,i) = self%tsys_spline(i)%y
+             buffer(1:nbin,3,i) = self%tsys_spline(i)%y2
+          end do
+          call write_hdf(chainfile, trim(adjustl(path))//'tsys_spline', buffer)
+          deallocate(buffer)
+       end if
     end if
 
   end subroutine dumpToHDF_chipass

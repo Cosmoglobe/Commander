@@ -331,11 +331,28 @@ program commander
      !if (iter > 1) then
      if (iter > 5) then
         do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+        end do
+     end if
+
+     if (iter > 5 .and. cpar%mcmc_num_samp_groups > 0) then
+     !if (iter > 3) then
+        do i = 1, cpar%mcmc_num_samp_groups
+           if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
               if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
               call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+           else if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
+              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
+            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
+              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else
+              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
+              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
             end if
         end do
+        ! Do CG group sampling
+        !call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
 
      ! Sample non-linear parameters
@@ -349,23 +366,6 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (iter > 5 .and. cpar%mcmc_num_samp_groups > 0) then
-     !if (iter > 3) then
-        do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
-              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
-            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
-              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            else
-              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
-              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            end if
-        end do
-        ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
-     end if
   end if
      
      ! Output sample to disk

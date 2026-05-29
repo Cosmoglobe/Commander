@@ -56,7 +56,7 @@ contains
     type(spline_type),       intent(inout) :: s
     real(dp),                intent(in)    :: x(:), y(:)
     real(dp),      optional, intent(in)    :: boundary(2)
-    logical(lgt),  optional, intent(in)    :: regular, linear, verbose
+    logical(lgt),  optional, intent(in)    :: regular, linear, verbose 
     call free_spline(s)
     s%boundary = 1d30
     s%regular  = .false.
@@ -70,7 +70,7 @@ contains
     s%x = x
     s%y = y
     if(.not. s%linear) call spline(s%x, s%y, s%boundary(1), s%boundary(2), s%y2)
-  end subroutine
+  end subroutine spline_simple
 
   function splint_simple(s, x) result(y)
     implicit none
@@ -251,194 +251,171 @@ contains
   end subroutine splint_deriv_all_nodes
 
 
-!!$  subroutine smooth_spline(weight, alpha, x, y, yp1, ypn, y2, variance)
-!!$    implicit none
-!!$
-!!$    character(len=*),       intent(in)    :: weight
-!!$    real(dp),               intent(in)    :: alpha, yp1, ypn
-!!$    real(dp), dimension(:), intent(in)    :: x
-!!$    real(dp), dimension(:), intent(in), optional    :: variance
-!!$    real(dp), dimension(:), intent(inout) :: y
-!!$    real(dp), dimension(:), intent(out)   :: y2
-!!$
-!!$    integer(i4b) :: i, j, n, row, col, kd, ldab, ldb, info, nrhs
-!!$    character(len=1) :: uplo
-!!$    real(dp), allocatable, dimension(:)   :: h, QtY, W, WQy2
-!!$    real(dp), allocatable, dimension(:,:) :: Q, R, M, QtQ
-!!$    real(dp),              dimension(3)   :: Q_row, Q_col
-!!$
-!!$    n = size(x)
-!!$
-!!$    allocate(QtY(2:n-1))
-!!$    allocate(h(1:n))
-!!$    allocate(W(n))
-!!$    allocate(Q(n,-1:1))
-!!$    allocate(WQy2(1:n))
-!!$    allocate(R(n,0:2))
-!!$    allocate(M(0:2,2:n-1))
-!!$    allocate(QtQ(n,0:2))
-!!$    
-!!$    ! Set up step length array h
-!!$    h = 0.d0
-!!$    do i = 1, n-1
-!!$       h(i) = x(i+1)-x(i)
-!!$    end do
-!!$
-!!$    ! Compute QtY
-!!$    QtY = 0.d0
-!!$    do i = 2, n-1
-!!$       QtY(i) = (y(i+1)-y(i)) / h(i) - (y(i)-y(i-1)) / h(i-1)
-!!$    end do
-!!$
-!!$
-!!$    ! Set up weight array W
-!!$    if (trim(weight) == 'inv_var') then
-!!$ !      W(1) = (y(2)-y(1)) / (x(2)-x(1))
-!!$ !      do i = 2, n
-!!$ !         W(i) = (y(i)-y(i-1)) / (x(i)-x(i-1))
-!!$ !      end do
-!!$
-!!$       do i = 1, n
-!!$          if (present(variance)) then
-!!$             W = variance
-!!$          else
-!!$             W(i) = y(i)**2
-!!$             !if (y(i) < 0.5d0) then
-!!$             !   W(i) = y(i)**2
-!!$             !else
-!!$             !   W(i) = (1.d0 - y(i))**2
-!!$             !end if
-!!$          end if
-!!$       end do
-!!$!       W(1) = 0.d0
-!!$!       W(n) = 0.d0
-!!$
-!!$!       W = 0.d0
-!!$!       do i = 2, n-1
-!!$!          W(i) = y(i)
-!!$!       end do
-!!$    else if (trim(weight) == 'uniform') then
-!!$       W = 0.d0
-!!$       do i = 1, n
-!!$          W(i) = 1.d0
-!!$       end do
-!!$    else if (trim(weight) == 'N_weights') then
-!!$       W = 0.d0
-!!$       do i = 1, n
-!!$          if (variance(i) <= 1.d0) then
-!!$             W(i) = 1.d10
-!!$          else if (variance(i) < 6.d4) then
-!!$             W(i) = exp(-(variance(i)/1000.d0))  !1.d0/variance(i)**2
-!!$          end if
-!!$       end do
-!!$    else
-!!$       write(*,*) 'smooth_spline: Unknown weighting scheme = ', trim(weight)
-!!$       stop
-!!$    end if
-!!$
-!!$!    write(*,*) W
-!!$!    stop
-!!$
-!!$    ! Set up Q
-!!$    Q = 0.d0
-!!$    do j = 2, n-1
-!!$       Q(j,-1) =  1.d0 / h(j-1)               
-!!$       Q(j,0)  = -1.d0 / h(j-1) - 1.d0 / h(j) 
-!!$       Q(j,1)  =  1.d0 / h(j)                 
-!!$    end do
-!!$
-!!$    ! Compute Q^T W Q
-!!$    QtQ = 0.d0
-!!$    do j = 1, n
-!!$       col = j
-!!$
-!!$       Q_col = 0.d0
-!!$       if (col > 1) Q_col(1) = W(col-1) * Q(col,-1)
-!!$                    Q_col(2) = W(col)   * Q(col, 0)
-!!$       if (col < n) Q_col(3) = W(col+1) * Q(col, 1)
-!!$
-!!$
-!!$       do i = 0, 2
-!!$          row = j+i
-!!$          if (row > n) cycle
-!!$
-!!$          Q_row = 0.d0
-!!$          if (row > 1 .and. -i-1 > -2) Q_row(1) = Q(row,-1-i)
-!!$          if (              -i   > -2) Q_row(2) = Q(row, 0-i)  
-!!$          if (row < n .and. -i+1 > -2) Q_row(3) = Q(row, 1-i)
-!!$
-!!$          QtQ(j,i) = dot_product(Q_row,Q_col)
-!!$       end do
-!!$    end do
-!!$
-!!$
-!!$    ! Set up R
-!!$    R = 0.d0
-!!$    do i = 2, n-1
-!!$       R(i,0) = (h(i-1) + h(i)) / 3.d0
-!!$       if (i < n-1)  R(i,1) = h(i)/6.d0
-!!$    end do
-!!$
-!!$
-!!$    ! Compute R + alpha Q^t W Q
-!!$    M = 0.d0
-!!$    do i = 2, n-1
-!!$       do j = 0, 2
-!!$          M(j,i) = R(i,j) + alpha * QtQ(i,j)
-!!$       end do
-!!$    end do
-!!$
-!!$    ! Cholesky decompose M
-!!$    uplo = 'l'
-!!$    kd   = 2
-!!$    ldab = kd+1
-!!$    ldb  = n-2
-!!$    nrhs = 1
-!!$    call dpbtrf(uplo, n-2, kd, M, ldab, info)
-!!$
-!!$    if (info /= 0) then
-!!$       write(*,*) 'smooth_spline: info = ', info
-!!$
-!!$       open(58,file='spline.dat')
-!!$       do i = 1, n
-!!$          write(58,*) x(i), y(i), W(i)
-!!$       end do
-!!$       close(58)
-!!$       stop
-!!$    end if
-!!$
-!!$    ! Solve for second derivatives
-!!$    call dpbtrs(uplo, n-2, kd, nrhs, M, ldab, QtY, ldb, info)
-!!$    y2(1)     = 0.d0
-!!$    y2(2:n-1) = QtY
-!!$    y2(n)     = 0.d0
-!!$
-!!$ 
-!!$    ! Find the spline knot values
-!!$    WQy2 = 0.d0
-!!$    do i = 1, n
-!!$       if (i > 1) Q_row(1) = Q(i-1,1)
-!!$                  Q_row(2) = Q(i,  0)
-!!$       if (i < n) Q_row(3) = Q(i+1,-1)
-!!$
-!!$       if (i > 1) Q_col(1) = y2(i-1)
-!!$                  Q_col(2) = y2(i)
-!!$       if (i < n) Q_col(3) = y2(i+1)
-!!$
-!!$       WQy2(i) = W(i) * dot_product(Q_row,Q_col)
-!!$    end do
-!!$
-!!$    y = y - alpha * WQy2
-!!$
-!!$    deallocate(QtY)
-!!$    deallocate(h)
-!!$    deallocate(W)
-!!$    deallocate(Q)
-!!$    deallocate(R)
-!!$    deallocate(M)
-!!$    deallocate(QtQ)
-!!$
-!!$  end subroutine smooth_spline
+  subroutine smooth_spline(x, y, s, weight_type, alpha, variance)
+    implicit none
+    real(dp), dimension(:), intent(in)    :: x
+    real(dp), dimension(:), intent(in)    :: y
+    type(spline_type),      intent(out)   :: s
+    character(len=*),       intent(in)    :: weight_type
+    real(dp),               intent(in)    :: alpha         ! Stiffness
+    real(dp), dimension(:), intent(in), optional    :: variance
+
+    integer(i4b) :: i, j, n, row, col, kd, ldab, ldb, info, nrhs
+    character(len=1) :: uplo
+    real(dp), allocatable, dimension(:)   :: h, QtY, W, WQy2
+    real(dp), allocatable, dimension(:,:) :: Q, R, M, QtQ
+    real(dp),              dimension(3)   :: Q_row, Q_col
+
+    n = size(x)
+
+    ! Initialize spline type
+    call free_spline(s)
+    s%boundary = 1d30
+    s%regular  = .false.
+    s%linear   = .false.
+    s%verbose  = .false.
+    allocate(s%x(n),s%y(n),s%y2(n))
+    s%x = x
+    s%y = y
+    
+    allocate(QtY(2:n-1))
+    allocate(h(1:n))
+    allocate(W(n))
+    allocate(Q(n,-1:1))
+    allocate(WQy2(1:n))
+    allocate(R(n,0:2))
+    allocate(M(0:2,2:n-1))
+    allocate(QtQ(n,0:2))
+    
+    ! Set up step length array h
+    h = 0.d0
+    do i = 1, n-1
+       h(i) = x(i+1)-x(i)
+    end do
+
+    ! Compute QtY
+    QtY = 0.d0
+    do i = 2, n-1
+       QtY(i) = (y(i+1)-y(i)) / h(i) - (y(i)-y(i-1)) / h(i-1)
+    end do
+
+
+    ! Set up weight array W
+    if (trim(weight_type) == 'inv_var') then
+       do i = 1, n
+          if (present(variance)) then
+             W = variance
+          else
+             W(i) = y(i)**2
+          end if
+       end do
+    else if (trim(weight_type) == 'uniform') then
+       W = 0.d0
+       do i = 1, n
+          W(i) = 1.d0
+       end do
+    else
+       write(*,*) 'smooth_spline: Unknown weighting scheme = ', trim(weight_type)
+       stop
+    end if
+
+    ! Set up Q
+    Q = 0.d0
+    do j = 2, n-1
+       Q(j,-1) =  1.d0 / h(j-1)               
+       Q(j,0)  = -1.d0 / h(j-1) - 1.d0 / h(j) 
+       Q(j,1)  =  1.d0 / h(j)                 
+    end do
+
+    ! Compute Q^T W Q
+    QtQ = 0.d0
+    do j = 1, n
+       col = j
+
+       Q_col = 0.d0
+       if (col > 1) Q_col(1) = W(col-1) * Q(col,-1)
+                    Q_col(2) = W(col)   * Q(col, 0)
+       if (col < n) Q_col(3) = W(col+1) * Q(col, 1)
+
+
+       do i = 0, 2
+          row = j+i
+          if (row > n) cycle
+
+          Q_row = 0.d0
+          if (row > 1 .and. -i-1 > -2) Q_row(1) = Q(row,-1-i)
+          if (              -i   > -2) Q_row(2) = Q(row, 0-i)  
+          if (row < n .and. -i+1 > -2) Q_row(3) = Q(row, 1-i)
+
+          QtQ(j,i) = dot_product(Q_row,Q_col)
+       end do
+    end do
+
+    ! Set up R
+    R = 0.d0
+    do i = 2, n-1
+       R(i,0) = (h(i-1) + h(i)) / 3.d0
+       if (i < n-1)  R(i,1) = h(i)/6.d0
+    end do
+
+    ! Compute R + alpha Q^t W Q
+    M = 0.d0
+    do i = 2, n-1
+       do j = 0, 2
+          M(j,i) = R(i,j) + alpha * QtQ(i,j)
+       end do
+    end do
+
+    ! Cholesky decompose M
+    uplo = 'l'
+    kd   = 2
+    ldab = kd+1
+    ldb  = n-2
+    nrhs = 1
+    call dpbtrf(uplo, n-2, kd, M, ldab, info)
+
+    if (info /= 0) then
+       write(*,*) 'smooth_spline: info = ', info
+
+       open(58,file='smooth_spline.dat')
+       do i = 1, n
+          write(58,*) x(i), y(i), W(i)
+       end do
+       close(58)
+       stop
+    end if
+
+    ! Solve for second derivatives
+    call dpbtrs(uplo, n-2, kd, nrhs, M, ldab, QtY, ldb, info)
+    s%y2(1)     = 0.d0
+    s%y2(2:n-1) = QtY
+    s%y2(n)     = 0.d0
+ 
+    ! Find the spline knot values
+    WQy2 = 0.d0
+    do i = 1, n
+       if (i > 1) Q_row(1) = Q(i-1,1)
+                  Q_row(2) = Q(i,  0)
+       if (i < n) Q_row(3) = Q(i+1,-1)
+
+       if (i > 1) Q_col(1) = s%y2(i-1)
+                  Q_col(2) = s%y2(i)
+       if (i < n) Q_col(3) = s%y2(i+1)
+
+       WQy2(i) = W(i) * dot_product(Q_row,Q_col)
+    end do
+
+    s%y = s%y - alpha * WQy2
+
+    deallocate(QtY)
+    deallocate(h)
+    deallocate(W)
+    deallocate(Q)
+    deallocate(R)
+    deallocate(M)
+    deallocate(QtQ)
+
+  end subroutine smooth_spline
 
   subroutine qsimp(x_0, y_0, y2_0, a, b, s)
     implicit none

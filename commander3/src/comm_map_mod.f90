@@ -109,6 +109,8 @@ module comm_map_mod
      procedure     :: fit_MDpoles
      procedure     :: remove_EE_l2_alm
      procedure     :: add_random_fluctuation
+     procedure     :: get_fullsky
+     procedure     :: inpaint_misspix
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -2031,4 +2033,99 @@ subroutine tod2file_dp3(filename,d)
 
   end subroutine add_random_fluctuation
 
+  subroutine get_fullsky(self, map_out)
+    implicit none
+    class(comm_map),                       intent(in)  :: self
+    real(dp), allocatable, dimension(:,:), intent(out) :: map_out
+
+    integer(i4b) :: i, j, np, ierr
+    integer(i4b), allocatable, dimension(:) :: p
+    real(dp),     allocatable, dimension(:) :: buffer
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+  
+    if (self%info%myid == 0) then
+       if (.not. allocated(map_out)) allocate(map_out(0:self%info%npix-1,self%info%nmaps))
+       do j = 1, self%info%nmaps
+          ! Collect full map column
+          map_out(self%info%pix,j) = self%map(:,j)
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(np,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(p(np), buffer(np))
+             call mpi_recv(p,      np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             call mpi_recv(buffer, np, MPI_DOUBLE_PRECISION, i, 98, &
+                  &  self%info%comm, mpistat, ierr)
+             map_out(p,j) = buffer
+             deallocate(p, buffer)
+          end do
+       end do
+    else
+       do j = 1, self%info%nmaps
+          ! Send map to root
+          call mpi_send(self%info%np,             1,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%map(:,j), self%info%np,   MPI_DOUBLE_PRECISION, 0, 98, self%info%comm, ierr)
+       end do
+    end if
+    
+  end subroutine get_fullsky
+
+  subroutine inpaint_misspix(self, rms, map_sky, radius, handle)
+    ! Inpaint pixels with rms == 0; only those with at least half live neighbours
+    ! Set missing pixels equal to map_sky plus noise given by the neigbour mean rms
+     !
+     ! Parameters:
+     ! -----------
+     implicit none
+     class(comm_map),            intent(inout) :: self
+     class(comm_map),            intent(inout) :: rms
+     class(comm_map),            intent(in)    :: map_sky
+     real(dp),                   intent(in)    :: radius
+     type(planck_rng),           intent(inout) :: handle
+
+     integer(i4b) :: i, j, nlist, ngood, listpix(0:10000), ierr
+     real(dp)     :: vec(3)
+     real(dp), allocatable, dimension(:,:) :: rms_full
+     real(dp), allocatable, dimension(:,:) :: rms_template
+     class(comm_map), pointer :: rms_templ
+
+     ! Collect fullsky rms map
+     call rms%get_fullsky(rms_full)
+
+     ! Identify pixels to inpaint
+     if (self%info%myid == 0) then
+        allocate(rms_template(0:self%info%npix-1,self%info%nmaps))
+        rms_template = 0.d0
+        do j = 1, self%info%nmaps
+           do i = 0, self%info%npix-1
+              if (rms_full(i,j) == 0.d0) then
+                 call pix2vec_ring(self%info%nside, i, vec)
+                 call query_disc(self%info%nside, vec, radius*pi/180.d0/60.d0, listpix, nlist)
+                 ngood = count(rms_full(listpix(0:nlist-1),j) > 0.d0)
+                 if (ngood >= 0.5*nlist) then
+                    rms_template(i,j) = sum(rms_full(listpix(0:nlist-1),j))/ngood
+                 end if
+              end if
+           end do
+        end do
+     end if
+
+     ! Distribute rms template
+     rms_templ => comm_map(self)
+     call rms_templ%bcast_fullsky_from_root(rms_template)
+     
+     ! In-paint own pixels
+     do j = 1, self%info%nmaps
+        do i = 0, self%info%np-1
+           if (rms_templ%map(i,j) > 0.d0) then
+              self%map(i,j) = map_sky%map(i,j) + rand_gauss(handle) * rms_templ%map(i,j)
+              rms%map(i,j) = -rms_templ%map(i,j)
+           end if
+        end do
+     end do
+
+     if (allocated(rms_template)) deallocate(rms_template)
+     call rms_templ%dealloc()
+     
+   end subroutine inpaint_misspix
+  
 end module comm_map_mod

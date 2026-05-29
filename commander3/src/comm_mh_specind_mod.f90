@@ -64,16 +64,23 @@ contains
        end if
 
        call update_mixing_matrices(update_F_int=.true.)
-       ! Calculate initial chisq
-       chisq_old = 0d0
-       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+       if (m == 1) then
+          ! Calculate initial chisq
+          if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+             if (cpar%myid == 0) write(*,*) '| No groups to sample'
+          else
+             if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
+             call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
+          end if
+          chisq_old = 0d0
+          call store_buffer()
+          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+       end if
 
        if (cpar%myid_chain .eq. 0) then
          write(*,*) '| Old chisq is ', chisq_old
        end if
-
-       call store_buffer()
 
        ! Sample the gains
        do i = 1, numband
@@ -86,7 +93,6 @@ contains
            end if
            call mpi_bcast(data(i)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
          end if
-
        end do
 
        ! If there is any partner band, update that as well
@@ -111,7 +117,7 @@ contains
           if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
           if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l))
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
        end if
 
        chisq_prop = 0d0
@@ -162,6 +168,8 @@ contains
            write(*,*) '| '
            write(*,*) '| MH step accepted'
            write(*,*) '| '
+           chisq_old = chisq_prop
+           call store_buffer()
          end if
          recompute_diffuse_precond = .true.
         !  force_update = .true.
@@ -218,21 +226,24 @@ contains
 
 
        ! Calculate initial chisq
-       chisq_old = 0d0
-       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+       if (m == 1) then
+          if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+             if (cpar%myid == 0) write(*,*) '| No groups to sample'
+          else
+             if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
+             call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
+          end if
+          chisq_old = 0d0
+          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
+          call store_buffer()
+       end if
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', chisq_old
+          write(*,*) '| Old chisq is ', chisq_old
        end if
 
-
-       call store_buffer()
-
-
-
        ! Scale parameters
-
        i = 0
        c => compList
        do while (associated(c))
@@ -265,9 +276,9 @@ contains
           if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
           if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l))
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
        end if
-
+       
        chisq_prop = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
@@ -329,13 +340,12 @@ contains
            write(*,*) '| '
            write(*,*) '| MH step accepted'
            write(*,*) '| '
+           chisq_old = chisq_prop
+           call store_buffer()
          end if
          recompute_diffuse_precond = .true.
         !  force_update = .true.
        end if
-
-
-
 
        deallocate(scales)
 
@@ -410,18 +420,24 @@ contains
        ! be necessary, but is useful for cases where the Gibbs chain hasn't burned in yet.
        ! Otherwise, one gets a burn-in penalty during the CG step from the large number of
        ! free parameters involved there, compared to the few global parameters sampled here.
-       call store_buffer() ! Avoid burn-in penalty
-       if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0)
-       end if
+       if (m == 1) then
+          if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
+             call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0, operation='optimize')
+          end if
+          call store_buffer() ! Avoid burn-in penalty
        
-       ! Calculate initial chisq
-       if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none' .or. m == 1) then
-          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), ndof=ndof)
-          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar) ! Reset to previous values
+          ! Calculate initial chisq
+          !if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none' .or. m == 1) then
+             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), ndof=ndof)
+             !if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar) ! Reset to previous values
+          !end if
        end if
 
+       if (cpar%myid_chain .eq. 0) then
+          write(*,*) '| Old chisq is ', chisq_old
+       end if
+       
        negative = .false.
        c => compList
        do while (associated(c))
@@ -468,7 +484,7 @@ contains
 
        ! Perform component separation
        if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0)
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), verbosity=0, operation='optimize')
        end if
 
        chisq_prop = 0d0
@@ -526,6 +542,7 @@ contains
           write(*,fmt='(a,f12.2,a,f12.2,a,f7.3)') " |    ACCEPT -- X^2 = ", chisq_prop, ', dX^2 = ', (chisq_prop - chisq_old), ', X^2/dof = ', chisq_prop/ndof
 
           chisq_old = chisq_prop
+          call store_buffer() ! Avoid burn-in penalty          
           mh_accept_stat(l,2) = mh_accept_stat(l,2) + 1
        end if
      end do
@@ -593,17 +610,23 @@ contains
 
 
        ! Calculate initial chisq
-       chisq_old = 0d0
-       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-
-       if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', chisq_old
+       if (m == 1) then
+          if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+             if (cpar%myid == 0) write(*,*) '| No groups to sample'
+          else
+             if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
+             call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
+          end if
+          chisq_old = 0d0
+          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+          call store_buffer()
        end if
 
-       call store_buffer()
-
-
+       if (cpar%myid_chain .eq. 0) then
+          write(*,*) '| Old chisq is ', chisq_old
+       end if
+       
        c => compList
        do while (associated(c))
          if (.not. allocated(c%theta_steplen)) then
@@ -681,7 +704,7 @@ contains
           if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
           if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l))
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
        end if
 
 
@@ -767,9 +790,10 @@ contains
            write(*,*) '| '
          end if
          recompute_diffuse_precond = .true.
+         call store_buffer() 
+         chisq_old = chisq_prop
         !  force_update = .true.
        end if
-
 
      end do
 

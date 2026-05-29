@@ -3647,4 +3647,5 @@ contains
     oper = sum(2**op_list)
   end function get_sd_operation_code  
    
+
 end module comm_tod_mod
