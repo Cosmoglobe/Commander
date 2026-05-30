@@ -111,8 +111,8 @@ contains
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
     c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
-    c%xi_n_P_uni(2,:)  = [10d0, 20d0]  ! fknee
-    c%xi_n_P_uni(3,:)  = [-3.0d0, -2.0d0]   ! alpha
+    c%xi_n_P_uni(2,:)  = [1d0, 40d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-4.0d0, -1.0d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
     c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
@@ -121,7 +121,6 @@ contains
     !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
     !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
     c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-    c%f_spin           = 1./60.                 ! Planck spin frequency in Hz
     
 
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
@@ -292,7 +291,7 @@ contains
        make_dyn_mask         = .false.
        sample_ncorr          = iter  > 2 !.true.
        sample_xi_n           = iter > 5
-       select_data           = iter == 1 ! self%first_call  
+       select_data           = .false.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -392,9 +391,9 @@ contains
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
-             write(*,*) "Sampling noise psd"
+             write(*,*) "Sampling ", self%myid
              call sample_noise_psd(self, sd, handle, chaindir)
-             write(*,*) "Done sampling noise psd"
+             write(*,*) "Done sampling ", self%myid
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
           end if
@@ -404,7 +403,6 @@ contains
        end if
        
 
-       write(*,*) "Would be calculating chisq"
        ! Compute chisquare
        !! do j = 1, sd%ndet
        !!    if (.not. self%scans(i)%d(j)%accept) cycle
@@ -412,7 +410,6 @@ contains
        !! end do
 
        ! Select data
-       write(*,*) "Removing bad data"
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
 
@@ -426,15 +423,12 @@ contains
           end do
        end if
 
-       write(*,*) "sampling abs bandpass"
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
-       write(*,*) "allocating"
        ! Compute calibrated TOD for mapmaking
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
-       write(*,*) "computing calibrated data"
        call compute_calibrated_data(self, i, sd, d_calib)
        !d_calib(1,:,:) = -abs(sd%tod)
 
@@ -453,12 +447,10 @@ contains
        end if
        
        ! Bin TOD
-       write(*,*) "Binning tod"
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
        
        ! Update scan list
        call wall_time(t2)
-       write(*,*) "updating scan list"
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
        self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
        if (output_scanlist) then
@@ -468,20 +460,15 @@ contains
        end if
 
        ! Clean up
-       write(*,*) "udeallocating"
        call dealloc_scan_data(sd)
        deallocate(d_calib)
 
     end do
 
-    write(*,*) "out of hte loop"
 
     call timer%start(TOD_WAIT, self%band)
-    write(*,*) "starting a barrier"
     call mpi_barrier(self%comm, ierr) ! Improve timing information
-    write(*,*) "finishing a barrier"
     call timer%stop(TOD_WAIT, self%band)
-    write(*,*) "stopping the timer?"
     call update_status(status, "tod_postloop"//ctext)
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -561,6 +548,7 @@ contains
     call binmap%dealloc()
     call update_status(status, "tod_binmap4"//ctext)
     if (allocated(slist)) deallocate(slist)
+    if (sample_abs_bandpass .or. sample_rel_bandpass) deallocate(chisq_S)
     if (self%correct_sl) then
        do i = 1, self%ndet
           do h = 1, self%nhorn

@@ -173,7 +173,7 @@ contains
           self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
        end if
 
-       !if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
+       if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
 
        ! Only estimate monopole
        if (onlymono_) then
@@ -726,7 +726,7 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),5000) == 0) then
+       if (mod(self%scanid(scan),10) == 0) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
@@ -748,7 +748,7 @@ contains
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
-             !if (self%myid==0) write(*,*) "psd", k, j, self%myid
+            ! if (self%myid == 0) write(*,*) "psd: gibbs sample, par number, det number: ", k, j, i
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
@@ -766,6 +766,7 @@ contains
              if (self%scanid(scan) == 10 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
           end do
        end do
+
 
        !if (mod(self%scanid(scan),10) == 0) then
        if (self%scanid(scan) == 1) then
@@ -796,8 +797,6 @@ contains
 
     call timer%stop(TOD_XI_N, self%band)
 
-    write(*,*) 'Finished sampling the thing ', self%band, TOD_XI_N
-    
 
   contains
 

@@ -632,12 +632,12 @@ contains
        call update_mixing_matrices(i, update_F_int=.true.)
 
        ! Clean up temporary data structures
-       !!!! do j = 1, data(i)%tod%ndet
-       !!!!    do k = 1, ndelta
-       !!!!       call s_sky(j,k)%p%dealloc
-       !!!!    end do
-       !!!!    call s_gain(j)%p%dealloc
-       !!!! end do
+       do j = 1, data(i)%tod%ndet
+          do k = 1, ndelta
+             call s_sky(j,k)%p%dealloc
+          end do
+          call s_gain(j)%p%dealloc
+       end do
        deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
