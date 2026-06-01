@@ -503,6 +503,8 @@ contains
        map%map(self%map2mask(i,1),self%map2mask(i,2)) = flat(i)
     end do
 
+    !write(*,*) 'a', sum(abs(map%map))
+
     deallocate(a, flat)
   end subroutine apply_lcut
 

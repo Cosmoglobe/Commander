@@ -139,12 +139,12 @@ contains
     else
        ! Correlate in pixel space with standard likelihood fit
        invN_sig     => comm_map(sig)
-       call data(band)%N%invN(invN_sig)! Multiply with (invN)
        if (associated(data(band)%gainmask)) then
           invN_sig%map = invN_sig%map * data(band)%gainmask%map
           sig%map      = sig%map      * data(band)%gainmask%map
           res%map      = res%map      * data(band)%gainmask%map
        end if
+       call data(band)%N%sqrtInvN(invN_sig)! Multiply with invN
 
        !call invN_sig%writeFITS('invN_sig_'//trim(data(band)%label)//'.fits')
 

@@ -304,12 +304,12 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
+   if (mod(iter+1,modfact) == 0 .and. iter > cpar%first_compsep_samp) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
       !if (cpar%sample_signal_amplitudes .and. iter > 0) then
-      if (cpar%sample_signal_amplitudes .and. iter > 5) then
+      if (cpar%sample_signal_amplitudes) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
@@ -328,13 +328,7 @@ program commander
      call timer%stop(TOT_CLS)
 
      
-     !if (iter > 1) then
-     if (iter > 5) then
-        do i = 1, cpar%mcmc_num_samp_groups
-        end do
-     end if
-
-     if (iter > 5 .and. cpar%mcmc_num_samp_groups > 0) then
+     if (cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
@@ -356,21 +350,23 @@ program commander
      end if
 
      ! Sample non-linear parameters
-     if (iter > 5 .and. cpar%sample_specind) then
+     if (cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
-
-        ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
+     if (cpar%mcmc_num_samp_groups > 0 .or. cpar%sample_specind) then
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
+     end if
+     
   end if
      
-     ! Output sample to disk
+  ! Output sample to disk
   call timer%start(TOT_OUTPUT)
-     if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
+  if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
 
      call wall_time(t2)

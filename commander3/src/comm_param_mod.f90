@@ -69,7 +69,7 @@ module comm_param_mod
      ! Global parameters
      character(len=24)   :: operation
      logical(lgt)        :: resamp_CMB
-     integer(i4b)        :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
+     integer(i4b)        :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp, first_compsep_samp
      integer(i4b)        :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)        :: num_gibbs_iter, thinning, num_init_chains
      character(len=2048) :: chain_status, init_chain_prefix
@@ -556,6 +556,7 @@ contains
     !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)
+    call get_parameter_hashtable(htbl, 'FIRST_COMPSEP_SAMPLE', par_int=cpar%first_compsep_samp)
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file, path=.true.)
