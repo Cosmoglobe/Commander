@@ -24,7 +24,7 @@ module comm_sparse_mod
   implicit none
 
   private
-  public sparse_system, sparse_ptr!, sparse_system_tester
+  public sparse_system, sparse_ptr, sparse_system_tester
 
   type sparse_system
      integer(i8b) :: pt(64)
