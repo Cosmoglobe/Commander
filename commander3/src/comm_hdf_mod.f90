@@ -24,6 +24,8 @@
 module comm_hdf_mod
   use comm_utils
   use hdf5
+  use iso_c_binding, only : c_ptr_f => c_ptr, c_loc_f => c_loc, c_f_pointer_f => c_f_pointer, c_char_f => c_char, c_null_char_f => c_null_char
+
   implicit none
 
   type hdf_file
@@ -1874,11 +1876,11 @@ contains
     integer(i4b) :: n(1), i, j, length
     integer(hsize_t), dimension(1:1) :: dims, maxdims
     integer(i4b)     :: ext(1)
-    type(c_ptr) :: f_ptr
+    type(c_ptr_f) :: f_ptr
     integer(hid_t) :: space, memtype, filetype
     integer(size_t), parameter :: sdim = 8
     integer(size_t) :: datasize
-    TYPE(C_PTR), DIMENSION(:), ALLOCATABLE, TARGET :: rdata ! Read buffer
+    TYPE(C_PTR_F), DIMENSION(:), ALLOCATABLE, TARGET :: rdata ! Read buffer
 
     character(len=24, kind=c_char), pointer :: readable_data
 
@@ -1895,7 +1897,7 @@ contains
 
     call H5Tget_size_f(filetype, datasize, file%status) 
  
-    f_ptr = C_LOC(rdata(1))
+    f_ptr = C_LOC_F(rdata(1))
 
     call h5dread_f(file%sethandle, filetype, f_ptr, file%status)!, space)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1904,11 +1906,11 @@ contains
 
     ! convert each c string to a fortran string
     do i=1, dims(1)
-      call c_f_pointer(rdata(i), readable_data)
+      call c_f_pointer_f(rdata(i), readable_data)
       length = 0
       do 
         ! determine lengths by looking for c end of string character
-        if(readable_data(length+1:length+1) == C_NULL_CHAR .or. length >= sdim) exit
+        if(readable_data(length+1:length+1) == C_NULL_CHAR_F .or. length >= sdim) exit
         length = length +1
       end do
       val(i) = readable_data(1:length)
@@ -2575,14 +2577,14 @@ contains
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
-    type(c_ptr)     :: f_ptr
+    type(c_ptr_f)     :: f_ptr
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
     allocate(val(numint))
-    f_ptr = c_loc(val)
+    f_ptr = c_loc_f(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
     call h5tclose_f(dtype, file%status)
   end subroutine read_hdf_opaque
@@ -2596,7 +2598,7 @@ contains
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
-    type(c_ptr)     :: f_ptr
+    type(c_ptr_f)     :: f_ptr
     !call open_hdf_set(file, setname)
     !call h5dget_type_f(file%sethandle, dtype, file%status)
     !call h5tget_size_f(dtype, len, file%status)
@@ -2621,7 +2623,7 @@ contains
     
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
-    TYPE(C_PTR) :: f_ptr
+    TYPE(C_PTR_f) :: f_ptr
     !type(byte_pointer), allocatable, dimension(:) :: r_ptr
     byte, pointer, dimension(:) :: r_ptr
     
@@ -2636,7 +2638,7 @@ contains
     CALL h5tvlen_create_f(H5T_STD_U8LE, memtype, hdferr)
     ! Get address of the C pointer corresponding 
     ! to the first element of our data
-    f_ptr = C_LOC(rdata(1))
+    f_ptr = C_LOC_F(rdata(1))
     CALL h5dread_f(file%sethandle, memtype, f_ptr, hdferr)
     !
     ! Write the variable-length data to the fortran array
@@ -2644,8 +2646,8 @@ contains
     allocate(r_ptr(dims(1)))
     DO i = 1, dims(1)
        !WRITE(*,'(A,"(",I0,"):",/,"{")', ADVANCE="no") setname,i
-       !CALL c_f_pointer(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
-       CALL c_f_pointer(rdata(i)%p, r_ptr, [rdata(i)%len] )
+       !CALL c_f_pointer_f(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
+       CALL c_f_pointer_f(rdata(i)%p, r_ptr, [rdata(i)%len] )
        !allocate(val(i)%p(size(r_ptr(i)%p)))
        allocate(val(i)%p(size(r_ptr)))
        !val(i)%p(:) = r_ptr(i)%p(:)
@@ -2691,7 +2693,7 @@ contains
 
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
-    TYPE(C_PTR) :: f_ptr
+    TYPE(C_PTR_F) :: f_ptr
  
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, filetype, hdferr)
@@ -2700,7 +2702,7 @@ contains
 
     allocate(rdata(dims(1)))    
     CALL h5tvlen_create_f(H5T_STD_U8LE, memtype, hdferr)
-    f_ptr = C_LOC(rdata(1))
+    f_ptr = C_LOC_F(rdata(1))
     CALL h5dread_f(file%sethandle, memtype, f_ptr, hdferr)
     ext(:) = rdata(:)%len
 

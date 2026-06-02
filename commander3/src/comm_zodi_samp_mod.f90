@@ -34,7 +34,7 @@ contains
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "mh"]
+      implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
             print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
@@ -48,7 +48,7 @@ contains
          n_samp_bands = n_samp_bands + 1
       end do
       ref_band = cpar%ds_zodi_reference_band
-      ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
+      ref_band_count = count(cpar%ds_zodi_reference_band .eqv. .true.)
       if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
@@ -172,7 +172,7 @@ contains
                      d%downsamp_pix_full(k,h)  = sd%pix(kp,j,h)
                   end do
                   d%downsamp_obs_time_full(k) = data(i)%tod%scans(scan)%t0(1) + (kp-1)*dt_tod
-                  mask(k)                     = sd%mask(kp,j)
+                  mask(k)                     = sd%mask(kp,j) > 0.5
                end do
 
                ! Get TOD after subtracting static zodi

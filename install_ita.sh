@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" #"gnu"
+toolchain="oneapi" #"oneapi" #"gnu"
 buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -183,8 +183,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load gcc/13.3.1
-    module load openmpi/gcc13/5.0.5
+    module load gcc/14.2.1
+    module load openmpi/gcc14/5.0.9
 		printf "\n"
 		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]

@@ -95,12 +95,17 @@ contains
     end do
     call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
+    write(*,*) minval(residual), maxval(residual), minval(s_invsqrtN(:,1)), maxval(s_invsqrtN(:,1)), "betterbegood"
+
     do j = 1, ndet
        if (.not. tod%scans(scan_id)%d(j)%accept) then
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
           if (present(mask_lowres)) then
+             sum(mask_lowres(:,j))
+             sum(residual(:,j))
+             sum(s_invsqrtN(:,j))
              tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
              tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
           else
@@ -315,6 +320,7 @@ contains
          end if
          mu = mu / denom
          !write(*,*) 'g = ', mu
+         write(*,*) shape(g), "Is this okay?", j
          where(g(:,j,2) > 0.d0) 
             g(:,j,1) = g(:,j,1) - mu
          end where

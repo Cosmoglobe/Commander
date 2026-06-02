@@ -482,6 +482,9 @@ contains
 !!$            end if
 !!$         end do
 !!$       end do
+
+
+       write(*,*) "ndelta: is it zero?", ndelta
          
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))

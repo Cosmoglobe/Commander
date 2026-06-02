@@ -1041,8 +1041,8 @@ contains
 
          R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
          Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
-         term1 = -((R - self%R_0)**2)/self.sigma_r**2
-         term2 = abs(Z_midplane/self.sigma_z)
+         term1 = -((R - self%R_0)**2)/self%sigma_r**2
+         term2 = abs(Z_midplane/self%sigma_z)
 
          if (self%sigma_theta_rad <= 0.d0 .or. abs(theta_prime) > self%sigma_theta_rad) then
             n_out(i) = self%n_0*exp(term1 - term2)

@@ -19,6 +19,7 @@
 !
 !================================================================================
 module comm_shared_arr_mod
+  use iso_c_binding, only: c_ptr
   use comm_utils
   implicit none
 
