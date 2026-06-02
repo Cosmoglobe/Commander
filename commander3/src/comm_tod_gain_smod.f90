@@ -103,9 +103,6 @@ contains
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
           if (present(mask_lowres)) then
-             sum(mask_lowres(:,j))
-             sum(residual(:,j))
-             sum(s_invsqrtN(:,j))
              tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
              tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
           else
