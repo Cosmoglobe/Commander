@@ -1049,8 +1049,6 @@ contains
     call wall_time(t1)
     allocate(self%scans(self%nscan))
 
-    write(*,*) "number of scans is for id ", self%myid, " is ", self%nscan
-
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn, self%ndiode, self%diode_names)

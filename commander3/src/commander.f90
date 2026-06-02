@@ -484,8 +484,6 @@ contains
 !!$       end do
 
 
-       write(*,*) "ndelta: is it zero?", ndelta
-         
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))

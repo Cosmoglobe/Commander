@@ -95,8 +95,6 @@ contains
     end do
     call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
-    write(*,*) minval(residual), maxval(residual), minval(s_invsqrtN(:,1)), maxval(s_invsqrtN(:,1)), "betterbegood"
-
     do j = 1, ndet
        if (.not. tod%scans(scan_id)%d(j)%accept) then
           tod%scans(scan_id)%d(j)%gain  = 0.d0
@@ -317,7 +315,6 @@ contains
          end if
          mu = mu / denom
          !write(*,*) 'g = ', mu
-         write(*,*) shape(g), "Is this okay?", j
          where(g(:,j,2) > 0.d0) 
             g(:,j,1) = g(:,j,1) - mu
          end where
