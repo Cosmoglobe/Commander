@@ -1319,9 +1319,11 @@ contains
 
             ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
             if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
             else
-               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
             end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
@@ -1583,9 +1585,11 @@ contains
 
            ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-              comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
            else
-              comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
            end if
            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
@@ -1789,9 +1793,11 @@ contains
 
             ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
             if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
             else
-               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
             end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
