@@ -1984,6 +1984,7 @@ contains
 
      real(dp) :: C0, C1, C2, p20, p21, g1, g2, g3, w1, w2, w3, norm
      integer(i4b) :: n
+     real(dp), allocatable :: den1(:), den2(:), den3(:), cosTheta(:)
      
      if (trim(self%phasefunc_type) == 'K98') then
         n    = self%numband
@@ -1993,19 +1994,26 @@ contains
         norm =  1.d0 / (2.d0*pi * (2.d0*C0 + pi*C1 + (exp(C2 * pi) + 1.d0)/(C2**2 + 1.d0)))
         Phi = norm * (C0 + (C1 * Theta) + exp(C2 * Theta))
      else if (trim(self%phasefunc_type) == 'Wright') then
+        cosTheta = cos(Theta)
         p20  = self%par_phase(1)
         p21  = self%par_phase(2)
-        Phi = exp(-p20*cos(Theta) + p21*cos(Theta)**2)
+        Phi = exp(-p20*cosTheta + p21*cosTheta**2)
      else if (trim(self%phasefunc_type) == 'Hong') then
+        cosTheta = cos(Theta)
         g1  = self%par_phase(1)
         g2  = self%par_phase(2)
         g3  = self%par_phase(3)
         w1  = 1.d0-sum(self%par_phase(4:5))
         w2  = self%par_phase(4)
         w3  = self%par_phase(5)
-        Phi =       w1 * (1d0-g1**2)/(1.d0+g1**2-2d0*g1*cos(Theta))**1.5d0
-        Phi = Phi + w2 * (1d0-g2**2)/(1.d0+g2**2-2d0*g2*cos(Theta))**1.5d0
-        Phi = Phi + w3 * (1d0-g3**2)/(1.d0+g3**2-2d0*g3*cos(Theta))**1.5d0 
+
+        den1 = (1.d0+g1**2-2d0*g1*cosTheta)
+        den2 = (1.d0+g2**2-2d0*g2*cosTheta)
+        den3 = (1.d0+g3**2-2d0*g3*cosTheta)
+
+        Phi =       w1 * (1d0-g1**2)/(den1*sqrt(den1))
+        Phi = Phi + w2 * (1d0-g2**2)/(den2*sqrt(den2))
+        Phi = Phi + w3 * (1d0-g3**2)/(den3*sqrt(den3)) 
         Phi = Phi / (4.d0*pi)
      else
         write(*,*) 'Unsupported zodi phase function type:', trim(self%phasefunc_type)
