@@ -558,7 +558,7 @@ contains
        do j = 1, tod%ndet
 
           if (.not. tod%scans(i)%d(j)%accept) then 
-            write(*,*) "sample_calibration is cycling"
+            !write(*,*) "sample_calibration is cycling"
             cycle
           end if
           
