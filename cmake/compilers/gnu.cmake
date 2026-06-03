@@ -120,7 +120,7 @@ endif()
 # Linker flags
 # the same logic as with compiler flags
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto=auto")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")

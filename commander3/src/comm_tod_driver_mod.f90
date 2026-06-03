@@ -562,8 +562,8 @@ contains
             cycle
           end if
           
-          call tod%downsample_tod(sd%mask(:,j), ext, mask=mask_lowres(:,j), threshold=threshold)
-          if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
+          call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
+          !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
              if (trim(tod%abscal_comps) == 'orbital') then
                call tod%downsample_tod(sd%s_orb(:,j,0), ext, s_invsqrtN(:,j))

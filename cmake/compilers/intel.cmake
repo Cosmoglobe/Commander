@@ -78,20 +78,23 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-		"-O0"  
-    "-g" 
-		"-xHost" 
+    "-O0"
+    "-g"
+    "-xHost"
     "-debug" "all"
-    "-check" "all,nouninit,noarg_temp_created"
+    "-check" "all,noarg_temp_created"
     "-warn" "all,nounused,noexternal"
     "-fstack-protector-all"
-		"-traceback" 
-		"-qopenmp"
-		"-assume" "byterecl" 
-		"-heap-arrays" "16384"
-		"-fpe0"
-		"-fPIC"
-		)
+    "-traceback"
+    "-qopenmp"
+    "-assume" "byterecl"
+    "-heap-arrays" "16384"
+    "-fpe0"
+    "-fPIC"
+    "-init=snan"
+    "-init=arrays"
+    "-fsanitize=address"
+  )
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
@@ -124,7 +127,7 @@ if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+  list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "-fsanitize=address")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")

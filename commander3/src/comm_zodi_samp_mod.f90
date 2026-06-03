@@ -745,7 +745,7 @@ contains
 
          !write(*,*) "chisq_zodi = ", chisq, ", ndof_tot = ", ndof_tot, ", chisq_red = ", chisq/ndof_tot
 
-         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,e10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,e11.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
          
          write(*,*)
          write(unit,*) chisq/ndof_tot, real(theta,sp)

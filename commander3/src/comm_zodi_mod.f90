@@ -2253,9 +2253,10 @@ contains
       do i = 1, model%npar_tot
          if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
          if (any(comp_switch_indices == i)) then
-               write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
-            else
-               write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
+            write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i)
+            write(io, *)
+         else
+            write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
          end if
       end do
 
