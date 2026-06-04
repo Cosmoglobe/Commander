@@ -123,7 +123,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-O2"
 		"-xHost" 
 		"-g" 
-		"-fpe0"
+		"-fpe3"
 		"-fPIC"
 		"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
