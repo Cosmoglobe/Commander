@@ -54,6 +54,21 @@
 # --fp-model=keyword:
 # Other options are here:
 # https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compiler-reference/compiler-options/compiler-option-details/floating-point-options/fp-model-fp.html
+#
+#
+# The recommnendations from ITA's software engineers is as follows;
+#Recomendation:
+#
+#  - Use latest Intel oneAPI version for optimal runs across multiple nodes. Load with:
+#
+#    module load intel/oneapi compiler/latest mpi/latest
+#
+#  - For max performance use these recomended optimization flags for Intel compilers:
+#
+#    -O3 -march=core-avx2 -fp-model source -qopt-prefetch -qopt-mem-layout-trans=3 -fma
+#
+#
+#
 #------------------------------------------------------------------------------
 # Specifying flags per Fortran compiler
 # Intel
@@ -66,14 +81,21 @@
 # If user has not specified compilation flag, we use default configuration
 if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-		"-O3"
-		"-xHost" 
-		"-fpe0"
-		"-fPIC"
-		"-traceback" 
-		"-qopenmp" #<= we are not using it at all, it is redundant 
-		"-assume" "byterecl" # for I/O operations 
-		"-heap-arrays" "16384"
+    #"-fpe0"   #almost doubles computation time, but catches nans/infs
+     "-fpe3"    # fpe3 is default, 0 and 1 are more restrictive versions.
+		 "-fPIC"
+    #"-ipo"    #slows compilation, does not give noticeable speedup
+     "-static"
+     "-O3"
+     "-xHost"
+     "-fp-model=fast"
+     "-qopt-prefetch"
+     "-qopt-mem-layout-trans=3"
+     "-fma"
+     "-qopenmp"
+     "-assume" "byterecl"
+     "-heap-arrays" "16384"
+		 "-traceback" 
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -124,7 +146,7 @@ endif()
 # Linker flags
 # the same logic as with compiler flags
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
+  list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
   list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "-fsanitize=address")
