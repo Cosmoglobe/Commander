@@ -1821,7 +1821,8 @@ contains
                   if (tod%central_freq < mbb_cutoff) then
                      mbb_ampl = model%comps(k)%c%sed_ampl
                      mbb_b = zodi_model%comps(k)%c%sed_b
-                     s_tot = s_tot + al*s_scat + mbb_ampl*(tod%central_freq**mbb_b)*s_therm
+                     !s_tot = s_tot + al*s_scat + mbb_ampl*(tod%central_freq**mbb_b)*s_therm
+                     s_tot = s_tot + al*s_scat + mbb_ampl*exp(mbb_b*log(tod%central_freq))*s_therm
                      !how to write this such that BB and MBB form a continuous function?
                   else 
                      s_tot = s_tot + al*s_scat + s_therm

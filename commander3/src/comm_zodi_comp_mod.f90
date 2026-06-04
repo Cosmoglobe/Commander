@@ -978,7 +978,8 @@ contains
             g = zeta - (0.5d0*self%mu)
          end if
 
-         n_out(i) = self%n_0*R**(-self%alpha)*exp(-self%beta*g**self%gamma)
+         !n_out(i) = self%n_0*R**(-self%alpha)*exp(-self%beta*g**self%gamma)
+         n_out(i) = self%n_0*exp(-self%alpha*log(R) - self%beta*exp(self%gamma*log(g)))
       end do
    end subroutine get_density_cloud
 
@@ -1005,7 +1006,8 @@ contains
          ! Differs from eq 8 in K98 by a factor of 1/self.v. See Planck XIV
          ! section 4.1.2.
          ! term3 = self%v + (zeta_over_delta_zeta**self%p)
-         term3 = 1.d0 + (zeta_over_delta_zeta**self%p)/self%v
+         !term3 = 1.d0 + (zeta_over_delta_zeta**self%p)/self%v
+         term3 = 1.d0 + exp(self%p*log(zeta_over_delta_zeta))/self%v
          R_ratio = R/self%delta_r
          if (abs(R_ratio) > 1d12) then ! overflow
             term4 = 1.
@@ -1125,8 +1127,10 @@ contains
          else
             epsilon = 1.
          end if
-         f = cos(beta) ** self%Q * exp(-self%P * sin(abs(beta) ** epsilon))
-         n_out(i) = self%n_0 * R ** (-self%gamma) * f
+         !f = cos(beta) ** self%Q * exp(-self%P * sin(abs(beta) ** epsilon))
+         f = exp(self%Q * log(cos(beta)) - self%P * sin(exp(epsilon * log(abs(beta)))  ))
+         !n_out(i) = self%n_0 * R ** (-self%gamma) * f
+         n_out(i) = self%n_0 * exp(-self%gamma*log(R)) * f
       end do
    end subroutine get_density_fan
 
@@ -1159,7 +1163,8 @@ contains
          else
             epsilon = 1.
          end if
-         f = exp(-self%P * sin(abs(beta) ** epsilon))
+         !f = exp(-self%P * sin(abs(beta) ** epsilon))
+         f = exp(-self%P * sin(exp(epsilon * log(abs(beta)))))
          n_out(i) = 0.37 * self%n_0 * f / R
       end do
     end subroutine get_density_comet
@@ -1225,7 +1230,8 @@ contains
          D   = exp(-56.5d0*(sqrt(x_D**2 + y_D**2) - 1.133d0 + 0.133d0 * self%p13 * exp(-4.d0*L_D**2))**2 - self%p14 * z_D**2/R**2)
          
          ! Total density
-         n_out(i) = self%n_0 * R/R_c * f * R_c**(-self%p1) * (1.d0 + 0.1d0 * self%p10 * D*(1.d0+A))
+         !n_out(i) = self%n_0 * R/R_c * f * R_c**(-self%p1) * (1.d0 + 0.1d0 * self%p10 * D*(1.d0+A))
+         n_out(i) = self%n_0 * R/R_c * f * exp(-self%p1 * log(R_C)) * (1.d0 + 0.1d0 * self%p10 * D*(1.d0+A))
          !write(58,*) R, n_out(i), X_vec(:,i), sin_i, Z, f, self%n_0, R_c, self%p1, self%p10, D, A
       end do
 !      close(58)
