@@ -111,7 +111,7 @@ contains
     allocate(c%xi_n_nu_fit(c%n_xi,2))
 
     c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
-    c%xi_n_P_uni(2,:)  = [1d0, 40d0]  ! fknee
+    c%xi_n_P_uni(2,:)  = [1d0, 60d0]  ! fknee
     c%xi_n_P_uni(3,:)  = [-4.0d0, -1.0d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
@@ -386,6 +386,7 @@ contains
           ! Update scan data with new flagging
           call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
        end if
+      call update_status(status, "made dynmask")
 
 
        if (sample_ncorr) then
@@ -401,6 +402,7 @@ contains
           call sample_n_corr(self, sd, handle, onlymono=.true.)
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
        end if
+      call update_status(status, "sampled ncorr")
        
 
        ! Compute chisquare
@@ -431,6 +433,7 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
        !d_calib(1,:,:) = -abs(sd%tod)
+       call update_status(status, "computed calibrated")
 
        ! For debugging: write TOD to hdf
        if (.false.) then
@@ -448,6 +451,7 @@ contains
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call update_status(status, "binned TOD")
        
        ! Update scan list
        call wall_time(t2)
@@ -462,6 +466,7 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
        deallocate(d_calib)
+       call update_status(status, "cleaned up")
 
     end do
 

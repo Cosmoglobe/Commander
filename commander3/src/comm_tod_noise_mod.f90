@@ -609,7 +609,7 @@ contains
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=6) :: stext
-    character(len=2) :: dtext
+    character(len=4) :: dtext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
@@ -768,8 +768,8 @@ contains
        end do
 
 
-       !if (mod(self%scanid(scan),10) == 0) then
-       if (self%scanid(scan) == 1) then
+       if (mod(self%scanid(scan),10) == 0) then
+       !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
