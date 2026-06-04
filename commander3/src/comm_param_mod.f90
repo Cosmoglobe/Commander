@@ -42,7 +42,7 @@ module comm_param_mod
 
   type InterplanetaryDustParamLabels
      character(len=2048), dimension(7)  :: general = [character(len=2048) :: "T_0", "T_DELTA", "G1", "G2", "G3", "W2", "W3"]
-     character(len=2048), dimension(6)  :: common = [character(len=2048) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
+     character(len=2048), dimension(9)  :: common = [character(len=2048) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0', 'SED_AMPL', 'SED_CUTOFF', 'SED_B']
      character(len=2048), dimension(4)  :: cloud = [character(len=2048) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=2048), dimension(4)  :: band = [character(len=2048) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
      character(len=2048), dimension(5)  :: ring = [character(len=2048) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
@@ -689,6 +689,8 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_SAMP_NOISE_AMP'//itext, len_itext=len_itext,  par_lgt=cpar%ds_samp_noiseamp(i))
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_TYPE'//itext, len_itext=len_itext,   par_string=cpar%ds_bptype(i))
        call get_parameter_hashtable(htbl, 'BAND_NOMINAL_FREQ'//itext, len_itext=len_itext,    par_dp=cpar%ds_nu_c(i))
+       ! Convert to proper internal units where necessary
+       cpar%ds_nu_c(i) = cpar%ds_nu_c(i) * 1d9                           ! From GHz to Hz
        call get_parameter_hashtable(htbl, 'BAND_BANDPASSFILE'//itext, len_itext=len_itext,    par_string=cpar%ds_bpfile(i), path=.true.)
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_MODEL'//itext, len_itext=len_itext,  par_string=cpar%ds_bpmodel(i))
        call get_parameter_hashtable(htbl, 'BAND_SAMP_GAIN'//itext, len_itext=len_itext,       par_lgt=cpar%ds_sample_gain(i))
@@ -818,8 +820,6 @@ contains
 
     end do
 
-    ! Convert to proper internal units where necessary
-    cpar%ds_nu_c = cpar%ds_nu_c * 1d9                           ! From GHz to Hz
 
   end subroutine read_data_params_hash
 
@@ -1063,6 +1063,24 @@ contains
           end select
        end if
 
+
+       ! Convert to proper units
+       if (all(ieee_is_finite(cpar%cs_nu_ref(i,:)))) then
+           cpar%cs_nu_ref(i,:)      = 1d9 * cpar%cs_nu_ref(i,:)
+       end if
+       if (ieee_is_finite(cpar%cs_nu_min(i))) then
+           cpar%cs_nu_min(i)      = 1d9 * cpar%cs_nu_min(i)
+       end if
+       if (ieee_is_finite(cpar%cs_nu_max(i))) then
+           cpar%cs_nu_max(i)      = 1d9 * cpar%cs_nu_max(i)
+       end if
+       if (all(ieee_is_finite(cpar%cs_nu_min_beta(i,:)))) then
+          cpar%cs_nu_min_beta(i,:) = 1d9 * cpar%cs_nu_min_beta(i,:)
+       end if
+       if (all(ieee_is_finite(cpar%cs_nu_max_beta(i,:)))) then
+          cpar%cs_nu_max_beta(i,:) = 1d9 * cpar%cs_nu_max_beta(i,:)
+       end if
+
     end do
 
     if (cpar%myid == 0) then
@@ -1079,12 +1097,6 @@ contains
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
-    ! Convert to proper units
-    cpar%cs_nu_ref      = 1d9 * cpar%cs_nu_ref
-    cpar%cs_nu_min      = 1d9 * cpar%cs_nu_min
-    cpar%cs_nu_max      = 1d9 * cpar%cs_nu_max
-    cpar%cs_nu_min_beta = 1d9 * cpar%cs_nu_min_beta
-    cpar%cs_nu_max_beta = 1d9 * cpar%cs_nu_max_beta
 
 
   end subroutine read_component_params_hash
@@ -1150,6 +1162,7 @@ contains
             & par_dp=cpar%cs_cl_amp_def(i,1))
        call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext, &
             & par_dp=cpar%cs_cl_beta_def(i,1))
+       cpar%cs_cl_amp_def(i,1) = cpar%cs_cl_amp_def(i,1) / cpar%cs_cg_scale(1,i)**2
        if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
           call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_T'//itext, len_itext=len_itext, &
                & par_dp=cpar%cs_cl_theta_def(i,1))
@@ -1169,8 +1182,8 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_B'//itext, len_itext=len_itext, &
                   & par_dp=cpar%cs_cl_theta_def(i,3))
           end if
+          cpar%cs_cl_amp_def(i,2:3) = cpar%cs_cl_amp_def(i,2:3) / cpar%cs_cg_scale(2:3,i)**2
        end if
-       cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
     ! Note to future Mathew: don't try to add path=true, it's not always a path
     call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))

@@ -609,12 +609,20 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
-       call tod%downsample_tod(sd%s_tot(:,1,0,1), ext)
+       call tod%downsample_tod(sd%tod(:,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
+
+       !write(*,*) "sample 1: ext(1)= ", ext(1), " ext(2)= ", ext(2)
+
        do j = 1, tod%ndet
-          if (.not. tod%scans(i)%d(j)%accept) cycle
+
+          if (.not. tod%scans(i)%d(j)%accept) then 
+            !write(*,*) "sample_calibration is cycling"
+            cycle
+          end if
+          
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
           !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
@@ -643,6 +651,8 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
+
+       !write(*,*) "sample 2: ext(1)= ", ext(1), " ext(2)= ", ext(2)
 
        ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
@@ -844,16 +854,16 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than a given percentage of good data
           tod%scans(scan)%d(j)%accept = .false.
-          write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
+          write(*, fmt='(a, i8, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
           tod%scans(scan)%d(j)%accept = .false.
 !!$       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then

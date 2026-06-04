@@ -182,8 +182,8 @@ module comm_tod_mod
      integer(i4b) :: zodiband                                        ! Band ID for zodi
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
-     integer(i4b) :: nhorn                                        ! Number of horns
-     integer(i4b) :: ndiode                                      ! Number of diodes that makeup each detector
+     integer(i4b) :: nhorn=1                                      ! Number of horns
+     integer(i4b) :: ndiode=1                                    ! Number of diodes that makeup each detector
      character(len=24), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
      integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
@@ -193,8 +193,8 @@ module comm_tod_mod
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
+     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
@@ -1050,6 +1050,7 @@ contains
 
     call wall_time(t1)
     allocate(self%scans(self%nscan))
+
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn, self%ndiode, self%diode_names)
@@ -1315,15 +1316,6 @@ contains
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-!!$          open(58,file='noise.dat')
-!!$          nu = 0.001d0 
-!!$          do while (.true.)
-!!$             write(58,*) nu, self%d(i)%N_psd%eval_full(nu)
-!!$             nu = nu * 1.2d0
-!!$             if (nu > tod%samprate) exit
-!!$          end do
-!!$          close(58)
-!!$          stop
        end if
        deallocate(xi_n)
 
@@ -1345,60 +1337,6 @@ contains
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
-       ! Get compressed diode array sizes
-!!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
-!!$          call get_hdf_vlen_ext(file, slabel // '/' // trim(field) // '/diodes', self%zext(i,:))
-!!$       end if
-
-!!$       if(ndiode == 1) then
-!!$         if (tod%compressed_tod) then
-!!$            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-!!$         else
-!!$            allocate(self%d(i)%tod(m))
-!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$            if (tod%halfring_split == 2 )then
-!!$               self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$            else
-!!$               self%d(i)%tod = buffer_sp(1:m)
-!!$            end if
-!!$         end if
-!!$       else ! ndiode > 1 per tod
-!!$          if(tod%compressed_tod == .false.) then
-!!$             
-!!$          else
-!!$          end if
-!!$          if (tod%compressed_tod) then
-!!$             !allocate(self%d(i)%zdiode(ndiode))
-!!$             !call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
-!!$             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode1, self%d(i)%zdiode2, self%d(i)%zdiode3, self%d(i)%zdiode4)
-!!$             
-!!$             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-!!$          else
-!!$             ! HKE: This array should have the ordering switched
-!!$             allocate(self%d(i)%diode(ndiode, m))
-!!$             do k = 1, ndiode
-!!$                
-!!$                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-!!$                if (tod%halfring_split == 2 )then
-!!$                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-!!$                else
-!!$                   self%d(i)%diode(k, :) = buffer_sp(1:m)
-!!$                end if
-!!$             end do
-!!$          end if
-!!$       end if
-
-!!$       if (tod%compressed_tod) then
-!!$          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
-!!$       else
-!!$          allocate(self%d(i)%tod(m))
-!!$          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$          if (tod%halfring_split == 2 )then
-!!$             self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$          else
-!!$             self%d(i)%tod = buffer_sp(1:m)
-!!$          end if
-!!$       end if
     end do
     deallocate(buffer_sp, buffer_int)
 
@@ -1409,8 +1347,6 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        !TODO: this needs to be generalized to work for both floats and ints
        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
@@ -1979,21 +1915,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -2171,7 +2107,7 @@ contains
     integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
     real(dp)     :: psi_, unwrap, x0, x1
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: sl_spline
 
     ntod    = sd%ntod
     ndet    = sd%ndet; if (present(det)) ndet = 1
@@ -2196,9 +2132,9 @@ contains
           end do
 
           ! Interpolate
-          call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+          call spline_simple(sl_spline, x_sl, sub_sl, regular=.true.)
           do i = 1, size(sub_sl)*subsamp  
-             sd%s_sl(i,j,h) = splint_simple(spline, real(i, dp))
+             sd%s_sl(i,j,h) = splint_simple(sl_spline, real(i, dp))
           end do
 
           ! Do last few samples
@@ -2211,7 +2147,7 @@ contains
     end do
        
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(sl_spline)
 
   end subroutine construct_sl_template
 
@@ -2516,12 +2452,16 @@ contains
       n    = int(ntod / w) + 1
       if (.not. present(tod_out)) then
          ext = [-npad, n+npad]
+         !write(*,*) "downsample: ext(1)= ", ext(1), " ext(2)= ", ext(2)
          return
       end if
 
       do i = 1, n-1
          j = (i-1)*w+1
          k = min(i*w,ntod)
+
+         !write(*,*) "i= ",i, "  j= ", j, "  k= ", k, " n= ", n, " w= ", w
+         !write(*,*) "downsample: n= ", n, "npad = ", npad, " ext(1)= ", ext(1), " ext(2)= ", ext(2) 
 
          if (present(mask)) then
             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))

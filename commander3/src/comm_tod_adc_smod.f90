@@ -44,7 +44,7 @@ contains
   ! DCH
   !=========================================================================
 
-  module function constructor_internal(cpar, info, nbins)
+  module function constructor_internal(cpar, info, nbins) result(c)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -71,51 +71,51 @@ contains
     implicit none
     integer(i4b),           intent(in) :: nbins
     class(comm_mapinfo),    target     :: info
-    class(comm_adc),        pointer    :: constructor_internal
+    class(comm_adc),        pointer    :: c
     type(comm_params),      intent(in) :: cpar
     
     real(sp)     :: diff
 
     integer(i4b) :: i, ierr
     
-    allocate(constructor_internal)
+    allocate(c)
     
-    constructor_internal%window  =  10
-    constructor_internal%info    => info
-    constructor_internal%myid    =  cpar%myid_chain
-    constructor_internal%comm    =  cpar%comm_chain
-    constructor_internal%outdir  =  cpar%outdir
-    constructor_internal%nbins   =  nbins
+    c%window  =  10
+    c%info    => info
+    c%myid    =  cpar%myid_chain
+    c%comm    =  cpar%comm_chain
+    c%outdir  =  cpar%outdir
+    c%nbins   =  nbins
     
-    allocate(constructor_internal%adc_in(constructor_internal%nbins), constructor_internal%adc_out(constructor_internal%nbins))
-    allocate(constructor_internal%rms_bins(constructor_internal%nbins), constructor_internal%v_bins(constructor_internal%nbins))
-    allocate(constructor_internal%rms2_bins(constructor_internal%nbins))
-    allocate(constructor_internal%nval(constructor_internal%nbins), constructor_internal%vbin_edges(constructor_internal%nbins+1))
-    allocate(constructor_internal%err_bins(constructor_internal%nbins))
+    allocate(c%adc_in(c%nbins), c%adc_out(c%nbins))
+    allocate(c%rms_bins(c%nbins), c%v_bins(c%nbins))
+    allocate(c%rms2_bins(c%nbins))
+    allocate(c%nval(c%nbins), c%vbin_edges(c%nbins+1))
+    allocate(c%err_bins(c%nbins))
 
     ! For the corrected stuffs
-    allocate(constructor_internal%rms_bins2(constructor_internal%nbins))
-    allocate(constructor_internal%nval2(constructor_internal%nbins))
+    allocate(c%rms_bins2(c%nbins))
+    allocate(c%nval2(c%nbins))
 
-    constructor_internal%rms_bins2(:)  = 0.0
-    constructor_internal%nval2(:)      = 0
+    c%rms_bins2(:)  = 0.0
+    c%nval2(:)      = 0
 
-    constructor_internal%adc_in(:)     = 0.0
-    constructor_internal%adc_out(:)    = 0.0
-    constructor_internal%vbin_edges(:) = 0.0
-    constructor_internal%v_bins(:)     = 0.0
-    constructor_internal%rms_bins(:)   = 0.0
-    constructor_internal%rms2_bins(:)  = 0.0
-    constructor_internal%nval(:)       = 0
-    constructor_internal%err_bins(:)   = 0.0
+    c%adc_in(:)     = 0.0
+    c%adc_out(:)    = 0.0
+    c%vbin_edges(:) = 0.0
+    c%v_bins(:)     = 0.0
+    c%rms_bins(:)   = 0.0
+    c%rms2_bins(:)  = 0.0
+    c%nval(:)       = 0
+    c%err_bins(:)   = 0.0
 
     ! ! Initialize v_min and v_max on obscenely wrong numbers
-    constructor_internal%v_max = 0.0
-    constructor_internal%v_min = 100000.0
+    c%v_max = 0.0
+    c%v_min = 100000.0
 
   end function constructor_internal
 
-  module function constructor_precomp(instfile, path, load)
+  module function constructor_precomp(instfile, path, load) result(c)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -143,13 +143,13 @@ contains
     type(hdf_file),     intent(in) :: instfile
     character(len=512), intent(in) :: path
     logical(lgt),       intent(in) :: load
-    class(comm_adc),    pointer    :: constructor_precomp
+    class(comm_adc),    pointer    :: c
     
     integer(i4b) :: ext(2), col, i, mingood, maxgood
     real(dp), dimension(:,:), allocatable :: buffer
     real(dp), dimension(:),   allocatable :: buffer_in, buffer_out
 
-    allocate(constructor_precomp)
+    allocate(c)
         
     ! read in adc correction templates
     call get_size_hdf(instfile, path, ext)
@@ -166,13 +166,13 @@ contains
     buffer_in  = buffer(1:ext(1),col+1)
     buffer_out = buffer(1:ext(1),col)
 
-    constructor_precomp%nbins  = 500
-    constructor_precomp%window = 10
+    c%nbins  = 500
+    c%window = 10
 
-    allocate(constructor_precomp%rms_bins2(500))
-    allocate(constructor_precomp%nval2(500))
-    allocate(constructor_precomp%v_bins(500))
-    allocate(constructor_precomp%vbin_edges(501))
+    allocate(c%rms_bins2(500))
+    allocate(c%nval2(500))
+    allocate(c%v_bins(500))
+    allocate(c%vbin_edges(501))
 
     ! Find DPC min and max voltage values to grid out the voltages well
     ! We assume that voltage in and voltage out share edges 
@@ -185,18 +185,18 @@ contains
        if (buffer_in(i) /= 0.0 .and. buffer_in(i) /= 10.0) exit
     end do
 
-    allocate(constructor_precomp%adc_in(maxgood-mingood))
-    allocate(constructor_precomp%adc_out(maxgood-mingood))
+    allocate(c%adc_in(maxgood-mingood))
+    allocate(c%adc_out(maxgood-mingood))
 
-    constructor_precomp%adc_in  = buffer(1:ext(1),col+1)
-    constructor_precomp%adc_out = buffer(1:ext(1),col)
-    constructor_precomp%v_min   = constructor_precomp%adc_in(mingood)
-    constructor_precomp%v_max   = constructor_precomp%adc_in(maxgood)
+    c%adc_in  = buffer(1:ext(1),col+1)
+    c%adc_out = buffer(1:ext(1),col)
+    c%v_min   = c%adc_in(mingood)
+    c%v_max   = c%adc_in(maxgood)
 
-    constructor_precomp%nval2(:)      = 0
-    constructor_precomp%rms_bins2(:) = 0.0
+    c%nval2(:)      = 0
+    c%rms_bins2(:) = 0.0
     deallocate(buffer)
-    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_in,dp), real(constructor_precomp%adc_out,dp))
+    call spline(c%sadc, real(c%adc_in,dp), real(c%adc_out,dp))
 
   end function constructor_precomp
 

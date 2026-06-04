@@ -34,7 +34,7 @@ contains
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "mh"]
+      implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
             print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
@@ -48,7 +48,7 @@ contains
          n_samp_bands = n_samp_bands + 1
       end do
       ref_band = cpar%ds_zodi_reference_band
-      ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
+      ref_band_count = count(cpar%ds_zodi_reference_band .eqv. .true.)
       if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
@@ -172,7 +172,7 @@ contains
                      d%downsamp_pix_full(k,h)  = sd%pix(kp,j,h)
                   end do
                   d%downsamp_obs_time_full(k) = data(i)%tod%scans(scan)%t0(1) + (kp-1)*dt_tod
-                  mask(k)                     = sd%mask(kp,j)
+                  mask(k)                     = sd%mask(kp,j) > 0.5
                end do
 
                ! Get TOD after subtracting static zodi
@@ -673,7 +673,7 @@ contains
                
                call wall_time(t3)
                do h = 1, nhorn
-                  call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
+                  call get_zodi_emission_mbb(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
                        & scan, j, zodi_model, s_zodi(:,h))
                end do
                call wall_time(t4)
@@ -742,7 +742,11 @@ contains
       if (cpar%myid_chain == 0) then
          lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
-         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+
+         !write(*,*) "chisq_zodi = ", chisq, ", ndof_tot = ", ndof_tot, ", chisq_red = ", chisq/ndof_tot
+
+         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,e11.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+         
          write(*,*)
          write(unit,*) chisq/ndof_tot, real(theta,sp)
       end if

@@ -115,7 +115,7 @@ contains
     end do
 
     if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
-      c%indlabel  = ['beta', 'T   ', 'adScale']
+      c%indlabel  = ['beta   ', 'T      ', 'adScale']
     else
       c%indlabel  = ['beta', 'T   ']
     end if 
@@ -466,7 +466,7 @@ contains
    
    ! Checks if the table is negative dust or not, only checks the first column, spline cannot cross the zero line
    ! so if the first line is negative they all should be
-   self%posneg=INT(SIGN(1.0,self%SEDtab(3,1)))
+   self%posneg=INT(SIGN(1d0,self%SEDtab(3,1)))
 
    ! check if there are enough rows in the table, of there are only 1 or 2 we add extra bins of equal height 
    ! to help stabilize the spline, this is probably not optimal
@@ -573,7 +573,7 @@ contains
       
     ! Checks if the table is negative dust or not, only checks the first column, spline cannot cross the zero line
     ! so if the first line is negative they all should be
-    self%posneg=INT(SIGN(1.0,self%SEDtab(2,1)))
+    self%posneg=INT(SIGN(1d0,self%SEDtab(2,1)))
 
     do i = 1, self%ntab
         ind=ind+1

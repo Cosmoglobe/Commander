@@ -482,7 +482,8 @@ contains
 !!$            end if
 !!$         end do
 !!$       end do
-         
+
+
        allocate(s_sky(ndet,ndelta))
        allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))

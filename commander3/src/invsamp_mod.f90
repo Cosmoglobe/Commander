@@ -38,13 +38,6 @@ contains
 
     type(planck_rng)                               :: handle
     real(dp), dimension(1:), intent(in)            :: x_in
-    procedure(lnL_int), pointer, intent(in)        :: lnL
-    real(dp)                                       :: sample_InvSamp
-    real(dp), dimension(2),               optional :: prior
-    integer(i4b),            intent(out), optional :: status, n_eval
-    logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
-    real(dp), dimension(1:), intent(in),  optional :: lnL_in
-    real(dp),                intent(in),  optional :: tolerance_
     abstract interface
       function lnL_int(x)
          use healpix_types
@@ -53,6 +46,13 @@ contains
          real(dp)             :: lnL_int
       end function lnL_int
     end interface
+    procedure(lnL_int)                             :: lnL
+    real(dp)                                       :: sample_InvSamp
+    real(dp), dimension(2),               optional :: prior
+    integer(i4b),            intent(out), optional :: status, n_eval
+    logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
+    real(dp), dimension(1:), intent(in),  optional :: lnL_in
+    real(dp),                intent(in),  optional :: tolerance_
 
 
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
