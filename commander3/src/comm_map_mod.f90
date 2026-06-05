@@ -760,7 +760,7 @@ subroutine tod2file_dp3(filename,d)
 
 
   subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
-       & hdffile, hdfpath, output_fits, output_hdf_map)
+       & hdffile, hdfpath, output_fits, output_hdf_map, cut_sky)
     implicit none
 
     class(comm_map),  intent(in) :: self
@@ -769,10 +769,10 @@ subroutine tod2file_dp3(filename,d)
     real(dp),         intent(in), optional :: nu_ref
     type(hdf_file),   intent(in), optional :: hdffile
     character(len=*), intent(in), optional :: hdfpath
-    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
+    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map, cut_sky
 
     integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
-    logical(lgt) :: output_fits_, output_hdf_map_
+    logical(lgt) :: output_fits_, output_hdf_map_, cut_sky_
     real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), allocatable, dimension(:,:) :: lm
@@ -781,6 +781,7 @@ subroutine tod2file_dp3(filename,d)
 
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
+    cut_sky_ = .false.;       if (present(cut_sky))        cut_sky_        = cut_sky
 
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
@@ -804,7 +805,7 @@ subroutine tod2file_dp3(filename,d)
           end do
           !call update_status(status, "fits2")
           if (output_fits_) then
-             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, cut_sky=cut_sky_)
           end if
           if (present(hdffile) .and. self%info%lmax == -1) then
              call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
@@ -1188,17 +1189,21 @@ subroutine tod2file_dp3(filename,d)
   end subroutine readHDF_mmax
 
 
-  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile,nest)
+  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, nest, cut_sky)
     implicit none
 
     character(len=*),                   intent(in)  :: filename
     real(dp),         dimension(0:,1:), intent(in)  :: map
     character(len=*),                   intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),                           intent(in), optional :: nu_ref
-    logical(lgt),                       intent(in), optional :: nest
+    logical(lgt),                       intent(in), optional :: nest, cut_sky
 
-    integer(i4b)   :: npix, nlheader, nmaps, i, nside
+    integer(i4b)   :: npix, nlheader, nmaps, i, j, nside, npix_obs
     logical(lgt)   :: polarization, rms_cov
+
+    real(dp) :: fsky
+    real(dp), allocatable, dimension(:,:) :: cut_map
+    integer(i4b), allocatable, dimension(:) :: cut_pixels
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1307,7 +1312,43 @@ subroutine tod2file_dp3(filename,d)
          & "Reference spectrum")
     call add_card(header,"COMMENT","-----------------------------------------------")
 
-    call output_map(map, header, "!"//trim(filename))
+
+    if (present(cut_sky)) then
+      if (cut_sky) then
+        npix_obs = 0
+        do i = 0, npix-1
+          if (sum(map(i,:)) .ne. 0d0) then
+            npix_obs = npix_obs + nmaps
+          end if
+        end do
+        fsky = real(npix_obs, dp) / size(map,kind=dp)
+      else
+        fsky = 1.0
+      end if
+    else
+      fsky = 1.0
+    end if
+
+
+    write(*,*) "fsky = ", fsky
+
+    if (fsky < 0.1) then
+      allocate(cut_pixels(0:npix_obs-1))
+      allocate(cut_map(0:npix_obs-1, 1:nmaps))
+      j = 0
+      do i = 0, npix-1
+         if (sum(map(i,:)) .ne. 0d0) then
+           cut_pixels(j) = i
+           cut_map(j,:) = map(i,:)
+           j = j + 1
+         end if
+      end do
+      call write_fits_partial( "!"//trim(filename), cut_pixels, cut_map, header)
+      deallocate(cut_map, cut_pixels)
+    else
+      call output_map(map, header, "!"//trim(filename))
+    end if
+
 
   end subroutine write_map
 

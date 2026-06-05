@@ -126,7 +126,7 @@ contains
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
     
     ! Channel specific parameters
-    c%chisq_threshold  = 1000000.d0 
+    c%chisq_threshold  = 1d30
     c%accept_threshold = 0.5d0
     c%correct_sl       = .false.
 
@@ -291,7 +291,7 @@ contains
        make_dyn_mask         = .false.
        sample_ncorr          = iter  > 2 !.true.
        sample_xi_n           = iter > 5
-       select_data           = .false.
+       select_data           = .true.
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -300,7 +300,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_BP, SD_SKY, SD_MASK])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_SKY, SD_MASK])
 
     
     ! Initialize local variables
@@ -406,10 +406,10 @@ contains
        
 
        ! Compute chisquare
-       !! do j = 1, sd%ndet
-       !!    if (.not. self%scans(i)%d(j)%accept) cycle
-       !!    call self%compute_tod_chisq(sd, j)
-       !! end do
+       do j = 1, sd%ndet
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          call self%compute_tod_chisq(sd, j)
+       end do
 
        ! Select data
        if (select_data) then
@@ -478,19 +478,19 @@ contains
 !!$       call mpi_finalize(ierr)
 !!$       stop
     
-    if (select_data) then
-       ! Remove data based on a gliding RMS window cut for each of the listed
-       ! criteria
-       !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
-       call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
-          
-       do i = 1, self%nscan
-          do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) self%scans(i)%d(j)%nsamp_unmasked = 0
-          end do
-       end do
-    end if
-    call update_status(status, "tod_outlier"//ctext)
+    !if (select_data) then
+    !   ! Remove data based on a gliding RMS window cut for each of the listed
+    !   ! criteria
+    !   !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
+    !   call remove_tod_outliers(self, 100,      [100000.,    100000.,     100000.,    100000.,    100000.,   100000.,    100000.   ])
+    !      
+    !   do i = 1, self%nscan
+    !      do j = 1, self%ndet
+    !         if (.not. self%scans(i)%d(j)%accept) self%scans(i)%d(j)%nsamp_unmasked = 0
+    !      end do
+    !   end do
+    !end if
+    !call update_status(status, "tod_outlier"//ctext)
 
     
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
@@ -533,19 +533,13 @@ contains
    
     ! Output maps to disk
     call timer%start(TOD_WRITE)
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-    if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
-       do i = 1, zodi_model%n_comps
-          call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
-       end do
-    endif
+    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix), cut_sky=.true.)
+    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix), cut_sky=.true.)
+    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix), cut_sky=.true.)
+    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix), cut_sky=.true.)
+    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix), cut_sky=.true.)
+    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix), cut_sky=.true.)
+    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix), cut_sky=.true.)
     call timer%stop(TOD_WRITE)
     call update_status(status, "tod_binmap3"//ctext)
 
