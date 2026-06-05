@@ -862,7 +862,7 @@ contains
           write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
-       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
+       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold .or. tod%scans(scan)%d(j)%N_psd%sigma0 .le.  0d0) then
           write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
           tod%scans(scan)%d(j)%accept = .false.

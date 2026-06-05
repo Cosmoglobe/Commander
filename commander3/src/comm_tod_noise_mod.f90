@@ -173,8 +173,6 @@ contains
           self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
        end if
 
-       if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
-
        ! Only estimate monopole
        if (onlymono_) then
           sd%n_corr(:,i) = sum(d_prime*sd%mask(:,i)) / sum(sd%mask(:,i))

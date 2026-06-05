@@ -122,7 +122,7 @@ contains
                     else if (nmaps == 1) then
                        s = tod%pixcache%map_sky(1,p,0,k)
                     end if
-                    sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
+                    if (allocated(sd%s_bp)) sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
                  end if
               end do
            end do
