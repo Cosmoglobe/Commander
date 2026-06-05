@@ -1377,9 +1377,6 @@ subroutine tod2file_dp3(filename,d)
       fsky = 1.0
     end if
 
-
-    write(*,*) "fsky = ", fsky
-
     if (fsky < 0.1) then
       allocate(cut_pixels(0:npix_obs-1))
       allocate(cut_map(0:npix_obs-1, 1:nmaps))
