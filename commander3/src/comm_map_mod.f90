@@ -663,17 +663,25 @@ subroutine tod2file_dp3(filename,d)
   !                   IO routines
   !**************************************************
 
-  subroutine writeMapToHDF(self, hdffile, hdfpath, label)
+  subroutine writeMapToHDF(self, hdffile, hdfpath, label, cut_sky)
     implicit none
 
     class(comm_map),  intent(in) :: self
     type(hdf_file),   intent(in) :: hdffile
     character(len=*), intent(in) :: hdfpath, label
+    logical(lgt),     intent(in) :: cut_sky
 
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+
+    real(dp),     allocatable, dimension(:,:) :: cut_map
+    integer(i4b), allocatable, dimension(:)   :: cut_pixels
+
+    real(dp) :: fsky
+    integer(i4b) :: npix_obs, j
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
@@ -690,7 +698,38 @@ subroutine tod2file_dp3(filename,d)
           map(p(1:np),:) = buffer(1:np,:)
           deallocate(buffer)
        end do
-       call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+       if (cut_sky) then
+
+
+         npix_obs = 0
+         do i = 0, npix-1
+           if (sum(map(i,:)) .ne. 0d0) then
+             npix_obs = npix_obs + nmaps
+           end if
+         end do
+         fsky = real(npix_obs, dp) / size(map,kind=dp)
+
+         if (fsky < 0.1) then
+           allocate(cut_pixels(0:npix_obs-1))
+           allocate(cut_map(0:npix_obs-1, 1:nmaps))
+           j = 0
+           do i = 0, npix-1
+              if (sum(map(i,:)) .ne. 0d0) then
+                cut_pixels(j) = i
+                cut_map(j,:) = map(i,:)
+                j = j + 1
+              end if
+           end do
+           call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   cut_map)
+           if (trim(label) == 'map') call write_hdf(hdffile, trim(adjustl(hdfpath))//'map_pixels',  cut_pixels)
+           deallocate(cut_pixels, cut_map)
+         else
+           call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+         end if
+
+       else
+          call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+       end if
        deallocate(p, map)
     else
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
@@ -778,6 +817,8 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
+    real(dp),     allocatable, dimension(:,:) :: cut_map
+    integer(i4b), allocatable, dimension(:)   :: cut_pixels
 
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
@@ -805,11 +846,18 @@ subroutine tod2file_dp3(filename,d)
           end do
           !call update_status(status, "fits2")
           if (output_fits_) then
-             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, cut_sky=cut_sky_)
+             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, cut_sky=cut_sky_, &
+                 & cut_map=cut_map, cut_pixels=cut_pixels)
           end if
           if (present(hdffile) .and. self%info%lmax == -1) then
-             call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+             if (allocated(cut_map)) then 
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(cut_map,sp))
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map_pixels'),  cut_pixels)
+             else
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+             end if
           end if
+          if (allocated(cut_map)) deallocate(cut_map, cut_pixels)
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then
@@ -1189,7 +1237,7 @@ subroutine tod2file_dp3(filename,d)
   end subroutine readHDF_mmax
 
 
-  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, nest, cut_sky)
+  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, nest, cut_sky, cut_map, cut_pixels)
     implicit none
 
     character(len=*),                   intent(in)  :: filename
@@ -1197,13 +1245,13 @@ subroutine tod2file_dp3(filename,d)
     character(len=*),                   intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),                           intent(in), optional :: nu_ref
     logical(lgt),                       intent(in), optional :: nest, cut_sky
+    real(dp),     allocatable, dimension(:,:), optional, intent(out) :: cut_map
+    integer(i4b), allocatable, dimension(:),   optional, intent(out) :: cut_pixels
 
     integer(i4b)   :: npix, nlheader, nmaps, i, j, nside, npix_obs
     logical(lgt)   :: polarization, rms_cov
 
     real(dp) :: fsky
-    real(dp), allocatable, dimension(:,:) :: cut_map
-    integer(i4b), allocatable, dimension(:) :: cut_pixels
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1344,7 +1392,6 @@ subroutine tod2file_dp3(filename,d)
          end if
       end do
       call write_fits_partial( "!"//trim(filename), cut_pixels, cut_map, header)
-      deallocate(cut_map, cut_pixels)
     else
       call output_map(map, header, "!"//trim(filename))
     end if

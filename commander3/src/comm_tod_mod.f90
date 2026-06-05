@@ -173,6 +173,7 @@ module comm_tod_mod
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: equal_det_bp_beam                            ! All detector bandpasses and beams equal? If so, save memory and time
      logical(lgt) :: L2_exist
+     logical(lgt) :: cut_sky = .false.
      character(len=512) :: L2file
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
@@ -1870,8 +1871,8 @@ contains
        
     end if
 
-    call map%writeMapToHDF(chainfile, path, 'map')
-    call rms%writeMapToHDF(chainfile, path, 'rms')
+    call map%writeMapToHDF(chainfile, path, 'map', self%cut_sky)
+    call rms%writeMapToHDF(chainfile, path, 'rms', self%cut_sky)
 
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)

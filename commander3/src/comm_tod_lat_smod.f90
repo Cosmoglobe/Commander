@@ -130,6 +130,10 @@ contains
     c%accept_threshold = 0.5d0
     c%correct_sl       = .false.
 
+
+    ! Used for saving partial-sky maps to h5 file.
+    c%cut_sky = .true.
+
     
     ! Get detector labels
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -533,13 +537,13 @@ contains
    
     ! Output maps to disk
     call timer%start(TOD_WRITE)
-    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix), cut_sky=.true.)
-    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix), cut_sky=.true.)
-    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix), cut_sky=.true.)
-    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix), cut_sky=.true.)
-    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix), cut_sky=.true.)
-    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix), cut_sky=.true.)
-    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix), cut_sky=.true.)
+    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix), cut_sky=self%cut_sky)
+    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix), cut_sky=self%cut_sky)
+    if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix), cut_sky=self%cut_sky)
+    if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix), cut_sky=self%cut_sky)
+    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix), cut_sky=self%cut_sky)
+    if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix), cut_sky=self%cut_sky)
+    if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix), cut_sky=self%cut_sky)
     call timer%stop(TOD_WRITE)
     call update_status(status, "tod_binmap3"//ctext)
 
