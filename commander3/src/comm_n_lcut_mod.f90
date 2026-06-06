@@ -165,10 +165,17 @@ contains
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
 
-    if (present(noisefile)) then
-       self%rms0     => comm_map(info, noisefile)
-    else
+    if (associated(self%rms0) .and. present(map)) then
        self%rms0%map = map%map
+    else
+       if (present(noisefile)) then
+          self%rms0     => comm_map(info, noisefile)
+       else if (present(map)) then
+          self%rms0     => comm_map(info)
+          self%rms0%map = map%map
+       else
+          call report_error('Error in update_N_rms - no noisefile or map declared')
+       end if
     end if
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map

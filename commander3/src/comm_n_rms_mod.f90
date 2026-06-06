@@ -159,14 +159,19 @@ contains
     call update_status(status, "update_N_rms")
     info%rms = .true.
 
-    if (present(noisefile)) then
-       self%rms0     => comm_map(info, noisefile)
-    else if (present(map)) then
-       self%rms0     => comm_map(info)
+    if (associated(self%rms0) .and. present(map)) then
        self%rms0%map = map%map
     else
-       call report_error('Error in update_N_rms - no noisefile or map declared')
+       if (present(noisefile)) then
+          self%rms0     => comm_map(info, noisefile)
+       else if (present(map)) then
+          self%rms0     => comm_map(info)
+          self%rms0%map = map%map
+       else
+          call report_error('Error in update_N_rms - no noisefile or map declared')
+       end if
     end if
+
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map
     else
