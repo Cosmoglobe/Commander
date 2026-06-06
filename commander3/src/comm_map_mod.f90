@@ -454,8 +454,9 @@ subroutine tod2file_dp3(filename,d)
        ! Deallocate all links
        link => self%nextLink
        do while (associated(link))
-          if (allocated(link%map)) deallocate(link%map)
-          if (allocated(link%alm)) deallocate(link%alm)
+          if (allocated(link%map))      deallocate(link%map)
+          if (allocated(link%alm))      deallocate(link%alm)
+          if (allocated(link%alm_buff)) deallocate(link%alm_buff)
           nullify(link%info)
           link => link%nextLink
        end do
@@ -1366,10 +1367,10 @@ subroutine tod2file_dp3(filename,d)
         npix_obs = 0
         do i = 0, npix-1
           if (sum(map(i,:)) .ne. 0d0) then
-            npix_obs = npix_obs + nmaps
+            npix_obs = npix_obs + 1
           end if
         end do
-        fsky = real(npix_obs, dp) / size(map,kind=dp)
+        fsky = real(npix_obs, dp) / real(npix,dp)
       else
         fsky = 1.0
       end if
