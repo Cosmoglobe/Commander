@@ -579,27 +579,18 @@ contains
       gainmap%map = gainmap%map + gaindiff%map
       map_out%alm = gainmap%alm
       map_out%map = gainmap%map
+
+      call gaindiff%dealloc()
+      deallocate(gaindiff)
+      nullify(gaindiff)
     end if
 
-    ! Clean up
-    !!!! if (associated(gaindiff)) then
-    !!!!   call gaindiff%dealloc()
-    !!!!   deallocate(gaindiff)
-    !!!!   nullify(gaindiff)
-    !!!! end if
-    !!!! if (present(gainmap)) then
-    !!!!   if (associated(gainmap)) then
-    !!!!     call gainmap%dealloc()
-    !!!!     deallocate(gainmap)
-    !!!!     nullify(gainmap)
-    !!!!   end if
-    !!!! end if
-    !!!! call map_diff%dealloc; deallocate(map_diff)
-    !!!! if (present(cmbmap)) then
-    !!!!    call cmbmap_band%dealloc()
-    !!!!    deallocate(cmbmap_band)
-    !!!!    nullify(cmbmap_band)
-    !!!! end if
+    call map_diff%dealloc; deallocate(map_diff); nullify(map_diff)
+    if (present(cmbmap)) then
+       call cmbmap_band%dealloc()
+       deallocate(cmbmap_band)
+       nullify(cmbmap_band)
+    end if
 
   end subroutine get_sky_signal
 

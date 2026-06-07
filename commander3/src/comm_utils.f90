@@ -901,7 +901,7 @@ contains
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
-    polarization = (nmaps >= 3)
+    polarization = (nmaps == 3)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 

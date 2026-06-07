@@ -766,7 +766,8 @@ contains
        end do
 
 
-       if (mod(self%scanid(scan),10) == 0) then
+       if (.false.) then
+       !if (mod(self%scanid(scan),25) == 0) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)

@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_lat_mod) comm_tod_lat_mod
+submodule (comm_tod_lat_mod) comm_tod_lat_smod
 contains
 
 
@@ -99,7 +99,7 @@ contains
     nmaps_beam        = 3
     pol_beam          = .true.
     c%nside_beam      = 128
-    c%nside_pixhist   = 64
+    c%nside_pixhist   = 256
     c%sol_elong_range = cpar%zs_sol_elong
     
     ! Set up noise PSD type and priors
@@ -115,9 +115,9 @@ contains
     c%xi_n_P_uni(3,:)  = [-4.0d0, -1.0d0]   ! alpha
     !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
     !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
-    c%xi_n_nu_fit(1,:) = [0.001d0, 80d0] 
-    c%xi_n_nu_fit(2,:) = [0.001d0, 80d0]
-    c%xi_n_nu_fit(3,:) = [0.001d0, 80d0]
+    c%xi_n_nu_fit(1,:) = [0.1d0, 30d0] 
+    c%xi_n_nu_fit(2,:) = [0.1d0, 30d0]
+    c%xi_n_nu_fit(3,:) = [0.1d0, 30d0]
     !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
     !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
     c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
@@ -290,12 +290,11 @@ contains
        select_data           = iter == 3 ! self%first_call  
     else
        ! Do data selection, then start sampling
-       sample_gain           = iter  > 1 !.true.                 
-       make_dyn_mask         = iter == 1
-       make_dyn_mask         = .false.
-       sample_ncorr          = iter  > 2 !.true.
+       sample_gain           = iter  > 2 !.true.                 
+       make_dyn_mask         = iter == 2
+       sample_ncorr          = iter  > 3 !.true.
        sample_xi_n           = iter > 5
-       select_data           = .true.
+       select_data           = iter == 1
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -304,7 +303,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_SKY, SD_MASK])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_SKY, SD_MASK, SD_GAIN])
 
     
     ! Initialize local variables
@@ -338,15 +337,18 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
+    if (self%first_call) call compute_tod_pixhist(self)
+
     if (sample_gain) then
        ! 'abscal': the global constant gain factor
        call sample_calibration(self, 'abscal', oper_default, handle)
        ! 'relcal': the gain factor that is constant in time but varying between detectors
        call sample_calibration(self, 'relcal', oper_default, handle)
        ! 'deltaG': the time-variable and detector-variable gain
-       !call sample_calibration(self, 'deltaG', oper_default, handle)
+       call sample_calibration(self, 'deltaG', oper_default, handle)
     end if
     
+    call update_status(status, "initializing binmap")
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
     call binmap%init(self, .true., sample_rel_bandpass, nplus2=.false.)
@@ -396,9 +398,9 @@ contains
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
-             write(*,*) "Sampling ", self%myid
+             write(*,*) "Sampling noise psd for scan ", self%scanid(i)
              call sample_noise_psd(self, sd, handle, chaindir)
-             write(*,*) "Done sampling ", self%myid
+             write(*,*) "Done sampling scan number   ", self%scanid(i)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
           end if
@@ -549,7 +551,7 @@ contains
 
     ! Clean up
     call binmap%dealloc()
-    call update_status(status, "tod_binmap4"//ctext)
+    call update_status(status, "tod_binmap4, deallocation "//ctext)
     if (allocated(slist)) deallocate(slist)
     if (sample_abs_bandpass .or. sample_rel_bandpass) deallocate(chisq_S)
     if (self%correct_sl) then
@@ -726,4 +728,4 @@ contains
   end subroutine construct_corrtemp_lat
 
 
-end submodule comm_tod_lat_mod
+end submodule comm_tod_lat_smod

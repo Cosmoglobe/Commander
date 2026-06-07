@@ -464,6 +464,7 @@ contains
           class is (comm_diffuse_comp)
              if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
                 rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
+                call update_status(status, "allocating gainmap")
                 gainmap        => comm_map(c%x)
              end if
           end select
@@ -529,20 +530,21 @@ contains
              end do
           end if
 
-          call update_status(status, "pre_gibbs")
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
+          call update_status(status, "updating bp_delta")
+          do j = 0, ndet
+             data(i)%bp(j)%p%delta = delta(j,:,k)
 
-                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+             !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
 
-                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
-                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
-                end if
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)
+             call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+             if (j > 0 .and. data(i)%tod%subtract_zodi) then
+                !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+                call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+             end if
+          end do
+          call update_mixing_matrices(i, update_F_int=.true.)
 
+          call update_status(status, "updating sky")
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              if (data(i)%tod%equal_det_bp_beam .and. ndelta == 1 .and. j > 1) then
@@ -583,7 +585,9 @@ contains
 !!$       call s_sky(1,1)%p%writeFITS('sky.fits')
 !!$       call mpi_finalize(ierr)
 !!$       stop      
- 
+
+
+       call update_status(status, "initializing rms map")
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
@@ -628,7 +632,7 @@ contains
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-          if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+          if (j > 0 .and.  data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)
 
@@ -640,6 +644,7 @@ contains
           call s_gain(j)%p%dealloc
        end do
        deallocate(s_sky, s_gain, delta, eta)
+       call update_status(status, "deallocated s_gain and s_sky")
 
        ! Set monopole component to zero, if active. Now part of n_corr
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
@@ -647,7 +652,12 @@ contains
        end if
        
     end do
-    if (associated(gainmap)) call gainmap%dealloc()
+    if (associated(gainmap)) then
+      call gainmap%dealloc()
+      deallocate(gainmap)
+      nullify(gainmap)
+    end if
+    call update_status(status, "deallocated gainmap")
 
   end subroutine process_all_TODs
 

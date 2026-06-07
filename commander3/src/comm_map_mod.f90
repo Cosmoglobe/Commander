@@ -445,10 +445,11 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout)          :: self
     class(comm_map), pointer :: link => null()
 
+
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
     if (allocated(self%alm_buff)) deallocate(self%alm_buff)
-    nullify(self%info)
+    if (associated(self%info)) nullify(self%info)
 
     if (associated(self%nextLink)) then
        ! Deallocate all links
@@ -457,10 +458,10 @@ subroutine tod2file_dp3(filename,d)
           if (allocated(link%map))      deallocate(link%map)
           if (allocated(link%alm))      deallocate(link%alm)
           if (allocated(link%alm_buff)) deallocate(link%alm_buff)
-          nullify(link%info)
+          if (associated(link%info)) nullify(link%info)
           link => link%nextLink
        end do
-       nullify(self%nextLink)
+       if (associated(self%nextLink)) nullify(self%nextLink)
     end if
 
   end subroutine deallocate_comm_map
@@ -748,11 +749,11 @@ subroutine tod2file_dp3(filename,d)
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2)
+    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2), nside_est
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
-    logical(lgt)                              :: rms_exception
+    logical(lgt)                              :: rms_exception, cut_sky_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
@@ -765,6 +766,15 @@ subroutine tod2file_dp3(filename,d)
        else if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
+       end if
+       ! Check if valid nside
+       ! ext(1) = npix, if npix = 12*nside**2, or sqrt(npix/12) is a valid integer, 
+       nside_est = int(sqrt(real(ext(1))/12))
+       write(*,*) nside_est, ext(1), "Are we good?"
+       if (nside_est .eq. 12*nside_est**2) then
+         cut_sky_exception = .false.
+       else
+         cut_sky_exception = .true.
        end if
        npix  = self%info%npix
        if (rms_exception) then
