@@ -28,15 +28,15 @@
 #------------------------------------------------------------------------------
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-		"-O3"  
+		"-Ofast"  
 		"-DNDEBUG"
 		"-fno-strict-aliasing"
 		"-march=native" 
-		"-flto" 
+    "-flto=auto" 
 		"-fopenmp"
 		"-fbacktrace" 
 		"-fexternal-blas"
-		"-ffpe-trap=zero"
+    #"-ffpe-trap=zero"
 		"-fPIC"
 		#"-C"
 		)
