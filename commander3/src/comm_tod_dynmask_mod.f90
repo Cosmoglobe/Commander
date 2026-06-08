@@ -435,7 +435,7 @@ contains
     self%stats(10) = self%stats(10) + ncut
     
     if (self%output_current) then
-       open(58,file='dynmask_cr.dat')
+       open(58,file=trim(self%outdir)//'/dynmask_cr.dat')!, recl=1024)
        do i = 1, sd%ntod
           if (mask(i) > 0.) write(58,*) i, res(i), conv(i), norm(i), mask(i)
        end do
