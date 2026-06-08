@@ -50,6 +50,8 @@ contains
       class(comm_mapinfo),     target     :: info
       character(len=128),      intent(in) :: tod_type      !
       class(comm_iras_tod),    pointer    :: c
+    !   type(comm_scandata) :: sd
+
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
@@ -155,15 +157,22 @@ contains
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
 
+      
+      
+      
       ! Get detector labels
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-         call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
-      else
-         call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
-      end if
-      
-      ! Read the actual TOD
-      call c%read_tod(c%label)
+        call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
+    else
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
+    end if
+    
+    ! Read the actual TOD
+    ! write(*,*) "Before: file, scan = ", c%hdfname(1), c%scanid(1)
+    call c%read_tod(c%label)
+    ! write(*,*) "After: c%scans(1)%d(1)%N_psd%sigma0 = ", c%scans(1)%d(1)%N_psd%sigma0
+    ! call mpi_finalize(ierr)
+    ! stop
 
       ! Initialize bandpass mean and proposal matrix
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
@@ -343,8 +352,8 @@ contains
          sample_ramp     = iter == 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
          select_data     = iter == 5                    ! in param file. Takes you to 'else' below
-         sample_ncorr    = iter > 2
-         sample_xi_n     = iter > 2
+         sample_ncorr    = iter > 2 ! Turn off atm 
+         sample_xi_n     = iter > 2 
          sample_ramp   = iter > 3
       else
          select_data     = iter == 3 
@@ -446,37 +455,42 @@ contains
 !!$         allocate(self%tod_correction_templ(maxval(self%nsamp_templ),self%ntempl,self%ndet,self%nscan))
 !!$         self%tod_correction_templ = 0.d0
 !!$      end if
-      ! ramp sampling
-      if (sample_ramp) then
-          do i = 1, self%nscan
-            ! skip scan if no accepted data
-            if (.not. any(self%scans(i)%d%accept)) cycle
-            ! decompress data for this scan into sd
-            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=2)  ! OBS may change mask
-            ! sample tod correction template for ramp
-            call self%sample_ramp(sd)
-            ! clean up
-            call dealloc_scan_data(sd)
-         end do
-      end if
+      !!!! IRAS: NOT DOING RAMP SAMPLING
+    !   ramp sampling
+    !   if (sample_ramp) then
+    !       do i = 1, self%nscan
+    !         ! skip scan if no accepted data
+    !         if (.not. any(self%scans(i)%d%accept)) cycle
+    !         ! decompress data for this scan into sd
+    !         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=2)  ! OBS may change mask
+    !         ! sample tod correction template for ramp
+    !         call self%sample_ramp(sd)
+    !         ! clean up
+    !         call dealloc_scan_data(sd)
+    !      end do
+    !   end if
       call timer%stop(TOD_INSTCORR, self%band)
 
+      !!!! IRAS: 
+      !! NOT CREATING DYNAMIC MASK YET
+      !! Causes bug!
+
       ! Create dynamic mask
-      if (select_data) then
-         if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
-         do i = 1, self%nscan
-            ! Skip scan if no accepted data
-            if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
-            do j = 1, sd%ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               call self%dynmask%create(sd, j)
-            end do
-            call dealloc_scan_data(sd)
-         end do
-         ! Synchronize and output flagging statistics in first iteration
-         call self%dynmask%report
-      end if
+    !   if (select_data) then
+    !      if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+    !      do i = 1, self%nscan
+    !         ! Skip scan if no accepted data
+    !         if (.not. any(self%scans(i)%d%accept)) cycle
+    !         call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+    !         do j = 1, sd%ndet
+    !            if (.not. self%scans(i)%d(j)%accept) cycle
+    !            call self%dynmask%create(sd, j)
+    !         end do
+    !         call dealloc_scan_data(sd)
+    !      end do
+    !      ! Synchronize and output flagging statistics in first iteration
+    !      call self%dynmask%report
+    !   end if
       
       ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
@@ -491,6 +505,8 @@ contains
 
       ! Initialize CG mapmaker, maptype = 1 = T-only
       cgmap => comm_cgmap(1, self%info%comm, self%nside, self%ndet, self%scans%ntod, self%pixcache%ind2pix)
+      !!! IRAS: Compare with Dirbe 
+      ! Use bin_TOD: lines 447-467
       
       ! Perform loop over scans to prepare data to make maps
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -501,7 +517,8 @@ contains
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
          ! FIXME!! NCORR MASK CHANGED TEMPORARILY TO GAIN MASK. WILL LEAK SIGNAL INTO NCORR!!!
-         call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd)
+        !  call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd)
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
           !if (self%myid == 0 .and. i == 1) then
          !    open(58,file='tod.dat', recl=1024)
@@ -518,6 +535,7 @@ contains
          ! Sample correlated noise
          !call project_mask(self, TODMASK_ZODI, sd)
          if (sample_ncorr) then
+            write(*,*) "Yes, this is happening."
             call sample_n_corr(self, sd, handle)
             if (sample_xi_n) then
                call sample_noise_psd(self, sd, handle, chaindir)
@@ -525,9 +543,17 @@ contains
                call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
             end if
          else
+            !!!
+            !!! sigma0 is set in comm_tod_noise_mod.f90, 
+            !!! line 585/588/~660 in sample_noise_psd: "self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))"
             call sample_n_corr(self, sd, handle, onlymono=.true.)
             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
          end if
+
+         ! NEWNEWNEW
+         call dealloc_scan_data(sd)
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+
 
          ! Compute chisquare
          do j = 1, sd%ndet
@@ -535,6 +561,7 @@ contains
             call self%compute_tod_chisq(sd, j)
          end do
 
+         !!!! IRAS: NOT REMOVING BAD DATA YET
          ! Select data
          if (select_data) call remove_bad_data(self, i, sd%flag)
 
