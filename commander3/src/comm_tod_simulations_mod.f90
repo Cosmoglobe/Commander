@@ -102,7 +102,7 @@ contains
      integer(i4b) :: iostatus !< to indicate error status when opening a file
      integer(i4b) :: i, band     !< loop variables
      ! MPI variables
-     integer(i4b), intent(in) :: ierr        !< MPI error status
+     integer(i4b), intent(inout) :: ierr        !< MPI error status
      integer(i4b) :: nprocs !< number of cores
      integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
      integer(i4b) :: end_chunk   !< End iteration value for processor of rank n

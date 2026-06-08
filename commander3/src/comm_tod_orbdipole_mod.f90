@@ -24,7 +24,7 @@ module comm_tod_orbdipole_mod
 
   type :: comm_orbdipole
     integer(i4b) :: ndet!, subsample
-    integer(i4b) :: comm
+    type(MPI_Comm) :: comm
     logical(lgt) :: beam_4pi
     real(dp),       dimension(:,:), allocatable :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term
     class(map_ptr), dimension(:),   allocatable :: beam
@@ -47,7 +47,7 @@ contains
   function constructor(beam, comm)
     implicit none
     class(map_ptr),      dimension(:), target, optional :: beam
-    integer(i4b),                              optional :: comm
+    type(MPI_Comm),                            optional :: comm
     class(comm_orbdipole), pointer :: constructor
     integer(i4b) :: i
 

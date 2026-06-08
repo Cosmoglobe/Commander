@@ -565,7 +565,8 @@ end subroutine bin_differential_TOD
 
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
-    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    integer(i4b) :: det, nout, np0, myid, nprocs
+    type(MPI_Comm) :: comm
     real(dp)     :: A_inv, As_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
     real(dp), allocatable, dimension(:)     :: W, eta
@@ -692,11 +693,12 @@ end subroutine bin_differential_TOD
 
     logical(lgt) :: correct_transfer_
     integer(i4b) :: i, j, k, p, l, nmaps, ierr, ndet, ncol, n_A, off, ndelta
-    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    integer(i4b) :: det, nout, np0, myid, nprocs
+    type(MPI_Comm) :: comm
     real(dp), allocatable, dimension(:,:)   :: A_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot
-    real(dp), allocatable, dimension(:)     :: W, eta, b_copy
-    real(dp), allocatable, dimension(:,:)   :: A_tot
+    real(dp), allocatable, dimension(:)     :: W, eta, b_copy, tmp
+    real(dp), allocatable, dimension(:,:)   :: A_tot, tmp_sb
 
     correct_transfer_ = .false.
     if(present(correct_transfer)) correct_transfer_ = correct_transfer
@@ -717,18 +719,26 @@ end subroutine bin_differential_TOD
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
+       allocate(tmp(ncol))
        do i = 1, size(binmap%sA_map%a, 1)
-          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+          tmp = binmap%sA_map%a(i,:)
+          call mpi_allreduce(MPI_IN_PLACE, tmp, size(tmp), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+          binmap%sA_map%a(i,:) = tmp
        end do
+       deallocate(tmp)
     end if
       call mpi_win_fence(0, binmap%sA_map%win, ierr)
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
       if (binmap%sb_map%myid_shared == 0) then
+         allocate(tmp_sb(n_A, ncol))
          do i = 1, size(binmap%sb_map%a, 1)
-            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+            tmp_sb = binmap%sb_map%a(i, :, :)
+            call mpi_allreduce(mpi_in_place, tmp_sb, size(tmp_sb), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+            binmap%sb_map%a(i, :, :) = tmp_sb
          end do
+         deallocate(tmp_sb)
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
@@ -856,11 +866,12 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
 
     logical(lgt) :: correct_transfer_
     integer(i4b) :: i, j, k, p, nmaps, ierr, ndet, ncol, n_A, off, ndelta
-    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    integer(i4b) :: det, nout, np0, myid, nprocs
+    type(MPI_Comm) :: comm
     real(dp), allocatable, dimension(:,:)   :: A_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot
-    real(dp), allocatable, dimension(:)     :: W, eta, b_copy, b_saved
-    real(dp), allocatable, dimension(:,:)   :: A_tot
+    real(dp), allocatable, dimension(:)     :: W, eta, b_copy, b_saved, tmp
+    real(dp), allocatable, dimension(:,:)   :: A_tot, tmp_sb
 
     correct_transfer_ = .false.
     if(present(correct_transfer)) correct_transfer_ = correct_transfer
@@ -880,18 +891,26 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
+       allocate(tmp(ncol))
        do i = 1, size(binmap%sA_map%a, 1)
+          tmp = binmap%sA_map%a(i,:)
           call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+          binmap%sA_map%a(i,:) = tmp
        end do
+       deallocate(tmp)
     end if
       call mpi_win_fence(0, binmap%sA_map%win, ierr)
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
       if (binmap%sb_map%myid_shared == 0) then
+         allocate(tmp_sb(n_A, ncol))
          do i = 1, size(binmap%sb_map%a, 1)
-            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+            tmp_sb = binmap%sb_map%a(i, :, :)
+            call mpi_allreduce(mpi_in_place, tmp_sb, size(tmp_sb), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+            binmap%sb_map%a(i, :, :) = tmp_sb
          end do
+         deallocate(tmp_sb)
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
@@ -1030,13 +1049,15 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
     real(sp),        dimension(0:),       intent(in),    optional :: mask
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
-    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    integer(i4b) :: det, nout, np0, myid, nprocs
+    type(MPI_Comm) :: comm
     real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
-    real(dp), allocatable, dimension(:)     :: W, eta
+    real(dp), allocatable, dimension(:)     :: W, eta, tmp
     real(dp), allocatable, dimension(:,:)   :: A_tot
     class(comm_mapinfo), pointer :: info 
     class(comm_map),     pointer :: smap 
+
 
     call timer%start(TOD_MAPSOLVE, tod%band)
     
@@ -1060,20 +1081,28 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
+       allocate(tmp(size(binmap%sA_map%a,2)))
        do i = 1, size(binmap%sA_map%a, 1)
-          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+          tmp = binmap%sA_map%a(i,:)
+          call mpi_allreduce(MPI_IN_PLACE, tmp, size(binmap%sA_map%a, 2), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+          binmap%sA_map%a(i,:) = tmp
        end do
+       deallocate(tmp)
     end if
       call mpi_win_fence(0, binmap%sA_map%win, ierr)
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
       if (binmap%sb_map%myid_shared == 0) then
+         allocate(tmp(size(binmap%sb_map%a(1,1,:))))
          do i = 1, size(binmap%sb_map%a, 1)
            do j = 1, size(binmap%sb_map%a, 2)
-            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, j, :), size(binmap%sb_map%a(1, j, :)), &
+            tmp = binmap%sb_map%a(i, j, :)
+            call mpi_allreduce(mpi_in_place, tmp, size(tmp), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+            binmap%sb_map%a(i, j, :) = tmp
            end do
          end do
+         deallocate(tmp)
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
@@ -1191,7 +1220,7 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
 
       deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta)
       call timer%stop(TOD_MAPSOLVE, tod%band)
-      
+
    end subroutine finalize_binned_map
 
    subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix, comp_S, split)

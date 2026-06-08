@@ -1323,7 +1323,8 @@ contains
 
   module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     if (npre == 0) return
     
@@ -1340,7 +1341,7 @@ contains
 
   module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    type(MPI_Comm),              intent(in) :: comm
     integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
@@ -1441,7 +1442,8 @@ contains
 
   module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2

@@ -44,9 +44,11 @@ contains
     implicit none
     type(status_file)      :: status
     character(len=*)       :: fname
-    integer(i4b)           :: numband, comm_chain
-    integer(i4b), optional :: communicator
-    integer(i4b)           :: comm, ierr
+    integer(i4b)           :: numband
+    type(MPI_Comm)         :: comm_chain
+    type(MPI_Comm), optional :: communicator
+    type(MPI_Comm)         :: comm
+    integer(i4b)           :: ierr
     status%active = .false.
     if(fname == "") return
     comm = mpi_comm_world; if(present(communicator)) comm = communicator

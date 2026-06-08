@@ -1,5 +1,6 @@
 module sharp
   use iso_c_binding
+  use mpi_f08
   implicit none
   ! alm_info flags
   integer, parameter :: SHARP_PACKED = 1
@@ -193,10 +194,10 @@ contains
   subroutine sharp_execute_d(type, spin, nmaps, alm, alm_info, map, geom_info, &
                              add, time, opcnt, comm)
     use iso_c_binding
-    use mpi
+    use mpi_f08
     implicit none
     integer(c_int), value                        :: type, spin, nmaps
-    integer(c_int), optional                     :: comm
+    type(MPI_Comm), optional                     :: comm
     logical, value, optional                     :: add  ! should add instead of replace out
 
     type(sharp_alm_info)                         :: alm_info
@@ -206,7 +207,7 @@ contains
     real(c_double), target, intent(inout)        :: alm(0:alm_info%n_local - 1, 1:nmaps)
     real(c_double), target, intent(inout)        :: map(0:geom_info%n_local - 1, 1:nmaps)
     !--
-    integer(c_int)         :: mod_flags, ntrans, k
+    integer(c_int)         :: mod_flags, ntrans, k, fcomm
     type(c_ptr), target    :: alm_ptr(nmaps)
     type(c_ptr), target    :: map_ptr(nmaps)
 
@@ -231,7 +232,8 @@ contains
     end do
 
     if (present(comm)) then
-      call c_sharp_execute_mpi(comm, type, spin, alm_ptr, map_ptr, &
+      fcomm = int(comm%MPI_VAL, c_int)
+      call c_sharp_execute_mpi(fcomm, type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
           flags=mod_flags, &

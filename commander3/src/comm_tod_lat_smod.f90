@@ -99,7 +99,7 @@ contains
     nmaps_beam        = 3
     pol_beam          = .true.
     c%nside_beam      = 128
-    c%nside_pixhist   = 256
+    c%nside_pixhist   = 128
     c%sol_elong_range = cpar%zs_sol_elong
     
     ! Set up noise PSD type and priors
@@ -290,7 +290,8 @@ contains
        select_data           = iter == 3 ! self%first_call  
     else
        ! Do data selection, then start sampling
-       sample_gain           = iter  > 2 !.true.                 
+       !sample_gain           = iter  > 2 !.true.                 
+       sample_gain           = .false.
        make_dyn_mask         = iter == 2
        sample_ncorr          = iter  > 3 !.true.
        sample_xi_n           = iter > 5

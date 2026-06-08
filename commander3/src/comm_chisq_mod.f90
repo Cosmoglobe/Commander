@@ -26,7 +26,7 @@ contains
 
   subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
     implicit none
-    integer(i4b),                   intent(in)              :: comm
+    type(MPI_Comm),                 intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
     logical(lgt),                   intent(in),    optional :: evalpol
     !character(len=512),             intent(in),    optional :: evalsig

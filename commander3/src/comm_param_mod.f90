@@ -62,9 +62,10 @@ module comm_param_mod
 
      ! MPI info
      integer(i4b) :: myid, numprocs, root = 0
-     integer(i4b) :: myid_chain, numprocs_chain, comm_chain, mychain
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
+     integer(i4b) :: myid_chain, numprocs_chain, mychain
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_chain, comm_shared, comm_inter
+     type(MPI_Status) :: status
 
      ! Global parameters
      character(len=24)   :: operation
@@ -401,7 +402,8 @@ contains
     type(planck_rng),  intent(out)   :: handle, handle_noise
     integer(i4b),      intent(in), optional :: reinit_rng
 
-    integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
+    integer(i4b) :: i, j, m, n, ierr
+    type(MPI_Status) :: mpistat
     integer(i4b), allocatable, dimension(:,:) :: ind
 
     ! !the following commented lines are moved to commander.f90 in order to initialize

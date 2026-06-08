@@ -25,7 +25,8 @@ module comm_task_mod
   implicit none
 
   type task_list
-     integer(i4b) :: fd, n, id, comm
+     integer(i4b) :: fd, n, id
+     type(MPI_Comm) :: comm
      logical(lgt), dimension(:), allocatable :: done ! Local, not global
   end type
 
@@ -35,7 +36,8 @@ contains
     implicit none
     type(task_list)  :: tasks
     character(len=*) :: filename
-    integer(i4b)     :: n, ierr, comm
+    integer(i4b)     :: n, ierr
+    type(MPI_Comm)   :: comm
 
     ! Don't overwrite the old file until everybody is done with it
     call mpi_barrier(comm, ierr)

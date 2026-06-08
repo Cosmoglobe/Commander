@@ -85,10 +85,10 @@ module comm_ptsrc_comp_mod
   end type ptsrc_ptr
   
   integer(i4b), allocatable, dimension(:) :: npre, nmaps_pre
-  integer(i4b) :: comm_pre                =  -1
-  integer(i4b) :: myid_pre                =  -1
-  integer(i4b) :: numprocs_pre            =  -1
-  logical(lgt) :: apply_ptsrc_precond     = .false.
+  type(MPI_Comm) :: comm_pre                
+  integer(i4b)   :: myid_pre                =  -1
+  integer(i4b)   :: numprocs_pre            =  -1
+  logical(lgt)   :: apply_ptsrc_precond     = .false.
 
   character(len=24), private :: operation
 
@@ -1297,7 +1297,7 @@ contains
     character(len=128) :: itext
     integer(i4b), allocatable, dimension(:)   :: ind
     real(dp),     allocatable, dimension(:,:) :: beam, buffer
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: status
+    type(MPI_Status)                          :: status
 
     inquire(file=trim(filename), exist=exist)
     if (exist) call report_error('Error: Ptsrc template file already exist = '//trim(filename))
@@ -1562,7 +1562,8 @@ contains
 
   subroutine initPtsrcPrecond(comm, samp_group, verbosity)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
     integer(i4b),                intent(in), optional :: verbosity
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt, nactive, c1, c2, verbosity_

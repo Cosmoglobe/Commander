@@ -33,7 +33,8 @@ module comm_tod_adc_binfit_mod
   public comm_adc_binfit, adc_binfit_pointer
 
   type :: comm_adc_binfit
-     integer(i4b)       :: comm, myid, npar_adc
+     type(MPI_Comm)     :: comm
+     integer(i4b)       :: myid, npar_adc
      character(len=128) :: label
      integer(i4b)       :: min_adu, max_adu, min_coadd, max_coadd, ncoadd, nbit
      integer(i4b), allocatable, dimension(:,:) :: param_adc ! (code, width, global mod/local)
@@ -92,7 +93,8 @@ interface
     ! ====================================================================
     implicit none
     character(len=*),       intent(in) :: label
-    integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
+    type(MPI_Comm),         intent(in) :: comm
+    integer(i4b),           intent(in) :: nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
   end function constructor_adc_binfit
 

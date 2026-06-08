@@ -175,9 +175,10 @@ module comm_tod_mod
      logical(lgt) :: L2_exist
      logical(lgt) :: cut_sky = .false.
      character(len=512) :: L2file
-     integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
-     integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
-     integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
+     type(MPI_Comm) :: comm, comm_shared, comm_inter
+     integer(i4b) :: myid, numprocs                         ! MPI parameters
+     integer(i4b) :: myid_shared, numprocs_shared    ! MPI parameters
+     integer(i4b) :: myid_inter                       ! MPI parameters
      integer(i4b) :: band                                        ! Absolute band ID
      integer(i4b) :: id                                          ! Relative band ID
      integer(i4b) :: zodiband                                        ! Band ID for zodi
@@ -892,7 +893,7 @@ contains
     integer(i4b),      intent(in)    :: nside_beam
     integer(i4b),      intent(in)    :: nmaps_beam
     logical(lgt),      intent(in)    :: pol_beam
-    integer(i4b),      intent(in)    :: comm_chain 
+    type(MPI_Comm),   intent(in)    :: comm_chain 
 
     type(hdf_file) :: h5_file
     integer(i4b) :: lmax_beam, lmax_sl, i
@@ -2361,7 +2362,8 @@ contains
     class(comm_tod),                               intent(in)    :: self
     character(len=512), allocatable, dimension(:), intent(inout) :: slist
 
-    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan, n_buff
+    integer(i4b)     :: i, j, unit, ns, ierr, num_scan, n_buff
+    type(MPI_Status) :: mpistat
     character(len=4) :: pid
 
 

@@ -662,7 +662,7 @@ contains
   function mpi_dot_product(comm, x, y)
     implicit none
 
-    integer(i4b),               intent(in) :: comm
+    type(MPI_Comm),             intent(in) :: comm
     real(dp),     dimension(:), intent(in) :: x, y
     real(dp)                               :: mpi_dot_product
 

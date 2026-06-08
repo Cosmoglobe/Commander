@@ -34,8 +34,6 @@ module comm_map_mod
   use comm_timing_mod
   implicit none
 
-!  include "mpif.h"
-      
   public comm_map, comm_mapinfo, map_ptr, write_map
 
 
@@ -48,7 +46,8 @@ module comm_map_mod
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
      logical(lgt) :: pol, dist, rms
-     integer(i4b) :: comm, myid, nprocs
+     type(MPI_Comm) :: comm
+     integer(i4b) :: myid, nprocs
      integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm, mmax
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
@@ -162,7 +161,8 @@ subroutine tod2file_dp3(filename,d)
   !**************************************************
   function constructor_mapinfo(comm, nside, lmax, nmaps, pol, dist, distribute_type, rms)
     implicit none
-    integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
+    type(MPI_Comm),               intent(in) :: comm
+    integer(i4b),                 intent(in) :: nside, lmax, nmaps
     logical(lgt),                 intent(in) :: pol
     logical(lgt),       optional, intent(in) :: dist
     character(len=128), optional, intent(in) :: distribute_type
@@ -676,7 +676,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
 
 
     real(dp),     allocatable, dimension(:,:) :: cut_map
@@ -752,7 +752,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr, ext(2), nside_est
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
     logical(lgt)                              :: rms_exception, cut_sky_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
@@ -826,7 +826,7 @@ subroutine tod2file_dp3(filename,d)
     real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     real(dp),     allocatable, dimension(:,:) :: cut_map
     integer(i4b), allocatable, dimension(:)   :: cut_pixels
@@ -1045,7 +1045,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix, nmaps_in
     real(dp),     allocatable, dimension(:,:) :: map, buffer, map_in
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     ! Check file consistency 
     npix = int(getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps),i4b)
@@ -1415,7 +1415,7 @@ subroutine tod2file_dp3(filename,d)
 
     integer(i4b) :: i, j, ierr, nmaps, np
     integer(i4b), allocatable, dimension(:) :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
     real(dp), allocatable, dimension(:) :: m_in, m_out, buffer
 
     if (self%info%nside == map_out%info%nside) then
@@ -1794,7 +1794,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(sp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     npix  = self%info%npix
     nmaps = self%info%nmaps
@@ -1848,7 +1848,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     npix  = self%info%npix
     nmaps = self%info%nmaps

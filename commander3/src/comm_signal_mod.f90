@@ -401,8 +401,9 @@ contains
 
   subroutine initPrecond(comm, samp_group, verbosity)
     implicit none
-    integer(i4b), intent(in) :: comm, samp_group
-    integer(i4b), intent(in), optional :: verbosity
+    type(MPI_Comm), intent(in) :: comm
+    integer(i4b),   intent(in) :: samp_group
+    integer(i4b),   intent(in), optional :: verbosity
     call initDiffPrecond(comm, samp_group)
     call initPtsrcPrecond(comm, samp_group, verbosity)
     call initTemplatePrecond(comm, samp_group)

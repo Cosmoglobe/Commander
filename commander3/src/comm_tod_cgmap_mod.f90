@@ -30,9 +30,10 @@ module comm_tod_cgmap_mod
   public comm_cgmap, dealloc_cgmap
   
   type comm_cgmap
-     integer(i4b)  :: comm, myid, nprocs
-     integer(i4b)  :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
-     integer*8     :: plan_fwd, plan_back
+     type(MPI_Comm) :: comm
+     integer(i4b)   :: myid, nprocs
+     integer(i4b)   :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
+     integer*8      :: plan_fwd, plan_back
      class(comm_tod), pointer :: tod0
      logical(lgt),            allocatable, dimension(:,:)   :: accept      ! Accept status, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:)     :: ind_scan    ! Index range for each scan (0:nscan)
@@ -220,6 +221,7 @@ contains
     
     if (self%myid == 0) then
 
+
        if (sum(abs(self%invM)) == 0.d0) then
           write(*,*) "CGmap error: Preconditioner is zero; no accepted data; . Exiting."
           stop
@@ -271,7 +273,8 @@ contains
                & min(delta_new,1d30), ', tol = ', real(lim_convergence,sp), &
                & ', time = ', real(t2-t1,sp)
        end do
-       call mpi_bcast(0, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
+       oper = 0
+       call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
        
        call wall_time(t2)
        write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  Final CG iter ', i, ' -- res = ', &
@@ -304,10 +307,12 @@ contains
     real(dp),          dimension(:,:), intent(in),  optional :: x
     real(dp),          dimension(:,:), intent(out), optional :: Ax
 
-    integer(i4b) :: ierr
+    integer(i4b) :: ierr, oper
 
     ! Activate slaves
-    if (self%myid == 0) call mpi_bcast(1, 1, MPI_INTEGER, 0, self%comm, ierr)
+    oper = 1
+    if (self%myid /= 0) oper = 0
+    call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
 
     ! Distrbute x; stored in self%xi on each core
     call self%x_bcast(x)
@@ -346,10 +351,13 @@ contains
     class(comm_cgmap),                 intent(inout)           :: self
     real(dp),          dimension(:,:), intent(inout), optional :: b
     
-    integer(i4b) ::  ierr
+    integer(i4b) ::  ierr, oper
 
     ! Activate slaves
-    if (self%myid == 0) call mpi_bcast(2, 1, MPI_INTEGER, 0, self%comm, ierr)
+    oper = 2
+    if (self%myid /= 0) oper = 0
+    !call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
+    call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
 
     ! Compute y = W_N^t * invN * W_N * d
     if (associated(self%W_N)) call self%W_N%multiply(.false., self%tod)
@@ -525,7 +533,7 @@ contains
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
     real(dp),     allocatable, dimension(:,:) :: buffer
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
     
     if (self%myid == 0) then
        self%xi = x(:,self%ind2pix)
@@ -555,7 +563,7 @@ contains
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
     real(dp),     allocatable, dimension(:,:) :: buffer
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
     
     if (self%myid == 0) then
        x                 = 0.d0

@@ -1386,7 +1386,8 @@ contains
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: self
 
-    integer(i4b) :: i, j, k, m, n, npix, unit, barrier, mpistat(MPI_STATUS_SIZE), ierr, oper
+    integer(i4b) :: i, j, k, m, n, npix, unit, barrier, ierr, oper
+    type(MPI_Status) :: mpistat
     character(len=4)   :: id
     character(len=6)   :: scantext
     character(len=512) :: filename

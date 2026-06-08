@@ -49,7 +49,8 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     ! ====================================================================
     implicit none
     character(len=*),       intent(in) :: label
-    integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
+    type(MPI_Comm),         intent(in) :: comm
+    integer(i4b),           intent(in) :: nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
 
     integer(i4b) :: i, j, c0, ierr

@@ -28,7 +28,8 @@ module comm_conviqt_mod
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win, myid
+    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, optim, psisteps, win, myid
+    type(MPI_Comm) :: comm
     real(dp), allocatable, dimension(:)        :: lnorm
     type(shared_2d_sp) :: c
     !type(shared_1d_int) :: pixLookup
@@ -57,7 +58,8 @@ contains
   function constructor(myid_shared, comm_shared, myid_inter, comm_inter, nside, lmax, nmaps, bmax, beam, map, optim)
     implicit none
     integer(i4b),                 intent(in) :: nside, lmax, bmax, nmaps
-    integer(i4b),                 intent(in) :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),                 intent(in) :: myid_shared, myid_inter
+    type(MPI_Comm),               intent(in) :: comm_shared, comm_inter
     class(comm_map),              intent(in) :: beam, map
     integer(i4b),                 intent(in) :: optim ! desired optimization flags
     class(comm_conviqt), pointer             :: constructor
