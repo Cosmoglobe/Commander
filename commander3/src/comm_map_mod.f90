@@ -770,7 +770,6 @@ subroutine tod2file_dp3(filename,d)
        ! Check if valid nside
        ! ext(1) = npix, if npix = 12*nside**2, or sqrt(npix/12) is a valid integer, 
        nside_est = int(sqrt(real(ext(1))/12))
-       write(*,*) nside_est, ext(1), "Are we good?"
        if (nside_est .eq. 12*nside_est**2) then
          cut_sky_exception = .false.
        else

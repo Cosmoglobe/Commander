@@ -35,10 +35,9 @@ module comm_utils
   use math_tools
   use powell_mod
   use hmc_mod
+  use fftw3
   implicit none
 
-  !include "mpif.h"
-  include 'fftw3.f'
 
   interface compute_running_variance
      module procedure compute_running_variance_sp, compute_running_variance_dp
