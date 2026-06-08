@@ -167,6 +167,7 @@ contains
     self%ind(:,i:j)     = transpose(sd%ind(:,:,1))
     self%mask(:,i:j)    = transpose(iand(sd%flag,tod%flag0))
     do det = 1, self%ndet
+        ! May need to cycle for detscans where sigma0=0
        self%accept(det,scan) = tod%scans(scan)%d(det)%accept
        self%invN(det,scan)   = 1./(tod%scans(scan)%d(det)%N_psd%sigma0/&
             & tod%scans(scan)%d(det)%gain)**2
