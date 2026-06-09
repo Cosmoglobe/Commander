@@ -968,8 +968,8 @@ contains
      class(comm_scandata),  intent(in)             :: sd    ! decompressed self%scans(scan)%d(det)%tod
 
      integer(i4b) :: i, j, k, l, nbin, b, ndet, scan, ntod, num_used, nsamp, nflags
-     integer(i4b) :: num_events(3), flag_id(3), max_num, maxlength, num
-     real(dp)     :: dt, invgain, flag(3), flag_val(3), length
+     integer(i4b) :: num_events(3), flag_id(3), max_num, maxlength, num, length
+     real(dp)     :: dt, invgain, flag(3), flag_val(3)
      logical(lgt) :: flagged(3)
      !real(dp),       allocatable, dimension(:)     :: res
      integer(i4b),   allocatable, dimension(:,:)   :: nflagged, ndata, events

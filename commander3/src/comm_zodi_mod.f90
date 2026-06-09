@@ -547,11 +547,12 @@ contains
      class(ZodiModel),               intent(in)           :: self
      real(dp),         dimension(:), intent(out)          :: x
      integer(i4b),                   intent(in), optional :: samp_group
-     character(len=*), allocatable, optional, intent(inout) :: labels(:)
+     character(len=128), allocatable, optional, intent(inout) :: labels(:)
 
      integer(i4b) :: i, j, idx
      real(dp), allocatable, dimension(:) :: z
      character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
+     character(len=128) :: skip_label="skip"
      
      allocate(z(self%npar_tot))
 
@@ -572,7 +573,7 @@ contains
         else
            labels = self%general_labels(1:2)
            do i = 1, self%n_phase_params
-              labels = [labels, "SKIP"]
+              labels = [labels, skip_label]
            end do
         end if
      end if
@@ -606,7 +607,7 @@ contains
             labels = [labels, labels_copy]
             ! Add placeholders for emissivity and albedo
             do j = 1, numband
-               labels = [labels, ["skip","skip"]]
+               labels = [labels, [skip_label, skip_label]]
             end do
          end if
      end do
@@ -620,7 +621,7 @@ contains
         else
            z(idx) = 0.d0
         end if
-        if (present(labels)) labels = [labels, "skip"]
+        if (present(labels)) labels = [labels, skip_label]
      end do
      
      if (present(samp_group)) then
@@ -722,7 +723,7 @@ contains
       character(len=6) :: itext
       character(len=4) :: ctext
       character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label, general_group_path, path
-      character(len=32), allocatable :: labels(:)
+      character(len=128), allocatable :: labels(:)
       real(dp), allocatable :: params(:)
       type(hdf_file) :: file
 
@@ -1985,7 +1986,7 @@ contains
 
      real(dp) :: C0, C1, C2, p20, p21, g1, g2, g3, w1, w2, w3, norm
      integer(i4b) :: n
-     real(dp), allocatable :: den1(:), den2(:), den3(:), cosTheta(:)
+     real(dp) :: den1(size(Theta)), den2(size(Theta)), den3(size(Theta)), cosTheta(size(Theta))
      
      if (trim(self%phasefunc_type) == 'K98') then
         n    = self%numband

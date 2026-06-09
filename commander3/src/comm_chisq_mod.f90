@@ -72,6 +72,7 @@ contains
       bandlist = band_list
       nbands = size(bandlist)
     else
+      allocate(bandlist(numband))
       bandlist = [(i, i=1,numband)]
       nbands = numband
     end if

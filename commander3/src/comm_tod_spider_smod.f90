@@ -711,7 +711,7 @@ contains
          open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
       end if
    
-      write(unit,*), iter, param
+      write(unit,*) iter, param
    
       close(unit)
     end subroutine write2file

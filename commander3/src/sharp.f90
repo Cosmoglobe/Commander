@@ -1,5 +1,4 @@
 module sharp
-  use iso_c_binding
   use mpi_f08
   implicit none
   ! alm_info flags

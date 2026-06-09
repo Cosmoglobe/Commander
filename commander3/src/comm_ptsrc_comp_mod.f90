@@ -2679,6 +2679,8 @@ n_gibbs=1
 
     lnL_ptsrc_total = 0d0
 
+    amp = p(1)
+
     do l = 1, numband
        if (c_lnL%F_null(l)) cycle
        la = c_lnL%b2a(l)

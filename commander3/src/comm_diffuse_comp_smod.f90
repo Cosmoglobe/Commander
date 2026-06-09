@@ -535,7 +535,7 @@ contains
                 self%npixreg(j,i) = 1
              else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='single_pix') then
                 self%pol_pixreg_type(j,i) = 2
-                if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                if (cpar%nside_smooth(self%smooth_scale(i)) < self%theta(i)%p%info%nside) then
                    self%npixreg(j,i) = 12*(cpar%nside_smooth(self%smooth_scale(i))**2)
                 else
                    self%npixreg(j,i) = 12*(self%theta(i)%p%info%nside**2)

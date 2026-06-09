@@ -24,7 +24,7 @@ module comm_map_mod
   use fitstools
   use pix_tools
   use udgrade_nr
-  use iso_c_binding, only : c_ptr, c_double
+  use comm_utils
   use head_fits
   use comm_hdf_mod
   use extension

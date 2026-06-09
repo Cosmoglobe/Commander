@@ -31,13 +31,18 @@ contains
       integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count, ierr, group_idx
       real(dp), allocatable :: param_vec(:)
       character(len=128), allocatable :: labels(:)
+      character(len=:), allocatable :: msg
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
       implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
-            print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
+            msg =  "Error: invalid sampling method for zodi, must be one of: "
+            do i = 1 ,size(implemented_sampling_algorithms)
+              msg = msg//trim(adjustl(implemented_sampling_algorithms(i)))//", "
+            end do
+            print *, msg
             stop
          end if
       end if

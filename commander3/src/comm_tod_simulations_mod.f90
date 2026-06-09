@@ -614,8 +614,8 @@ contains
     nfft = 2 * ntod
     n = nfft / 2 + 1
     nomp = omp_get_max_threads()
-    fftw_err =  sfftw_init_threads()
-    call fftw_fplan_with_nthreads(nomp)
+    fftw_err =  fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
     ! planning FFTW - in principle we should do both forward and backward FFTW,
     ! but in this case we can omit forward one and go directly with backward to
     ! save some time on a whole operation.

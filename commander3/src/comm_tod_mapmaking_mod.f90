@@ -1353,7 +1353,7 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
         
         delta_r = sum(r0*rhat)
         delta_0 = delta_r
-        delta_s = delta_s
+        delta_s = delta_r
 
         omega = 1d0
         alpha = 1d0
