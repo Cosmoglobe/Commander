@@ -439,6 +439,14 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # Using same value as AKARI script for now 
         return 1 
 
+    def get_spinaxis(self, band:str):
+        '''
+        Position in radians of the spin axis of the satellite.
+        Referred to as outP at various points in the code.
+        '''
+        return [0,0]
+
+
 
 if __name__ == '__main__':
     data_dir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data/IPAC_level1"
