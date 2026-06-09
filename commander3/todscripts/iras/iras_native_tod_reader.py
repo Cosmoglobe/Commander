@@ -94,10 +94,12 @@ class IRASTODReader:
         if type(band) is not str:
             raise TypeError
         
-        self.data_dir   = iras_npz_dir
+        self.data_dir   = iras_npz_dir # Location of TODs
         self.band       = band
         self.band_dets  = band_dets
-
+        
+        # Loc. of dicts containing filelists and and chunk sizes for each band.
+        self.aux_dir    = Path("/mn/stornext/d5/data/vetleav/IRAS/tod_data/hdf_commander/aux_files") 
 
         if load_filelist:
             self.filelist   = self._load_det_filelist_dictionary_band(band)
@@ -106,6 +108,75 @@ class IRASTODReader:
             self.filelist   = self.get_det_filelist()
             # self.chunksizes = self._load_chunk_size_dictionary(band)
             # self.chunksizes = self._store_chunk_size_dictionary(band)
+
+    def _get_det_eff_solid_angles(self):
+        # Get effective solid angle of IRAS detectors
+        # From Table IV.A.1 in IRAS expl. suppl.
+        table_file = "/mn/stornext/d5/data/vetleav/IRAS/aux_files/solid_angles_detectors.txt"
+        data = np.loadtxt(
+            fname=table_file,
+            # delimiter=" ",
+            # dtype=(int, int, float),
+            usecols=(0,1,2),
+            unpack=True
+        )
+        band_numbers = data[0].astype(int) 
+        det_numbers  = data[1].astype(int) 
+        solid_angles = data[2].astype(float) 
+
+        det_area_dict = {}
+
+        # band_number = np.a
+        # for i in range(len(band_number)):
+        for band_num, det_num, sol_ang in zip(band_numbers, det_numbers, solid_angles): 
+            band = str(band_num).zfill(3)
+            # print(band_number[i], det_number[i], solid_angle[i])
+            band_det_label = f'IRAS_{band}-{det_num:02d}'
+            if band_det_label not in self.band_dets[band]:
+                raise RuntimeError("Wth??")
+            det_area_dict[band_det_label] = sol_ang * 1e-7 * u.sr
+        return det_area_dict
+
+    def store_flux2MJy_sr_conversion_factors(self):
+        # Store dictionary containing each detector's multiplicative factor 
+        # to convert tod from W/m^2 to MJy/sr.
+        # Returns dict with
+        #   key: detector name [str]
+        #   val: conversion factor [float] 
+
+        # Conversion is based on the effective solid angle of each detector,
+        # according to Table IV.A.1 in IRAS expl. suppl. 
+        outfile = f"{self.aux_dir}/flux2MJy_conversion_factors.pkl"
+        det_area_dict = self._get_det_eff_solid_angles()
+        conv_factor_dict = {}
+        for band, det_list in self.band_dets.items():
+            band_wl = float(band) * u.micron
+            band_freq = band_wl.to(u.Hz, equivalencies=u.spectral())
+            for det_name in det_list:
+                # det_num = int(det_name.split("-")[-1])
+                det_area = det_area_dict[det_name]
+                conv_factor_dict[det_name] = (1 * u.W / u.m**2 / band_freq / det_area).to(u.MJy / u.sr).value
+
+        with open(outfile, "wb") as pkl_file:
+            pickle.dump(conv_factor_dict, pkl_file)
+        return 
+
+    def load_flux2MJy_sr_conversion_factors(self):
+        # Load dictionary containing each detector's multiplicative factor 
+        # to convert tod from W/m^2 to MJy/sr.
+        # Returns dict with
+        #   key: detector name [str]
+        #   val: conversion factor [float] 
+
+        # Conversion is based on the effective solid angle of each detector,
+        # according to Table IV.A.1 in IRAS expl. suppl. 
+
+        conv_factor_dict_fname = f"{self.aux_dir}/flux2MJy_conversion_factors.pkl"
+        # if not Path(conv_factor_dict_fname).exists():
+
+        with open(conv_factor_dict_fname, "rb") as pkl_file:
+            conv_factor_dict = pickle.load(pkl_file)
+        return conv_factor_dict
 
 
     def get_det_filelist(self):
@@ -127,7 +198,6 @@ class IRASTODReader:
                 )
         return filelist_dict
 
-
     def _store_det_filelist_dictionary(self):
         """
         Store all files for a given band as a dictionary.
@@ -136,7 +206,7 @@ class IRASTODReader:
                 all 5878 filenames for a given detector.  
         The stored dictionaries are loaded by the "_load_det_filelist_dictionary_band" method. 
         """
-        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
+        outdir = self.aux_dir
         for band, det_name_list in tqdm(self.band_dets.items()):
             outfname_band = f"{outdir}/filelist_{band}.pkl"
             if Path(outfname_band).exists:
@@ -170,13 +240,10 @@ class IRASTODReader:
                 all 5878 filenames for a given detector.  
         
         """
-        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
-        filelist_fname = f"{outdir}/filelist_{band}.pkl"
+        filelist_fname = f"{self.aux_dir}/filelist_{band}.pkl"
         with open(filelist_fname, "rb") as pkl_file:
             filelist = pickle.load(pkl_file)
         return filelist
-
-
 
     def _store_chunk_size_dictionary(self, band, num_workers=None):
         """
@@ -202,16 +269,12 @@ class IRASTODReader:
 
         if band not in BANDS:
             raise ValueError
-        outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
-        filelist_fname = f"{outdir}/filelist_{band:03}.pkl"
-        outfile = f"{outdir}/test_chunk_sizes_{band:03}.pkl"
+        outfile = f"{self.aux_dir}/chunk_sizes_{band:03}.pkl"
         if Path(outfile).exists():
             # Prevent overwriting
             raise FileExistsError(outfile)
         
-        with open(filelist_fname, "rb") as pkl_file:
-            # Load filelist for all detectors in band
-            filelist = pickle.load(pkl_file)
+        filelist = self._load_det_filelist_dictionary_band(band)
 
         print(f"Computing min chunk sizes for band {band}")
         N_chunks            = len(list(filelist.values())[0]) # 5787
@@ -264,7 +327,7 @@ class IRASTODReader:
         See docstring in "_store_chunk_size_dictionary" for details. 
         """
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
-        outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
+        outfile = f"{self.aux_dir}/chunk_sizes_{band:03}.pkl"
         with open(outfile, "rb") as pkl_file:
             chunksizes_dict = pickle.load(pkl_file)
         return chunksizes_dict
@@ -280,6 +343,12 @@ if __name__ == '__main__':
         band            = band,
         load_filelist   = True
         )
+    
+    # ITR._get_det_eff_solid_angles()
+    # ITR.store_flux2MJy_sr_conversion_factors()
+    # ITR.test()
+    import os
+    print(f"{os.cpu_count()=}")
     # ITR._store_chunk_size_dictionary(band="012")
     # print()
     # ITR._store_chunk_size_dictionary(band="025", num_workers=64)

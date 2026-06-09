@@ -7,6 +7,8 @@ import healpy
 import functools
 import glob
 import os, signal
+import pickle
+from pathlib import Path
 
 from iras_native_tod_reader import IRASTODReader, BANDS, BAND_DETS
 import iras_native_tod_reader
@@ -87,24 +89,6 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
 
         assert type(self.version) is int
 
-        self.flux2MJy_sr = self._get_flux2MJy_sr_conversion_factors()
-
-        self.fsamp = {
-            '012': 16.0,  # [Hz],  12 micron
-            '025': 16.0,  # [Hz],  25 micron
-            '060': 8.0,   # [Hz],  60 micron
-            '100': 4.0,   # [Hz], 100 micron
-        }
-
-        self.t0_IRAS = Time("1981-01-01T00:00:00", scale="utc") # IRAS's t=0
-        self.GC = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic') # For coord trans.
-
-
-        # All (alive) detectors have the same number of files
-        # Using det 30 to compute the number.    
-        self.num_chunks     = len(glob.glob(f"{self.data_dir}/*/*/det30_continuous.npz"))
-        self.num_segments   = int(np.ceil(self.num_chunks / self.num_files_per_segment))
-
         self.todreaders = {}
         self.filelist = {}
         self.chunksizes = {}
@@ -121,6 +105,23 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             self.chunksizes[band] = self.todreaders[band].chunksizes
             print("Done")
             # print()
+
+        self.flux2MJy_sr = self.todreaders[self.bands[0]].load_flux2MJy_sr_conversion_factors()
+
+        self.fsamp = {
+            '012': 16.0,  # [Hz],  12 micron
+            '025': 16.0,  # [Hz],  25 micron
+            '060': 8.0,   # [Hz],  60 micron
+            '100': 4.0,   # [Hz], 100 micron
+        }
+
+        self.t0_IRAS = Time("1981-01-01T00:00:00", scale="utc") # IRAS's t=0
+        self.GC = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic') # For coord trans.
+
+        # All (alive) detectors have the same number of files
+        # Using det 30 to compute the number.    
+        self.num_chunks     = len(glob.glob(f"{self.data_dir}/*/*/det30_continuous.npz"))
+        self.num_segments   = int(np.ceil(self.num_chunks / self.num_files_per_segment))
 
 
     def _process_iras_flags(self):
@@ -172,39 +173,6 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
                 todreader_data['end_earthpos'] = curr_data['end_earthpos']
 
         return todreader_data
-
-    def _get_flux2MJy_sr_conversion_factors(self):
-        # Create dictionary containing each detector's multiplicative factor 
-        # to convert tod from W/m^2 to MJy/sr.
-        # Returns dict with
-        #   key: detector name [str]
-        #   val: conversion factor [float] 
-
-        # Load dict. with det. areas: det_area_dict[det.numb(int)] = area (steradian). 
-        # Product of last two columns of Table II.C.3 in IRAS explanatory supplement
-        ### NB!!!
-        # Table II.C.3 may not be the appropriate table for this. 
-        # Should consider using Table IV.A.1 instead. 
-        # Comparing the flux ratios from Table II/Table IV, I get different MJy/sr values of 
-        # avg. rel-diff = 1.06 
-        # min. rel-diff = 0.85 
-        # max. rel-diff = 1.69 
-
-
-        det_file = "/mn/stornext/d5/data/vetleav/IRAS/detector_area.npy"
-        det_area_dict = np.load(det_file, allow_pickle=True).item()
-
-        conv_factor_dict = {}
-        for band, det_list in self.band_dets.items():
-            band_wl = float(band) * u.micron
-            band_freq = band_wl.to(u.Hz, equivalencies=u.spectral())
-            for det_name in det_list:
-                det_num = int(det_name.split("-")[-1])
-                det_area = det_area_dict[det_num]
-                conv_factor_dict[det_name] = (1 * u.W / u.m**2 / band_freq / det_area).to(u.MJy / u.sr).value
-                
-        return conv_factor_dict
-
 
     def get_num_segments(self, band: str)  ->  int: 
         # For a given band, returns the
