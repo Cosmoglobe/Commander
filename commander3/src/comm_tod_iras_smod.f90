@@ -476,21 +476,21 @@ contains
       !! Causes bug!
 
       ! Create dynamic mask
-    !   if (select_data) then
-    !      if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
-    !      do i = 1, self%nscan
-    !         ! Skip scan if no accepted data
-    !         if (.not. any(self%scans(i)%d%accept)) cycle
-    !         call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
-    !         do j = 1, sd%ndet
-    !            if (.not. self%scans(i)%d(j)%accept) cycle
-    !            call self%dynmask%create(sd, j)
-    !         end do
-    !         call dealloc_scan_data(sd)
-    !      end do
-    !      ! Synchronize and output flagging statistics in first iteration
-    !      call self%dynmask%report
-    !   end if
+      if (select_data) then
+         if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+         do i = 1, self%nscan
+            ! Skip scan if no accepted data
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd) ! Should be TODMASK_FLAG
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               call self%dynmask%create(sd, j)
+            end do
+            call dealloc_scan_data(sd)
+         end do
+         ! Synchronize and output flagging statistics in first iteration
+         call self%dynmask%report
+      end if
       
       ! Prepare mapmaking data structures
       call binmap%init(self, .true., sample_rel_bandpass)
@@ -535,7 +535,7 @@ contains
          ! Sample correlated noise
          !call project_mask(self, TODMASK_ZODI, sd)
          if (sample_ncorr) then
-            write(*,*) "Yes, this is happening."
+            ! write(*,*) "Yes, this is happening."
             call sample_n_corr(self, sd, handle)
             if (sample_xi_n) then
                call sample_noise_psd(self, sd, handle, chaindir)
@@ -551,8 +551,8 @@ contains
          end if
 
          ! NEWNEWNEW
-         call dealloc_scan_data(sd)
-         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
+        !  call dealloc_scan_data(sd)
+        !  call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
 
          ! Compute chisquare
