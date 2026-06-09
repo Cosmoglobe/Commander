@@ -28,6 +28,7 @@ F90SOURCES=hashtbl.f90 \
            hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
+					 fftw_mod.f90 \
            comm_sparse_mod.f90 \
            sort_utils.f90 \
            ars_mod.f90 \

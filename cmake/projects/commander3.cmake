@@ -186,6 +186,7 @@ set(sources
         ${COMMANDER3_SOURCE_DIR}/comm_tod_4k_lines_mod.f90
         ${COMMANDER3_SOURCE_DIR}/comm_tod_Tbol_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spike_mod.f90
+	${COMMANDER3_SOURCE_DIR}/fftw_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
