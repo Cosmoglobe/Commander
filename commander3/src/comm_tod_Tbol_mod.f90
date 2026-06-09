@@ -116,7 +116,6 @@ contains
     dt(1:ntod)           = tod
     dt(ntod+1:nfft)      = 0.    ! Zero pad
     call timer%start(TOT_FFT)
-    !call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
 
@@ -145,7 +144,6 @@ contains
 
     ! Inverse FFT
     call timer%start(TOT_FFT)
-    !call sfftw_execute_dft_c2r(plan_back, dv, dt)
     call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT)
     tod = dt(1:ntod) / nfft

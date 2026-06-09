@@ -1,5 +1,6 @@
 module sharp
   use mpi_f08
+  use, intrinsic :: iso_c_binding
   implicit none
   ! alm_info flags
   integer, parameter :: SHARP_PACKED = 1

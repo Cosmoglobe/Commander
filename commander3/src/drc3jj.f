@@ -200,7 +200,11 @@ C
    20 CONTINUE
 C     LSCALE = 0
       NFIN = INT(L1MAX-L1MIN+ONE+EPS)
-      IF(NDIM-NFIN)  21, 23, 23
+      IF(NDIM-NFIN < 0) then
+          GO TO 21
+      ELSE
+          GO TO 23
+      END IF
 C
 C  Check error condition 5.
    21 IER = 5
@@ -233,7 +237,11 @@ C
       DV = - L2*(L2+ONE) * M1 + L3*(L3+ONE) * M1 + L1*(L1-ONE) * (M3-M2)
       DENOM = (L1-ONE) * NEWFAC
 C
-      IF(LSTEP-2)  32, 32, 31
+      IF(LSTEP > 2) THEN
+        GO TO 31
+      ELSE
+        GO TO 32
+      END IF
 C
    31 C1OLD = ABS(C1)
    32 C1 = - (L1+L1-ONE) * DV / DENOM
@@ -274,9 +282,10 @@ C  so that the recursion series THRCOF(1), ... , THRCOF(LSTEP)
 C  has to be rescaled to prevent overflow
 C
 C     LSCALE = LSCALE + 1
-      DO 70 I=1,LSTEP
-      IF(ABS(THRCOF(I)).LT.SRTINY)   THRCOF(I) = ZERO
-   70 THRCOF(I) = THRCOF(I) / SRHUGE
+      DO I=1,LSTEP
+          IF(ABS(THRCOF(I)).LT.SRTINY)   THRCOF(I) = ZERO
+          THRCOF(I) = THRCOF(I) / SRHUGE
+      END DO
       SUM1 = SUM1 / HUGE
       SUMFOR = SUMFOR / HUGE
       X = X / SRHUGE
@@ -286,7 +295,11 @@ C  increasing 3j values and, hence, is numerically stable.  Once
 C  an increase of ABS(C1) is detected, the recursion direction is
 C  reversed.
 C
-   80 IF(C1OLD-ABS(C1))   100, 100, 30
+   80 IF(C1OLD>ABS(C1)) THEN
+          GO TO 30
+      ELSE
+          GO TO 100
+      END IF
 C
 C
 C  Keep three 3j coefficients around LMATCH for comparison with
@@ -360,10 +373,11 @@ C  so that the recursion series THRCOF(NFIN), ... ,THRCOF(NFIN-LSTEP+1)
 C  has to be rescaled to prevent overflow
 C
 C     LSCALE = LSCALE + 1
-      DO 130 I=1,LSTEP
-      INDEX = NFIN - I + 1
-      IF(ABS(THRCOF(INDEX)).LT.SRTINY)   THRCOF(INDEX) = ZERO
-  130 THRCOF(INDEX) = THRCOF(INDEX) / SRHUGE
+      DO I=1,LSTEP
+         INDEX = NFIN - I + 1
+         IF(ABS(THRCOF(INDEX)).LT.SRTINY)   THRCOF(INDEX) = ZERO
+         THRCOF(INDEX) = THRCOF(INDEX) / SRHUGE
+      END DO
       SUM2 = SUM2 / HUGE
 
       SUMBAC = SUMBAC / HUGE
@@ -388,15 +402,17 @@ C
 C
       IF(ABS(RATIO).LT.ONE)   GO TO 211
 C
-      DO 210 N=1,NLIM
-  210 THRCOF(N) = RATIO * THRCOF(N)
+      DO N=1,NLIM
+        THRCOF(N) = RATIO * THRCOF(N)
+      END DO
       SUMUNI = RATIO * RATIO * SUMFOR + SUMBAC
       GO TO 230
 C
   211 NLIM = NLIM + 1
       RATIO = ONE / RATIO
-      DO 212 N=NLIM,NFIN
-  212 THRCOF(N) = RATIO * THRCOF(N)
+      DO N=NLIM,NFIN
+         THRCOF(N) = RATIO * THRCOF(N)
+      END DO
       SUMUNI = SUMFOR + RATIO*RATIO*SUMBAC
       GO TO 230
 C
@@ -411,19 +427,25 @@ C  Sign convention for last 3j coefficient determines overall phase
 C
       SIGN1 = SIGN(ONE,THRCOF(NFIN))
       SIGN2 = (-ONE) ** INT(ABS(L2+M2-L3+M3)+EPS)
-      IF(SIGN1*SIGN2) 235,235,236
+      IF(SIGN1*SIGN2 > 0) THEN
+        GO TO 236
+      ELSE
+        GO TO 235
+      END IF
   235 CNORM = - CNORM
 C
   236 IF(ABS(CNORM).LT.ONE)   GO TO 250
 C
-      DO 240 N=1,NFIN
-  240 THRCOF(N) = CNORM * THRCOF(N)
+      DO N=1,NFIN
+        THRCOF(N) = CNORM * THRCOF(N)
+      END DO
       RETURN
 C
   250 THRESH = TINY / ABS(CNORM)
-      DO 251 N=1,NFIN
-      IF(ABS(THRCOF(N)).LT.THRESH)   THRCOF(N) = ZERO
-  251 THRCOF(N) = CNORM * THRCOF(N)
+      DO N=1,NFIN
+        IF(ABS(THRCOF(N)).LT.THRESH)   THRCOF(N) = ZERO
+        THRCOF(N) = CNORM * THRCOF(N)
+      END DO
 C
       RETURN
       END

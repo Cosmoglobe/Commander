@@ -435,9 +435,9 @@ contains
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     real(dp)                                       :: FindReasonableEpsilon
-    real(dp)                                       :: eps, npar, pp_over_p
+    real(dp)                                       :: eps, pp_over_p
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
-    integer(i4b)                                   :: i, a
+    integer(i4b)                                   :: i, a, npar
     interface
        function lnlike(theta)
          use healpix_types

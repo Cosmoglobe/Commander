@@ -1558,9 +1558,10 @@ contains
     logical(lgt),            optional, intent(in)    :: apply_mask
     character(len=*),        optional, intent(in)    :: ps_output
 
-    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
+    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, scan
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
     type(C_PTR)  :: plan_fwd, plan_back
+    integer(C_INT)     :: err
     logical(lgt) :: apply_mask_
     real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
     real(sp)     :: A_fit, f0_fit, sigma_fit
@@ -1577,8 +1578,8 @@ contains
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
     plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
@@ -1703,7 +1704,7 @@ contains
 
     ! FFT back to TOD
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT)
 
     dt  = dt / nfft
@@ -1747,9 +1748,10 @@ contains
     real(sp), dimension(1:),           intent(inout) :: tod
     real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
 
-    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
+    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft
     integer(i4b) :: i0, i1, nsub
     type(C_PTR)  :: plan_fwd, plan_back
+    integer(C_INT) :: err
     real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
     real(sp),     allocatable, dimension(:)   :: dt, ratio, d_prime
     complex(spc), allocatable, dimension(:)   :: dv
@@ -1761,8 +1763,8 @@ contains
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
     plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
@@ -1825,7 +1827,7 @@ contains
 
     ! FFT back to TOD
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT)
 
     dt  = dt / nfft
@@ -1867,8 +1869,9 @@ contains
     character(len=*),                optional, intent(in)    :: ps_output
     logical(lgt),                    optional, intent(in)    :: set_wn_level
 
-    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err, scan
+    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, scan
     type(C_PTR)  :: plan_fwd, plan_back
+    integer(C_INT) :: err
     real(sp)     :: gain, N_wn, samprate, dnu, rolloff_scale, eval_spline, sigma_0
     type(spline_type) :: rolloff_filter
     integer(i4b), allocatable, dimension(:)   :: bin_count
@@ -1893,8 +1896,8 @@ contains
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
     plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
@@ -1976,7 +1979,7 @@ contains
     end do
     
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT) 
 
     dt  = dt / nfft
@@ -2044,10 +2047,11 @@ contains
     character(len=*),               optional, intent(in)    :: ps_output
     character(len=*),               optional, intent(in)    :: filling
 
-    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
+    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft
     integer(i4b) :: j_end, j_start
     character(len=12) :: filling_
     type(C_PTR)    :: plan_fwd, plan_back
+    integer(C_INT)     :: err
     logical(lgt) :: init_masked_region, end_masked_region, nomono_
     real(sp)     :: sigma_0, gain, N_wn, samprate
     real(sp),     allocatable, dimension(:)   :: d_prime, dt
@@ -2239,8 +2243,8 @@ contains
        nfft     = 2 * ntod
        n        = nfft / 2 + 1
 
-       call sfftw_init_threads(err)
-       call sfftw_plan_with_nthreads(nomp)
+       err = fftwf_init_threads()
+       call fftwf_plan_with_nthreads(nomp)
 
        allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
        plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
