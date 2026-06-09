@@ -105,12 +105,14 @@ def run_single_band_write(version):
 
     
 
-def run_multiple_band_write(version, num_processes):
+def run_multiple_band_write(version, outpath=None, num_processes=NUM_PROCESSES):
     # Store files for this version in separate subdir.  
-    outpath = f"{OUTPATH}/v{version}"
+    if outpath is None:
+        outpath = f"{OUTPATH}/v{version}"
     # Create outdir. 
     # Prevent unintentional overwriting.
-    Path(outpath).mkdir(exist_ok=False) 
+    exist_ok = True if "test" in outpath else False
+    Path(outpath).mkdir(exist_ok=exist_ok) 
 
     N_dets = [len(BAND_DETS[band]) for band in BANDS]
     print(f"Storing h5 files for band {BANDS} with {N_dets} detectors")
@@ -130,7 +132,7 @@ def run_multiple_band_write(version, num_processes):
     comm_todwriter.write_hdf_files(
         hdf_output_dir  = outpath, 
         overwrite       = True, 
-        num_processes   = NUM_PROCESSES,
+        num_processes   = num_processes,
         bands           = BANDS
         )
     t1 = time()
@@ -191,7 +193,7 @@ def main():
     This setup was adapted/written for simplified 
     testing/debugging purposes 
     """
-    NUM_PROCESSES   = 64
+    NUM_PROCESSES   = 256
     NSIDE           = 512
     OVERWRITE       = True
     # BANDS, BAND_DETS = set_bands_and_band_dets(testing=True, bands=["060"])
@@ -202,9 +204,12 @@ def main():
     # version = None # Integer. Which version of the hdf files we're writing. 
     # run_single_band_write(version=version)
 
-    BANDS, BAND_DETS = set_bands_and_band_dets()
-    version = 2
-    run_multiple_band_write(version=version)
+    BANDS, BAND_DETS = set_bands_and_band_dets(bands=["025"])
+    version = 3
+    outpath = f"{OUTPATH}/test_v{version}"
+
+    run_multiple_band_write(version=version, outpath=outpath, num_processes=NUM_PROCESSES)
+    # run_multiple_band_write(version=version, outpath=outpath, num_processes=None)
 
 
 

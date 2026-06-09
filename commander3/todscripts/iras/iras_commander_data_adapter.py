@@ -1,5 +1,6 @@
 from cosmoglobe.tod_tools import CommanderDataAdapter
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, FK4
+import astropy.coordinates as coords
 import astropy.units as u
 import numpy as np 
 import healpy
@@ -12,8 +13,7 @@ import iras_native_tod_reader
 
 
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import HeliocentricMeanEcliptic, get_body
-from astropy.coordinates import SkyCoord, FK4
+# from astropy.coordinates import HeliocentricMeanEcliptic, get_body
 
 """
 This script is essentially an adaption of the script
@@ -96,7 +96,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             '100': 4.0,   # [Hz], 100 micron
         }
 
-        self.t0 = Time("1981-01-01T00:00:00", scale="utc") # IRAS's t=0
+        self.t0_IRAS = Time("1981-01-01T00:00:00", scale="utc") # IRAS's t=0
         self.GC = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic') # For coord trans.
 
 
@@ -120,11 +120,12 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
             self.filelist[band] = self.todreaders[band].filelist
             self.chunksizes[band] = self.todreaders[band].chunksizes
             print("Done")
-            print()
+            # print()
 
 
     def _process_iras_flags(self):
-        pass
+        raise NotImplementedError("Placeholder method atm.") 
+        # pass
 
     def _process_iras_tod_reader_data(self):
         if True:
@@ -181,6 +182,15 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
 
         # Load dict. with det. areas: det_area_dict[det.numb(int)] = area (steradian). 
         # Product of last two columns of Table II.C.3 in IRAS explanatory supplement
+        ### NB!!!
+        # Table II.C.3 may not be the appropriate table for this. 
+        # Should consider using Table IV.A.1 instead. 
+        # Comparing the flux ratios from Table II/Table IV, I get different MJy/sr values of 
+        # avg. rel-diff = 1.06 
+        # min. rel-diff = 0.85 
+        # max. rel-diff = 1.69 
+
+
         det_file = "/mn/stornext/d5/data/vetleav/IRAS/detector_area.npy"
         det_area_dict = np.load(det_file, allow_pickle=True).item()
 
@@ -255,6 +265,7 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # name and a segment number belonging to that band, gives the indices of
         # the chunks (previously:scans) that belong to the segment in question.
         # Called by "commander_hdf_writer.py"
+        self.segment = segment
         start_idx   = (segment-1) * self.num_files_per_segment
         end_idx     = segment * self.num_files_per_segment
         if end_idx > self.num_chunks:
@@ -310,32 +321,64 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         N_tod = self.chunksizes[band][self.chunk_idx]
 
         t   = data["t"][:N_tod]
-        self.chunk_start_time   = t[0]  * u.s + self.t0
-        self.chunk_end_time     = t[-1] * u.s + self.t0
+        self.chunk_start_time   = t[0]  * u.s + self.t0_IRAS
+        self.chunk_end_time     = t[-1] * u.s + self.t0_IRAS
+
+        self.earthpos_start = coords.get_body(
+                'earth', 
+                self.chunk_start_time,
+                ephemeris='builtin'
+            ).transform_to(coords.HeliocentricMeanEcliptic).cartesian.xyz.to_value(u.AU)
+        self.earthpos_end = coords.get_body(
+                'earth', 
+                self.chunk_end_time,
+                ephemeris='builtin'
+            ).transform_to(coords.HeliocentricMeanEcliptic).cartesian.xyz.to_value(u.AU)
 
         tod = data["flux"][:N_tod] * self.flux2MJy_sr[detector] # Convert data from W/m^2 to MJy/sr
         ra  = data["ra"][:N_tod]
         dec = data["dec"][:N_tod]
 
-        # TEMP
+        # Flagging.
+        ## Make commander ignore the flagged TODs atm. 
         flag_tot = np.zeros_like(tod, dtype=int)
-        flag_tot[~np.isfinite(ra)]  += 2**0
-        flag_tot[~np.isfinite(tod)] += 2**1
+        flag_tot[~np.isfinite(ra)]  += 2**0 # Potential NaNs in TODs
+        flag_tot[~np.isfinite(tod)] += 2**1 # Potential NaNs in TODs
+        flag_tot[tod == 0]          += 2**2 # "Empty" scans. Some TODs appear to be completely empty
+        flag_tot[tod < 0]           += 2**3 # Negative flux.
+
 
         tod[flag_tot != 0]  = 0
-        ra[flag_tot  != 0]   = 0
+        ra[flag_tot  != 0]  = 0
         dec[flag_tot != 0]  = 0
 
         psi = np.zeros_like(tod, dtype=int)
         good_data = flag_tot == 0
-        sc = SkyCoord(ra=ra[good_data], dec=dec[good_data], unit='deg',
         # sc = SkyCoord(ra=ra, dec=dec, unit='deg',
-                equinox='B1950.0', obstime='J1983.5', frame=FK4)
+        # sc = SkyCoord(ra=ra[good_data], dec=dec[good_data], unit='deg',
+                # equinox='B1950.0', obstime='J1983.5', frame=FK4)
 
-        coords = sc.transform_to(self.GC)
-        ra[good_data] = coords.l.value
-        dec[good_data] = coords.b.value
+        sc = SkyCoord(
+                ra=ra[good_data], 
+                dec=dec[good_data], 
+                unit='deg',
+                equinox='B1950.0', 
+                obstime='J1983.5', 
+                frame=FK4 # Double check
+                )
+
+        coord = sc.transform_to(self.GC)
+        ra[good_data] = coord.l.value
+        dec[good_data] = coord.b.value
         pix = healpy.ang2pix(self.nside, ra, dec, lonlat=True)
+
+        # pix = healpy.ang2pix(
+        #     self.nside, 
+        #     sc.galactic.l.value, 
+        #     sc.galactic.b.value, 
+        #     lonlat=True
+        # )
+
         return tod, pix, psi, flag_tot
 
 
@@ -353,17 +396,13 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         # Returns the position of the
         # satellite at the beginning of the chunk in galactic coordinates
         # (cartesian, in meters) as a length 3 list.
-
-        # return self.get_chunk_start_earthpos()
-        return [0,0,0] # TEMP
+        return self.get_chunk_start_earthpos()
 
     def get_chunk_end_satpos(self) -> list[float]:
         # Returns the position of the
         # satellite at the end of the chunk in galactic coordinates (cartesian,
         # in meters) as a length 3 list. 
-
-        # return self.get_chunk_end_earth()
-        return [0,0,0] # TEMP
+        return self.get_chunk_end_earthpos()
 
     def get_chunk_start_earthpos(self) -> list[float]:
         # Returns the position of the
@@ -374,7 +413,9 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         #                                        HeliocentricMeanEcliptic)
         # earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
         # return earth_pos
-        return [0,0,0] # TEMP
+        # return [0,0,0] # TEMP
+        # print(self.earthpos_start)
+        return self.earthpos_start
 
     def get_chunk_end_earthpos(self) -> list[float]:
         # Returns the position of the
@@ -385,18 +426,20 @@ class IRASCommanderDataAdapter(CommanderDataAdapter):
         #                                        HeliocentricMeanEcliptic)
         # earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
         # return earth_pos
-        return [0,0,0] # TEMP
+        # return [0,0,0] # TEMP
+        # print(self.earthpos_end)
+        # exit()
+
+        return self.earthpos_end
 
     def get_chunk_satvel(self) -> list[float]: 
         # Returns the velocity of the satellite
         # at the beginning of the chunk in m/s as a length 3 list.
-        
         return [0, 0, 0] # TEMP
 
     def get_should_compress_tods(self) -> bool: 
         # Returns True if TODs should be compressed; False otherwise. 
         # If the TOD is given as an int, this should typically be True, and False if it is a float.
-
         # The currently used IRAS TODs are "deplated" level 1 data, containing floats
         return False 
 
@@ -438,8 +481,9 @@ if __name__ == '__main__':
 
     ICDA = IRASCommanderDataAdapter(
         data_dir        = data_dir,
-        nside           = 256,
-        version         = 0,
-        bands           = BANDS,
-        band_dets       = bdets,
+        nside           = 512,
+        version         = 2,
+        num_files_per_segment=100
+        # bands           = BANDS,
+        # band_dets       = bdets,
     )

@@ -1,6 +1,6 @@
 import numpy as np
 import healpy
-import glob
+from glob import glob
 import astropy.units as u
 from pathlib import Path
 from astropy.io import fits
@@ -188,42 +188,65 @@ def make_tod_files(version, copy_new_filelists, nside=512):
     Make tod files for a given version with external script.
     Both h5 files and filelists will be stored in:
         **/globe/iras/tod/vetle_deplated_IPAC/v{version}/n{nside}
-    These are NOT read by commander by default.
-    Commander reads tod files from filelists located at
-        filelist_dir = **/globe/iras/tod/{band}/fileslist_{band}.txt
-    
+
     copy_new_filelists: 
-        True:   Copy new h5 filelists to filelist_dir
-        False:  Make new h5 files, but don't replace filelists. 
+        Commander reads TODs from fileslists located in the data directory **/globe/iras/tod/{band}/fileslist_{band}.txt
+        By setting copy_new_filelists=True, the filelists generated here are copied to the data dir,
+        and will be read by commander. 
+        Otherwise, new h5 files and filelists will be generated, but won't be read by commander by default. 
     """
-    input("Make new tod files? Enter to cnt.")
 
     outpath_base    = f"{OUTDIR}/tod"
     h5_outpath      = f"{outpath_base}/vetle_deplated_IPAC/v{version:02}/n{nside}"
     print(f"Saving h5 files to: {h5_outpath}")
+    print(f"Filelists: {copy_new_filelists=}")
+    N_existing_h5_files = len(sorted(glob(f"{h5_outpath}/*.h5")))
+    if N_existing_h5_files > 0:
+        print(f" >> Warning: There are {N_existing_h5_files} existing h5 files in the target dir.")
+        print(f" >>          Set overwrite = True when calling run_multiple_band_write_external to actually overwrite")
+        if copy_new_filelists:
+            # Allow for copying of filelists, even if h5 files exist.
+            make_tod_filelists(version=version, nside=nside)
+        return
 
     run_multiple_band_write_external(
         outpath         = h5_outpath,
         version         = version,
         nside           = nside,
-        overwrite       = False,
-        num_processes   = os.cpu_count(),
+        overwrite       = False, # Double protection
+        num_processes   = min(os.cpu_count(), 128), #os.cpu_count(),
         bands           = BANDS,
         band_dets       = BAND_DETS,
         num_files_per_segment = 100
     )
-    if copy_new_filelists:
-        print(f"Making new input filelists for commander")
-        for band in BANDS:
-            filelist_fname = f"filelist_{band}.txt"
-            filelist_src = Path(f"{h5_outpath}/{filelist_fname}")
-            filelist_dst = Path(f"{outpath_base}/{band}/{filelist_fname}")
-            if filelist_dst.exists():
-                input(f"{filelist_dst} already exists. Press Enter to overwrite")
 
-            filelist_dst.parent.mkdir(exist_ok=True)
-            shutil.copy2(src=filelist_src, dst=filelist_dst)
+    if copy_new_filelists:
+        # Copy filelists
+        make_tod_filelists(version=version, nside=nside)
         
+
+    
+def make_tod_filelists(version, nside=512):
+    outpath_base    = f"{OUTDIR}/tod"
+    h5_outpath      = f"{outpath_base}/vetle_deplated_IPAC/v{version:02}/n{nside}"
+    
+    print(f"Making new input filelists for commander")
+    for band in BANDS:
+        filelist_fname = f"filelist_{band}.txt"
+        filelist_src = Path(f"{h5_outpath}/{filelist_fname}")
+        filelist_dst = Path(f"{outpath_base}/{band}/{filelist_fname}")
+        if filelist_dst.exists():
+            input(f"{filelist_dst} already exists. Press Enter to overwrite")
+
+        filelist_dst.parent.mkdir(exist_ok=True)
+        shutil.copy2(src=filelist_src, dst=filelist_dst)
+
+        # Add readme specifying which filelist is used by commander
+        readme_path = filelist_dst.parent / "README.txt"
+        with open(readme_path, "w") as f:
+            f.write(
+                f"{filelist_dst.name} was copied from {filelist_src}\n"
+            )
 
 def make_tod_detector_lists():
     outpath_base    = f"{OUTDIR}/tod"
@@ -252,5 +275,10 @@ def _common_mask_fullsky_512():
 if __name__ == '__main__':
     # make_tod_files(version=1, copy_new_filelists=False)
     # make_tod_detector_lists()
-    make_rms_files()
-    # pass
+    # make_rms_files()
+    make_tod_files(version=2, copy_new_filelists=True, nside=512)
+    # tod_flags = 0b1111
+    # print(tod_flags)
+
+    # ff = "1111"
+    # print(f"{int(ff, 2)=}")

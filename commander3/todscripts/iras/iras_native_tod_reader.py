@@ -47,8 +47,24 @@ for band in BANDS:
     for det_num in BAND_DET_NUMBERS[band]:
         if det_num in DEAD_DETECTOR_LIST:
             DEAD_DETECTORS[band].append(f'IRAS_{band}-{det_num:02d}')
+        # elif det_num in DEGRADED_PERFORMANCE_DETECTORS:
+            # DEAD_DETECTORS[band].append(f'IRAS_{band}-{det_num:02d}')
         else:
             BAND_DETS[band].append(f'IRAS_{band}-{det_num:02d}')
+
+def get_chunk_min_length(*args):
+    """
+    Module-level function
+    Used for running IRASTODReader._store_chunk_size_dictionary in parallel
+    """
+    ii, filelist_values = args
+    chunk_lengths = np.empty(len(filelist_values), dtype=int)
+    for jj, flist in enumerate(filelist_values):
+        chunk_lengths[jj] = len(
+            np.load(flist[ii], allow_pickle=True)["t"]
+        )
+    return ii + 1, np.min(chunk_lengths)
+
 
 class IRASTODReader:
     """
@@ -88,7 +104,8 @@ class IRASTODReader:
             self.chunksizes = self._load_chunk_size_dictionary(band)
         else:
             self.filelist   = self.get_det_filelist()
-            self.chunksizes = self._load_chunk_size_dictionary(band)
+            # self.chunksizes = self._load_chunk_size_dictionary(band)
+            # self.chunksizes = self._store_chunk_size_dictionary(band)
 
 
     def get_det_filelist(self):
@@ -161,12 +178,14 @@ class IRASTODReader:
 
 
 
-    def _store_chunk_size_dictionary(self, band):
+    def _store_chunk_size_dictionary(self, band, num_workers=None):
         """
         In bands 060 and 100, some chunks (files) have a 
         varying number of tod samples between detectors, causing
         errors with huffman compression when creating h5 files 
         due to varying file array sizes. 
+        Update: A few samples in bands 012 and 025 had this issue, causing
+        errors in chunks 201-300 for these bands. 
 
         Here, we go through all chunks in all detectors, and store 
         the *lowest* number of tod samples for a given  chunk in each band. 
@@ -180,11 +199,12 @@ class IRASTODReader:
         - vals: lowest ntod for the chunk across detectors in band.   
         Output: chunk_sizes_{band}.pkl
         """
+
         if band not in BANDS:
             raise ValueError
         outdir = "/mn/stornext/d5/data/vetleav/IRAS/tod_data"
         filelist_fname = f"{outdir}/filelist_{band:03}.pkl"
-        outfile = f"{outdir}/chunk_sizes_{band:03}.pkl"
+        outfile = f"{outdir}/test_chunk_sizes_{band:03}.pkl"
         if Path(outfile).exists():
             # Prevent overwriting
             raise FileExistsError(outfile)
@@ -195,26 +215,45 @@ class IRASTODReader:
 
         print(f"Computing min chunk sizes for band {band}")
         N_chunks            = len(list(filelist.values())[0]) # 5787
-        chunksizes_dict    = {}
-        if band == "012" or band == "025":
-            # Const. ntod. Use -1 for all chunks. 
-            chunksizes_dict    = {chunk_idx: None for chunk_idx in range(1, N_chunks + 1)}
-            print(f"Done! Storing to {outfile}")
-            with open(outfile, "wb") as pkl_file:
-                pickle.dump(chunksizes_dict, pkl_file)
-            return 
         
-        N_dets          = len(filelist.keys())
-        chunk_lengths   = np.zeros(N_dets, dtype=int)
-        for ii in tqdm(range(N_chunks)):
-            # Iterate over all chunks
-            chunk_idx = ii + 1
-            for jj, flist in enumerate(filelist.values()):
-                # Get number of tods in all detectors for said chunk. 
-                chunk_lengths[jj] = len(np.load(flist[ii], allow_pickle=True)["t"])
-            # Find lowest ntod for chunk.
-            chunksizes_dict[chunk_idx] = np.min(chunk_lengths)
-        
+        if num_workers is None:
+            # Slooow 
+            chunksizes_dict    = {}
+            N_dets          = len(filelist.keys())
+            chunk_lengths   = np.zeros(N_dets, dtype=int)
+            for ii in tqdm(range(N_chunks)):
+                # Iterate over all chunks
+                chunk_idx = ii + 1
+                for jj, flist in enumerate(filelist.values()):
+                    # Get number of tods in all detectors for said chunk. 
+                    chunk_lengths[jj] = len(np.load(flist[ii], allow_pickle=True)["t"])
+                # Find lowest ntod for chunk.
+                chunksizes_dict[chunk_idx] = np.min(chunk_lengths)
+        else:
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+            filelist_values = list(filelist.values())
+            # OLD METHOD. New method adds progress bar
+            # with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            #     results = executor.map(
+            #         get_chunk_min_length,
+            #         [(ii, filelist_values) for ii in range(N_chunks)]
+            #     )
+            chunksizes_dict = {}
+
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                futures = {
+                    executor.submit(
+                        get_chunk_min_length,
+                        ii,
+                        filelist_values,
+                    ): ii
+                    for ii in range(N_chunks)
+                }
+
+                for future in tqdm(as_completed(futures), total=N_chunks):
+                    chunk_idx, min_length = future.result()
+                    chunksizes_dict[chunk_idx] = min_length
+
         print(f"Done! Storing to {outfile}")
         with open(outfile, "wb") as pkl_file:
             pickle.dump(chunksizes_dict, pkl_file)
@@ -241,3 +280,6 @@ if __name__ == '__main__':
         band            = band,
         load_filelist   = True
         )
+    # ITR._store_chunk_size_dictionary(band="012")
+    # print()
+    # ITR._store_chunk_size_dictionary(band="025", num_workers=64)
