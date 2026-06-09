@@ -934,7 +934,7 @@ contains
 
     integer(i4b) :: i, j, k, nfft, n, n_bin
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu, sum_ref, sum_sky
-    integer*8    :: plan_fwd
+    type(C_PTR)  :: plan_fwd
 
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
     real(dp),     allocatable, dimension(:) :: filter
@@ -955,7 +955,7 @@ contains
     allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft-1))
    
     call timer%start(TOT_FFT) 
-    call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+    plan_fwd = fftwf_plan_dft_r2c_1d(n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT) 
 
 
@@ -969,10 +969,10 @@ contains
 
       call timer%start(TOT_FFT)
       ! FFT of ref signal
-      call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
+      call fftwf_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
       ! FFT of sky signal
-      call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
+      call fftwf_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
       call timer%stop(TOT_FFT)
 
       ! Compute cross correlation
@@ -1012,7 +1012,7 @@ contains
 
     end do
 
-    call sfftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_fwd)
 
     deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
 
@@ -1026,7 +1026,7 @@ contains
 
     real(dp)     :: filt
     integer(i4b) :: i, j, nfft, n
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)  :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -1037,8 +1037,8 @@ contains
 
     allocate(dt(n), dv(0:nfft-1))
 
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  n, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, n, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(n, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(n, dv, dt, fftw_estimate + fftw_unaligned)
 
 !!$    open(58,file='raw.dat')
 !!$    do i = 1, n
@@ -1054,7 +1054,7 @@ contains
 
       ! FFT of ref signalA
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
       call timer%stop(TOT_FFT)
 
       ! Filter ref with cross correlation transfer function
@@ -1070,7 +1070,7 @@ contains
 
       ! IFFT ref signal
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call fftwf_execute_dft_c2r(plan_back, dv, dt)
       call timer%stop(TOT_FFT)
       
       ! Normalize
@@ -1078,8 +1078,8 @@ contains
 
     end do
 
-    call sfftw_destroy_plan(plan_fwd)
-    call sfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
 
     deallocate(dt, dv)
 

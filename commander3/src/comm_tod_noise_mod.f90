@@ -27,6 +27,8 @@ module comm_tod_noise_mod
 
 contains
 
+
+
   subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
@@ -68,9 +70,10 @@ contains
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
 
-    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
+    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)    :: plan_fwd, plan_back
+    integer(C_INT) :: err
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu
 
@@ -105,14 +108,14 @@ contains
 
 
     call timer%start(TOT_FFT)
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
     call timer%stop(TOT_FFT)
 
     call timer%start(TOT_FFT)
     allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
 
     do i = 1, ndet
@@ -134,7 +137,7 @@ contains
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call timer%start(TOT_FFT)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
           call timer%stop(TOT_FFT)
           do l = 1, n-1
              ps(l) = abs(dv(l)) ** 2 / ntod
@@ -310,7 +313,7 @@ contains
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
           call timer%start(TOT_FFT)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
           call timer%stop(TOT_FFT)
 
           if (nomono_) then
@@ -340,7 +343,7 @@ contains
              end if
           end do
           call timer%start(TOT_FFT)
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          call fftwf_execute_dft_c2r(plan_back, dv, dt)
           call timer%stop(TOT_FFT)
           dt             = dt / nfft
           sd%n_corr(:,i) = dt(1:ntod) 
@@ -366,8 +369,8 @@ contains
     deallocate(d_prime)
     deallocate(ncorr2)
 
-    call dfftw_destroy_plan(plan_fwd)                                           
-    call dfftw_destroy_plan(plan_back)                                          
+    call fftw_destroy_plan(plan_fwd)                                           
+    call fftw_destroy_plan(plan_back)                                          
 
     call timer%stop(TOD_NCORR, self%band)
   
@@ -377,7 +380,7 @@ contains
   subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band, nomono)
     implicit none
     type(planck_rng),                intent(inout)  :: handle
-    integer*8,                       intent(in)     :: plan_fwd, plan_back
+    type(C_PTR),                     intent(in)     :: plan_fwd, plan_back
     class(comm_noise_psd),           intent(in)     :: N_psd
     real(sp),                        intent(in)     :: samprate
     integer(i4b),                    intent(in)     :: nfft, scan, det
@@ -499,7 +502,7 @@ contains
       real(dp),                  dimension(0:), intent(in)    :: mat
       real(dp),                  dimension(:),  intent(out)   :: res
       integer(i4b),                             intent(in)    :: nfft 
-      integer*8,                                intent(in)    :: plan_fwd, plan_back
+      type(C_PTR),                              intent(in)    :: plan_fwd, plan_back
 
       integer(i4b) :: i, j, k, l, ntod, n
       real(sp),     allocatable, dimension(:) :: dt
@@ -512,11 +515,11 @@ contains
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
       call timer%stop(TOT_FFT)
       dv = dv * mat
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call fftwf_execute_dft_c2r(plan_back, dv, dt)
       call timer%stop(TOT_FFT)
       dt = dt / nfft
       res(:) = dt(1:ntod)
@@ -599,8 +602,9 @@ contains
     integer(i4b),                       intent(in), optional :: dec_wn
     real(sp),                           intent(out), optional :: sigma0_out
 
-    integer*8    :: plan_fwd
-    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
+    type(C_PTR)    :: plan_fwd
+    integer(C_INT) :: err
+    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads,  ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
     integer(i4b) :: ndet, outscan
     logical(lgt) :: only_sigma0_
     real(sp)     :: f, logbin
@@ -703,9 +707,9 @@ contains
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
     call timer%start(TOT_FFT)
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
+    plan_fwd = fftwf_plan_dft_r2c_1d(ntod, dt, dv, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
 
     ! Sample non-linear spectral parameters
@@ -724,8 +728,9 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),10) == 0) then
-       !if (self%scanid(scan) == 1) then
+       !if (.false.) then
+       !if (mod(self%scanid(scan),10) == 0) then
+       if (self%scanid(scan) == 10) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -737,7 +742,7 @@ contains
 
        
        call timer%start(TOT_FFT)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
        call timer%stop(TOT_FFT)
        do l = 0, n-1
           ps(l) = abs(dv(l)) ** 2 / ntod
@@ -766,9 +771,9 @@ contains
        end do
 
 
-       if (.false.) then
-       !if (mod(self%scanid(scan),25) == 0) then
-       !if (self%scanid(scan) == 1) then
+       !if (.false.) then
+       !if ((mod(self%scanid(scan),25) == 0) .and. (mod(i, 25) == 0)) then
+       if (self%scanid(scan) == 10) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -792,7 +797,7 @@ contains
     end do
     deallocate(dt, dv)
     deallocate(ps)
-    call sfftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_fwd)
 
     call timer%stop(TOD_XI_N, self%band)
 
@@ -866,13 +871,23 @@ contains
     real(dp),                            intent(in), optional :: sampfreq, pow
     logical(lgt),                        intent(in), optional :: off
     integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(sp)     :: nu, pow_
-    logical(lgt) :: off_
+    logical(lgt) :: off_, first_call=.true.
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
+    !real(C_FLOAT), pointer :: dt(:,:)
+    !complex(C_FLOAT_COMPLEX), pointer :: dv(:,:)
+    !type(C_PTR_F) :: p1, p2
     class(comm_noise_psd), pointer :: N_psd
+    character(len=3)   :: myid_str
+    integer(C_INT) :: ret
+    character(C_CHAR), pointer :: s(:)
+    integer(C_SIZE_T) :: slen
+    type(C_PTR) :: p
+
+
     
     ntod     = size(buffer, 1)
     ndet     = size(buffer, 2)
@@ -901,25 +916,29 @@ contains
        return
     end select
 
+
     ! If not white noise, perform the multiplication in Fourier space
     allocate(dt(2*ntod,m), dv(0:n-1,m))
     call timer%start(TOT_FFT)
-    call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
-         & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
-    call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
-         & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
+    plan_fwd = fftwf_plan_many_dft_r2c(rank=1, n=[2*ntod], howmany=m, in=dt, &
+         inembed=[2*ntod], istride=1, idist=2*ntod, out=dv, onembed=[n], ostride=1, &
+         odist=n, flags=fftw_patient)
+    plan_back = fftwf_plan_many_dft_c2r(rank=1, n=[2*ntod], howmany=m, in=dv, &
+         inembed=[n], istride=1, idist=n, out=dt, onembed=[2*ntod], ostride=1, &
+         odist=2*ntod, flags=fftw_patient)
     call timer%stop(TOT_FFT)
-    
+   
     j = 0
     do i = 1, ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j = j+1
        dt(1:ntod,j)           = buffer(:,i)
        dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
+       !dt(ntod+1:2*ntod, j) = buffer(ntod:1:-1, i)
     end do
 
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
 
     j = 0
@@ -937,9 +956,10 @@ contains
     end do
       
     call timer%start(TOT_FFT) 
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT) 
     dt = dt / (2*ntod)
+
 
     j = 0
     do i = 1, ndet
@@ -950,8 +970,8 @@ contains
           buffer(:,i) = dt(1:ntod,j) 
        end if
     end do
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
+    call fftw_destroy_plan(plan_fwd)                                           
+    call fftw_destroy_plan(plan_back)                                          
     deallocate(dt, dv)
 
   end subroutine multiply_inv_N

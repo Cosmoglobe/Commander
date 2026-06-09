@@ -19,7 +19,6 @@
 !
 !================================================================================
 module comm_conviqt_mod
-  use iso_c_binding, only : c_ptr, c_double, c_int
   use comm_map_mod
   use comm_shared_arr_mod
   implicit none
@@ -216,7 +215,7 @@ contains
     class(comm_map),                              intent(in)    :: map ! Must contain alms
 
     integer(i4b) :: i, j, np, ierr
-    integer*8    :: fft_plan
+    type(C_PTR)  :: fft_plan
     real(dp),       allocatable, dimension(:,:)   :: marray
     real(c_double), allocatable, dimension(:,:) :: alm    
     real(c_double), allocatable, dimension(:,:)   :: mout
@@ -271,11 +270,8 @@ contains
     ! Fourier transform in psi direction
     allocate(dt(self%psisteps), dv(0:self%psisteps/2))
     call timer%start(TOT_FFT)
-    call dfftw_plan_dft_c2r_1d(fft_plan, self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
+    fft_plan = fftw_plan_dft_c2r_1d(self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
-    if(fft_plan == 0) then
-      write(*,*) 'Failed to create fftw plan, thread ', map%info%myid
-    end if
     do i=1, np
 
       !do fft of data, store to dt
@@ -285,7 +281,7 @@ contains
       end do
 
       call timer%start(TOT_FFT)
-      call dfftw_execute_dft_c2r(fft_plan, dv, dt)
+      call fftw_execute_dft_c2r(fft_plan, dv, dt)
       call timer%stop(TOT_FFT)
 
       self%c%a(self%info%pix(i)+1,:) = real(dt(1:self%psisteps),sp)
@@ -295,7 +291,7 @@ contains
  
     deallocate(marray, alm, mout) 
  
-    call dfftw_destroy_plan(fft_plan)
+    call fftw_destroy_plan(fft_plan)
     deallocate(dt)
     deallocate(dv)
  

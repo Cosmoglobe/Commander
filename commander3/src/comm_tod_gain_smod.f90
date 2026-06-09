@@ -752,8 +752,9 @@ contains
      real(dp), allocatable, dimension(:)     :: fluctuations, temp
      real(dp), allocatable, dimension(:)     :: precond
      complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
-     integer*8          :: plan_fwd, plan_back
-     integer(i4b)       :: nscan, nfft, n, nomp, err
+     type(C_PTR)        :: plan_fwd, plan_back
+     integer(i4b)       :: nscan, nfft, n, nomp
+     integer(C_INT)     :: err
      real(dp)           :: sigma0_wn
 
      integer(i4b)   :: i
@@ -774,11 +775,11 @@ contains
      inv_N_wn2(2*nscan:nscan+1:-1) = inv_N_wn
 
      nomp = OMP_GET_THREAD_NUM()
-     call dfftw_init_threads(err)
-     call dfftw_plan_with_nthreads(nomp)
+     err = fftwf_init_threads()
+     call fftwf_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
-     call dfftw_plan_dft_r2c_1d(plan_fwd, nfft, dt, dv, fftw_estimate + fftw_unaligned)
-     call dfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+     plan_fwd  = fftw_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+     plan_back = fftw_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
      ! We use temporary arrays inside the transformation function, so no need
      ! for these anymore
      deallocate(dt, dv)
@@ -826,8 +827,8 @@ contains
         
       b = b2(1:nscan)
   
-      call dfftw_destroy_plan(plan_fwd)                                           
-      call dfftw_destroy_plan(plan_back) 
+      call fftw_destroy_plan(plan_fwd)                                           
+      call fftw_destroy_plan(plan_back) 
 
      deallocate(b2, inv_N_wn2)
 
@@ -843,7 +844,7 @@ contains
      !                  The original time-domain vector.
      ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
-     ! plan_fwd:        integer*8
+     ! plan_fwd:        type(C_PTR)
      !                  The fft plan to carry out the transformation
      !
      ! Returns:
@@ -854,7 +855,7 @@ contains
      implicit none
      real(dp),     dimension(1:), intent(in)     :: time
      complex(dpc), dimension(0:), intent(out)    :: fourier
-     integer*8,                   intent(in)     :: plan_fwd
+     type(C_PTR),                 intent(in)     :: plan_fwd
      real(dp),     dimension(1:size(time))       :: dt
      integer(i4b)                                :: ntime
 
@@ -862,7 +863,7 @@ contains
      dt(1:ntime) = time
      !dt(2*ntime:ntime+1:-1) = dt(1:ntime)
      call timer%start(TOT_FFT)
-     call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
+     call fftw_execute_dft_r2c(plan_fwd, dt, fourier)
      call timer%stop(TOT_FFT)
      fourier = fourier/sqrt(real(size(dt),dp))
 
@@ -878,7 +879,7 @@ contains
      !                  The original Fourier domain vector.
      ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
-     ! plan_back:       integer*8
+     ! plan_back:       type(C_PTR)
      !                  The fft plan to carry out the transformation.
      !
      ! Returns:
@@ -886,13 +887,13 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(0:), intent(in)     :: fourier
+     complex(dpc), dimension(0:), intent(inout)  :: fourier
      real(dp),     dimension(1:), intent(out)    :: time
      real(dp),     dimension(size(time))         :: dt
-     integer*8,                   intent(in)     :: plan_back
+     type(C_PTR),                   intent(in)     :: plan_back
 
      call timer%start(TOT_FFT)
-     call dfftw_execute_dft_c2r(plan_back, fourier, dt)
+     call fftw_execute_dft_c2r(plan_back, fourier, dt)
      call timer%stop(TOT_FFT)
      dt = dt/sqrt(real(size(dt),dp))
      time = dt(1:size(time))
@@ -915,9 +916,9 @@ contains
      !              The right hand side of the Wiener filter equation.
      ! precond:     real(dp) array
      !              The preconditioner matrix in time domain.
-     ! plan_fwd:    integer*8
+     ! plan_fwd:    type(C_PTR)
      !              The FFT forward plan.
-     ! plan_back:   integer*8
+     ! plan_back:   type(C_PTR)
      !              The FFT backward plan.
      !
      ! Returns:
@@ -927,7 +928,7 @@ contains
      implicit none
      real(dp), dimension(1:), intent(in) :: inv_N_wn, b
      real(dp), dimension(0:), intent(in) :: inv_N_corr, precond
-     integer*8             ,  intent(in) :: plan_fwd, plan_back
+     type(C_PTR)            ,  intent(in) :: plan_fwd, plan_back
      real(dp), dimension(size(b))       :: solution
 !     logical(lgt)                       :: with_precond
 
@@ -1061,7 +1062,7 @@ contains
     real(dp), dimension(1:), intent(in)  :: vec_in
     real(dp), dimension(0:), intent(in)  :: precond
     real(dp), dimension(1:), intent(out) :: vec_out
-    integer*8             , intent(in)  :: plan_fwd, plan_back    
+    type(C_PTR)            , intent(in)  :: plan_fwd, plan_back    
 
     integer(i4b) :: i
     complex(dpc), dimension(size(precond))        :: fourier_vector
@@ -1088,9 +1089,9 @@ contains
      !              The matrix that is diagonal in Fourier domain.
      ! vector:      real(dp) array
      !              The vector to multiply by.
-     ! plan_fwd:    integer*8
+     ! plan_fwd:    type(C_PTR)
      !              The FFT forward plan.
-     ! plan_back:   integer*8
+     ! plan_back:   type(C_PTR)
      !              The FFT backward plan.
      ! filewrite:   logical(lgt), optional
      !              If present, writes various debug info into files.
@@ -1106,7 +1107,7 @@ contains
      real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
-     integer*8              , intent(in)     :: plan_fwd, plan_back
+     type(C_PTR)             , intent(in)     :: plan_fwd, plan_back
      logical(lgt)           , optional       :: filewrite
 
      logical(lgt)       :: write_file
@@ -1299,7 +1300,7 @@ contains
     real(dp)    :: samprate
     integer(i4b)    :: nscan, nfft, n, ndet, nscan_tot, ierr
     integer(i4b)    :: i, j, k
-    integer*8       :: plan_fwd, plan_back
+    type(C_PTR)     :: plan_fwd, plan_back
 
     ndet       = tod%ndet
     nscan_tot  = tod%last_scan
@@ -1321,8 +1322,8 @@ contains
     n = nfft / 2 + 1
     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
     allocate(dt(nfft), dv(0:n-1))
-    call dfftw_plan_dft_r2c_1d(plan_fwd, nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call dfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftw_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftw_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
     ! We use temporary arrays inside the transformation function, so no need
     ! for these anymore
     deallocate(dt, dv)

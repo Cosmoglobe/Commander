@@ -97,7 +97,7 @@ contains
     character(len=*),               intent(in)    :: tbol_type
     character(len=*),               intent(in)    :: operation
     real(sp),         dimension(:), intent(inout) :: tod
-    integer*8,                      intent(inout) :: plan_fwd, plan_back
+    type(C_PTR),                    intent(inout) :: plan_fwd, plan_back
     
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
 
@@ -116,7 +116,8 @@ contains
     dt(1:ntod)           = tod
     dt(ntod+1:nfft)      = 0.    ! Zero pad
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    !call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
 
     ! Apply transfer function in Fourier space
@@ -144,7 +145,8 @@ contains
 
     ! Inverse FFT
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    !call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call fftwf_execute_dft_c2r(plan_back, dv, dt)
     call timer%stop(TOT_FFT)
     tod = dt(1:ntod) / nfft
 

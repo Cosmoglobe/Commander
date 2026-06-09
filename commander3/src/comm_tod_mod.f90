@@ -31,7 +31,6 @@ module comm_tod_mod
   use comm_shared_arr_mod
   use comm_utils
   use comm_bp_mod
-  USE ISO_C_BINDING
   implicit none
 
   private
@@ -403,7 +402,7 @@ module comm_tod_mod
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
      logical(lgt) :: enable_fft = .false.
-     integer*8    :: plan_fwd, plan_back
+     type(C_PTR)  :: plan_fwd, plan_back
      integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing [ntod,ndet,nhorn]
@@ -3537,8 +3536,9 @@ contains
     integer(i4b),                              intent(in)    :: scan
     character(len=*),                          intent(in)    :: ps_output
 
-    integer(i4b) :: l, n, ntod, nomp, nfft, err
-    integer*8    :: plan_fwd
+    integer(i4b) :: l, n, ntod, nomp, nfft
+    integer(C_INT) :: err
+    type(C_PTR) :: plan_fwd
     real(sp)     :: samprate, ls, ps
     real(sp),     allocatable, dimension(:)   :: dt
     complex(spc), allocatable, dimension(:)   :: dv
@@ -3549,18 +3549,19 @@ contains
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)  
+    err = fftw_init_threads()
+    call fftw_plan_with_nthreads(nomp)  
 
     allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_fwd = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+
 
     ! FFT
     dt = 0.d0; dv = 0.d0
     dt(1:ntod)           = tod(:)
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
     open(58,file=ps_output, recl=1024)
     do l = 1, n-1
@@ -3571,7 +3572,7 @@ contains
     close(58)
 
     deallocate(dt, dv)
-    call dfftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_fwd)
 
   end subroutine print_powspec
 

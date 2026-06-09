@@ -33,7 +33,7 @@ module comm_tod_cgmap_mod
      type(MPI_Comm) :: comm
      integer(i4b)   :: myid, nprocs
      integer(i4b)   :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
-     integer*8      :: plan_fwd, plan_back
+     type(C_PTR)    :: plan_fwd, plan_back
      class(comm_tod), pointer :: tod0
      logical(lgt),            allocatable, dimension(:,:)   :: accept      ! Accept status, (ndet,nscan)
      integer(i4b),            allocatable, dimension(:)     :: ind_scan    ! Index range for each scan (0:nscan)
@@ -144,8 +144,8 @@ contains
        nfft     = get_closest_fft_pow2(c%ntod)
        n        = nfft / 2 + 1
        allocate(dt(nfft), dv(0:n-1))
-       call sfftw_plan_dft_r2c_1d(c%plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-       call sfftw_plan_dft_c2r_1d(c%plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       c%plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       c%plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
        deallocate(dt, dv)
     end if
     
@@ -164,8 +164,8 @@ contains
     if (allocated(c%xi))        deallocate(c%xi)
     if (allocated(c%ind2pix))   deallocate(c%ind2pix)
     if (allocated(c%accept))    deallocate(c%accept)
-    call dfftw_destroy_plan(c%plan_fwd)
-    call dfftw_destroy_plan(c%plan_back)
+    call fftw_destroy_plan(c%plan_fwd)
+    call fftw_destroy_plan(c%plan_back)
     deallocate(c)
   end subroutine dealloc_cgmap
 

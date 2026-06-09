@@ -104,8 +104,8 @@ contains
        nfft     = get_closest_fft_pow2(sd%ntod)
        n        = nfft / 2 + 1
        allocate(dt(nfft), dv(0:n-1))
-       call sfftw_plan_dft_r2c_1d(sd%plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-       call sfftw_plan_dft_c2r_1d(sd%plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       sd%plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       sd%plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
        deallocate(dt, dv)
     end if
 
@@ -380,8 +380,8 @@ contains
     if (allocated(sd%s_calib))       deallocate(sd%s_calib)
 
     if (sd%enable_fft) then
-       call dfftw_destroy_plan(sd%plan_fwd)
-       call dfftw_destroy_plan(sd%plan_back)
+       call fftw_destroy_plan(sd%plan_fwd)
+       call fftw_destroy_plan(sd%plan_back)
     end if
 
   end subroutine dealloc_scan_data
@@ -615,6 +615,7 @@ contains
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
 
        !write(*,*) "sample 1: ext(1)= ", ext(1), " ext(2)= ", ext(2)
+
 
        do j = 1, tod%ndet
 

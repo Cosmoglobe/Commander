@@ -1560,7 +1560,7 @@ contains
 
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)  :: plan_fwd, plan_back
     logical(lgt) :: apply_mask_
     real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
     real(sp)     :: A_fit, f0_fit, sigma_fit
@@ -1581,8 +1581,8 @@ contains
     call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
     gain = self%scans(scan)%d(i_det)%gain
@@ -1602,7 +1602,7 @@ contains
     dt(1:ntod)           = d_prime
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
@@ -1719,8 +1719,8 @@ contains
     end if
 
     deallocate(dt, dv, ps)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
 
   end subroutine estimate_hfi_4k_lines
 
@@ -1749,7 +1749,7 @@ contains
 
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
     integer(i4b) :: i0, i1, nsub
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)  :: plan_fwd, plan_back
     real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
     real(sp),     allocatable, dimension(:)   :: dt, ratio, d_prime
     complex(spc), allocatable, dimension(:)   :: dv
@@ -1765,8 +1765,8 @@ contains
     call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
     gain = self%scans(scan)%d(i_det)%gain
@@ -1777,7 +1777,7 @@ contains
     dt(1:ntod)           = d_prime
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
@@ -1832,8 +1832,8 @@ contains
     tod = dt(1:ntod)
     if (present(s_sub)) tod = tod + gain * s_sub
     deallocate(dt, dv, ps)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
  
   end subroutine remove_hfi_4k_lines
 
@@ -1868,7 +1868,7 @@ contains
     logical(lgt),                    optional, intent(in)    :: set_wn_level
 
     integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err, scan
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)  :: plan_fwd, plan_back
     real(sp)     :: gain, N_wn, samprate, dnu, rolloff_scale, eval_spline, sigma_0
     type(spline_type) :: rolloff_filter
     integer(i4b), allocatable, dimension(:)   :: bin_count
@@ -1897,14 +1897,14 @@ contains
     call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
     dt(1:ntod)           = d_prime(:)
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
@@ -1962,7 +1962,7 @@ contains
     dt(1:ntod)           = sd%tod(:,i_det)
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
        
     do l = 1, n-1
@@ -1990,7 +1990,7 @@ contains
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
        call timer%start(TOT_FFT)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
        call timer%stop(TOT_FFT)
 
        do l = 1, n-1
@@ -2026,8 +2026,8 @@ contains
 
     deallocate(dt, dv, ps)
     call free_spline(rolloff_filter)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
 
   end subroutine deconvolve_rolloff
 
@@ -2047,7 +2047,7 @@ contains
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
     integer(i4b) :: j_end, j_start
     character(len=12) :: filling_
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, nomono_
     real(sp)     :: sigma_0, gain, N_wn, samprate
     real(sp),     allocatable, dimension(:)   :: d_prime, dt
@@ -2243,14 +2243,14 @@ contains
        call sfftw_plan_with_nthreads(nomp)
 
        allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-       call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-       call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
        ! FFT
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
        call timer%start(TOT_FFT)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
        call timer%stop(TOT_FFT)
        do l = 1, n-1
           ps(l,1) = l*(samprate/2)/(n-1)
@@ -2266,8 +2266,8 @@ contains
        
 
        deallocate(dt, dv, ps)
-       call dfftw_destroy_plan(plan_fwd)
-       call dfftw_destroy_plan(plan_back)
+       call fftw_destroy_plan(plan_fwd)
+       call fftw_destroy_plan(plan_back)
     end if
 
     tod = d_prime + gain * s_sub
