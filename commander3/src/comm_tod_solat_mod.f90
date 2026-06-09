@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_tod_lat_mod
+module comm_tod_solat_mod
   !   Module which contains all the LAT time ordered data processing and routines
   !   for a given frequency band
   !
@@ -27,7 +27,7 @@ module comm_tod_lat_mod
   !   constructor(cpar, id_abs, info, tod_type)
   !       Initialization routine that reads in, allocates and associates
   !       all data needed for TOD processing
-  !   process_LAT_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !   process_solat_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
   use comm_tod_driver_mod
@@ -40,34 +40,34 @@ module comm_tod_lat_mod
   implicit none
 
   private
-  public comm_lat_tod
+  public comm_solat_tod
 
-  type, extends(comm_tod) :: comm_lat_tod
+  type, extends(comm_tod) :: comm_solat_tod
      real(sp) :: f_spin
      class(comm_dynmask), pointer :: dynmask
      class(comm_crosstalk),    pointer :: xtalk
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
    contains
-     procedure     :: process_tod             => process_lat_tod
-     procedure     :: read_tod_inst           => read_tod_inst_lat
-     procedure     :: read_scan_inst          => read_scan_inst_lat
-     procedure     :: load_instrument_inst    => load_instrument_lat
-     procedure     :: initHDF_inst            => initHDF_lat
-     procedure     :: dumpToHDF_inst          => dumpToHDF_lat
-     procedure     :: construct_corrtemp_inst => construct_corrtemp_lat
+     procedure     :: process_tod             => process_solat_tod
+     procedure     :: read_tod_inst           => read_tod_inst_solat
+     procedure     :: read_scan_inst          => read_scan_inst_solat
+     procedure     :: load_instrument_inst    => load_instrument_solat
+     procedure     :: initHDF_inst            => initHDF_solat
+     procedure     :: dumpToHDF_inst          => dumpToHDF_solat
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_solat
 
-  end type comm_lat_tod
+  end type comm_solat_tod
 
-  interface comm_lat_tod
-     procedure constructor_lat
-  end interface comm_lat_tod
+  interface comm_solat_tod
+     procedure constructor_solat
+  end interface comm_solat_tod
 
 interface
 
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor_lat(cpar, id, id_abs, info, tod_type) result(c)
+  module function constructor_solat(cpar, id, id_abs, info, tod_type) result(c)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -93,14 +93,14 @@ interface
     integer(i4b),            intent(in) :: id, id_abs
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type
-    class(comm_lat_tod),     pointer    :: c
+    class(comm_solat_tod),     pointer    :: c
 
-  end function constructor_lat
+  end function constructor_solat
 
   !**************************************************
   !             Driver routine
   !**************************************************
-  module subroutine process_lat_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
+  module subroutine process_solat_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     !
     ! Routine that processes the lat time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -109,7 +109,7 @@ interface
     !
     ! Arguments:
     ! ----------
-    ! self:     pointer of comm_LAT_tod class
+    ! self:     pointer of comm_solat_tod class
     !           Points to output of the constructor
     ! chaindir: string
     !           Directory for output files
@@ -138,7 +138,7 @@ interface
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_lat_tod),                      intent(inout) :: self
+    class(comm_solat_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -147,16 +147,16 @@ interface
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
-  end subroutine process_lat_tod
+  end subroutine process_solat_tod
 
-  module subroutine load_instrument_lat(self, instfile, band)
+  module subroutine load_instrument_solat(self, instfile, band)
     !
     ! Reads the LAT specific fields from the instrument file
     ! Implements comm_tod_mod::load_instrument_inst
     !
     ! Arguments:
     !
-    ! self : comm_LAT_tod
+    ! self : comm_solat_tod
     !    the LAT tod object (this class)
     ! file : hdf_file
     !    the open file handle for the instrument file
@@ -165,19 +165,19 @@ interface
     ! 
     ! Returns : None
     implicit none
-    class(comm_lat_tod),                 intent(inout) :: self
+    class(comm_solat_tod),                 intent(inout) :: self
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
-  end subroutine load_instrument_lat
+  end subroutine load_instrument_solat
 
 
-  module subroutine read_tod_inst_lat(self, file)
+  module subroutine read_tod_inst_solat(self, file)
     ! 
     ! Reads LAT-specific common fields from TOD fileset
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_LAT_tod)
+    ! self:     derived class (comm_solat_tod)
     !           LAT-specific TOD object
     ! file:     derived type (hdf_file)
     !           Already open HDF file handle; only root includes this
@@ -187,17 +187,17 @@ interface
     ! None, but updates self
     !
     implicit none
-    class(comm_LAT_tod),                 intent(inout)          :: self
+    class(comm_solat_tod),                 intent(inout)          :: self
     type(hdf_file),                      intent(in),   optional :: file
-  end subroutine read_tod_inst_lat
+  end subroutine read_tod_inst_solat
   
-  module subroutine read_scan_inst_lat(self, file, slabel, detlabels, scan)
+  module subroutine read_scan_inst_solat(self, file, slabel, detlabels, scan)
     ! 
     ! Reads LAT-specific scan information from TOD fileset
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_LAT_tod)
+    ! self:     derived class (comm_solat_tod)
     !           LAT-specific TOD object
     ! file:     derived type (hdf_file)
     !           Already open HDF file handle
@@ -213,20 +213,20 @@ interface
     ! None, but updates scan object
     !
     implicit none
-    class(comm_LAT_tod),                 intent(in)    :: self
+    class(comm_solat_tod),                 intent(in)    :: self
     type(hdf_file),                      intent(in)    :: file
     character(len=*),                    intent(in)    :: slabel
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
-  end subroutine read_scan_inst_lat
+  end subroutine read_scan_inst_solat
 
-  module subroutine initHDF_lat(self, chainfile, path)
+  module subroutine initHDF_solat(self, chainfile, path)
     ! 
     ! Initializes LAT-specific TOD parameters from existing chain file
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_LAT_tod)
+    ! self:     derived class (comm_solat_tod)
     !           LAT-specific TOD object
     ! chainfile: derived type (hdf_file)
     !           Already open HDF file handle to existing chainfile
@@ -238,18 +238,18 @@ interface
     ! None
     !
     implicit none
-    class(comm_LAT_tod),                 intent(inout)  :: self
+    class(comm_solat_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine initHDF_lat
+  end subroutine initHDF_solat
   
-  module subroutine dumpToHDF_lat(self, chainfile, path)
+  module subroutine dumpToHDF_solat(self, chainfile, path)
     ! 
     ! Writes LAT-specific TOD parameters to existing chain file
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_LAT_tod)
+    ! self:     derived class (comm_solat_tod)
     !           LAT-specific TOD object
     ! chainfile: derived type (hdf_file)
     !           Already open HDF file handle to existing chainfile
@@ -261,12 +261,12 @@ interface
     ! None
     !
     implicit none
-    class(comm_lat_tod),                 intent(in)     :: self
+    class(comm_solat_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
-  end subroutine dumpToHDF_lat
+  end subroutine dumpToHDF_solat
 
-  module subroutine construct_corrtemp_lat(self, sd, det)
+  module subroutine construct_corrtemp_solat(self, sd, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -285,13 +285,13 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_lat_tod),  intent(in)             :: self
+    class(comm_solat_tod),  intent(in)             :: self
     class(comm_scandata), intent(inout)          :: sd
     integer(i4b),         intent(in),   optional :: det
-  end subroutine construct_corrtemp_lat
+  end subroutine construct_corrtemp_solat
 
 
 
 end interface
 
-end module comm_tod_lat_mod
+end module comm_tod_solat_mod

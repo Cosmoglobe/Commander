@@ -201,7 +201,7 @@ contains
              data(n)%tod => comm_HFI_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LAT') then
-             data(n)%tod => comm_LAT_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_SOLAT_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
