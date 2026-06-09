@@ -6,7 +6,7 @@ BAND_NSIDE&&&                  = 512
 BAND_LMAX&&&                   = 6000
 BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n0512.fits
 
-BAND_TOD_FLAG&&&               = 3 # IDK
+BAND_TOD_FLAG&&&               = 15 # Four flags, all activated
 
 BAND_MAPFILE&&&                = iras/maps/iris_060_1_n512.fits
 BAND_NOISEFILE&&&              = iras/rms/iras_060_temprms_n512.fits

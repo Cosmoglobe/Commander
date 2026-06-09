@@ -12,7 +12,7 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1          # Number of independent chains
-NUM_GIBBS_ITER   = 10 # 00       # Length of each Markov chain
+NUM_GIBBS_ITER   = 10         # Length of each Markov chain
 CHAIN_STATUS     = new        # new, append  
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = none #/mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_chain_akari_v1.h5:400 # This is DIRBE DR2
@@ -135,49 +135,49 @@ INCLUDE_BAND066                = .false.    # 2802 map
 
 @START 001
 @DEFAULT bands/IRAS/IRAS_12_v0.defaults
-BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
+BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_012-23,IRAS_012-24,IRAS_012-25,IRAS_012-26,IRAS_012-27,IRAS_012-28,IRAS_012-29,IRAS_012-30,IRAS_012-47,IRAS_012-48,IRAS_012-49,IRAS_012-50,IRAS_012-51,IRAS_012-52,IRAS_012-53,IRAS_012-54
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_012_v1_n512.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # IDK!!!
+BAND_TOD_FLAG&&&                   = 2147483647   # 31 ones (AKARI, all flags turned on)
 BAND_TOD_FILELIST&&&               = iras/tod/012/filelist_012.txt
 @END 001
 
 @START 002
 @DEFAULT bands/IRAS/IRAS_25_v0.defaults
-BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
+BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_025-16,IRAS_025-18,IRAS_025-19,IRAS_025-21,IRAS_025-22,IRAS_025-39,IRAS_025-40,IRAS_025-41,IRAS_025-42,IRAS_025-43,IRAS_025-44,IRAS_025-45,IRAS_025-46
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_025_v1_n512.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # IDK!!!
+BAND_TOD_FLAG&&&                   = 2147483647   # 31 ones (AKARI, all flags turned on)
 BAND_TOD_FILELIST&&&               = iras/tod/025/filelist_025.txt
 @END 002
 
 @START 003
 @DEFAULT bands/IRAS/IRAS_060_v1.defaults
-BAND_TOD_START_SCANID&&&           = 1 # IDK!!!
+BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08 #,IRAS_060-09,IRAS_060-10,IRAS_060-11,IRAS_060-12,IRAS_060-13,IRAS_060-14,IRAS_060-15,IRAS_060-31,IRAS_060-32,IRAS_060-33,IRAS_060-34,IRAS_060-35,IRAS_060-37,IRAS_060-38
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_060_v1_n512.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # IDK!!!
+BAND_TOD_FLAG&&&                   = 2147483647   # 31 ones (AKARI, all flags turned on)
 BAND_TOD_FILELIST&&&               = iras/tod/060/filelist_060.txt
 @END 003
 
 @START 004
 @DEFAULT bands/IRAS/IRAS_100_v0.defaults
-BAND_TOD_START_SCANID&&&           = 584 # IDK!!!
+BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 5787
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_100-01,IRAS_100-02,IRAS_100-03,IRAS_100-04,IRAS_100-05,IRAS_100-06,IRAS_100-07,IRAS_100-55,IRAS_100-56,IRAS_100-57,IRAS_100-58,IRAS_100-59,IRAS_100-60,IRAS_100-61,IRAS_100-62
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_100_v1_n512.fits 
 BAND_TOD_INIT_FROM_HDF&&&          = none default
-BAND_TOD_FLAG&&&                   = 2147483647   # IDK!!!
+BAND_TOD_FLAG&&&                   = 2147483647   # 31 ones (AKARI, all flags turned on)
 BAND_TOD_FILELIST&&&               = iras/tod/100/filelist_100.txt
 @END 004 
 
