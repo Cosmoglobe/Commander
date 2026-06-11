@@ -282,24 +282,30 @@ contains
     ! Construct spike correction template
     if (btest(oper,SD_SPIKE)) then
        call timer%start(TOD_INSTCORR, tod%band)
-       call tod%construct_spike_corr(sd)
+       ! BUGFIX: det was previously not forwarded here, so in single-detector mode
+       ! construct_spike_corr looped over all detectors and wrote out of bounds in sd%s_spike,
+       ! which is allocated with detector extent 1 in that mode.
+       call tod%construct_spike_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
     
-    ! Coadd optical components of total sky signal
+    ! Coadd optical components of total sky signal.
+    ! BUGFIX: this block (and the s_spur and spur-subtraction blocks below) previously indexed the
+    ! sd arrays with the global detector index d. In single-detector mode (det present) the sd
+    ! arrays have extent 1 in the detector dimension while d can be > 1, giving out-of-bounds
+    ! accesses. The sd arrays must be indexed with the local slot j; d is only valid for indexing
+    ! tod%scans(scan)%d(:).
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_SKY)) sd%s_tot(:,d,:,:) = sd%s_tot(:,d,:,:) + sd%s_sky(:,d,:,:)
-          !write(*,*) 'a4 ', j, sd%s_tot(1,j,0,1)
+          if (btest(oper,SD_SKY)) sd%s_tot(:,j,:,:) = sd%s_tot(:,j,:,:) + sd%s_sky(:,j,:,:)
           do k = 1, nbp
-             !write(*,*) 'sky', j, sd%s_sky(1,j,0,1), k
-             if (btest(oper,SD_SL))     sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_sl(:,d,:)
-             if (btest(oper,SD_ORB))    sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_orb(:,d,:)
-             if (allocated(sd%s_zodi))  sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
-             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_objctr(:,d,:)
+             if (btest(oper,SD_SL))     sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_sl(:,j,:)
+             if (btest(oper,SD_ORB))    sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_orb(:,j,:)
+             if (allocated(sd%s_zodi))  sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_zodi(:,j,:)
+             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_objctr(:,j,:)
           end do
        end do
     end if
@@ -308,15 +314,16 @@ contains
     if (nhorn > 1) call tod%coadd_horns(sd)
 
     ! Add non-optical components into a net spurious component
+    ! BUGFIX: sd arrays indexed with local slot j instead of global index d (see s_tot block above).
     if (btest(oper,SD_SPUR)) then
        sd%s_spur = 0.
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_MONO))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_mono(:,d)
-          if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
-          if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
-          if (btest(oper,SD_SPIKE)) sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_spike(:,d)
+          if (btest(oper,SD_MONO))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_mono(:,j)
+          if (btest(oper,SD_JUMP))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_jump(:,j)
+          if (btest(oper,SD_INST))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_inst(:,j)
+          if (btest(oper,SD_SPIKE)) sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_spike(:,j)
        end do
     end if
     
@@ -335,14 +342,15 @@ contains
     end if
     
     ! Subtract spurious corrections from TOD according to spur_level
+    ! BUGFIX: sd arrays indexed with local slot j instead of global index d (see s_tot block above).
     call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
-       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,j) = sd%tod(:,j) - sd%s_mono(:,j)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,j) = sd%tod(:,j) - sd%s_jump(:,j)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
+       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,j) = sd%tod(:,j) - sd%s_spike(:,j)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
     
@@ -380,8 +388,13 @@ contains
     if (allocated(sd%s_calib))       deallocate(sd%s_calib)
 
     if (sd%enable_fft) then
-       call fftw_destroy_plan(sd%plan_fwd)
-       call fftw_destroy_plan(sd%plan_back)
+       ! BUGFIX: these plans are created with fftwf_ (single precision) in init_scan_data but were
+       ! destroyed with the double-precision fftw_destroy_plan, which corrupts memory with the C
+       ! bindings (this runs once per scan). Also reset enable_fft so that a comm_scandata object
+       ! reused with an oper that creates no new plans cannot destroy the same plans twice.
+       call fftwf_destroy_plan(sd%plan_fwd)
+       call fftwf_destroy_plan(sd%plan_back)
+       sd%enable_fft = .false.
     end if
 
   end subroutine dealloc_scan_data
@@ -577,6 +590,11 @@ contains
        timer_id = TOD_IMBAL
     else if (trim(mode) == 'deltaG') then
        timer_id = TOD_DELTAG
+    else
+       ! BUGFIX: without this else branch, an unknown mode left timer_id uninitialized, and the
+       ! timer%start(timer_id) call below would index the timer arrays with a garbage value.
+       write(*,*) 'Unsupported sampling mode = ', trim(mode)
+       stop
     end if
 
     call timer%start(timer_id, tod%band)

@@ -369,8 +369,10 @@ contains
     deallocate(d_prime)
     deallocate(ncorr2)
 
-    call fftw_destroy_plan(plan_fwd)                                           
-    call fftw_destroy_plan(plan_back)                                          
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)                                          
 
     call timer%stop(TOD_NCORR, self%band)
   
@@ -591,7 +593,11 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_out)
+  ! BUGFIX: removed the optional sigma0_out argument: it was declared intent(out) but never
+  ! assigned anywhere in the routine, so the caller's actual argument was left undefined on
+  ! return. The (only) caller, in comm_tod_hfi_smod, now reads the per-detector estimates from
+  ! N_psd%xi_n(1) after a single call instead.
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -600,7 +606,6 @@ contains
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
-    real(sp),                           intent(out), optional :: sigma0_out
 
     type(C_PTR)    :: plan_fwd
     integer(C_INT) :: err
@@ -651,8 +656,10 @@ contains
                    res0(j)  = 1e30
                 else
                    mask0(j) = 1.
-                   !res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1) - sd%n_corr(j1:j2,i)) / (j2-j1+1)
-                   res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                   ! BUGFIX: gain*s_tot was previously subtracted twice from this residual -- once
+                   ! inline in the sum over sd%tod and once more in the line below -- biasing the
+                   ! estimated white-noise sigma0 high whenever dec_wn is used.
+                   res0(j)  = sum(sd%tod(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_tot))  res0(j)  = res0(j) - sum(self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
                    if (allocated(sd%n_corr)) res0(j)  = res0(j) - sum(sd%n_corr(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1)
@@ -700,7 +707,10 @@ contains
        deallocate(res0, mask0)
 
        ! Exit if user only wants to estimate sigma0
-       call timer%start(TOD_XI_N, self%band)
+       ! BUGFIX: this was timer%start, which left the TOD_XI_N timer started a second time (and
+       ! never stopped) on this early-return path; it must be timer%stop to balance the start at
+       ! the top of the routine.
+       call timer%stop(TOD_XI_N, self%band)
        if (only_sigma0_) return
     end if
     
@@ -797,7 +807,9 @@ contains
     end do
     deallocate(dt, dv)
     deallocate(ps)
-    call fftw_destroy_plan(plan_fwd)
+    ! BUGFIX: this single-precision (fftwf_) plan was destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
 
     call timer%stop(TOD_XI_N, self%band)
 
@@ -970,8 +982,10 @@ contains
           buffer(:,i) = dt(1:ntod,j) 
        end if
     end do
-    call fftw_destroy_plan(plan_fwd)                                           
-    call fftw_destroy_plan(plan_back)                                          
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)
     deallocate(dt, dv)
 
   end subroutine multiply_inv_N

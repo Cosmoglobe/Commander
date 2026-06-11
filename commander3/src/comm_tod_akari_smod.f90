@@ -84,6 +84,12 @@ contains
          band_samprate = 25.28 ! Hz
       else if (trim(c%freq) == 'AKARI_065') then
          band_samprate = 25.28 ! Hz
+      else
+         ! BUGFIX: previously there was no else branch, so an unrecognized band label (e.g. after a
+         ! band renaming) left band_samprate uninitialized, silently producing garbage noise priors
+         ! below. Fail loudly instead.
+         write(*,*) 'Unsupported AKARI band label = ', trim(c%freq)
+         stop
       end if
 
       ! Correlated noise parameters

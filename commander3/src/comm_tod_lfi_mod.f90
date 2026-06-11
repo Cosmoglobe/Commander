@@ -309,7 +309,10 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  ! BUGFIX: removed the arguments map_sky, m_gain, procmask and procmask2 from this interface;
+  ! they were never referenced inside the routine, and the caller passed unallocated arrays for
+  ! them, which is illegal for non-optional assumed-shape dummy arguments.
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -319,13 +322,9 @@ interface
     !   handle:   planck_rng derived type
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
-    !   map_sky:
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
   end subroutine sample_1Hz_spikes
 
   module subroutine construct_corrtemp_lfi(self, sd, det)

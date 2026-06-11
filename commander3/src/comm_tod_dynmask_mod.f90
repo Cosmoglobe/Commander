@@ -319,7 +319,9 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       ! BUGFIX: this debug-output line previously wrote mask(i), but here i is left over from the
+       ! loop above (= sd%ntod+1), an out-of-bounds write. The sample flagged here is 1.
+       if (self%output_current) mask(1) = 0.5
     end if
     
     ! Check all intermediate samples
@@ -339,7 +341,9 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut                 = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       ! BUGFIX: previously wrote mask(i), silently relying on the leftover loop value i = sd%ntod
+       ! from the loop above; made explicit (and robust against changes to that loop).
+       if (self%output_current) mask(sd%ntod) = 0.5
     end if
     !if (self%output_scan == tod%scanid(scan)) close(58)
     deallocate(cut)
@@ -426,7 +430,8 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                ! BUGFIX: previously wrote mask(i) (the trigger sample); the sample flagged is k.
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -492,7 +497,8 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                ! BUGFIX: previously wrote mask(i) (the trigger sample); the sample flagged is k.
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -558,7 +564,9 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut              = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       ! BUGFIX: previously wrote mask(i), silently relying on the leftover loop value i = sd%ntod
+       ! from the loop above; made explicit (and robust against changes to that loop).
+       if (self%output_current) mask(sd%ntod) = 0.5
     end if
     
     self%stats(7) = self%stats(7) + ncut
@@ -606,7 +614,8 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                ! BUGFIX: previously wrote mask(i) (the trigger sample); the sample flagged is k.
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -854,8 +863,12 @@ contains
        n          = n+1
     end if
     
-    ! Store final array
+    ! Store final array; replace any existing mask
+    ! BUGFIX: mask_dyn may already be allocated if the dynamic mask is regenerated for the same
+    ! scan/detector (e.g. repeated data-selection iterations); allocating without this guard
+    ! aborts the run with "already allocated".
     if (n > 0) then
+       if (allocated(self%tod%scans(scan)%d(det)%mask_dyn)) deallocate(self%tod%scans(scan)%d(det)%mask_dyn)
        allocate(self%tod%scans(scan)%d(det)%mask_dyn(2,n))
        self%tod%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
     end if

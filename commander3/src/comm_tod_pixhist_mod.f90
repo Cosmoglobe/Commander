@@ -91,7 +91,10 @@ contains
              pix = dd%pix(k)
              if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
              bin_tmp = (dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix)
-             if (bin_tmp > 1d6) cycle ! Too large values causes issues with int() below. 
+             ! BUGFIX: this guard previously only caught large positive values; after the window
+             ! limits have been refined, samples far below the new minimum give hugely negative
+             ! ratios, which overflow the int() below just the same. Use abs().
+             if (abs(bin_tmp) > 1d6) cycle ! Too large values causes issues with int() below.
              bin = int((dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix))+1
              if (bin < 1 .or. bin > NBIN_HIST) bin = 0 ! Sample out of range; discarded
              hist(bin,pix) = hist(bin,pix) + 1

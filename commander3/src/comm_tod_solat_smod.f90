@@ -314,7 +314,10 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0 .or. .true.) then
+    ! BUGFIX: this condition previously had ".or. .true." appended, so the mod() below was
+    ! evaluated even when output_aux_maps == 0, causing an integer division by zero (SIGFPE).
+    ! (The result is overridden a few lines further down, but the trap still fired.)
+    if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
     if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps

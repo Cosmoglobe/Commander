@@ -164,8 +164,11 @@ contains
     if (allocated(c%xi))        deallocate(c%xi)
     if (allocated(c%ind2pix))   deallocate(c%ind2pix)
     if (allocated(c%accept))    deallocate(c%accept)
-    call fftw_destroy_plan(c%plan_fwd)
-    call fftw_destroy_plan(c%plan_back)
+    ! BUGFIX: these plans are created with fftwf_ (single precision) but were destroyed with the
+    ! double-precision fftw_destroy_plan, which calls the wrong FFTW library on the plan and
+    ! corrupts memory with the C bindings; they must be destroyed with fftwf_destroy_plan.
+    call fftwf_destroy_plan(c%plan_fwd)
+    call fftwf_destroy_plan(c%plan_back)
     deallocate(c)
   end subroutine dealloc_cgmap
 

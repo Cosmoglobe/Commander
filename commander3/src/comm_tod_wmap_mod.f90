@@ -453,6 +453,16 @@ contains
       ! Initialize index-based sky map and mask
       call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
 
+      ! BUGFIX: procmask and procmask2 are used unconditionally below (bin_differential_TOD,
+      ! the bicg-stab monopole estimate, and the final deallocate) but were never allocated after
+      ! the pixcache refactor, giving invalid memory accesses and a guaranteed abort at the
+      ! deallocate. Rebuild both from the full-sky processing mask.
+      allocate(m_buf(0:npix-1,1), procmask(0:npix-1), procmask2(0:npix-1))
+      call self%procmask%bcast_fullsky_map(m_buf)
+      procmask  = real(m_buf(:,1),sp)
+      procmask2 = real(m_buf(:,1),sp)
+      deallocate(m_buf)
+
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
@@ -931,7 +941,8 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate(map_sky)
+      ! BUGFIX: removed an unconditional "deallocate(map_sky)" here; map_sky is never allocated in
+      ! this routine (leftover from the pixcache refactor), so the statement aborted the run.
 
       if (self%correct_sl) then
          do i = 1, self%ndet

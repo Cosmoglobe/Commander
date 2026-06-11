@@ -626,7 +626,9 @@ contains
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)
-       call rms%dealloc
+       ! BUGFIX: rms%dealloc only frees the map arrays inside the object, not the comm_map object
+       ! itself, which leaked once per TOD band per Gibbs iteration; free and nullify the pointer.
+       call rms%dealloc; deallocate(rms); rms => null()
 
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
@@ -650,13 +652,17 @@ contains
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
           call nullify_monopole_amp(data(i)%label)
        end if
-       
+
+       ! BUGFIX: this block previously sat after the band loop, but a fresh full-sky gainmap is
+       ! allocated for every TOD band (in the compList search at the top of the loop), so all but
+       ! the last map leaked every Gibbs iteration. Free it at the end of each band instead.
+       if (associated(gainmap)) then
+          call gainmap%dealloc()
+          deallocate(gainmap)
+          nullify(gainmap)
+       end if
+
     end do
-    if (associated(gainmap)) then
-      call gainmap%dealloc()
-      deallocate(gainmap)
-      nullify(gainmap)
-    end if
     call update_status(status, "deallocated gainmap")
 
   end subroutine process_all_TODs

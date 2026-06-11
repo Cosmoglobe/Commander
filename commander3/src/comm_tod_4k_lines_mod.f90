@@ -70,7 +70,11 @@ contains
      j = 0
      X = 0.d0; Y = 0.d0; XX = 0.d0; XY = 0.d0
      do i = 1, nsub
-        if (i>=ex0 .or. i<=ex1) cycle
+        ! BUGFIX: this exclusion test used .or., which is true for every i, so ALL samples were
+        ! excluded and the log-linear fit below never ran (j stayed 0, always falling back to the
+        ! constant baseline). Changed to .and. so only the central window [ex0,ex1] around the
+        ! peak is excluded, as intended.
+        if (i>=ex0 .and. i<=ex1) cycle
         X = X + log(sub_ps(i,1))
         Y = Y + log(sub_ps(i,2))
         XY = XY + log(sub_ps(i,1)) * log(sub_ps(i,2))
@@ -84,7 +88,9 @@ contains
      else
         meanX = X/j
         meanY = Y/j
-        b = (XY - j*meanX*meanY) / (XX - j*meanX*meanY)
+        ! BUGFIX: the least-squares slope denominator was XX - j*meanX*meanY; the correct
+        ! expression is XX - j*meanX*meanX (= n*Var(x)). The old form gave a wrong baseline slope.
+        b = (XY - j*meanX*meanY) / (XX - j*meanX*meanX)
         a = meanY - b*meanX
      end if
 
@@ -117,7 +123,9 @@ contains
      f0_low = sub_ps(idx_peak,1) - (sub_ps(nsub,1) - sub_ps(1,1))/2
      f0_low = max(sub_ps(1,1),f0_low)
      f0_high = sub_ps(idx_peak,1) + (sub_ps(nsub,1) - sub_ps(1,1))/2
-     f0_low = min(sub_ps(nsub,1),f0_high)
+     ! BUGFIX: this clamp previously assigned to f0_low instead of f0_high, overwriting the lower
+     ! bound with a value near the upper bound and collapsing the f0 grid search to a single point.
+     f0_high = min(sub_ps(nsub,1),f0_high)
      sigma_low = (sub_ps(2,1) - sub_ps(1,1))/5
      sigma_high = (sub_ps(2,1) - sub_ps(1,1))*2 
 
@@ -129,7 +137,9 @@ contains
      chisq = 0.d0
      do k = 1, nsub
         phi(k) = exp(-0.5 * ((sub_ps(k,1) - self%f0_fit(iter))/self%sigma_fit(iter))**2)
-        chisq = (sub_ps(k,2) - self%A_fit(iter)*phi(k))**2
+        ! BUGFIX: chisq was assigned ("chisq = ...") instead of accumulated, so the reference chisq
+        ! only contained the last sample, and the grid search below almost never improved on it.
+        chisq = chisq + (sub_ps(k,2) - self%A_fit(iter)*phi(k))**2
      end do
 
 

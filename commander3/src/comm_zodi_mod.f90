@@ -1524,7 +1524,10 @@ contains
 !!$      close(58)
 
          
-         if (all(ind < 0)) exit
+         ! BUGFIX: this previously tested all(ind < 0) over the full allocation, but only
+         ! ind(1:ncurr) is initialized; the test read uninitialized elements and could keep
+         ! iterating to maxiter even after all segments had converged.
+         if (all(ind(1:ncurr) < 0)) exit
       end do
 
       ! Interpolate to full scan

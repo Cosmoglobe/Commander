@@ -576,10 +576,12 @@ contains
      call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
 
      ! Clean up
+     ! BUGFIX: removed an unconditional "deallocate(map_sky, procmask, procmask2)" here; none of
+     ! those arrays are ever allocated in this routine (leftover from the pixcache refactor), so
+     ! the statement aborted the run.
      call binmap%dealloc()
      call jump_map%dealloc() 
      if (allocated(slist)) deallocate(slist)
-     deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then
         do i = 1, self%ndet
            do h = 1, self%nhorn

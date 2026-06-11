@@ -2347,7 +2347,10 @@ contains
     ntod         = sd%ntod
     ndet         = self%ndet; if (present(det)) ndet = 1
 
-    do j = 1, self%ndet
+    ! BUGFIX: this loop previously ran over self%ndet. In single-detector mode (det present) the
+    ! sd arrays have detector extent 1, so writing sd%s_spike(:,j) for j up to self%ndet went out
+    ! of bounds; the loop must run over the local ndet (= 1 in that mode).
+    do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. self%scans(scan)%d(d)%accept) cycle
        call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
@@ -3572,7 +3575,9 @@ contains
     close(58)
 
     deallocate(dt, dv)
-    call fftw_destroy_plan(plan_fwd)
+    ! BUGFIX: this single-precision (fftwf_) plan was destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
 
   end subroutine print_powspec
 

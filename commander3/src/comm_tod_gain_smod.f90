@@ -774,7 +774,10 @@ contains
      inv_N_wn2(1:nscan)            = inv_N_wn
      inv_N_wn2(2*nscan:nscan+1:-1) = inv_N_wn
 
-     nomp = OMP_GET_THREAD_NUM()
+     ! BUGFIX: this previously used OMP_GET_THREAD_NUM(), which returns 0 outside a parallel
+     ! region; fftwf_plan_with_nthreads(0) is invalid and poisons the global fftwf planner thread
+     ! count for later fftwf plan creations elsewhere in the code.
+     nomp = 1
      err = fftwf_init_threads()
      call fftwf_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
@@ -1355,7 +1358,11 @@ contains
       call mpi_bcast(tod%gain_alpha(j), 1, MPI_DOUBLE_PRECISION, &
            & mod(j-1,tod%numprocs), tod%comm, ierr)
     end do
-    deallocate(freqs, currgain, gain_ps)
+    ! BUGFIX: gain_fourier and the two FFTW plans were previously never freed, leaking memory on
+    ! every call (once per band per Gibbs iteration).
+    deallocate(freqs, currgain, gain_ps, gain_fourier)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
 
   end subroutine sample_gain_psd
 

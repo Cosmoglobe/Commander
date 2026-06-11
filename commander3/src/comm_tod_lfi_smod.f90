@@ -357,6 +357,17 @@ contains
 
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain, scale=1e-6)
+
+    ! BUGFIX: procmask2 is passed as mask= to finalize_binned_map below, where it is dereferenced
+    ! whenever chisq_S is present (i.e. whenever bandpass sampling is enabled). It was previously
+    ! never allocated (a leftover from the pixcache refactor), giving an invalid memory access.
+    ! Rebuild it here as the full-sky processing mask.
+    if (sample_rel_bandpass .or. sample_abs_bandpass) then
+       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
+       call self%procmask%bcast_fullsky_map(m_buf)
+       procmask2 = real(m_buf(:,1),sp)
+       deallocate(m_buf)
+    end if
     call timer%stop(TOD_ALLOC, self%band)
 
     ! Precompute far sidelobe Conviqt structures
@@ -406,8 +417,11 @@ contains
 
 
     ! Sample 1Hz spikes
+    ! BUGFIX: dropped the map_sky, m_gain, procmask and procmask2 arguments from this call; they
+    ! were unused inside sample_1Hz_spikes and were passed as unallocated arrays (illegal for
+    ! non-optional assumed-shape dummies).
     if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle); call update_status(status, "tod_1Hz")
     end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -580,7 +594,11 @@ contains
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)
-    deallocate(map_sky, m_gain, procmask, procmask2)
+    ! BUGFIX: this previously read "deallocate(map_sky, m_gain, procmask, procmask2)", but none of
+    ! those arrays are ever allocated in this routine (leftover from the pixcache refactor), so the
+    ! statement aborted every LFI TOD processing call. Only procmask2 is now allocated (above), and
+    ! only it must be freed.
+    if (allocated(procmask2)) deallocate(procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -1012,7 +1030,9 @@ contains
 
     end do
 
-    call fftw_destroy_plan(plan_fwd)
+    ! BUGFIX: this single-precision (fftwf_) plan was destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
 
     deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
 
@@ -1078,8 +1098,10 @@ contains
 
     end do
 
-    call fftw_destroy_plan(plan_fwd)
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)
 
     deallocate(dt, dv)
 
@@ -1168,7 +1190,10 @@ contains
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  ! BUGFIX: removed the arguments map_sky, m_gain, procmask and procmask2 (also from the interface
+  ! in comm_tod_lfi_mod.f90); they were never referenced in this routine, and the caller passed
+  ! unallocated arrays for them, which is illegal for non-optional assumed-shape dummy arguments.
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1178,13 +1203,9 @@ contains
     !   handle:   planck_rng derived type
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
-    !   map_sky:
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin, oper
     real(dp)     :: dt, t_tot, t, A, b, mval, eta

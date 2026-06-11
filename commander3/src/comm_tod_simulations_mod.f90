@@ -502,7 +502,9 @@ contains
     deallocate(dt, dv)
     !$OMP END PARALLEL
 
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: this single-precision (fftwf_) plan was destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_back)
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
@@ -677,7 +679,9 @@ contains
        
     end do
     deallocate(dv, dt)
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: this single-precision (fftwf_) plan was destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_back)
     
   end subroutine simulate_tod_on_the_fly
 

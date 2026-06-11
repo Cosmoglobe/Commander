@@ -587,26 +587,29 @@ end subroutine bin_differential_TOD
     ncol  = size(binmap%sb_map%a,dim=2)
     ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
 
-    ! Collect contributions from all nodes
-    !TODO: figure out why this causes a crash
-!    call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!    if (binmap%sA_map%myid_shared == 0) then
-!       do i = 1, size(binmap%sA_map%a, 1)
-!          write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
-!          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), size(binmap%sA_map%a, 2), &
-!               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
-!       end do
-!    end if
-!      call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
-!      if (binmap%sb_map%myid_shared == 0) then
-!         do i = 1, size(binmap%sb_map%a, 1)
-!            write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
-!            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
-!                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter,ierr)
-!         end do
-!      end if
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+    ! Collect contributions from all nodes.
+    ! BUGFIX: this reduction block was previously commented out entirely, with a TODO noting that
+    ! it crashed. The crash was caused by a duplicated count argument in the sA_map mpi_allreduce
+    ! call, which shifted the datatype/op/communicator arguments out of place. With the block
+    ! disabled, contributions from different shared-memory nodes were never co-added, so
+    ! temperature-only maps from multi-node runs only contained each node's own data. Re-enabled
+    ! with the corrected call, identical in form to the working one in finalize_binned_map.
+    call mpi_win_fence(0, binmap%sA_map%win, ierr)
+    if (binmap%sA_map%myid_shared == 0) then
+       do i = 1, size(binmap%sA_map%a, 1)
+          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+       end do
+    end if
+      call mpi_win_fence(0, binmap%sA_map%win, ierr)
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+      if (binmap%sb_map%myid_shared == 0) then
+         do i = 1, size(binmap%sb_map%a, 1)
+            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+         end do
+      end if
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
 
 

@@ -415,10 +415,17 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0 .or. .true.) then
+    ! BUGFIX: this condition previously had ".or. .true." appended, so the mod() below was
+    ! evaluated even when output_aux_maps == 0, causing an integer division by zero (SIGFPE).
+    if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
-    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
+    ! BUGFIX: this previously added n_comps to the current value (3 or 7), but the write block at
+    ! the end of this routine outputs the zodi component maps from outmaps(8+1 : 8+n_comps); with
+    ! fewer than 8 base maps those writes indexed past the end of binmap%outmaps. Zodi component
+    ! maps occupy slots 9 and upwards, with slot 8 the instrument correction (same convention as
+    ! DIRBE/AKARI), so the total must be 8 + n_comps.
+    if (output_zodi_comps) self%output_n_maps = 8 + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -429,6 +436,17 @@ contains
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
+
+    ! BUGFIX: procmask2 is passed as mask= to finalize_binned_map below, where it is dereferenced
+    ! whenever chisq_S is present (i.e. whenever bandpass sampling is enabled). It was previously
+    ! never allocated (a leftover from the pixcache refactor), giving an invalid memory access.
+    ! Rebuild it here as the full-sky processing mask.
+    if (sample_rel_bandpass .or. sample_abs_bandpass) then
+       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
+       call self%procmask%bcast_fullsky_map(m_buf)
+       procmask2 = real(m_buf(:,1),sp)
+       deallocate(m_buf)
+    end if
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -483,10 +501,15 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
-       ! Estimate pre-deconvolution white noise rms
+       ! Estimate pre-deconvolution white noise rms.
+       ! BUGFIX: this previously called sample_noise_psd once per detector, passing a sigma0_out
+       ! argument that the routine never assigned, so sigma0_preproc was left undefined (it is
+       ! later used to generate gap-filling noise in simulation mode). sample_noise_psd estimates
+       ! xi_n(1) for all detectors in a single call, so call it once and copy the estimates.
+       call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
+          self%scans(i)%d(j)%N_psd%sigma0_preproc = self%scans(i)%d(j)%N_psd%xi_n(1)
        end do
           
        ! Deconvolve high-frequency roll-off
@@ -844,6 +867,10 @@ contains
     call binmap%dealloc()
     call update_status(status, "tod_binmap4"//ctext)
     if (allocated(slist)) deallocate(slist)
+    ! BUGFIX: procmask2 (allocated above when bandpass sampling is on) and chisq_S were previously
+    ! not freed, leaking once per TOD processing call.
+    if (allocated(procmask2)) deallocate(procmask2)
+    if (allocated(chisq_S)) deallocate(chisq_S)
     if (self%correct_sl) then
        do i = 1, self%ndet
           do h = 1, self%nhorn
@@ -964,7 +991,8 @@ contains
        !write(*,*) 'Ab1', tod%scanid(scan), i, b1, real(A1,sp), real(rand_gauss(handle)/sqrt(A1),sp)
        
        ! Even samples
-       if (tod%scanid(scan) == 1151) write(58,*)
+       ! BUGFIX: removed a leftover debug statement here that wrote to unit 58 without ever opening
+       ! it, creating stray fort.58 files from every MPI rank.
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
@@ -1638,8 +1666,11 @@ contains
           i1 = i1 + 1
        end do
        nsub = i1 - i0 + 1
-       if(nsub < 5) return ! too small window
-       
+       ! BUGFIX: this previously returned from the whole routine, leaking the FFTW plans and work
+       ! arrays, leaving sd%tod uncorrected, and skipping all remaining 4K lines; skip only the
+       ! current line instead.
+       if(nsub < 5) cycle ! too small window; skip this line
+
        if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) then
           deallocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)
           deallocate(self%cooler_4k_lines(i,i_det,scan)%p%A_fit)
@@ -1720,8 +1751,10 @@ contains
     end if
 
     deallocate(dt, dv, ps)
-    call fftw_destroy_plan(plan_fwd)
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)
 
   end subroutine estimate_hfi_4k_lines
 
@@ -1803,7 +1836,12 @@ contains
           i1 = i1 + 1
        end do
        nsub = i1 - i0 + 1
-       if(nsub < 5) return ! too small window
+       ! BUGFIX: the first test previously returned from the whole routine, leaking the FFTW plans
+       ! and work arrays and skipping all remaining lines; skip only this line instead. The second
+       ! test is new: if estimate_hfi_4k_lines skipped this line, spike_profile is unallocated and
+       ! dereferencing it below would be an invalid access.
+       if(nsub < 5) cycle ! too small window; skip this line
+       if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) cycle ! no estimated profile for this line
 
        allocate(sub_ps(nsub,2), ratio(nsub))
        sub_ps(:,1) = ps(i0:i1,1)
@@ -1834,8 +1872,10 @@ contains
     tod = dt(1:ntod)
     if (present(s_sub)) tod = tod + gain * s_sub
     deallocate(dt, dv, ps)
-    call fftw_destroy_plan(plan_fwd)
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)
  
   end subroutine remove_hfi_4k_lines
 
@@ -2029,8 +2069,10 @@ contains
 
     deallocate(dt, dv, ps)
     call free_spline(rolloff_filter)
-    call fftw_destroy_plan(plan_fwd)
-    call fftw_destroy_plan(plan_back)
+    ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+    ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+    call fftwf_destroy_plan(plan_fwd)
+    call fftwf_destroy_plan(plan_back)
 
   end subroutine deconvolve_rolloff
 
@@ -2270,8 +2312,10 @@ contains
        
 
        deallocate(dt, dv, ps)
-       call fftw_destroy_plan(plan_fwd)
-       call fftw_destroy_plan(plan_back)
+       ! BUGFIX: these single-precision (fftwf_) plans were destroyed with the double-precision
+       ! fftw_destroy_plan, which corrupts memory with the C bindings; use fftwf_destroy_plan.
+       call fftwf_destroy_plan(plan_fwd)
+       call fftwf_destroy_plan(plan_back)
     end if
 
     tod = d_prime + gain * s_sub
