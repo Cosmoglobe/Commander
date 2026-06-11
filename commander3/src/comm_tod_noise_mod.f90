@@ -763,7 +763,10 @@ contains
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
             ! if (self%myid == 0) write(*,*) "psd: gibbs sample, par number, det number: ", k, j, i
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
+             ! BUGFIX: n_high was not clamped to the last frequency bin, so a fit range
+             ! (nu_fit) extending above the Nyquist frequency caused out-of-bounds reads of
+             ! ps(l) and freqmask(l) inside lnL_xi_n.
+             n_high = min(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)), n-1)
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 

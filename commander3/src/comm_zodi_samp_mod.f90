@@ -485,6 +485,15 @@ contains
                allocate(data(i)%tod%scans(scan)%d(j)%downsamp_pix(ngood,nhorn))
                allocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky(ngood,nhorn))
                allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ngood,nhorn,5))
+               ! BUGFIX: also pack the per-sample observation times; downsamp_obs_time existed as
+               ! a field but was never filled, and the Powell zodi likelihood needs sample times
+               ! aligned with the packed downsamp_pix to evaluate ephemerides at the right epoch.
+               if (allocated(data(i)%tod%scans(scan)%d(j)%downsamp_obs_time)) &
+                    & deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_obs_time)
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_obs_time(ngood))
+               data(i)%tod%scans(scan)%d(j)%downsamp_obs_time = &
+                    & pack(data(i)%tod%scans(scan)%d(j)%downsamp_obs_time_full, &
+                    &      data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
                do h = 1, nhorn
                   data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(:,h), data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
                   data(i)%tod%scans(scan)%d(j)%downsamp_sky(:,h) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(:,h),  data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
@@ -690,8 +699,13 @@ contains
                
                call wall_time(t3)
                do h = 1, nhorn
+                  ! BUGFIX: pass the packed per-sample observation times; without them,
+                  ! get_zodi_emission_mbb advanced its internal clock by the full-rate sample
+                  ! spacing per downsampled sample and evaluated the Earth/observer ephemerides
+                  ! at badly lagged epochs (see comment in get_zodi_emission_mbb).
                   call get_zodi_emission_mbb(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
-                       & scan, j, zodi_model, s_zodi(:,h))
+                       & scan, j, zodi_model, s_zodi(:,h), &
+                       & obs_times=data(i)%tod%scans(scan)%d(j)%downsamp_obs_time)
                end do
                call wall_time(t4)
 

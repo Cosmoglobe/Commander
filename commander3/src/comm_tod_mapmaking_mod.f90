@@ -213,7 +213,13 @@ contains
     call timer%start(TOD_MAPBIN, tod%band)
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
-       off         = tod%output_n_maps + 4*(det-1)
+       ! BUGFIX: the solve_S offset was computed as tod%output_n_maps + 4*(det-1), but the
+       ! A_map layout is fixed: 6 TQU elements followed by 4 elements per spurious component
+       ! (n_A = 6 + 4*(ndet-1) in init_binmap, and finalize_binned_map reads the spurious
+       ! block at 6 + 4*(det-1)). output_n_maps is 3 or 8 for LFI, so with bandpass sampling
+       ! enabled the spurious accumulations either corrupted the TQU pointing matrix
+       ! (output_n_maps=3) or wrote out of bounds (output_n_maps=8). Master uses 6 here.
+       off         = 6 + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
@@ -826,8 +832,10 @@ end subroutine bin_differential_TOD
          if (rms%info%nmaps == tod%ndet + 3) then
             ! Diagonal matrix; store RMS
             ! Q and U terms
-            rms%map(i,2) = sqrt(A_inv(ndet+1, ndet+1))
-            rms%map(i,3) = sqrt(A_inv(ndet+2, ndet+2))
+            ! BUGFIX: the Q/U rms values were missing the *scale unit conversion applied to
+            ! every other map and rms column in this routine.
+            rms%map(i,2) = sqrt(A_inv(ndet+1, ndet+1))*scale
+            rms%map(i,3) = sqrt(A_inv(ndet+2, ndet+2))*scale
             ! T maps
             do j = 1, tod%ndet
                rms%map(i,j+3) = sqrt(A_inv(j, j))*scale
@@ -897,7 +905,11 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
        allocate(tmp(ncol))
        do i = 1, size(binmap%sA_map%a, 1)
           tmp = binmap%sA_map%a(i,:)
-          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+          ! BUGFIX: this previously reduced binmap%sA_map%a(i,:) in place and then overwrote
+          ! the result with the stale pre-reduction copy in tmp, silently undoing the
+          ! cross-node reduction of the pointing matrix. Reduce tmp instead (same pattern as
+          ! in finalize_binned_map and finalize_binned_map_nplus2).
+          call mpi_allreduce(MPI_IN_PLACE, tmp, size(tmp), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
           binmap%sA_map%a(i,:) = tmp
        end do
@@ -994,15 +1006,14 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
                 ! T component
                 binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 1) = b_tot(k, p, i)*scale
                 ! Joint Q/U component copied into each map
-                
-                if(p > 1) then
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = A_tot(8+3*(p-2), i)!b_tot(k, tod%ndet+1, i)*scale
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = A_tot(9+3*(p-2), i)!b_tot(k, tod%ndet+2, i)*scale
-                else
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = A_tot(2, i)
-                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = A_tot(4, i)
-                end if
-
+                ! BUGFIX: the Q/U columns were filled with pointing-matrix elements
+                ! (A_tot cos/sin sums; apparent debugging leftovers, with the intended
+                ! assignments commented out on the same lines), not with the solved Q/U
+                ! maps. outmaps(1)'s Q/U columns are copied into map_out in
+                ! process_lfi_tod and used downstream in component separation, so this
+                ! produced garbage polarization maps. Restored the solved Q/U solution.
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 2) = b_tot(k, tod%ndet+1, i)*scale
+                binmap%outmaps((k-1) * tod%ndet + p)%p%map(i, 3) = b_tot(k, tod%ndet+2, i)*scale
             end do
          end do
 

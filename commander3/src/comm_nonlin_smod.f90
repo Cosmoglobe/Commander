@@ -257,9 +257,12 @@ contains
        if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', status = 'unknown', access = 'append', recl=10000)
        if (info%myid == 0) open(66, file=trim(cpar%outdir)//'/region-samples_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', status = 'unknown', access = 'append', recl=10000)
 
-       ! Save initial alm        
+       ! Save initial alm
        alms = 0.d0
-       regs = 0.d0
+       ! BUGFIX: regs is only allocated when almsamp_pixreg is set; assigning to it (and
+       ! deallocating it at the end of the routine) unconditionally is invalid when the
+       ! alm-sampler is run without pixel regions.
+       if (cpar%almsamp_pixreg) regs = 0.d0
        ! Gather alms from threads to alms array with correct indices
        do pl = 1, c%theta(j)%p%info%nmaps
           call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, 0, pl, pl)
@@ -571,9 +574,13 @@ contains
                 end if
 
                 ! Reject if proposed values are outside of range
-                if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
-                   accepted = .false.
-                   write(*,fmt='(a, f7.3, f7.3, a)') " | Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                ! BUGFIX: theta_pixreg_prop is only allocated in pixreg mode; referencing it
+                ! unconditionally here crashed the plain alm-sampler path.
+                if (cpar%almsamp_pixreg) then
+                   if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
+                      accepted = .false.
+                      write(*,fmt='(a, f7.3, f7.3, a)') " | Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                   end if
                 end if
 
                 ! Count accepted and assign chisq values
@@ -875,9 +882,12 @@ contains
        end if
 
        ! Clean up
-       if (info%myid == 0) close(69)   
-       if (info%myid == 0) close(66)   
-       deallocate(alms, regs, chisq, maxit)
+       if (info%myid == 0) close(69)
+       if (info%myid == 0) close(66)
+       ! BUGFIX: regs is only allocated in pixreg mode; deallocating it unconditionally
+       ! aborted the plain alm-sampler path.
+       deallocate(alms, chisq, maxit)
+       if (allocated(regs)) deallocate(regs)
        call theta%dealloc(); deallocate(theta)
 
        if (c%apply_jeffreys) then
@@ -3240,20 +3250,23 @@ contains
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
-                temp_chisq%map = 0d0
                 do k = 1,band_count !run over all active bands
 
+                   ! BUGFIX: the reset was previously outside the band loop, so whitened
+                   ! residuals from earlier bands stayed in the map, were whitened again by the
+                   ! next band's sqrtInvN, and re-entered the likelihood sum.
+                   temp_chisq%map = 0d0
                    do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
-                      
+
                       if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
                       all_thetas(id)=new_theta_smooth(pix)
                       !get the values of the remaining spec inds of the component for the given pixel
                       do i = 1, npar
                          if (i == id) cycle
-                         all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
+                         all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p)
                       end do
 
-                      ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                      ! get conversion factor from amplitude to data (i.e. mixing matrix element)
                       ! both for old and new spec. ind. and calc. log likelihood (chisq)
 
                       mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
@@ -3264,7 +3277,12 @@ contains
 
                    end do
                    call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
-                   lnL_new = lnL_new -0.5d0*sum(temp_chisq%map)**2
+                   ! BUGFIX: this read "sum(temp_chisq%map)**2", i.e. the square of the *summed*
+                   ! whitened residual over the whole map, instead of the chisq sum of squared
+                   ! residuals of this band's column. The pre-refactor code (commit acbacf17
+                   ! replaced it) squared the whitened map elementwise and summed the band's own
+                   ! polarization column; restore that statistic.
+                   lnL_new = lnL_new -0.5d0*sum(temp_chisq%map(:,pol_j(k))**2)
 
                 end do
 
@@ -3993,7 +4011,11 @@ contains
     comp_lnL_marginal_diagonal = 0.5d0*MNd*invMNM*MNd
 
     !determinant of 1x1 matrix is the value of the matrix itself
-    if (use_det) comp_lnL_marginal_diagonal = comp_lnL_marginal_diagonal - 0.5d0*log(invMNM) 
+    ! BUGFIX: this previously subtracted 0.5*log(invMNM), i.e. added +0.5*log(MNM).
+    ! Marginalizing the amplitude (flat prior) gives a factor sqrt(2*pi/MNM), so the correct
+    ! contribution is -0.5*log(MNM) = +0.5*log(invMNM), as also stated in the docstring above
+    ! ("add the logarithm of the determinant of the inverse MNM^T matrix").
+    if (use_det) comp_lnL_marginal_diagonal = comp_lnL_marginal_diagonal + 0.5d0*log(invMNM)
 
     deallocate(MN)
   end function comp_lnL_marginal_diagonal
@@ -4087,7 +4109,9 @@ contains
     comp_lnL_max_chisq_diagonal = -0.5d0*chisq
 
     !determinant of 1x1 matrix is the value of the matrix itself
-    if (use_det) comp_lnL_max_chisq_diagonal = comp_lnL_max_chisq_diagonal - 0.5d0*log(invMNM) 
+    ! BUGFIX: same sign error as in comp_lnL_marginal_diagonal; the marginal correction to the
+    ! profile (ridge) likelihood is -0.5*log(MNM) = +0.5*log(invMNM), not the opposite.
+    if (use_det) comp_lnL_max_chisq_diagonal = comp_lnL_max_chisq_diagonal + 0.5d0*log(invMNM)
 
     deallocate(MN)
   end function comp_lnL_max_chisq_diagonal

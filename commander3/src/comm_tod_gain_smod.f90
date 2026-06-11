@@ -202,7 +202,9 @@ contains
        end do
     end do
 
-    if (.not. smooth) then
+    ! BUGFIX: this tested the optional dummy argument "smooth" directly, which is illegal to
+    ! reference when the argument is absent; use the defaulted local copy smooth_ instead.
+    if (.not. smooth_) then
        ! If the time-dependent gain has high signal-to-noise per scan, then we
        ! don't need to Wiener filter, and instead implement equation (28) of
        ! Gjerlow et al. 2020.
@@ -255,7 +257,10 @@ contains
             & tod%comm, ierr)
 
        do j = 1+tod%myid, ndet, tod%numprocs
-         if (all(g(:, j, 1) == 0)) continue
+         ! BUGFIX: this was "continue", which in Fortran is a no-op (not C-style loop
+         ! continuation), so detectors without any valid gain estimate were processed anyway;
+         ! the intent is clearly to skip them.
+         if (all(g(:, j, 1) == 0)) cycle
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
           if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
@@ -369,7 +374,10 @@ contains
        invvar = 0.d0
        do l = -window, window
           if (g2(k+l) > 0) then
-             invvar = invvar + g2(k+1)
+             ! BUGFIX: this accumulated g2(k+1) (the same fixed element every iteration of the
+             ! window loop) instead of g2(k+l), so the "window average" collapsed to a single
+             ! scan's inverse variance, making sigma0 sensitive to single-scan outliers.
+             invvar = invvar + g2(k+l)
           end if
        end do
        if (count(g2(k-window:k+window) > 0) > 0) then
@@ -1583,7 +1591,11 @@ contains
      real(dp), dimension(0:)  :: gain_ps, freqs
 
      real(dp) :: lambda
-     real(dp), dimension(size(gain_ps))  :: inv_N_corr
+     ! BUGFIX: inv_N_corr was declared with default 1-based bounds while gain_ps and freqs are
+     ! 0-based, so after calculate_invcov filled it (rebased to its own 0-based dummy), local
+     ! element inv_N_corr(l) held the model evaluated at freqs(l-1): the Whittle likelihood
+     ! below compared every data bin against the model shifted by one frequency bin.
+     real(dp), dimension(0:size(gain_ps)-1)  :: inv_N_corr
 
      integer(i4b) :: minfreq, maxfreq
      minfreq = 2

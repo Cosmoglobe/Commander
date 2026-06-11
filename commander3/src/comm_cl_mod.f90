@@ -1128,7 +1128,10 @@ contains
       eta = rand_uni(handle)
       w   = 0.d0
       i   = 0
-      do while (w < eta)
+      ! BUGFIX: bound the loop at n; the normalized probabilities can sum to slightly less
+      ! than 1 in floating point, in which case eta close to 1 previously walked past the end
+      ! of lnL (out-of-bounds read) and selected a non-existing model index.
+      do while (w < eta .and. i < n)
          w = w + lnL(i+1)  ! lnL is now probability
          i = i + 1
       end do

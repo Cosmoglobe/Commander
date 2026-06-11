@@ -116,12 +116,17 @@ contains
        end if
 
        ! Check that peak is bounded; if not do a golden ratio search
+       ! BUGFIX (this and the three loops below): when the evaluation set fills up
+       ! (n == INVSAMP_MAX_NUM_EVALS), update_InvSamp_sample_set sets stat and returns without
+       ! inserting, so the loop conditions never change and these loops previously spun forever.
+       ! Exit on stat /= 0; the existing stat checks after the loops then handle the failure.
        if (x_n(1) /= prior_(1)) then
           do while (S_n(1) > S_n(2) .and. x_n(1) > prior_(1))
              !x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), 0.5d0*(x_n(1)+prior_(1)))
              x_new = 0.5d0*(x_n(1)+prior_(1))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
           end do
        end if
 
@@ -130,6 +135,7 @@ contains
              x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
           end do
        end if
        if (stat /= 0) then
@@ -144,20 +150,22 @@ contains
 !          x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), prior_(1))
           y_new = lnL(x_new)
 !          if (maxval(S_n)-y_new < 100.d0) then
-!             prior_(1) = x_new 
+!             prior_(1) = x_new
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
 !          end if
+          if (stat /= 0) exit
        end do
 
        do while (lnL_peak-S_n(n) < DELTA_LNL .and. x_n(n) < prior_(2) - 1.d-6*dpr)
           x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
           y_new = lnL(x_new)
 !          if (maxval(S_n)-y_new < 100.d0) then
-!             prior_(2) = x_new 
+!             prior_(2) = x_new
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
 !          end if
+          if (stat /= 0) exit
        end do
        if (stat /= 0) then
           sample_InvSamp = 1.d30

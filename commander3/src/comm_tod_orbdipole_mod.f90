@@ -95,13 +95,15 @@ contains
          self%orb_dp_s(i, 2) = self%orb_dp_s(i, 2) + pixVal * v(2)
          !z 
          self%orb_dp_s(i, 3) = self%orb_dp_s(i, 3) + pixVal * v(3)
-         !x^2 
+         !x^2
          self%orb_dp_s(i, 4) = self%orb_dp_s(i, 4) + pixVal*v(1)*v(1)
-         !2xy 
+         !2xy
+         ! BUGFIX: the 2xy moment was accumulated twice here (a second, identical statement
+         ! mislabeled as "2xz" followed), so orb_dp_s(:,5) held 4xy instead of 2xy and the
+         ! xy quadrupole coefficient in the 4pi-beam orbital dipole (NPIPE eq. C.5, evaluated
+         ! in compute_4pi_product) carried double weight.
          self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal* v(1) * v(2)
-         !2xz 
-         self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal * v(1) *v(2)
-         !2xz 
+         !2xz
          self%orb_dp_s(i, 6) = self%orb_dp_s(i, 6) + 2.d0 * pixVal* v(1) * v(3)
          !y^2 
          self%orb_dp_s(i, 7) = self%orb_dp_s(i, 7)+pixVal*v(2)*v(2)
@@ -219,7 +221,11 @@ contains
        allocate(x_vec(s_len), y_vec(s_len))
        do k = 1, s_len !number of subsampled samples
           xx       = real(k-1,dp)/real(s_len-1,dp)
-          v        = (1.d0-xx)*v_ref + xx*vp_ref
+          ! BUGFIX: this interpolated towards vp_ref, a local variable that is never assigned
+          ! on this branch (master initialized it from the then-optional v_ref_next argument;
+          ! that initialization was removed when v_ref_next became mandatory, leaving this use
+          ! reading garbage). Interpolate towards v_ref_next, as the pencil-beam branch does.
+          v        = (1.d0-xx)*v_ref + xx*v_ref_next
           j        = subsample * (k-1) + 1
           X_vec(k) = j
           y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f

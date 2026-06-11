@@ -1640,7 +1640,7 @@ contains
     end subroutine get_zodi_emission_adaptive
 
 
-   subroutine get_zodi_emission_mbb(tod, pix, scan, det, model, s_zodi, use_lowres_pointing, comp)
+   subroutine get_zodi_emission_mbb(tod, pix, scan, det, model, s_zodi, use_lowres_pointing, comp, obs_times)
      implicit none
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       ! Compute thermal term fitting a BB+MBB model
@@ -1680,6 +1680,7 @@ contains
       real(sp),        dimension(:), intent(out)          :: s_zodi
       logical(lgt),                  intent(in), optional :: use_lowres_pointing
       integer(i4b),                  intent(in), optional :: comp
+      real(sp),        dimension(:), intent(in), optional :: obs_times  ! per-sample obs time [MJD]; needed when pix is downsampled/masked
 
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr
       logical(lgt) :: scattering, thermal, use_lowres
@@ -1717,7 +1718,15 @@ contains
       do i = 1, n_tod
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
-         if (use_lowres) then
+         ! BUGFIX: when called with downsampled+masked pixel lists (the Powell zodi fit), the
+         ! "obs_time + dt_tod" branch advanced time by the FULL-RATE sample spacing per
+         ! DOWNSAMPLED sample, so obs_time crept forward ~thin times too slowly: the
+         ! delta_t_reset ephemeris updates below essentially never fired, leaving Earth and
+         ! observer positions frozen at their scan-start values for the whole scan. Use the
+         ! true per-sample observation times when supplied via the new obs_times argument.
+         if (present(obs_times)) then
+            obs_time = obs_times(i)
+         else if (use_lowres) then
             obs_time = tod%scans(scan)%d(det)%downsamp_obs_time_full(i)
          else
             obs_time = obs_time + dt_tod ! assumes a time continuous TOD
