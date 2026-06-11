@@ -249,20 +249,19 @@ contains
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
 
-    ! Coadd optical components of total sky signal
+    ! Coadd optical components of total sky signal; sd arrays are indexed by local slot j,
+    ! which differs from the global detector index d in single-detector mode
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_SKY)) sd%s_tot(:,d,:,:) = sd%s_tot(:,d,:,:) + sd%s_sky(:,d,:,:)
-          !write(*,*) 'a4 ', j, sd%s_tot(1,j,0,1)
+          if (btest(oper,SD_SKY)) sd%s_tot(:,j,:,:) = sd%s_tot(:,j,:,:) + sd%s_sky(:,j,:,:)
           do k = 1, nbp
-             !write(*,*) 'sky', j, sd%s_sky(1,j,0,1), k
-             if (btest(oper,SD_SL))     sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_sl(:,d,:)
-             if (btest(oper,SD_ORB))    sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_orb(:,d,:)
-             if (allocated(sd%s_zodi))  sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
-             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_objctr(:,d,:)
+             if (btest(oper,SD_SL))     sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_sl(:,j,:)
+             if (btest(oper,SD_ORB))    sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_orb(:,j,:)
+             if (allocated(sd%s_zodi))  sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_zodi(:,j,:)
+             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_objctr(:,j,:)
           end do
        end do
     end if
@@ -276,9 +275,9 @@ contains
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_MONO))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_mono(:,d)
-          if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
-          if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
+          if (btest(oper,SD_MONO))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_mono(:,j)
+          if (btest(oper,SD_JUMP))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_jump(:,j)
+          if (btest(oper,SD_INST))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_inst(:,j)
        end do
     end if
 
@@ -287,9 +286,9 @@ contains
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,j) = sd%tod(:,j) - sd%s_mono(:,j)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,j) = sd%tod(:,j) - sd%s_jump(:,j)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
     
@@ -516,6 +515,9 @@ contains
        timer_id = TOD_IMBAL
     else if (trim(mode) == 'deltaG') then
        timer_id = TOD_DELTAG
+    else
+       write(*,*) 'Unsupported sampling mode = ', trim(mode)
+       stop
     end if
 
     call timer%start(timer_id, tod%band)

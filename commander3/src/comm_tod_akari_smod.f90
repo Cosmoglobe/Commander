@@ -79,11 +79,14 @@ contains
       if (trim(c%freq) == 'AKARI_160') then
          band_samprate = 16.86 ! Hz
       else if (trim(c%freq) == 'AKARI_140') then
-         band_samprate = 16.86 ! Hz 
+         band_samprate = 16.86 ! Hz
       else if (trim(c%freq) == 'AKARI_090') then
          band_samprate = 25.28 ! Hz
       else if (trim(c%freq) == 'AKARI_065') then
          band_samprate = 25.28 ! Hz
+      else
+         write(*,*) 'Unsupported AKARI band label = ', trim(c%freq)
+         stop
       end if
 
       ! Correlated noise parameters

@@ -575,27 +575,24 @@ end subroutine bin_differential_TOD
     ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
 
     ! Collect contributions from all nodes
-    !TODO: figure out why this causes a crash
-!    call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!    if (binmap%sA_map%myid_shared == 0) then
-!       do i = 1, size(binmap%sA_map%a, 1)
-!          write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
-!          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), size(binmap%sA_map%a, 2), &
-!               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
-!       end do
-!    end if
-!      call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
-!      if (binmap%sb_map%myid_shared == 0) then
-!         do i = 1, size(binmap%sb_map%a, 1)
-!            write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
-!            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
-!                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter,ierr)
-!         end do
-!      end if
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
-
-
+    ! NOTE: the previous version of this block crashed because the mpi_allreduce call for sA_map
+    ! had a duplicated count argument, shifting the datatype/op/comm arguments out of place.
+    call mpi_win_fence(0, binmap%sA_map%win, ierr)
+    if (binmap%sA_map%myid_shared == 0) then
+       do i = 1, size(binmap%sA_map%a, 1)
+          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+       end do
+    end if
+      call mpi_win_fence(0, binmap%sA_map%win, ierr)
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+      if (binmap%sb_map%myid_shared == 0) then
+         do i = 1, size(binmap%sb_map%a, 1)
+            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+         end do
+      end if
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
       allocate (A_tot(n_A, 0:np0 - 1), b_tot(nout, 1, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(1), eta(1))
       A_tot = binmap%sA_map%a(:, tod%info%pix + 1)

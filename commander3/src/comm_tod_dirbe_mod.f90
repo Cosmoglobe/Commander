@@ -500,7 +500,6 @@ contains
       ! Clean up
       call binmap%dealloc()
       if (allocated(slist)) deallocate(slist)
-      deallocate(map_sky, procmask, procmask2)
 
       ! Parameter to check if this is first time routine has been
       self%first_call = .false.

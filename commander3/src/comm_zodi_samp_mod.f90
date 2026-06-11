@@ -414,10 +414,11 @@ contains
                ! Apply TOD thinning; may be different for each sampling group
                do l = 1, cpar%zs_num_samp_groups
 
-                  ! Remove samples at high latitudes, if requested by user
+                  ! Remove samples at high ecliptic latitudes, if requested by user;
+                  ! downsamp_point_full(:,:,2) holds the ecliptic latitude in degrees
                   if (cpar%zs_samp_group_max_b_ecl(l) < 90.d0) then
                      do k = 1, ntod
-                        if (all(abs(data(i)%tod%scans(scan)%d(j)%downsamp_point_full(k,:,3)) > cpar%zs_samp_group_max_b_ecl(l))) then
+                        if (all(abs(data(i)%tod%scans(scan)%d(j)%downsamp_point_full(k,:,2)) > cpar%zs_samp_group_max_b_ecl(l))) then
                            data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(k,l) = .false.
                         end if
                      end do
@@ -466,14 +467,17 @@ contains
                if (allocated(data(i)%tod%scans(scan)%d(j)%downsamp_pix)) then
                   deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                   deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky)
+                  deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_point)
                end if
-               if (.not. allocated(data(i)%tod%scans(scan)%d(j)%downsamp_pix)) then
-                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_pix(ngood,nhorn))
-                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky(ngood,nhorn))
-               end if
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_pix(ngood,nhorn))
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_sky(ngood,nhorn))
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ngood,nhorn,5))
                do h = 1, nhorn
                   data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix_full(:,h), data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
                   data(i)%tod%scans(scan)%d(j)%downsamp_sky(:,h) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky_full(:,h),  data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
+                  do k = 1, 5
+                     data(i)%tod%scans(scan)%d(j)%downsamp_point(:,h,k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_point_full(:,h,k), data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
+                  end do
                end do
                data(i)%tod%scans(scan)%d(j)%downsamp_tod  = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod_full,  data(i)%tod%scans(scan)%d(j)%zodi_sampgroup_mask(:,samp_group))
                

@@ -86,7 +86,7 @@ contains
              pix = dd%pix(k)
              if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
              bin_tmp = (dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix)
-             if (bin_tmp > 1d6) cycle ! Too large values causes issues with int() below. 
+             if (abs(bin_tmp) > 1d6) cycle ! Too large values causes issues with int() below.
              bin = int((dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix))+1
              if (bin < 1 .or. bin > NBIN_HIST) bin = 0 ! Sample out of range; discarded
              hist(bin,pix) = hist(bin,pix) + 1

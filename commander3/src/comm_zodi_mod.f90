@@ -1494,7 +1494,7 @@ contains
 !!$      close(58)
 
          
-         if (all(ind < 0)) exit
+         if (all(ind(1:ncurr) < 0)) exit
       end do
 
       ! Interpolate to full scan

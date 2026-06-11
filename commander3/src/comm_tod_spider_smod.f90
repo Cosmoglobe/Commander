@@ -577,9 +577,8 @@ contains
 
      ! Clean up
      call binmap%dealloc()
-     call jump_map%dealloc() 
+     call jump_map%dealloc()
      if (allocated(slist)) deallocate(slist)
-     deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then
         do i = 1, self%ndet
            do h = 1, self%nhorn

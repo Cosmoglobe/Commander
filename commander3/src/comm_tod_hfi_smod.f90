@@ -341,10 +341,11 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0 .or. .true.) then
+    if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
-    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
+    ! Zodi component maps occupy slots 9 and upwards; slot 8 is the instrument correction
+    if (output_zodi_comps) self%output_n_maps = 8 + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -355,6 +356,14 @@ contains
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
+
+    ! Distribute full-sky processing mask; used for bandpass chisq evaluation in finalize_binned_map
+    if (sample_rel_bandpass .or. sample_abs_bandpass) then
+       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
+       call self%procmask%bcast_fullsky_map(m_buf)
+       procmask2 = real(m_buf(:,1),sp)
+       deallocate(m_buf)
+    end if
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -706,6 +715,8 @@ contains
     call binmap%dealloc()
     call update_status(status, "tod_binmap4"//ctext)
     if (allocated(slist)) deallocate(slist)
+    if (allocated(procmask2)) deallocate(procmask2)
+    if (allocated(chisq_S)) deallocate(chisq_S)
     if (self%correct_sl) then
        do i = 1, self%ndet
           do h = 1, self%nhorn
@@ -814,7 +825,6 @@ contains
        !write(*,*) 'Ab1', tod%scanid(scan), i, b1, real(A1,sp), real(rand_gauss(handle)/sqrt(A1),sp)
        
        ! Even samples
-       if (tod%scanid(scan) == 1151) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
@@ -1494,8 +1504,8 @@ contains
 
     deallocate(dt, dv, d_prime)
     call free_spline(rolloff_filter)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
 
     ! Set new wn level
     N_wn = 1.d30
@@ -1762,8 +1772,8 @@ contains
        
 
        deallocate(dt, dv, ps)
-       call dfftw_destroy_plan(plan_fwd)
-       call dfftw_destroy_plan(plan_back)
+       call sfftw_destroy_plan(plan_fwd)
+       call sfftw_destroy_plan(plan_back)
     end if
 
     tod = d_prime + gain * s_sub

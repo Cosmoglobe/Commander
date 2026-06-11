@@ -358,6 +358,14 @@ contains
 
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain, scale=1e-6)
+
+    ! Distribute full-sky processing mask; used for bandpass chisq evaluation in finalize_binned_map
+    if (sample_rel_bandpass .or. sample_abs_bandpass) then
+       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
+       call self%procmask%bcast_fullsky_map(m_buf)
+       procmask2 = real(m_buf(:,1),sp)
+       deallocate(m_buf)
+    end if
     call timer%stop(TOD_ALLOC, self%band)
 
     ! Precompute far sidelobe Conviqt structures
@@ -408,7 +416,7 @@ contains
 
     ! Sample 1Hz spikes
     if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle); call update_status(status, "tod_1Hz")
     end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -576,7 +584,7 @@ contains
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)
-    deallocate(map_sky, m_gain, procmask, procmask2)
+    if (allocated(procmask2)) deallocate(procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -1164,7 +1172,7 @@ contains
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1174,13 +1182,9 @@ contains
     !   handle:   planck_rng derived type
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
-    !   map_sky:
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin, oper
     real(dp)     :: dt, t_tot, t, A, b, mval, eta

@@ -272,8 +272,8 @@ contains
     deallocate(d_prime)
     deallocate(ncorr2)
 
-    call dfftw_destroy_plan(plan_fwd)                                           
-    call dfftw_destroy_plan(plan_back)                                          
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
 
     call timer%stop(TOD_NCORR, self%band)
   
@@ -550,8 +550,7 @@ contains
                    res0(j)  = 1e30
                 else
                    mask0(j) = 1.
-                   !res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1) - sd%n_corr(j1:j2,i)) / (j2-j1+1)
-                   res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                   res0(j)  = sum(sd%tod(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_tot))  res0(j)  = res0(j) - sum(self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
                    if (allocated(sd%n_corr)) res0(j)  = res0(j) - sum(sd%n_corr(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1)
@@ -597,7 +596,7 @@ contains
        deallocate(res0, mask0)
 
        ! Exit if user only wants to estimate sigma0
-       call timer%start(TOD_XI_N, self%band)
+       call timer%stop(TOD_XI_N, self%band)
        if (only_sigma0_) return
     end if
     

@@ -319,7 +319,7 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       if (self%output_current) mask(1) = 0.5
     end if
     
     ! Check all intermediate samples
@@ -339,7 +339,7 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut                 = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       if (self%output_current) mask(sd%ntod) = 0.5
     end if
     !if (self%output_scan == tod%scanid(scan)) close(58)
     deallocate(cut)
@@ -426,7 +426,7 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -492,7 +492,7 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -538,7 +538,7 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       if (self%output_current) mask(1) = 0.5
     end if
     
     ! Check intermediate samples
@@ -558,7 +558,7 @@ contains
        sd%mask(sd%ntod,det) = 0.
        sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
        ncut              = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       if (self%output_current) mask(sd%ntod) = 0.5
     end if
     
     self%stats(7) = self%stats(7) + ncut
@@ -606,7 +606,7 @@ contains
                 sd%mask(k,det) = 0.
                 sd%flag(k,det) = sd%flag(k,det) + flag_dyn
                 ncut           = ncut + 1
-                if (self%output_current) mask(i) = 0.5
+                if (self%output_current) mask(k) = 0.5
              end if
           end do
        end if
@@ -854,8 +854,9 @@ contains
        n          = n+1
     end if
     
-    ! Store final array
+    ! Store final array; replace any existing mask
     if (n > 0) then
+       if (allocated(self%tod%scans(scan)%d(det)%mask_dyn)) deallocate(self%tod%scans(scan)%d(det)%mask_dyn)
        allocate(self%tod%scans(scan)%d(det)%mask_dyn(2,n))
        self%tod%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
     end if

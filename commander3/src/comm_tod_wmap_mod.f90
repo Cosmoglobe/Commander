@@ -453,6 +453,13 @@ contains
       ! Initialize index-based sky map and mask
       call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
 
+      ! Distribute full-sky processing masks; used for mapmaking and monopole estimation
+      allocate(m_buf(0:npix-1,1), procmask(0:npix-1), procmask2(0:npix-1))
+      call self%procmask%bcast_fullsky_map(m_buf)
+      procmask  = real(m_buf(:,1),sp)
+      procmask2 = real(m_buf(:,1),sp)
+      deallocate(m_buf)
+
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
@@ -930,8 +937,6 @@ contains
          call outmaps(1)%p%dealloc
          deallocate (outmaps)
       end if
-
-      deallocate(map_sky)
 
       if (self%correct_sl) then
          do i = 1, self%ndet
