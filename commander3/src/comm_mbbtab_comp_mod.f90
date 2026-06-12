@@ -33,7 +33,7 @@ module comm_MBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values
+     real(dp)          :: nu_join,adScale,adscale_buff ! frequency where to join the MBB and the tabulated values and astrodust scale
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
 
@@ -86,8 +86,10 @@ contains
        c%npar = 2 !['beta', 'T   ']
     else if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
        c%npar_tab = 0 ! 2 column table, nu_central, sed
-       c%npar = 3 ! ['beta', 'T   ', 'adScale']
+       c%npar = 2 ! ['beta', 'T   '], 'adScale']
        c%nu_join = cpar%cs_nu_join(id_abs) * 1d9
+       c%adscale = cpar%cs_adscale(id_abs)
+       c%adscale_buff = cpar%cs_adscale(id_abs)
     else
        write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
        stop
@@ -114,11 +116,7 @@ contains
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
 
-    if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
-      c%indlabel  = ['beta', 'T   ', 'adScale']
-    else
-      c%indlabel  = ['beta', 'T   ']
-    end if 
+    c%indlabel  = ['beta', 'T   ']
 
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
@@ -177,12 +175,16 @@ contains
     if (trim(c%mbbtab_type) == 'spline_log') then
       call c%update_spline(c%theta_def(1), c%theta_def(2), 1) !1 is for pol, not set up for polarization currently
       c%spl_buff=c%spl
+      allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
     else if (trim(c%mbbtab_type) == 'spline_astrodust')  then
-      call c%update_spline_astrodust(c%theta_def(1), c%theta_def(2), c%theta_def(3), 1)
+      call c%update_spline_astrodust(c%theta_def(1), c%theta_def(2), c%adscale, 1)
       c%spl_buff=c%spl
+      allocate(c%theta_steplen(c%npar+c%ntab+1, cpar%mcmc_num_samp_groups))
+    else
+      allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
     end if
 
-    allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
+    
     c%theta_steplen = 0d0
 
     ! Initialize SED priors
@@ -289,7 +291,7 @@ contains
             ! this should not evaluate if masnu_ast is set to maxnu-1, in which case there is no astrotab
             ! and higher than the maximum tabulated value will return zero. 
             i = locate_dp(self%astrotab(1,1:),nu)
-            evalSED_mbbtab = self%posneg*theta(3)*(self%nu_ref(pol)/nu)**2 * (self%astrotab(2,i) + (nu - self%astrotab(1,i))*(self%astrotab(2,i) - self%astrotab(2,i+1))/(self%astrotab(1,i) - self%astrotab(1,i+1)))
+            evalSED_mbbtab = self%posneg*self%adscale*(self%nu_ref(pol)/nu)**2 * (self%astrotab(2,i) + (nu - self%astrotab(1,i))*(self%astrotab(2,i) - self%astrotab(2,i+1))/(self%astrotab(1,i) - self%astrotab(1,i+1)))
             return
          else
             evalSED_mbbtab = 0.d0
