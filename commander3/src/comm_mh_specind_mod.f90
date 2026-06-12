@@ -457,13 +457,7 @@ contains
                 ! beta    = theta(1)
                 ! T       = theta(2)
                 ! pol is set to 1, mbbTab not currently setup to support polarization
-                call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
-            else if (c%mbbtab_type == 'spline_astrodust') then
-                c%spl_buff=c%spl
-                ! beta    = theta(1)
-                ! T       = theta(2)
-                ! astrodust scale = theta(3)
-                call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%adscale,pol)              
+                call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)             
             end if 
           end select
           
@@ -507,7 +501,7 @@ contains
                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
                         & 0, data(1)%info%comm, ierr)
                 end if
-                if (c%mbbtab_type == 'spline_log' .or. c%mbbtab_type == 'spline_astrodust') then
+                if (c%mbbtab_type == 'spline_log') then
                     c%spl=c%spl_buff
                 end if 
              end select
@@ -666,8 +660,6 @@ contains
               & 0, data(1)%info%comm, ierr)
             call mpi_bcast(c%adscale_buff, 1, MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
-
-
 
             c%spl_buff=c%spl
                 ! beta    = theta(1)
@@ -884,14 +876,7 @@ contains
                   ! beta    = theta(1)
                   ! T       = theta(2)
                   ! pol is set to 1, mbbTab not currently setup to support polarization
-                  call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
-              else if (c%mbbtab_type == 'spline_astrodust') then
-                  c%spl_buff=c%spl
-                  pol=1
-                  ! beta    = theta(1)
-                  ! T       = theta(2)
-                  ! astrodust scale = theta(3)
-                  call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%adscale,pol)              
+                  call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)              
               end if 
             end select
 
@@ -972,7 +957,7 @@ contains
             
             select type (c)
             class is (comm_MBBtab_comp)
-               if (c%mbbtab_type == 'spline_log' .or. c%mbbtab_type == 'spline_astrodust') then
+               if (c%mbbtab_type == 'spline_log') then
                   c%spl=c%spl_buff
                end if 
             end select
