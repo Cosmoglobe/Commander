@@ -134,6 +134,9 @@ contains
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
       c%symm_flags      = .false.
       c%read_elev       = .true.
+      c%read_az         = .false.
+      c%per_slew_baseline = .true.
+      c%max_nslew       = 10
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       c%chisq_threshold = 15d8
       c%nmaps           = info%nmaps
@@ -150,7 +153,7 @@ contains
       c%nside_pixhist   = 64
       
       ! allocate CHIPASS-specific instrument file data
-      c%tsys_order      = 4
+      c%tsys_order      = 7
       c%tsys_eta0       = 58.0d0
       allocate(c%tsys_fit(c%ndet, 0:c%tsys_order))
       c%tsys_fit = 0.d0
@@ -193,7 +196,7 @@ contains
       c%dynmask%window_excessRMS(1)     = 7   ! Search for windows of 7 samples
       c%dynmask%threshold_excessRMS(1)  = 10  ! Exclude 10 sigma outliers; planets?
 
-      c%dynmask%apply_pixhist           = .true.
+      c%dynmask%apply_pixhist           = .false. !.true.
       !c%dynmask%remove_isolated_samples = .false.
       !c%dynmask%threshold_longchunks    = -0.3
       !c%dynmask%window_longchunks       = -2000
@@ -207,13 +210,6 @@ contains
       !c%dynmask%templ_cr(3) = 1.25
       !c%dynmask%templ_cr(4) = 1.
       !c%dynmask%templ_cr    = c%dynmask%templ_cr - mean(real(c%dynmask%templ_cr,dp))
-
-      ! Initialize all baseline corrections to zero
-      do i = 1, c%nscan
-         do j = 1, c%ndet
-            c%scans(i)%d(j)%baseline = 0.d0
-         end do 
-      end do
 
       ! Reject obviously bad scans
       do i = 1, c%nscan
@@ -297,7 +293,7 @@ contains
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
       logical(lgt)        :: select_data, sample_gain, output_scanlist, sample_ncorr, sample_baseline, sample_tsys
-      type(comm_binmap)   :: binmap
+      type(comm_binmap)   :: binmap, binmap2
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
       !character(len=2)    :: zodi_param_text
@@ -306,7 +302,7 @@ contains
       character(len=512)  :: prefix, postfix!, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
       !real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
-      real(sp), allocatable, dimension(:,:,:)   :: d_calib
+      real(sp), allocatable, dimension(:,:,:)   :: d_calib, d_calib2
       !real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       !real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
       !real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
@@ -339,10 +335,10 @@ contains
          sample_ncorr    = iter > 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
          select_data     = iter == 10                   ! in param file. Takes you to 'else' below
-         sample_baseline = iter > 1
-         sample_tsys     = iter > 1
-         sample_gain     = iter > 2                         ! Gain sampling
-         sample_ncorr    = iter > 3
+         sample_baseline = iter > 0 !1
+         sample_tsys     = iter > 0 !1
+         sample_gain     = iter > 0 !2                         ! Gain sampling
+         sample_ncorr    = iter > 0 !3
       else
          select_data     = iter == 1                    
          sample_baseline = iter > 1
@@ -351,7 +347,7 @@ contains
          sample_ncorr    = iter > 0
       end if
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-         
+       
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = 0 !ndelta-1
@@ -384,8 +380,25 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      if (self%myid == 0) write(*,*) 'baseline init scan 1 det 1:', self%scans(1)%d(1)%baseline
-      if (self%myid == 0) write(*,*) 'tsys_fit init det 1:', self%tsys_fit(1, :)
+      !if (self%myid == 0) then
+      !   write(*,*) 'gain init scan 1 det 1:', self%scans(1)%d(1)%gain
+      !   write(*,*) 'baseline init scan 1 det 1:', self%scans(1)%d(1)%baseline
+      !   if (self%per_slew_baseline) write(*,*) 'baseline_slew init scan 1 det 1:', self%scans(1)%d(1)%baseline_slew
+      !   write(*,*) 'tsys_fit init det 1:', self%tsys_fit(1, :)
+      !end if
+
+      ! Sample gain components in separate TOD loops; marginal with respect to n_corr
+      !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_gain:', sample_gain
+      if (sample_gain) then
+         ! 'abscal': the global constant gain factor
+         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration'
+         call sample_calibration(self, 'abscal', oper_default, handle)
+         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
+         ! 'relcal': the gain factor that is constant in time but varying between detectors
+         call sample_calibration(self, 'relcal', oper_default, handle)         
+         ! 'deltaG': the time-variable and detector-variable gain
+         !call sample_calibration(self, 'deltaG', oper_default, handle)
+      end if
 
       ! TODO: sample tsys_eta0
 
@@ -408,7 +421,11 @@ contains
             if (.not. any(self%scans(i)%d%accept)) cycle
             call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0)
             call timer%start(TOD_BASELINE, self%band)
-            call sample_chipass_baseline(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask)
+            if (self%per_slew_baseline) then
+               call sample_chipass_baseline_per_slew(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask)
+            else
+               call sample_chipass_baseline(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask)
+            end if
             call timer%stop(TOD_BASELINE, self%band)
             call dealloc_scan_data(sd)
          end do
@@ -417,18 +434,12 @@ contains
          call timer%stop(TOD_WAIT, self%band)
       end if
 
-      ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-      !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sample_gain:', sample_gain
-      if (sample_gain) then
-         ! 'abscal': the global constant gain factor
-         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration'
-         call sample_calibration(self, 'abscal', oper_default, handle)
-         !if (self%myid == 0) write(*,*) '[comm_tod_chipass_mod] sampling calibration done'
-         ! 'relcal': the gain factor that is constant in time but varying between detectors
-         call sample_calibration(self, 'relcal', oper_default, handle)         
-         ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', oper_default, handle)
-      end if
+      !if (self%myid == 0) then
+      !   write(*,*) 'gain new scan 1 det 1:', self%scans(1)%d(1)%gain
+      !   write(*,*) 'baseline new scan 1 det 1:', self%scans(1)%d(1)%baseline
+      !   if (self%per_slew_baseline) write(*,*) 'baseline_slew new scan 1 det 1:', self%scans(1)%d(1)%baseline_slew
+      !   write(*,*) 'tsys_fit new det 1:', self%tsys_fit(1, :)
+      !end if
 
       ! Create pixel histograms
       if (self%first_call) call compute_tod_pixhist(self, spur_level=100)
@@ -437,6 +448,7 @@ contains
        ! Create dynamic mask
       if (select_data) then
          if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
+         if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 1:', self%scans(1)%d(1)%N_psd%sigma0
          do i = 1, self%nscan
             ! Skip scan if no accepted data
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -445,6 +457,12 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                call self%dynmask%create(sd, j)
             end do
+            !if ((self%myid == 0) .and. (i == 1)) then
+            !   write(*,*) '    [chipass] tod:', sd%tod(1:10,1)
+            !   write(*,*) '    [chipass] s_tot adj:', self%scans(i)%d(1)%gain*sd%s_tot(1:10,1,0,1)
+            !   write(*,*) '    [chipass] sig res:', &
+            !           & (sd%tod(1:10,1) - self%scans(i)%d(1)%gain*sd%s_tot(1:10,1,0,1))/self%scans(i)%d(1)%N_psd%sigma0
+            !end if
             call dealloc_scan_data(sd)
          end do
          ! Synchronize and output flagging statistics in first iteration
@@ -454,6 +472,7 @@ contains
       
       ! Prepare intermediate data structures
       call binmap%init(self, .true., .false.)
+      call binmap2%init(self, .true., .false.)
 
       if (output_scanlist) then
          allocate(slist(self%nscan))
@@ -491,6 +510,28 @@ contains
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
          call compute_calibrated_data(self, i, sd, d_calib)
+         allocate(d_calib2(self%output_n_maps, sd%ntod, sd%ndet))
+         d_calib2 = 0.d0 ! baseline, Tsys
+         do j = 1, sd%ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            !do k = 1, self%scans(i)%ntod
+            !   do l = 0, self%tsys_order
+            !      d_calib2(2, :, j) = d_calib2(2, :, j) + self%tsys_fit(j,l) * (self%scans(i)%d(j)%elev(k) - self%tsys_eta0)**l
+            !   end do
+            !end do
+            if (allocated(self%tsys_spline)) then
+               do k = 1, self%scans(i)%ntod
+                  d_calib2(2, k, j) = d_calib2(2, k, j) + splint(self%tsys_spline(j), self%scans(i)%d(j)%elev(k))
+               end do
+               !d_calib2(2, :, j) = d_calib2(2, :, j) + splint(self%tsys_spline(j), self%scans(i)%d(j)%elev)
+               !call splint_simple_multi(self%tsys_spline(j), self%scans(i)%d(j)%elev, d_calib2(2, :, j))
+            else
+               do l = 0, self%tsys_order
+                  d_calib2(2, :, j) = d_calib2(2, :, j) + self%tsys_fit(j,l) * (self%scans(i)%d(j)%elev - self%tsys_eta0)**l
+               end do
+            end if
+            d_calib2(1, :, j) = sd%s_inst(:, j) - d_calib2(2, :, j)
+         end do
 
          ! For debugging: write TOD to hdf
          if (.true.) then
@@ -515,6 +556,7 @@ contains
 
          ! Bin TOD
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+         call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib2, binmap2)
 
          ! Update scan list
          call wall_time(t2)
@@ -529,7 +571,10 @@ contains
          ! Clean up
          call dealloc_scan_data(sd)
          deallocate(d_calib)
+         deallocate(d_calib2)
       end do
+
+      if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 2:', self%scans(1)%d(1)%N_psd%sigma0
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -537,6 +582,8 @@ contains
       if (output_scanlist) call self%output_scan_list(slist)
 
       ! Solve for maps
+      call synchronize_binmap(binmap2, self)
+      call finalize_binned_map_unpol(self, binmap2, rms_out, 1.d0)
       call synchronize_binmap(binmap, self)
       call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
       map_out%map = binmap%outmaps(1)%p%map
@@ -551,10 +598,13 @@ contains
       if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
       ! added
       !if (self%myid == 0) write(*,*) '   [comm_tod_chipass_mod] output_n_maps:', self%output_n_maps
-      if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'baseline'//trim(postfix))
+      if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'inst_corr'//trim(postfix))
+      call binmap2%outmaps(1)%p%writeFITS(trim(prefix)//'baseline'//trim(postfix))
+      call binmap2%outmaps(2)%p%writeFITS(trim(prefix)//'Tsys_eta'//trim(postfix))
 
       ! Clean up
       call binmap%dealloc()
+      call binmap2%dealloc()
       if (allocated(slist)) deallocate(slist)
 
       ! Parameter to check if this is first time routine has been
@@ -618,6 +668,64 @@ contains
 
   end subroutine sample_chipass_baseline
 
+  subroutine sample_chipass_baseline_per_slew(tod, scan, raw, s_tot, mask)
+    !
+    !   Sample CHIPASS baseline
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   scan:     local scan ID
+    !   raw:      raw tod in du
+    !   s_tot:    total signal model in mK
+    !   mask:     list of accepted samples
+    !
+    implicit none
+    class(comm_chipass_tod),                intent(inout) :: tod
+    integer(i4b),                           intent(in)    :: scan
+    real(sp), dimension(1:,1:),             intent(in)    :: raw, s_tot, mask
+
+    integer(i4b) :: i, j, k, n, s, ntod_slew
+    real(dp)     :: t, dt
+    real(dp), allocatable, dimension(:) :: x, y
+
+    do s = 1, tod%scans(scan)%nslew
+
+       ntod_slew = tod%scans(scan)%slew_inds(s, 2) - tod%scans(scan)%slew_inds(s, 1) + 1
+       allocate(x(ntod_slew), y(ntod_slew))
+       dt = 1.d0 / ntod_slew
+
+       !if ((tod%myid == 0) .and. (scan == 1)) write(*,*) 'slew, inds, n:', s, tod%scans(scan)%slew_inds(s, :), ntod_slew
+
+       do j = 1, tod%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          t = 0.d0
+          n = 0
+          do k = tod%scans(scan)%slew_inds(s, 1), tod%scans(scan)%slew_inds(s, 2)
+             t      = t + dt
+             if (mask(k,j) > 0.5) then
+                n    = n + 1
+                x(n) = t
+                y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
+                if (allocated(tod%tsys_spline)) then
+                   y(n) = y(n) - splint(tod%tsys_spline(j),tod%scans(scan)%d(j)%elev(k))
+                else
+                   do i = 0, tod%tsys_order
+                      y(n) = y(n) - tod%tsys_fit(j, i) * (tod%scans(scan)%d(j)%elev(k) - tod%tsys_eta0)**i
+                   end do
+                end if
+             end if
+          end do
+          if (n > tod%baseline_order+1) call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline_slew(s, :))
+       end do
+
+       deallocate(x, y)
+
+    end do
+
+  end subroutine sample_chipass_baseline_per_slew
+
   subroutine read_scan_inst_chipass(self, file, slabel, detlabels, scan)
     ! 
     ! Reads CHIPASS-specific scan information from TOD fileset
@@ -652,6 +760,18 @@ contains
        do j = 1, self%ndet
           call read_hdf(file, slabel//'/'//trim(detlabels(j))//'/elev', scan%d(j)%elev)
        end do
+    end if
+
+    if (self%read_az) then
+       do j = 1, self%ndet
+          call read_hdf(file, slabel//'/'//trim(detlabels(j))//'/az', scan%d(j)%az)
+       end do
+    end if
+
+    if (self%per_slew_baseline) then
+       call read_hdf(file, slabel//'/common/nslew', scan%nslew)
+       allocate(scan%slew_inds(scan%nslew,2))
+       call read_hdf(file, slabel//'/common/slew_inds', scan%slew_inds)
     end if
 
   end subroutine read_scan_inst_chipass
@@ -775,7 +895,7 @@ contains
           
           ! Output to ascii
           call int2string(j, dtext)
-          open(58, file='Tsys'//dtext//'.dat', recl=128)
+          open(58, file=trim(self%outdir)//'/Tsys'//dtext//'.dat', recl=128)
           do i = 1, nbin
              tsys = 0.
              do l = 0, self%tsys_order
@@ -832,8 +952,8 @@ contains
 
     type(hdf_file)   :: file
     !character(len=6) :: slabel
-    integer(i4b)     :: i, j, k, d, scan
-    real(dp)         :: t, dt
+    integer(i4b)     :: i, j, k, d, scan, s
+    real(dp)         :: t, dt, t2, dt2
     !real(dp), allocatable, dimension(:) :: elev
 
     scan      = sd%scan
@@ -843,11 +963,26 @@ contains
        d = j; if (present(det)) d = det
        t = 0.d0
        if (.not. self%scans(scan)%d(d)%accept) cycle
+       s = 1
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
-          do i = 0, self%baseline_order
-             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
-          end do
+          if (sd%mask(k,j) .le. 0.5) cycle
+          if (self%per_slew_baseline) then
+             if (k > self%scans(scan)%slew_inds(s, 2)) s = s + 1
+                !if(s < self%scans(scan)%nslew) if (k == self%scans(scan)%slew_inds(s+1, 1)) s = s + 1
+             dt2 = 1.d0 / (self%scans(scan)%slew_inds(s, 2) - self%scans(scan)%slew_inds(s, 1) + 1)
+             if (k .ge. self%scans(scan)%slew_inds(s, 1)) then
+                t2 = (k - self%scans(scan)%slew_inds(s, 1))*dt2
+                if ((t2 < 0.d0) .or. (t2 > 1.d0)) write(*,*) 'bad t2; t2, k, s', t2, k, s
+                do i = 0, self%baseline_order
+                   sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline_slew(s, i) * t2**i
+                end do
+             end if
+          else
+             do i = 0, self%baseline_order
+                sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
+             end do
+          end if
           if (allocated(self%tsys_spline)) then
              sd%s_inst(k,j) = sd%s_inst(k,j) + splint(self%tsys_spline(d),self%scans(scan)%d(d)%elev(k))
           else
@@ -883,14 +1018,17 @@ contains
 
     integer(i4b) :: ierr, i, j, k, ext(3), nbin
     real(dp), allocatable, dimension(:,:,:) :: baseline, buffer
+    real(dp), allocatable, dimension(:,:,:,:) :: baseline_slew
     real(dp), allocatable, dimension(:,:)   :: tsys_fit
     real(dp) :: tsys_eta0
 
     allocate(baseline(self%nscan_tot, self%ndet, 0:self%baseline_order))
+    allocate(baseline_slew(self%nscan_tot, self%ndet, self%max_nslew, 0:self%baseline_order))
     allocate(tsys_fit(self%ndet, 0:self%tsys_order))
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
+       call read_hdf(chainfile, trim(adjustl(path))//'baseline_per_slew', baseline_slew)
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_fit', tsys_fit)
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', tsys_eta0)
 
@@ -904,6 +1042,7 @@ contains
     call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     
     call mpi_bcast(baseline, size(baseline), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(baseline_slew, size(baseline_slew), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(tsys_fit, size(tsys_fit), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(tsys_eta0, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
@@ -913,7 +1052,8 @@ contains
        do i = 1, self%nscan
           k = self%scanid(i)
           if (.not. self%scans(i)%d(j)%accept) cycle
-          self%scans(i)%d(j)%baseline = baseline(k, j, :) 
+          self%scans(i)%d(j)%baseline = baseline(k, j, :)
+          self%scans(i)%d(j)%baseline_slew = baseline_slew(k, j, :, :)
        end do
     end do
 
@@ -930,7 +1070,7 @@ contains
        self%tsys_spline(j)%verbose    = .false.
     end do
     
-    deallocate(baseline, tsys_fit, buffer)
+    deallocate(baseline, baseline_slew, tsys_fit, buffer)
 
   end subroutine initHDF_chipass
 
@@ -956,8 +1096,27 @@ contains
     type(hdf_file),          intent(in)     :: chainfile
     character(len=*),        intent(in)     :: path
 
-    integer(i4b) :: i, nbin
+    integer(i4b) :: i, j, k, nbin, ierr
     real(dp), allocatable, dimension(:,:,:) :: buffer
+    real(dp), allocatable, dimension(:,:,:,:) :: baseline_slew
+
+    if (self%per_slew_baseline) then
+       allocate(baseline_slew(self%nscan_tot, self%ndet, self%max_nslew, 0:self%baseline_order))
+       do j = 1, self%ndet
+          do i = 1, self%nscan
+             k = self%scanid(i)
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             baseline_slew(k, j, :, :) = self%scans(i)%d(j)%baseline_slew
+          end do
+       end do
+       if (self%myid == 0) then
+          call mpi_reduce(mpi_in_place, baseline_slew, size(baseline_slew), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       else
+          call mpi_reduce(baseline_slew, baseline_slew, size(baseline_slew), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       end if
+    end if
     
     if (self%myid == 0 .and. trim(self%level) == 'L1') then
        call write_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', self%tsys_eta0)
@@ -978,6 +1137,11 @@ contains
           end do
           call write_hdf(chainfile, trim(adjustl(path))//'tsys_spline', buffer)
           deallocate(buffer)
+       end if
+
+       if (self%per_slew_baseline) then
+          call write_hdf(chainfile, trim(adjustl(path))//'baseline_per_slew', baseline_slew)
+          deallocate(baseline_slew)
        end if
     end if
 
