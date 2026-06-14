@@ -549,6 +549,7 @@ contains
       end if
       if (cpar%zs_output_tod_res) then
          call mpi_finalize(ierr)
+         write(*,*) "Outputting zodi init params"
          stop
       end if
 

@@ -340,6 +340,7 @@ contains
         !alpha = log(exp(alpha_p) + exp(alpha_pp))
         alpha = alpha_p + alpha_pp
         if (alpha_pp < 0) then
+          write(*,*) "hmc_mod: alpha_pp less than zero"
           write(*,*) alpha_pp, n_app, j, n_pp, s_pp, logu, theta_plus(1), p_plus(1), theta_minus(1), p_minus(1)
           stop
         end if

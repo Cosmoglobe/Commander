@@ -151,6 +151,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           
        end if
        call mpi_finalize(ierr)
+       write(*,*) "adc_binfit: stop in debug"
        stop
     end if
     
