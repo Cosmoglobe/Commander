@@ -292,10 +292,10 @@ contains
        ! Do data selection, then start sampling
        !sample_gain           = iter  > 2 !.true.                 
        sample_gain           = .false.
-       make_dyn_mask         = iter == 2
-       sample_ncorr          = iter  > 3 !.true.
-       sample_xi_n           = iter > 5
-       select_data           = iter == 1
+       make_dyn_mask         = (iter == 2) .or. (iter == 7)
+       sample_ncorr          = iter  > 2 !.true.
+       sample_xi_n           = iter > 3
+       select_data           = (iter == 1) .or. (iter == 6)
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -407,7 +407,7 @@ contains
           end if
        else
           call sample_n_corr(self, sd, handle, onlymono=.true.)
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=(iter==20))
        end if
       call update_status(status, "sampled ncorr")
        
@@ -442,19 +442,6 @@ contains
        !d_calib(1,:,:) = -abs(sd%tod)
        call update_status(status, "computed calibrated")
 
-       ! For debugging: write TOD to hdf
-       if (.false.) then
-          !if (self%scanid(i) == 915) then 
-             !print *, self%scanid(i)
-             call int2string(self%scanid(i), scantext)
-             call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
-             call write_hdf(tod_file, '/tod', sd%tod)
-             call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
-             call write_hdf(tod_file, '/flag', sd%flag)
-             call write_hdf(tod_file, '/n_corr', sd%n_corr)
-             call close_hdf_file(tod_file)
-          !end if
-       end if
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -468,6 +455,20 @@ contains
           write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),&
                & real(self%spinaxis(i,:),sp)
+       end if
+
+       ! For debugging: write TOD to hdf
+       if (iter == 20) then
+          !if (self%scanid(i) == 915) then 
+             !print *, self%scanid(i)
+             call int2string(self%scanid(i), scantext)
+             call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//'_'//scantext//'.h5', tod_file, 'w')
+             call write_hdf(tod_file, '/tod', sd%tod)
+             call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+             call write_hdf(tod_file, '/flag', sd%flag)
+             call write_hdf(tod_file, '/n_corr', sd%n_corr)
+             call close_hdf_file(tod_file)
+          !end if
        end if
 
        ! Clean up
@@ -510,8 +511,6 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
-    ! TODO: update mapmaker to n+2 maps
-    ! TODO: handle bolometer transfer function in the mapmaking
     call synchronize_binmap(binmap, self)
     call update_status(status, "tod_binmap1"//ctext)
     if (sample_rel_bandpass) then
