@@ -128,53 +128,8 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       ! Setting new white noise level from powspec
-       if (self%first_call) then
-          sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
-          N_wn     = sigma_0**2
-       else
-          allocate(ps(0:n-1))
-          dt(1:ntod)           = d_prime(:)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          call timer%start(TOT_FFT)
-          call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
-          call timer%stop(TOT_FFT)
-          do l = 1, n-1
-             ps(l) = abs(dv(l)) ** 2 / ntod
-          end do
-
-          ! Binning
-          dnu = 5.d-1 ! Hz
-          nbin = (samprate/2) * (n-2)/(n-1) / dnu
-          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin,2))
-
-          bin_sum = 0.d0; bin_count = 0; bin_spec = 0.d0
-          do l = 1, n-1
-             j = (samprate/2) * (l-1)/(n-1) /dnu + 1
-             if (j >= 1 .and. j <= nbin) then
-                bin_sum(j)   = bin_sum(j) + ps(l)
-                bin_count(j) = bin_count(j) + 1
-             end if
-          end do
-
-          do j = 1, nbin
-             bin_spec(j,1) = (samprate/2)/(n-1) + (j-0.5d0)*dnu
-             if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
-          end do
-          deallocate(ps,bin_sum,bin_count)
-
-          N_wn = 1.d30
-          !open(58,file='testdir/binned_psd.dat', recl=1024)
-          do j = 1, nbin
-             !write(58,*) bin_spec(j,1), bin_spec(j,2)
-             if (bin_spec(j,2) < N_wn) N_wn = bin_spec(j,2)
-          end do
-          !close(58)
-          deallocate(bin_spec)
-
-          sigma_0 = abs(sqrt(N_wn))
-          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
-       end if
+       sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
+       N_wn     = sigma_0**2
 
        ! Only estimate monopole
        if (onlymono_) then
