@@ -96,10 +96,12 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)   :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)     :: baseline       ! Polynomial coefficients for baseline function
+     real(dp),           allocatable, dimension(:,:)   :: baseline_slew  ! Polynomial coefficients for baseline function per slew
      integer(i4b),       allocatable, dimension(:,:)   :: pix_sol        ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
      integer(i4b),       allocatable, dimension(:,:)   :: pix_moon       ! Discretized pointing in Moon centric coordinates, for zodi and sidelobe mapping
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
      real(dp),           allocatable, dimension(:)     :: elev           ! Elevation
+     real(dp),           allocatable, dimension(:)     :: az           ! Azimuth
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:,:) :: zodi_sampgroup_mask
@@ -151,6 +153,9 @@ module comm_tod_mod
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
+
+     integer(i4b)   :: nslew                                       ! Number of concatenated slews
+     integer(i4b), allocatable, dimension(:,:) :: slew_inds        ! Slew start and end indices
   end type comm_scan
 
 
@@ -194,6 +199,7 @@ module comm_tod_mod
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: max_nslew                                    ! Maximum number of concatenated slews in one chunk
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -322,6 +328,8 @@ module comm_tod_mod
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
      integer(i4b), allocatable, dimension(:) :: split
      logical(lgt)                            :: read_elev
+     logical(lgt)                            :: read_az
+     logical(lgt)                            :: per_slew_baseline
 
      ! Bandpass, pointer to comm_data%bp
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
@@ -594,6 +602,8 @@ contains
     self%nside_pixhist   = -1
     self%sigma0_threshold = 1d30
     self%read_elev       = .false.
+    self%read_az         = .false.
+    self%per_slew_baseline = .false.
  
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
@@ -1291,12 +1301,21 @@ contains
 
        if (tod%baseline_order >= 0) then
           allocate(self%d(i)%baseline(0:tod%baseline_order))
-          self%d(i)%baseline = 0.
+          self%d(i)%baseline = 0.d0
+          if (tod%per_slew_baseline) then
+             allocate(self%d(i)%baseline_slew(tod%max_nslew, 0:tod%baseline_order))
+             self%d(i)%baseline_slew = 0.d0
+          end if
        end if
 
        if (tod%read_elev) then
           allocate(self%d(i)%elev(n))
           self%d(i)%elev = 0.d0
+       end if
+
+       if (tod%read_az) then
+          allocate(self%d(i)%az(n))
+          self%d(i)%az = 0.d0
        end if
 
        if (trim(tod%noise_psd_model) == 'white') then
