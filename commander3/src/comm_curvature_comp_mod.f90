@@ -97,7 +97,7 @@ contains
           c%theta(i)%p%map = c%theta_def(i)
        else
           ! Read map from FITS file
-          c%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          c%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0

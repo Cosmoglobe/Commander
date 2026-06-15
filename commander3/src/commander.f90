@@ -266,7 +266,15 @@ program commander
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
-        call process_all_TODs(cpar, cpar%mychain, iter, handle)
+        if (iter == 3) then
+           do i = 1, 1
+              call process_all_TODs(cpar, cpar%mychain, iter, handle)
+           end do
+        else
+           do i = 1, 5
+              call process_all_TODs(cpar, cpar%mychain, iter, handle)
+           end do
+        end if
         call timer%stop(TOT_TODPROC)
      end if
 
@@ -305,6 +313,7 @@ program commander
    end if
    
    if (mod(iter+1,modfact) == 0 .and. iter > cpar%first_compsep_samp) then
+   !if (mod(iter+1,5) == 0 .and. iter > cpar%first_compsep_samp) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
@@ -329,24 +338,35 @@ program commander
 
      
      if (cpar%mcmc_num_samp_groups > 0) then
-     !if (iter > 3) then
-        do i = 1, cpar%mcmc_num_samp_groups
-           if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
-              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
-           else if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
-              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
-            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
-              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            else
-              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
-              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            end if
-        end do
+        !if (iter > 3) then
+        do j = 1, 1
+           do i = 1, cpar%mcmc_num_samp_groups
+              if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+                 call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              else if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
+                 call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
+              else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
+                 call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              else
+                 if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
+                 call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              end if
+
+              ! Sample calibration factors and amplitudes
+              call sample_all_gains(cpar, iter, handle)
+              call sample_all_amps_by_CG(cpar, handle, handle_noise)
+           end do
+         end do
         ! Do CG group sampling
         !call sample_all_amps_by_CG(cpar, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 1, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 2, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 3, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 4, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 5, handle, handle_noise)
      end if
 
      ! Sample non-linear parameters
@@ -357,7 +377,7 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (cpar%mcmc_num_samp_groups > 0 .or. cpar%sample_specind) then
+     if ((cpar%mcmc_num_samp_groups > 0 .or. cpar%sample_specind) .and. cpar%sample_signal_amplitudes) then
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if

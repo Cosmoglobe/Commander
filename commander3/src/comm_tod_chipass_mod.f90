@@ -114,6 +114,7 @@ contains
       !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
       c%xi_n_P_uni(2,:)  = [0.002d0, 0.0021d0]  ! fknee
+      !
       c%xi_n_P_uni(3,:)  = [-1.801d0, -1.799d0]  ! alpha
 
       ! Initialize common parameters
@@ -135,7 +136,7 @@ contains
       c%symm_flags      = .false.
       c%read_elev       = .true.
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      c%chisq_threshold = 15d8
+      c%chisq_threshold = 30
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
          c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
@@ -338,13 +339,13 @@ contains
          sample_gain     = iter > 2                         ! Gain sampling
          sample_ncorr    = iter > 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
-         select_data     = iter == 10                   ! in param file. Takes you to 'else' below
+         select_data     = .false. !iter == 10                   ! in param file. Takes you to 'else' below
          sample_baseline = iter > 1
          sample_tsys     = iter > 1
-         sample_gain     = iter > 2                         ! Gain sampling
+         sample_gain     = iter > 2                        ! Gain sampling
          sample_ncorr    = iter > 3
       else
-         select_data     = iter == 1                    
+         select_data     = self%first_call  !iter == 1                    
          sample_baseline = iter > 1
          sample_tsys     = iter > 1
          sample_gain     = iter > 1                         ! Gain sampling
@@ -485,7 +486,8 @@ contains
          end do
 
          ! Select data
-         if (select_data) call remove_bad_data(self, i, sd%flag)
+         !if (select_data) call remove_bad_data(self, i, sd%flag)
+         if (iter==3) call remove_bad_data(self, i, sd%flag)
          
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))

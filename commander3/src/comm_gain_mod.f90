@@ -33,15 +33,15 @@ contains
     type(planck_rng), intent(inout) :: handle
 
     integer(i4b)  :: i, l, lmin, lmax, ierr, root, ncomp, dl_low, dl_high, ntok
-    real(dp)      :: my_sigma, my_mu, mu, sigma, gain_new, chisq, mychisq
-    real(dp)      :: MAX_DELTA_G = 0.3d0
+    real(dp)      :: my_sigma, my_mu, mu, sigma, gain_new, chisq, mychisq, alpha
+    real(dp)      :: MAX_DELTA_G = 1000.d0, A(2,2), b(2)
     logical(lgt)  :: include_comp
     character(len=4) :: chain_text
     character(len=6) :: iter_text
     character(len=512) :: tokens(10)
     real(dp), allocatable, dimension(:,:) :: m, cls1, cls2
     class(comm_comp),   pointer           :: c => null()
-    class(comm_map), pointer              :: invN_sig => null(), map => null(), sig => null(), res => null()
+    class(comm_map), pointer              :: invN_sig => null(), map => null(), sig => null(), res => null(), mono
 
 
     ierr    = 0
@@ -124,6 +124,7 @@ contains
        data(band)%gain = mean(cls2(lmin:lmax,1)/cls1(lmin:lmax,1))
 
        if (data(band)%info%myid == root) then
+          write(*,fmt='(a,a,f12.6,f12.6)') ' Gain = ', trim(data(band)%label), data(band)%gain
           call int2string(chain, chain_text)
           call int2string(iter,  iter_text)
           open(58,file=trim(outdir)//'/gain_cl_'//trim(data(band)%label)//'_c'//chain_text//'_k'//iter_text//'.dat', recl=1024)
@@ -138,29 +139,55 @@ contains
 
     else
        ! Correlate in pixel space with standard likelihood fit
-       invN_sig     => comm_map(sig)
+       invN_sig      => comm_map(sig)
+       mono          => comm_map(sig%info)
+       mono%map(:,1) = 1.0
        if (associated(data(band)%gainmask)) then
           invN_sig%map = invN_sig%map * data(band)%gainmask%map
           sig%map      = sig%map      * data(band)%gainmask%map
           res%map      = res%map      * data(band)%gainmask%map
+          mono%map     = mono%map     * data(band)%gainmask%map
        end if
-       call data(band)%N%sqrtInvN(invN_sig)! Multiply with invN
+       call data(band)%N%sqrtInvN(invN_sig)  ! Multiply with sqrtInvN
+       call data(band)%N%sqrtInvN(mono)      ! Multiply with sqrtInvN
 
+       ! Build linear system for d = g * sig + mono
+       A(1,1) = sum(invN_sig%map * invN_sig%map)
+       A(2,1) = sum(mono%map     * invN_sig%map)
+       A(1,2) = A(2,1)
+       A(2,2) = sum(mono%map     * mono%map)
+       call data(band)%N%sqrtInvN(invN_sig) ! Multiply with sqrrInvN again
+       call data(band)%N%sqrtInvN(mono)     ! Multiply with sqrrInvN again
+       b(1)   = sum(res%map * invN_sig%map)
+       b(2)   = sum(res%map * mono%map)
+
+       if (data(band)%info%myid == 0) then
+          call mpi_reduce(mpi_in_place, A, 4, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+          call mpi_reduce(mpi_in_place, b, 2, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+       else
+          call mpi_reduce(A, A, 4, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+          call mpi_reduce(b, b, 2, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+       end if
+       
        !call invN_sig%writeFITS('invN_sig_'//trim(data(band)%label)//'.fits')
 
-       my_sigma = sum(sig%map * invN_sig%map)
-       my_mu    = sum(res%map * invN_sig%map)
-       call mpi_reduce(my_mu,    mu,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
-       call mpi_reduce(my_sigma, sigma, 1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+       !my_sigma = sum(sig%map * invN_sig%map)
+       !my_mu    = sum(res%map * invN_sig%map)
+       !call mpi_reduce(my_mu,    mu,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
+       !call mpi_reduce(my_sigma, sigma, 1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
        if (data(band)%info%myid == root) then
           ! Compute mu and sigma from likelihood term
-          mu       = mu / sigma
-          sigma    = sqrt(1.d0 / sigma)
-          if (trim(operation) == 'optimize') then ! Optimize
-             gain_new = mu
-          else
-             gain_new = mu + sigma * rand_gauss(handle)
-          end if
+          !mu       = mu / sigma
+          !sigma    = sqrt(1.d0 / sigma)
+          !if (trim(operation) == 'optimize') then ! Optimize
+          !!   gain_new = mu
+          !else
+          !   gain_new = mu + sigma * rand_gauss(handle)
+          !end if
+          call invert_matrix(A)
+          b     = matmul(A,b)
+          sigma = sqrt(A(1,1))
+          gain_new = b(1) + sigma * rand_gauss(handle) 
           ! Only allow relatively small changes between steps, and not outside the range from 0.01 to 0.01
           data(band)%gain = min(max(gain_new, data(band)%gain-MAX_DELTA_G), data(band)%gain+MAX_DELTA_G)
           write(*,fmt='(a,a,f12.6,f12.6)') ' Gain = ', trim(data(band)%label), data(band)%gain, sigma
@@ -170,6 +197,7 @@ contains
        call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)
 
        call invN_sig%dealloc(); deallocate(invN_sig)
+       call mono%dealloc(); deallocate(mono)
     end if
 
     ! Subtract scaled reference signal from residual
@@ -178,8 +206,8 @@ contains
     ! Output residual signal and residual for debugging purposes
     if (.true.) then
        call sig%writeFITS(trim(outdir)//'/gain_sig_'//trim(data(band)%label)//'.fits')
-       call res%writeFITS(trim(outdir)//'/gain_out_'//trim(data(band)%label)//'.fits')
-       call data(band)%res%writeFITS(trim(outdir)//'/gain_inp_'//trim(data(band)%label)//'.fits')
+       call res%writeFITS(trim(outdir)//'/gain_inp_'//trim(data(band)%label)//'.fits')
+       call data(band)%res%writeFITS(trim(outdir)//'/gain_res_'//trim(data(band)%label)//'.fits')
     end if
 
     call sig%dealloc(); deallocate(sig)

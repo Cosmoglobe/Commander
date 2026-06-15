@@ -178,6 +178,7 @@ contains
           c => c%nextComp()
           cycle
        end if
+       call mpi_barrier(mpi_comm_world, ierr)
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
        select type (c)
        class is (comm_diffuse_comp)

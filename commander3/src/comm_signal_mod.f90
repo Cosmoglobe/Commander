@@ -31,6 +31,7 @@ module comm_signal_mod
   use comm_spindust2_comp_mod
   use comm_md_comp_mod
   use comm_line_comp_mod
+  use comm_lcut_comp_mod
   use comm_freefree_comp_mod
   use comm_freefreeEM_comp_mod
   use comm_exp_comp_mod
@@ -97,6 +98,8 @@ contains
              c => comm_freefreeEM_comp(cpar, ncomp, i)
           case ("line")
              c => comm_line_comp(cpar, ncomp, i)
+          case ("lcut")
+             c => comm_lcut_comp(cpar, ncomp, i)
           case ("md")
              c => initialize_md_comps(cpar, ncomp, i, n)
              ncomp = ncomp + n - 1

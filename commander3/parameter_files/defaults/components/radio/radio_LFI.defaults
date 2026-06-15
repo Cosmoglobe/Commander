@@ -28,8 +28,8 @@ COMP_ALPHA_PRIOR_UNI_HIGH&&    =   1
 COMP_ALPHA_PRIOR_GAUSS_MEAN&&  =  -0.1
 COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
 
-COMP_BETA_DEFAULT&&            = -2.0
-COMP_BETA_NU_MIN&&             = 1         ! GHz
+COMP_BETA_DEFAULT&&            = 0.0
+COMP_BETA_NU_MIN&&             = 0         ! GHz
 COMP_BETA_NU_MAX&&             = 150      ! GHz
 COMP_BETA_PRIOR_UNI_LOW&&      =  -1.
 COMP_BETA_PRIOR_UNI_HIGH&&     =   1.

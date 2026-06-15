@@ -24,6 +24,29 @@ module comm_nonlin_mod
 
 interface
 
+   module subroutine sample_all_gains(cpar, iter, handle)
+    !
+    ! Routine that samples map-level gains for all bands
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handles are updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
+    implicit none
+    type(comm_params),  intent(in)    :: cpar
+    integer(i4b),       intent(in)    :: iter
+    type(planck_rng),   intent(inout) :: handle
+  end subroutine sample_all_gains
 
   module subroutine sample_nonlin_params(cpar, iter, handle, handle_noise)
     !

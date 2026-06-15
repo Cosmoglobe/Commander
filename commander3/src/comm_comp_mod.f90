@@ -39,7 +39,7 @@ module comm_comp_mod
      logical(lgt)       :: active
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
-     logical(lgt)       :: output
+     logical(lgt)       :: output, update_mixmat
      real(dp)           :: nu_ref(3), RJ2unit_(3), nu_min, nu_max
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
@@ -239,6 +239,7 @@ contains
     self%numprocs        = cpar%numprocs_chain
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
     self%operation       = cpar%operation
+    self%update_mixmat   = .true.
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)
     self%output = .false.
@@ -396,19 +397,23 @@ contains
     c%nextLink    => link
   end subroutine addComp
 
-  subroutine update_mixing_matrices(band, update_F_int)
+  subroutine update_mixing_matrices(band, update_F_int, only_update_flagged)
     implicit none
     integer(i4b), intent(in), optional :: band
     logical(lgt), intent(in), optional :: update_F_int
+    logical(lgt), intent(in), optional :: only_update_flagged
     integer(i4b) :: i, j, k
-    logical(lgt) :: update_F
+    logical(lgt) :: update_F, update_flagged
 
     class(comm_comp), pointer :: c => null()
-    update_F =.false.; if (present(update_F_int)) update_F = update_F_int 
+    update_F =.false.; if (present(update_F_int)) update_F = update_F_int
+    update_flagged =.false.; if (present(only_update_flagged)) update_flagged = only_update_flagged
 
     c => compList
     do while (associated(c))
-       if (present(band)) then
+       if (update_flagged .and. .not. c%update_mixmat) then
+          ! Do nothing
+       else if (present(band)) then
           if (update_F) call c%update_F_int(band)
           call c%updateMixmat(band=band)
        else

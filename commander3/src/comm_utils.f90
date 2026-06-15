@@ -808,7 +808,7 @@ contains
        l = l+1
        if (l == lmax) call report_error('Error: Beam has not fallen off to 0.5 by lmax')
     end do
-    theta_max = pi/l * 10.d0
+    theta_max = pi/l * 100.d0
     
     ! Compute radial beams
     allocate(x(n), y(n,nmaps), pl(0:lmax))

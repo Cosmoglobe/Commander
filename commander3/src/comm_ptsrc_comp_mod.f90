@@ -358,6 +358,9 @@ contains
           end do
        end do
     end do 
+
+    ! Flag as updated
+    self%update_mixmat = .false.
     
   end subroutine updateF
 
@@ -369,13 +372,19 @@ contains
     real(dp), dimension(1:),   intent(in), optional :: theta
     real(dp)                                        :: evalSED_ptsrc
 
-    real(dp) :: x
+    real(dp) :: x, nu_break
     
     select case (trim(self%type))
     case ("radio")
+       nu_break = 100d6 ! Arbitrarily set to 100 MHz for now
        !evalSED = exp(theta(1) * (nu/self%nu_ref) + theta(2) * (log(nu/self%nu_ref))**2) * &
        !     & (self%nu_ref/nu)**2
-       evalSED_ptsrc = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) 
+       !evalSED_ptsrc = (nu/self%nu_ref(pol))**(-2.d0+theta(1))
+       if (nu > nu_break) then
+          evalSED_ptsrc = (nu/self%nu_ref(pol))**(-2.d0+theta(1))
+       else
+          evalSED_ptsrc = (nu_break/self%nu_ref(pol))**(-2.d0+theta(1)) * (nu/nu_break)**(-2.d0 + theta(1) + theta(2))
+       end if
     case ("fir")
        ! Note that this is in K_RJ, so a factor of nu^2 is divided out when compared to the MJy/sr form.
        x = h/(k_B*theta(2))
@@ -564,6 +573,7 @@ contains
 
     if (.not. self%output) return
 
+    call mpi_barrier(mpi_comm_world, ierr)
     ! Output point source maps for each frequency
     do i = 1, numband
        if (self%F_null(i)) cycle
@@ -575,6 +585,7 @@ contains
     end do
 
     ! Output catalog
+    call mpi_barrier(mpi_comm_world, ierr)
     if (self%myid == 0) then
        if (output_hdf) then
           ! Output to HDF
@@ -647,13 +658,13 @@ contains
                 write(unit, *) &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
                      & self%x(i,1)*self%cg_scale, self%src(i)%amp_rms(1), self%src(i)%theta(:,1), &
-                     & self%src(i)%theta_rms(:,1), min(self%src(i)%red_chisq,10000.d0), '  ', &
+                     & self%src(i)%theta_rms(:,1), min(self%src(i)%red_chisq,1.d12), '  ', &
                      & trim(self%src(i)%id)
              end if
           end if
        end do
        close(unit)
-    end if
+    end if 
     
   end subroutine dumpPtsrcToFITS
 

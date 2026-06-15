@@ -20,6 +20,7 @@
 !================================================================================
 module comm_mh_specind_mod
   use comm_signal_mod
+  use comm_nonlin_mod
   implicit none
 
   integer(i4b), dimension(100,2) :: mh_accept_stat = 0 ! (nsamp, naccept)
@@ -193,9 +194,9 @@ contains
     type(comm_params) :: cpar
 
 
-    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
+    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0, mono
     real(dp), allocatable, dimension(:) :: scales
-    integer(i4b) :: band, ierr, i, j, k, m, pol, pix, n_scales
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix, n_scales, ind
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -253,10 +254,22 @@ contains
               if (cpar%myid == 0) write(*,*) '|    ', trim(c%label)
               scales(i) = 1 + rand_gauss(handle)*c%scale_sigma(l)
               write(*,*) '|   Scaling by ', scales(i)
+              if (trim(c%label) == 'synch') then
+                 mono = rand_gauss(handle) * 1e3
+                 write(*,*) '|   Offset by ', mono
+              else if (trim(c%label) == 'extgal') then
+                 mono = rand_gauss(handle) * 1e1
+                 write(*,*) '|   Offset by ', mono
+              end if
             end if
             call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
+            if (trim(c%label) == 'synch' .or. trim(c%label) == 'extgal') call mpi_bcast(mono, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
             select type(c)
             class is (comm_diffuse_comp)
+               if (trim(c%label) == 'synch' .or. trim(c%label) == 'extgal') then
+                  call c%x%info%lm2i(0,0,ind)
+                  if (ind > -1) c%x%alm(ind,1) = c%x%alm(ind,1) + mono/c%cg_scale(1)
+               end if
               c%x%alm = c%x%alm*scales(i)
               c%x_scale = c%x_scale * scales(i)
               !call c%x%Y
@@ -310,6 +323,10 @@ contains
                select type(c)
                class is (comm_diffuse_comp)
                   c%x%alm = c%x%alm/scales(i)
+                  if (trim(c%label) == 'synch' .or. trim(c%label) == 'extgal') then
+                     call c%x%info%lm2i(0,0,ind)
+                     if (ind > -1) c%x%alm(ind,1) = c%x%alm(ind,1) - mono/c%cg_scale(1)
+                  end if
                   !call c%x%Y
                class is (comm_template_comp)
                   c%T%map = c%T%map/scales(i)
@@ -673,7 +690,8 @@ contains
                   end do
                end do
                if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
- 
+
+               c%update_mixmat = .true.
              end select
 
             select type (c)
@@ -697,6 +715,18 @@ contains
        end do
 
        ! Update mixing matrices
+       call update_mixing_matrices(update_F_int=.true., only_update_flagged=.true.)
+
+       ! Propose gains consistent with new spectrum
+       do i = 1, numband
+          data(i)%gain_tmp = data(i)%gain
+       end do
+       call sample_amps_by_CG(cpar, 1, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 2, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 3, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 4, handle, handle_noise)
+       !call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+       call sample_all_gains(cpar, 1, handle)
        call update_mixing_matrices(update_F_int=.true.)
 
        ! Perform component separation
@@ -707,6 +737,16 @@ contains
           call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
        end if
 
+       call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, 1)
+
+       ! Propose gains consistent with new spectrum
+       call sample_amps_by_CG(cpar, 1, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 2, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 3, handle, handle_noise)
+       call sample_amps_by_CG(cpar, 4, handle, handle_noise)
+       !call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+       call sample_all_gains(cpar, 1, handle)
+       call update_mixing_matrices(update_F_int=.true.)
 
 
        chisq_prop = 0d0
@@ -730,8 +770,9 @@ contains
            write(*,*) '| '
          end if
 
-
-
+         do i = 1, numband
+            data(i)%gain = data(i)%gain_tmp
+         end do
 
          ! Instead of doing compsep, revert the amplitudes here
          c => compList
@@ -761,14 +802,15 @@ contains
                   c%spl=c%spl_buff
                end if 
             end select
+            c%update_mixmat = .true.
 
             !go to next component
             c => c%nextComp()
-                
          end do
 
 
          ! Update mixing matrices
+         !call update_mixing_matrices(update_F_int=.true., only_update_flagged=.true.)
          call update_mixing_matrices(update_F_int=.true.)
 
          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
@@ -982,7 +1024,7 @@ contains
                  end if
                  c => c%nextComp()
               end do
-            else if (comp_names(2)(1:1) == 'T') then
+            else if (comp_names(2)(1:1) == 'T' .or. comp_names(2)(1:3) == 'C_S') then
               c => compList
               do while (associated(c))
                 if (trim(c%label) == trim(comp_names(1))) then

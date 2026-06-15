@@ -2117,6 +2117,9 @@ contains
     ! Request preconditioner update
     recompute_diffuse_precond = .true.
 
+    ! Flag as updated
+    self%update_mixmat = .false.
+    
   end subroutine updateDiffuseMixmat
 
 

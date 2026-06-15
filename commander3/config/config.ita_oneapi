@@ -50,7 +50,7 @@ export MPCC := mpiicx
 # =========== Compiler Optimizations =============
 #main
 #
-export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -diag-disable=10448
+export F90FLAGS := -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -diag-disable=10448
 
 #debug
 #export F90FLAGS := -O0 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -check all,nouninit  #-fsanitize=memory

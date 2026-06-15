@@ -22,6 +22,46 @@ submodule (comm_nonlin_mod) comm_nonlin_smod
 
 contains
 
+  module subroutine sample_all_gains(cpar, iter, handle)
+    !
+    ! Routine that samples map-level gains for all bands
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handles are updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
+    implicit none
+    type(comm_params),  intent(in)    :: cpar
+    integer(i4b),       intent(in)    :: iter
+    type(planck_rng),   intent(inout) :: handle
+
+    integer(i4b) :: i
+    real(dp)     :: t1, t2
+
+    call update_status(status, "sample_map_gains")
+
+    ! Sample calibration factors
+    do i = 1, numband
+       if (.not. data(i)%sample_gain .or. index(data(i)%gain_comp, 'firas') .ne. 0) cycle
+       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
+    end do
+
+    ! Update mixing matrices if gains have been sampled
+    call update_mixing_matrices(update_F_int=.true.)
+    
+  end subroutine sample_all_gains
+    
+  
   module subroutine sample_nonlin_params(cpar, iter, handle, handle_noise)
     !
     ! Routine that loops through all components and samples the spectral parameters that are defined with
@@ -60,26 +100,9 @@ contains
 
     call update_status(status, "sample_nonlin_params")
 
-    ! Sample calibration factors
-    do i = 1, numband
-       if (.not. data(i)%sample_gain .or. index(data(i)%gain_comp, 'firas') .ne. 0) cycle
-       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
-    end do
+    call sample_all_gains(cpar, iter, handle)
 
-    ! Update mixing matrices if gains have been sampled
-    if (any(data%sample_gain)) then
-       c => compList
-       do while (associated(c))
-          call c%updateMixmat
-          c => c%nextComp()
-       end do
-    end if
-
-    !call output_FITS_sample(cpar, 200+iter, .true.)
-
-
-    !return
-                    
+    ! Sample spectral parameters
     c => compList
     do while (associated(c))
        if (c%npar == 0) then
