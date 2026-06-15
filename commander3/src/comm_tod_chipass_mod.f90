@@ -1030,7 +1030,11 @@ contains
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
-       call read_hdf(chainfile, trim(adjustl(path))//'baseline_per_slew', baseline_slew)
+       if (hdf_group_exists(chainfile, trim(adjustl(path))//'baseline_per_slew')) then
+          call read_hdf(chainfile, trim(adjustl(path))//'baseline_per_slew', baseline_slew)
+       else
+          baseline_slew = 0.d0
+       end if
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_fit', tsys_fit)
        call read_hdf(chainfile, trim(adjustl(path))//'tsys_eta0', tsys_eta0)
 
