@@ -5,7 +5,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emission_mbb
+   public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
    public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi
    public band_monopole, band_update_monopole
 
@@ -349,15 +349,15 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_cutoff=params(i, 8), &
-                & sed_b=params(i, 9), &
-                & alpha=params(i, 10), &
-                & beta=params(i, 11), &
-                & gamma=params(i, 12), &
-                & mu=params(i, 13) &
+                & alpha=params(i, 7), &
+                & beta=params(i, 8), &
+                & gamma=params(i, 9), &
+                & mu=params(i, 10), &
+                & sed_ampl=params(i, 11), &
+                & sed_cutoff=params(i, 12), &
+                & sed_b=params(i, 13) &
                 &)
-            allocate(self%comps(i)%labels(13))
+            allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%cloud]
          case ('band')
             allocate (ZodiBand::self%comps(i)%c)
@@ -368,15 +368,12 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_cutoff=params(i, 8), &
-                & sed_b=params(i, 9), &
-                & delta_zeta=params(i, 10), &
-                & delta_r=params(i, 11), &
-                & v=params(i, 12), &
-                & p=params(i, 13) &
+                & delta_zeta=params(i, 7), &
+                & delta_r=params(i, 8), &
+                & v=params(i, 9), &
+                & p=params(i, 10) &
             &)
-            allocate(self%comps(i)%labels(13))
+            allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%band]
          case ('ring')
             allocate (ZodiRing::self%comps(i)%c)
@@ -387,16 +384,13 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & sed_ampl=params(i, 7), &
-               & sed_cutoff=params(i, 8), &
-               & sed_b=params(i, 9), &
-               & R_0=params(i, 10), &
-               & sigma_r=params(i, 11), &
-               & sigma_z=params(i, 12), &
-               & theta_0=params(i, 13), &
-               & sigma_theta=params(i, 14) &
+               & R_0=params(i, 7), &
+               & sigma_r=params(i, 8), &
+               & sigma_z=params(i, 9), &
+               & theta_0=params(i, 10), &
+               & sigma_theta=params(i, 11) &
             &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(11))
             self%comps(i)%labels = [param_labels%common, param_labels%ring]
          case ('feature')
             allocate (ZodiFeature::self%comps(i)%c)
@@ -407,16 +401,13 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & sed_ampl=params(i, 7), &
-               & sed_cutoff=params(i, 8), &
-               & sed_b=params(i, 9), &
-               & R_0=params(i, 10), &
-               & sigma_r=params(i, 11), &
-               & sigma_z=params(i, 12), &
-               & theta_0=params(i, 13), &
-               & sigma_theta=params(i, 14) &
+               & R_0=params(i, 7), &
+               & sigma_r=params(i, 8), &
+               & sigma_z=params(i, 9), &
+               & theta_0=params(i, 10), &
+               & sigma_theta=params(i, 11) &
                &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(11))
             self%comps(i)%labels = [param_labels%common, param_labels%feature]
          case ('interstellar')
             allocate (ZodiInterstellar::self%comps(i)%c)
@@ -427,13 +418,10 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_cutoff=params(i, 8), &
-                 & sed_b=params(i, 9), &
-                 & R=params(i, 10), &
-                 & alpha=params(i, 11) &
+                 & R=params(i, 7), &
+                 & alpha=params(i, 8) &
                  &)
-            allocate(self%comps(i)%labels(11))
+            allocate(self%comps(i)%labels(8))
             self%comps(i)%labels = [param_labels%common, param_labels%interstellar]
          case ('fan')
             allocate (ZodiFan::self%comps(i)%c)
@@ -444,16 +432,13 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_cutoff=params(i, 8), &
-                 & sed_b=params(i, 9), &
-                 & Q=params(i, 10), &
-                 & P=params(i, 11), &
-                 & gamma=params(i, 12), &
-                 & Z_midplane_0=params(i, 13), &
-                 & R_outer=params(i, 14) &
+                 & Q=params(i, 7), &
+                 & P=params(i, 8), &
+                 & gamma=params(i, 9), &
+                 & Z_midplane_0=params(i, 10), &
+                 & R_outer=params(i, 11) &
             &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(11))
             self%comps(i)%labels = [param_labels%common, param_labels%fan]
          case ('comet')
             allocate (ZodiFan::self%comps(i)%c)
@@ -464,15 +449,12 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_cutoff=params(i, 8), &
-                 & sed_b=params(i, 9), &
-                 & P=params(i, 10), &
-                 & Z_midplane_0=params(i, 11), &
-                 & R_inner=params(i, 12), &
-                 & R_outer=params(i, 13) &
+                 & P=params(i, 7), &
+                 & Z_midplane_0=params(i, 8), &
+                 & R_inner=params(i, 9), &
+                 & R_outer=params(i, 10) &
                  &)
-            allocate(self%comps(i)%labels(13))
+            allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%comet]
          case ('wrightcloudring')
             allocate (ZodiWrightCloudRing::self%comps(i)%c)
@@ -483,27 +465,24 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_cutoff=params(i, 8), &
-                & sed_b=params(i, 9), &
-                & p1=params(i, 10), &
-                & p3=params(i, 11), &
-                & p4=params(i, 12), &
-                & p5=params(i, 13), &
-                & p6=params(i, 14), &
-                & p7=params(i, 15), &
-                & p8=params(i, 16), &
-                & p9=params(i, 17), &
-                & p10=params(i, 18), &
-                & p13=params(i, 19), &
-                & p14=params(i, 20), &
-                & p15=params(i, 21), &
-                & p16=params(i, 22), &
-                & p17=params(i, 23), &
-                & p18=params(i, 24), &
-                & p19=params(i, 25) &
+                & p1=params(i, 7), &
+                & p3=params(i, 8), &
+                & p4=params(i, 9), &
+                & p5=params(i, 10), &
+                & p6=params(i, 11), &
+                & p7=params(i, 12), &
+                & p8=params(i, 13), &
+                & p9=params(i, 14), &
+                & p10=params(i, 15), &
+                & p13=params(i, 16), &
+                & p14=params(i, 17), &
+                & p15=params(i, 18), &
+                & p16=params(i, 19), &
+                & p17=params(i, 20), &
+                & p18=params(i, 21), &
+                & p19=params(i, 22) &
                 &)
-            allocate(self%comps(i)%labels(25))
+            allocate(self%comps(i)%labels(22))
             self%comps(i)%labels = [param_labels%common, param_labels%wrightcloudring]
          case ('wrightband')
             allocate (ZodiWrightBand::self%comps(i)%c)
@@ -514,17 +493,14 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_cutoff=params(i, 8), &
-                & sed_b=params(i, 9), &
-                & q1=params(i, 10), &
-                & q5=params(i, 11), &
-                & q6=params(i, 12), &
-                & q7=params(i, 13), &
-                & q8=params(i, 14), &
-                & R_1=params(i, 15) &
+                & q1=params(i, 7), &
+                & q5=params(i, 8), &
+                & q6=params(i, 9), &
+                & q7=params(i, 10), &
+                & q8=params(i, 11), &
+                & R_1=params(i, 12) &
                 &)
-            allocate(self%comps(i)%labels(15))
+            allocate(self%comps(i)%labels(12))
             self%comps(i)%labels = [param_labels%common, param_labels%wrightband]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
@@ -1635,237 +1611,6 @@ contains
       end function evaluate_zodi
 
     end subroutine get_zodi_emission_adaptive
-
-
-   subroutine get_zodi_emission_mbb(tod, pix, scan, det, model, s_zodi, use_lowres_pointing, comp)
-     implicit none
-      ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
-      ! Compute thermal term fitting a BB+MBB model
-      !
-      ! Parameters
-      ! ----------
-      ! tod : class(comm_tod)
-      !     The TOD object holding the spline objects to update.
-      ! pix : integer(i4b), dimension(ntod)
-      !     The pixel indices of each time-ordered observation.
-      ! det : integer(i4b)
-      !     The detector index.
-      ! scan : integer(i4b)
-      !     The scan number.
-      ! s_zodi_scat : real(sp), dimension(ntod, ncomps)
-      !     Contribution from scattered sunlight light.
-      ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
-      !     Contribution from thermal interplanetary dust emission.
-      ! model : type(ZodiModel)
-      !     The zodiacal emission model.
-      ! use_lowres_pointing : logical(lgt), optional
-      !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
-      ! comp : integer(i4b), optional
-      !     If present, only evaluate the zodiacal emission for this component.
-      !
-      ! Returns
-      ! -------
-      ! s_zodi_scat : real(sp), dimension(ntod, ncomps, ndet)
-      !     Contribution from scattered sunlight light.
-      ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
-      !     Contribution from thermal interplanetary dust emission.
-      !
-      class(comm_tod),               intent(inout)        :: tod
-      integer(i4b),    dimension(:), intent(in)           :: pix
-      integer(i4b),                  intent(in)           :: scan, det
-      type(ZodiModel),               intent(in)           :: model
-      real(sp),        dimension(:), intent(out)          :: s_zodi
-      logical(lgt),                  intent(in), optional :: use_lowres_pointing
-      integer(i4b),                  intent(in), optional :: comp
-
-      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr
-      logical(lgt) :: scattering, thermal, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em
-      real(dp) :: mbb_cutoff, mbb_ampl, mbb_b
-      real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
-      real(dp), allocatable, dimension(:)   :: b_nu
-
-      integer(i4b) :: cache_hits
-      real(sp), allocatable, dimension(:,:)     :: cache
-      real(dp)                                  :: cache_time, init_cache_time
-      
-      use_lowres = .false.; if (present(use_lowres_pointing)) use_lowres = use_lowres_pointing
-      n_tod      = size(pix)
-      dt_tod     = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-      obs_pos    = tod%scans(scan)%x0_obs
-      earth_pos  = tod%scans(scan)%x0_earth
-      R_obs      = norm2(obs_pos)
-      obs_time   = tod%scans(scan)%t0(1)
-      earth_lon  = atan(earth_pos(2), earth_pos(1))
-      scattering = tod%central_freq >= model%nu_min_scatter
-      thermal    = tod%central_freq <= model%nu_max_thermal
-
-      ! Initialize cache
-      if (use_lowres) then
-         !allocate(cache(tod%zodi_cache_nobs_lowres, tod%ndet))
-      else
-         allocate(cache(tod%pixcache%nobs,                   tod%ndet))
-      end if
-      cache_time = tod%scans(1)%t0(1)
-      cache      = -1
-      
-      cache_hits = 0
-!!$      open(58,file="zodi.dat",recl=1024)
-      do i = 1, n_tod
-         ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
-         ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
-         if (use_lowres) then
-            obs_time = tod%scans(scan)%d(det)%downsamp_obs_time_full(i)
-         else
-            obs_time = obs_time + dt_tod ! assumes a time continuous TOD
-         end if
-
-         ! Reset cache
-         if ((obs_time - cache_time) >= delta_t_reset) then
-            do j = 1, 3
-               earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
-               obs_pos(j)   = splint_simple(tod%x_obs_spline(j),   obs_time)
-            end do
-            R_obs      = norm2(obs_pos)
-            earth_lon  = atan(earth_pos(2), earth_pos(1))
-            cache      = -1
-            cache_time =  obs_time
-         end if
-
-         ! Get lookup index for cache. If the pixel is already cached, used that value.
-         if (use_lowres) then
-            !lookup_idx  = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i))) 
-            !unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
-         else
-            lookup_idx  = tod%pixcache%pix2ind(pix(i))
-            if (lookup_idx == -2) write(*,*) 'oor', tod%scanid(scan), det, i, pix(i)
-            unit_vector = tod%pixcache%ind2vec_ecl(:, lookup_idx)
-         end if
-         
-         if (cache(lookup_idx, det) > 0.d0) then
-            s_zodi(i)  = cache(lookup_idx, det)
-            cache_hits = cache_hits + 1
-            cycle
-         end if
-
-         ! If not present in cache, compute signal for each zodi component from scratch, and add signals together
-         s_tot = 0.
-         do k = 1, model%n_comps
-            ! If comp is present we only evaluate the zodi emission for that component.
-            ! If comp == 0 then we evaluate the zodi emission for all components.
-            if (present(comp)) then
-               if (k /= comp .and. comp /= 0) cycle
-            end if
-
-            ! Get line of sight integration range
-            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_min, R_min)
-            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_max, R_max)
-
-            do l = 1, 3
-               ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-               comp_LOS(k)%X_unit(l,:) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
-               comp_LOS(k)%X_unit(l,:) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
-               comp_LOS(k)%X(l,:)      = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
-            end do
-            comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
-!!$            do l = 1, size(comp_LOS(k)%R)
-!!$               if (sum(comp_LOS(k)%X_unit(:,l)**2) == 0.d0) then
-!!$                  write(*,*) 'comp', k, l
-!!$                  write(*,*) 'R_MIN', R_max, R_min
-!!$                  write(*,*) 'gauss', comp_LOS(k)%gauss_nodes(l)
-!!$                  write(*,*) 'unit', unit_vector
-!!$                  write(*,*) 'X_unit', comp_LOS(k)%X_unit(:,l)
-!!$               end if
-!!$            end do
-
-            ! Compute phase function if scattering is included
-            if (scattering) then
-               if (trim(model%phasefunc_type) == 'Wright') then
-                  allocate(b_nu(size(tod%bp(0)%p%nu)))
-                  call get_blackbody_emission(tod%bp(0)%p%nu, 5772.d0, b_nu) 
-                  comp_LOS(k)%F_sol = tsum(tod%bp(0)%p%nu, tod%bp(0)%p%tau*b_nu)/comp_LOS(k)%R**2
-                  deallocate(b_nu)
-               else
-                  comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
-               end if
-               call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
-               call model%get_phase_function(comp_LOS(k)%Theta, tod%zodiband, comp_LOS(k)%Phi)
-            end if
-
-            ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
-            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
-               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
-            else
-               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
-               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
-            end if
-            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
-
-!!$            ! Compute density along line of sight
-!!$            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
-            
-            ! Compute predicted signal in MJy/sr; store computed signal in cache
-            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
-            s_scat = 0.; s_therm = 0.
-            if (scattering) s_scat  = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5d0*(R_max-R_MIN)*1d20
-            if (thermal)    s_therm = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights)                  * 0.5d0*(R_max-R_MIN)*1d20
-
-            ! BB+MBB thing only for cloud at this stage
-            if (trim(model%comp_labels(k)) == 'cloud') then 
-               al = zodi_model%comps(k)%c%albedo(tod%id)
-               em = zodi_model%comps(k)%c%emissivity(tod%id)
-               if (trim(zodi_model%phasefunc_type) == 'Wright') then
-                  s_tot = s_tot + al*s_scat + em*s_therm
-               else
-                  mbb_cutoff = model%comps(k)%c%sed_cutoff
-                  if (tod%central_freq < mbb_cutoff) then
-                     mbb_ampl = model%comps(k)%c%sed_ampl
-                     mbb_b = zodi_model%comps(k)%c%sed_b
-                     !s_tot = s_tot + al*s_scat + mbb_ampl*(tod%central_freq**mbb_b)*s_therm
-                     s_tot = s_tot + al*s_scat + mbb_ampl*exp(mbb_b*log(tod%central_freq))*s_therm
-                     !how to write this such that BB and MBB form a continuous function?
-                  else 
-                     s_tot = s_tot + al*s_scat + s_therm
-                  end if
-               end if 
-            else 
-               al = zodi_model%comps(k)%c%albedo(tod%id)
-               em = zodi_model%comps(k)%c%emissivity(tod%id)
-               if (trim(zodi_model%phasefunc_type) == 'Wright') then
-                  s_tot = s_tot + al*s_scat + em          *s_therm
-               else
-                  s_tot = s_tot + al*s_scat + em*(1.d0-al)*s_therm
-               end if
-            end if
-         end do
-
-         ! Return total zodi signal, and store final value in cache for later use
-         s_zodi(i)              = s_tot
-         cache(lookup_idx, det) = s_tot
-
-         
-!!$         call vec2ang(unit_vector, lat, lon)
-!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
-!!$
-!!$         write(*,*) "X", comp_LOS(1)%X(1,:)
-!!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
-!!$         write(*,*) "Z", comp_LOS(1)%X(3,:)
-!!$         write(*,*) "R", comp_LOS(1)%R
-!!$         !write(*,*) "scat", comp_LOS(1)%F_sol*comp_LOS(1)%Phi
-!!$         write(*,*) "n", comp_LOS(1)%n
-!!$         !write(*,*) "F_sun", model%F_sun(tod%zodiband)
-!!$         !write(*,*) "F", comp_LOS(1)%F_sol*1.d20
-!!$         !write(*,*) "Phi", comp_LOS(1)%Phi
-!!$         !write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0
-!!$         write(*,*) "T_0, delta", model%T_0, model%delta
-!!$         write(*,*) "T", comp_LOS(1)%T
-!!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
-      end do
-
-      deallocate(cache)
-      
-    end subroutine get_zodi_emission_mbb
 
     
    subroutine compute_zodi(zodi_model, tod, sd, det, comp)
