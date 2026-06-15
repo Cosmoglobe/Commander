@@ -619,11 +619,6 @@ contains
 
        do j = 1, tod%ndet
 
-          if (.not. tod%scans(i)%d(j)%accept) then 
-            write(*,*) "sample_calibration is cycling"
-            cycle
-          end if
-          
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
           !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
