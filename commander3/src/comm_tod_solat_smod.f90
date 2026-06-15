@@ -249,7 +249,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default
-    logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
+    logical(lgt)        :: select_data, output_scanlist, output_zodi_comps, output_files
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
@@ -266,6 +266,16 @@ contains
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
     type(hdf_file) :: tod_file
 
+
+    ! Variables for jump detection
+    real(sp),     allocatable, dimension(:,:,:) :: jump_calib
+    real(sp),     allocatable, dimension(:)     :: tod_gapfill
+    integer(i4b), allocatable, dimension(:)     :: jumps
+    integer(i4b), allocatable, dimension(:,:)   :: offset_range, jumpflag_range
+    real(sp),     allocatable, dimension(:)     :: offset_level
+    type(comm_binmap)                           :: jump_map
+    character(len=4)                            :: it_label
+
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band)
@@ -281,6 +291,7 @@ contains
        sample_ncorr          = .true.
        sample_xi_n           = .false.
        select_data           = .false.
+       output_files           = (iter == 10)
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
@@ -288,14 +299,16 @@ contains
        sample_ncorr          = iter > 4 !.true.
        sample_xi_n           = iter > 5 
        select_data           = iter == 3 ! self%first_call  
+       output_files           = (iter == 10)
     else
        ! Do data selection, then start sampling
        !sample_gain           = iter  > 2 !.true.                 
        sample_gain           = .false.
-       make_dyn_mask         = (iter == 2) .or. (iter == 7)
+       make_dyn_mask         = (iter == 7)
        sample_ncorr          = iter  > 2 !.true.
        sample_xi_n           = iter > 3
        select_data           = (iter == 1) .or. (iter == 6)
+       output_files           = (iter == 10)
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -304,7 +317,7 @@ contains
 
     !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
     !    & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_SKY, SD_MASK, SD_GAIN])
+    oper_default = get_sd_operation_code([SD_TOT, SD_BASE, SD_TOD, SD_IND, SD_NCORR, SD_SKY, SD_MASK, SD_GAIN, SD_JUMP])
 
     
     ! Initialize local variables
@@ -353,6 +366,7 @@ contains
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
     call binmap%init(self, .true., sample_rel_bandpass, nplus2=.false.)
+    call jump_map%init(self, .true., sample_rel_bandpass, nplus2=.false.)  
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -400,17 +414,107 @@ contains
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
              write(*,*) "Sampling noise psd for scan ", self%scanid(i)
-             call sample_noise_psd(self, sd, handle, chaindir)
+             call sample_noise_psd(self, sd, handle, chaindir ,output_files=output_files)
              write(*,*) "Done sampling scan number   ", self%scanid(i)
           else
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true.)
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=output_files)
           end if
        else
           call sample_n_corr(self, sd, handle, onlymono=.true.)
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=(iter==20))
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=output_files)
        end if
       call update_status(status, "sampled ncorr")
        
+       ! REMOVE JUMPS ----------------------------------
+       allocate(jumps(sd%ntod))
+       allocate(tod_gapfill(sd%ntod))
+
+
+       sd%s_jump = 0.0
+
+       do j=1, sd%ndet
+        ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
+        if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept)) then
+           self%scans(i)%d(j)%accept = .false.
+           cycle
+        end if
+   
+          ! Retrieve offsets from previous run, if they exist
+          if (allocated(self%scans(i)%d(j)%offset_range)) then
+             call expand_offset_list(              &
+                & self%scans(i)%d(j)%offset_range, &
+                & self%scans(i)%d(j)%offset_level, &
+                & sd%s_jump(:,j))
+          else
+             sd%s_jump(:,j) = 0.
+          end if
+          
+          ! Retrieve jump flags from previous run, if they exist
+          if (allocated(self%scans(i)%d(j)%jumpflag_range)) then
+           call add_jumpflags(                     &
+           & self%scans(i)%d(j)%jumpflag_range, &
+           & sd%flag(:,j))
+        end if
+        
+        ! Scanning for jumps
+        if (.true.) then
+           call jump_scan(                                 &
+           & sd%tod(:,j) - sd%s_sky(:,j,0,1) - sd%s_jump(:,j) - sd%n_corr(:,j), &
+           & sd%flag(:,j),                              &
+           & jumps,                                     &
+           & offset_range,                              &
+           & offset_level,                              &
+           & handle,                                    &
+           & jumpflag_range,                            &
+           & it_label,                                  &
+           & chaindir,                                  &
+           & .false.)
+           
+             ! Add offsets to persistent list
+             if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
+                allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
+                allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
+
+                self%scans(i)%d(j)%offset_range = offset_range
+                self%scans(i)%d(j)%offset_level = offset_level
+             else
+                call update_offset_list(              &
+                   & offset_range,                    &
+                   & offset_level,                    &
+                   & self%scans(i)%d(j)%offset_range, &
+                   & self%scans(i)%d(j)%offset_level)
+             end if
+
+             ! Add jump flags to persistent list
+             if (allocated(jumpflag_range)) then
+                if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
+                   allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
+                   self%scans(i)%d(j)%jumpflag_range = jumpflag_range
+                else
+                   call update_jumpflag(jumpflag_range, self%scans(i)%d(j)%jumpflag_range)
+                end if
+             end if
+
+             call expand_offset_list(                &
+                 & self%scans(i)%d(j)%offset_range,  &
+                 & self%scans(i)%d(j)%offset_level,  & 
+                 & sd%s_jump(:,j))
+          end if
+
+
+          call gap_fill_linear(           &
+             & sd%tod(:,j) - sd%s_jump(:,j), &
+             & sd%flag(:,j),              &
+             & tod_gapfill,               &
+             & handle,                    &
+             & .true.)
+
+
+          if (allocated(offset_range))   deallocate(offset_range)
+          if (allocated(offset_level))   deallocate(offset_level)
+          if (allocated(jumpflag_range)) deallocate(jumpflag_range)
+
+       end do
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -439,12 +543,15 @@ contains
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
-       !d_calib(1,:,:) = -abs(sd%tod)
+
+       allocate(jump_calib(1, sd%ntod, sd%ndet))
+       jump_calib(1,:,:) = sd%s_jump 
        call update_status(status, "computed calibrated")
 
        
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, jump_calib, jump_map) 
        call update_status(status, "binned TOD")
        
        ! Update scan list
@@ -458,7 +565,7 @@ contains
        end if
 
        ! For debugging: write TOD to hdf
-       if (iter == 20) then
+       if (output_files) then
           !if (self%scanid(i) == 915) then 
              !print *, self%scanid(i)
              call int2string(self%scanid(i), scantext)
@@ -467,6 +574,7 @@ contains
              call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
              call write_hdf(tod_file, '/flag', sd%flag)
              call write_hdf(tod_file, '/n_corr', sd%n_corr)
+             call write_hdf(tod_file, '/s_jump', sd%s_jump)
              call close_hdf_file(tod_file)
           !end if
        end if
@@ -474,6 +582,7 @@ contains
        ! Clean up
        call dealloc_scan_data(sd)
        deallocate(d_calib)
+       deallocate(jumps, tod_gapfill, jump_calib)
        call update_status(status, "cleaned up")
 
     end do
@@ -512,6 +621,7 @@ contains
 
     ! Solve for maps
     call synchronize_binmap(binmap, self)
+    call synchronize_binmap(jump_map, self) 
     call update_status(status, "tod_binmap1"//ctext)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
@@ -529,6 +639,8 @@ contains
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
+    call update_status(status, "tod_binmap_jump"//ctext)
+    call finalize_binned_map(self, jump_map, rms_out, 1.d0) 
     call update_status(status, "tod_binmap2"//ctext)
 
     ! Sample bandpass parameters
@@ -546,11 +658,13 @@ contains
     if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix), cut_sky=self%cut_sky)
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix), cut_sky=self%cut_sky)
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix), cut_sky=self%cut_sky)
+    call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix), cut_sky=self%cut_sky) 
     call timer%stop(TOD_WRITE)
     call update_status(status, "tod_binmap3"//ctext)
 
     ! Clean up
     call binmap%dealloc()
+    call jump_map%dealloc() 
     call update_status(status, "tod_binmap4, deallocation "//ctext)
     if (allocated(slist)) deallocate(slist)
     if (sample_abs_bandpass .or. sample_rel_bandpass) deallocate(chisq_S)

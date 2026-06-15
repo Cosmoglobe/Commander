@@ -729,7 +729,7 @@ contains
           end if
        end do
 
-       if (output_files) then
+       if (output_files_) then
        !if (mod(self%scanid(scan),10) == 0) then
        !if (self%scanid(scan) == 10) then
           call int2string(self%scanid(scan), stext)
@@ -773,7 +773,7 @@ contains
        end do
 
 
-       if (output_files) then
+       if (output_files_) then
        !if ((mod(self%scanid(scan),25) == 0) .and. (mod(i, 25) == 0)) then
        !if (self%scanid(scan) == 10) then
           call int2string(self%scanid(scan), stext)
