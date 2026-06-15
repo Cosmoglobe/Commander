@@ -16,7 +16,7 @@ NUM_GIBBS_ITER       = 1000    # Length of each Markov chain
 FIRST_COMPSEP_SAMPLE = 1      # Start compsep on this sample
 CHAIN_STATUS         = new
 NUM_INIT_CHAINS      = 1
-INIT_CHAIN01 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/chain_c0001.h5:67
+INIT_CHAIN01 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/chain_c0001.h5:65
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -1122,9 +1122,9 @@ COMP_CL_DEFAULT_BETA_T&&      = 60d0
 COMP_CL_DEFAULT_AMP_T&&       = 2e12
 # New Local sampling parameters
 @DEFAULT components/synch/synch_CHIPASS_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_c0001_k000067.fits
-COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_beta_c0001_k000067.fits
-COMP_C_S_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_C_s_c0001_k000067.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_c0001_k000065.fits
+COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_beta_c0001_k000065.fits
+COMP_C_S_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_C_s_c0001_k000065.fits
 COMP_BETA_DEFAULT&&           = -2.65
 COMP_C_S_DEFAULT&&            = -0.04
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1190,7 +1190,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @START 06
 @DEFAULT components/freefree/freefree_LFI.defaults
 #COMP_AMP_INPUT_MAP&&          = COM_CompMap_freefree-commander_1024_R2.00_amp1.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/ff_c0001_k000067.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/ff_c0001_k000065.fits
 COMP_AMP_LMAX&&               = 1300  #2000 2955
 COMP_APOD_LMAX&&              = 1300  #2000 2955
 COMP_T_E_DEFAULT&&            = 4000.
