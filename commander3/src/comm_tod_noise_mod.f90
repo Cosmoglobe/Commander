@@ -625,8 +625,8 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),1000) == 0) then
-       !if (self%scanid(scan) == 1) then
+       !if (mod(self%scanid(scan),1000) == 0) then
+       if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -667,7 +667,7 @@ contains
        end do
 
        !if (mod(self%scanid(scan),1000) == 0) then
-       if (self%scanid(scan) == 1) then
+       if (self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
