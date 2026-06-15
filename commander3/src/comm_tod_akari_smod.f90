@@ -113,7 +113,9 @@ contains
       end if
 
       ! Data selection parameters
-      c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
+      ! Katrine: chaing this to a high value to disable for noise_psd fitting
+      c%chisq_threshold  = 1000000000d0       ! Cut scans with higher chisq
+      !c%chisq_threshold  = 1000d0       ! Cut scans with higher chisq
       c%sigma0_threshold = 1.d0        ! Cut scans with higher sigma0
 
       ! Initialize common parameters
@@ -197,11 +199,11 @@ contains
       c%dynmask => comm_dynmask(c, cpar)
       c%dynmask%output_scan             = 1000
       c%dynmask%output_det              = 1
-      c%dynmask%apply_pixhist           = .true.
-      c%dynmask%remove_isolated_samples = .true.
-      c%dynmask%threshold_longchunks    = 0.3
+      c%dynmask%apply_pixhist           = .false. !.true. Katrine: Change for noise_psd fit
+      c%dynmask%remove_isolated_samples = .false. !.true. Katrine: Change for noise_psd fit
+      c%dynmask%threshold_longchunks    = -0.3 !0.3 Katrine: Change for noise_psd fit
       c%dynmask%window_longchunks       = 2000
-      c%dynmask%threshold_cr            = 6.   ! sigma
+      c%dynmask%threshold_cr            = -6. !6. Katrine: Chage for noise_psd fit  ! sigma
       c%dynmask%width_cr_mask           = 5
       allocate(c%dynmask%templ_cr(-5:5))
       c%dynmask%templ_cr    = 1.
