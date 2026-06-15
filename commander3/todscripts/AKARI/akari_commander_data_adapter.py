@@ -205,6 +205,20 @@ for band, ndets in NUM_DETECTORS.items():
 
 
 def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
+    """This function loads certain flags that have been extracted by Tamaki and
+    Ryosuke from the GADS data (see data manual)
+
+    Arguments:
+        fitsfilename (str): The filename of the (original) TOD FITS file for which we
+            want to extract the flags. Not actually opened, just used to figure
+            out which section of data we're interested in.
+        band (str): The band name for which we want to extract the flags.
+        pkl_path (str): The path to where the GADS PKL files reside.
+
+    Returns:
+        A dict where each key (the detector names) points to a bool numpy array
+            with the GADS flags set.
+    """
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -223,6 +237,20 @@ def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
 
 
 def load_lonlat_pkl(fitsfilename, band, pkl_path=PATH_TO_LONLAT_PKL_FILES):
+    """This function loads the lon/lat files that have been created by Ryosuke
+    and which provides accurate pointing for each of the detector pixels.
+
+    Arguments:
+        fitsfilename (str): The filename of the (original) TOD FITS file for which we
+            want to extract the lon/lat.
+        band (str): The band name for which we want to extract the lon/lat.
+        pkl_path (str): The path to where the lonlat PKL files reside.
+
+    Returns:
+        Two dicts (lon, lat) where each dict key (the detector names) point to
+            a numpy array containing the lon or lat, respectively, for that
+            detector.
+    """
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -360,7 +388,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return int(np.ceil(self.nchunks[band] / NUM_FITS_FILES_PER_SEGMENT))
 
     def get_version(self):
-        return 2
+        return 3
 
     def get_experiment_name(self):
         return "AKARI"
