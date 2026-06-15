@@ -546,7 +546,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, output_files, dec_wn, sigma0_out)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, output_noise_files, dec_wn, sigma0_out)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -554,7 +554,7 @@ contains
     character(len=*),                   intent(in)    :: chaindir
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
-    logical(lgt),                       intent(in), optional :: output_files
+    logical(lgt),                       intent(in), optional :: output_noise_files
     integer(i4b),                       intent(in), optional :: dec_wn
     real(sp),                           intent(out), optional :: sigma0_out
 
@@ -562,7 +562,7 @@ contains
     integer(C_INT) :: err
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads,  ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
     integer(i4b) :: ndet, outscan
-    logical(lgt) :: only_sigma0_, output_files_
+    logical(lgt) :: only_sigma0_, output_noise_files_
     real(sp)     :: f, logbin
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
@@ -587,7 +587,7 @@ contains
     threshold = 5.d0 ! Remove outliers
     outscan   = -1! 5020 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
-    output_files_ = .false.; if (present(output_files)) output_files_ = output_files
+    output_noise_files_ = .false.; if (present(output_noise_files)) output_noise_files_ = output_noise_files
 
 
     if (only_sigma0_) then
@@ -684,9 +684,7 @@ contains
           end if
        end do
 
-       if (output_files_) then
-       !if (mod(self%scanid(scan),10) == 0) then
-       !if (self%scanid(scan) == 10) then
+       if (output_noise_files_ .and.  self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
@@ -727,10 +725,7 @@ contains
           end do
        end do
 
-
-       if (output_files_) then
-       !if ((mod(self%scanid(scan),25) == 0) .and. (mod(i, 25) == 0)) then
-       !if (self%scanid(scan) == 10) then
+       if (output_noise_files_ .and. self%scanid(scan) == 1000) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)

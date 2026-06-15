@@ -205,6 +205,20 @@ for band, ndets in NUM_DETECTORS.items():
 
 
 def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
+    """This function loads certain flags that have been extracted by Tamaki and
+    Ryosuke from the GADS data (see data manual)
+
+    Arguments:
+        fitsfilename (str): The filename of the (original) TOD FITS file for which we
+            want to extract the flags. Not actually opened, just used to figure
+            out which section of data we're interested in.
+        band (str): The band name for which we want to extract the flags.
+        pkl_path (str): The path to where the GADS PKL files reside.
+
+    Returns:
+        A dict where each key (the detector names) points to a bool numpy array
+            with the GADS flags set.
+    """
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -223,6 +237,20 @@ def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
 
 
 def load_lonlat_pkl(fitsfilename, band, pkl_path=PATH_TO_LONLAT_PKL_FILES):
+    """This function loads the lon/lat files that have been created by Ryosuke
+    and which provides accurate pointing for each of the detector pixels.
+
+    Arguments:
+        fitsfilename (str): The filename of the (original) TOD FITS file for which we
+            want to extract the lon/lat.
+        band (str): The band name for which we want to extract the lon/lat.
+        pkl_path (str): The path to where the lonlat PKL files reside.
+
+    Returns:
+        Two dicts (lon, lat) where each dict key (the detector names) point to
+            a numpy array containing the lon or lat, respectively, for that
+            detector.
+    """
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -264,17 +292,13 @@ def fits2output_formatter(file, start_index, end_index, band,
     # an okay assumption for now, but I just note it here.
     start_det_ind = start_det_inds[band]
     end_det_ind = start_det_ind + num_detectors[band]
-    if should_compress:
-        tot_adu = file[1]['DET'].read()[start_index:end_index, start_det_ind:end_det_ind]
-    else:
-        tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    tot_adu = file[1]['DET'].read()[start_index:end_index, start_det_ind:end_det_ind]
+    tot_flux = file[1]['FLUX'].read()[start_index:end_index, start_det_ind:end_det_ind]
     tot_pixflag = file[1]['PIX_FLAG'].read()[start_index:end_index,
                                              start_det_ind:end_det_ind, :].astype(bool)
     for local_det_idx, detname in enumerate(band_dets[band]):
-        if should_compress:
-            out_data[f'{detname}/todz'] = tot_adu[:, local_det_idx]
-        else:
-            out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
+        out_data[f'{detname}/tod'] = tot_flux[:, local_det_idx]
+        out_data[f'{detname}/todz'] = tot_adu[:, local_det_idx]
         out_data[f'{detname}/pixel_flag'] = tot_pixflag[:, local_det_idx, :]
     out_data['status_flag'] = file[1]['STATUS'].read()[start_index:end_index].astype(bool)
     # NB! This is necessary because we interpret the shtop flag inversely internally in commander
@@ -300,11 +324,13 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     """
     def __init__(self, akari_fits_dir, nside, bands=BANDS,
                  num_detectors=NUM_DETECTORS, band_dets=BAND_DETS,
-                 reference_time=REFERENCE_TIME):
+                 reference_time=REFERENCE_TIME,
+                 extend_reset_flag=False):
         self.bands = bands
         self.num_detectors = num_detectors
         self.band_dets = band_dets
         self.nside = nside
+        self.extend_reset_flag = extend_reset_flag
 
 
         self.fsamp = {
@@ -341,8 +367,6 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             self.nchunks[band] = len(self.chunk_file_map[band])
         self.reference_time = reference_time
 
-        self.should_compress = True
-
 
     def _calculate_chunk_files(self):
         """
@@ -364,7 +388,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return int(np.ceil(self.nchunks[band] / NUM_FITS_FILES_PER_SEGMENT))
 
     def get_version(self):
-        return 2
+        return 3
 
     def get_experiment_name(self):
         return "AKARI"
@@ -410,8 +434,7 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             # within a file rather than at the beginning of the file.
             start_idx = self.todreaders[band].get_file_index_range(files[0])[0]
             end_idx = self.todreaders[band].get_file_index_range(files[-1])[1]
-            curr_data = self.todreaders[band].get_data(start_idx, end_idx,
-                    should_compress=self.should_compress)
+            curr_data = self.todreaders[band].get_data(start_idx, end_idx)
             mode = curr_data['packet_id']
             if len(files) > 1:
                 raise NotImplementedError("""We currently don't support loading gads flags for several
@@ -423,20 +446,23 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             spin_axis_arr = np.zeros((2, len(self.band_dets[band])))
             for detidx, det in enumerate(self.band_dets[band]):
                 todreader_data[band][det] = {}
-                if self.should_compress:
-                    todreader_data[band][det]['todz'] = curr_data[f'{det}/todz']
-                else:
-                    todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
+                todreader_data[band][det]['tod'] = curr_data[f'{det}/tod']
+                todreader_data[band][det]['todz'] = curr_data[f'{det}/todz']
                 todreader_data[band][det]['flag'] = self._process_akari_flags(
                     curr_data[f'{det}/pixel_flag'],
                     curr_data['frame_flag'],
-                    curr_data['status_flag'], gads_flags[det], mode)
-                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs')
+                    curr_data['status_flag'], gads_flags[det], mode,
+                    extend_reset_flag=self.extend_reset_flag)
+                c = SkyCoord(ra=detlons[det]*u.deg, dec=detlats[det]*u.deg, frame='icrs', distance=1*u.AU)
                 todreader_data[band][det]['pix'] = healpy.ang2pix(self.nside,
                                                                   c.galactic.l.value,
                                                                   c.galactic.b.value,
                                                                   lonlat=True)
 
+                theta = 0.5 * np.pi - c.hcrs.dec.radian
+                phi = c.hcrs.ra.radian
+                todreader_data[band][det]['pix_solarcentric'] = healpy.ang2pix(
+                    self.nside, theta, phi)
                 vecs = c.galactic.cartesian.get_xyz().value.T
                 spin_axis_arr[:,detidx] = self.todreaders[band]._ring_spin_axis(vecs)
 
@@ -448,14 +474,18 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
                 mu = spin_axis_arr.mean(axis=1)
             todreader_data[band]['spin_axis'] = mu
 
-
             ra = curr_data['ra']
             dec = curr_data['dec']
-            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+            c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs', distance=1*u.AU)
             todreader_data[band]['pix'] = healpy.ang2pix(self.nside,
                                                          c.galactic.l.value,
                                                          c.galactic.b.value,
                                                          lonlat=True)
+
+            theta = 0.5 * np.pi - c.hcrs.dec.radian
+            phi = c.hcrs.ra.radian
+            todreader_data[band]['pix_solarcentric'] = healpy.ang2pix(
+                self.nside, theta, phi)
 
 
 
@@ -482,10 +512,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         return todreader_data
 
     
-    def _process_akari_flags(self, pixflag_array, frameflag_array, statusflag_array, gadsflag_array,
+    def _process_akari_flags(self, pixflag_array, frameflag_array,
+                             statusflag_array, gadsflag_array,
                              mode, pixflagmap=PIX_FLAG_MAP, frameflagmap=FRAME_FLAG_MAP,
                              statusflagmap=STATUS_FLAG_MAP, gadsflagmap=GADS_FLAG_MAP,
-                             desired_flags=DESIRED_FLAGS):
+                             desired_flags=DESIRED_FLAGS, extend_reset_flag=False):
         """
         Internal function that takes the flags coming from the fits files and turns them into the
         bitmasks needed for the HDF file"""
@@ -505,6 +536,11 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
             for flag_name, target_bit in desired_flags[flagtype].items():
                 flag_idx = flagmap[flag_name]
                 curr_mask = flag_arr[:, flag_idx]
+                if extend_reset_flag and flagtype == 'pix_flags' and flag_name == 'reset':
+                    # If this option is set, we want to extend the reset flag
+                    # to cover four samples rather than one.
+                    for i in range(1, 4):
+                        curr_mask[i:] = curr_mask[i:] | curr_mask[:-i]
                 outflags[curr_mask] += 2 ** int(target_bit)
         modeflags = desired_flags['mode']
         # These numbers are the modes of the pixflag_array field, listed in the AKARI fits data user
@@ -540,13 +576,13 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     @get_chunk
     def get_chunk_data(self, band: str, det:str):
         # The third entry is just zeroes - i.e. currently we're not operating with a 'psi'.
-        if self.should_compress:
-            tod = self.all_chunk_data[band][det]['todz']
-        else:
-            tod = self.all_chunk_data[band][det]['tod']
+        tod = self.all_chunk_data[band][det]['tod']
+        todz = self.all_chunk_data[band][det]['todz']
         psi_arr = np.zeros_like(self.all_chunk_data[band][det]['pix'], dtype=int)
         return (tod,
-                self.all_chunk_data[band][det]['pix'],
+                todz,
+                np.array([self.all_chunk_data[band][det]['pix'],
+                          self.all_chunk_data[band][det]['pix_solarcentric']]),
                 psi_arr,
                 self.all_chunk_data[band][det]['flag'])
 
@@ -578,8 +614,6 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     def get_chunk_satvel(self):
         return [0]*3
 
-    def get_should_compress_tods(self):
-        return self.should_compress
 
     def get_gain(self, band: str, detector: str):
         return 1
