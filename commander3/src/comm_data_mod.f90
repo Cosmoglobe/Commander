@@ -305,7 +305,6 @@ contains
        ! Initialize bandpass structures; 0 is full freq, j is detector       
        allocate(data(n)%bp(0:data(n)%ndet))      
        do j = 1, data(n)%ndet
-          data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           if (j==1) then
              data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
