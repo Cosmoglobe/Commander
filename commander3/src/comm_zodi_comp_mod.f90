@@ -62,7 +62,7 @@ module comm_zodi_comp_mod
    end interface
 
    type, extends(ZodiComponent) :: ZodiCloud
-      real(dp) :: alpha, beta, gamma, mu, sed_ampl, sed_cutoff, sed_b
+      real(dp) :: alpha, beta, gamma, mu
    contains
       procedure :: init => init_cloud
       procedure :: get_density => get_density_cloud
@@ -247,12 +247,6 @@ contains
       scale(start_ind+8,:) = [1.d0, 0.03d0]
       prior(:,start_ind+9) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
       scale(start_ind+9,:) = [1.d0, 0.013d0]
-      prior(:,start_ind+10) = [-1.0d0, 10.0d0, 2.0652d-4, -1.d0] ! sed_ampl
-      scale(start_ind+10,:) = [1.d-1, 1.d-2]
-      prior(:,start_ind+11) = [1.1d3, 2.4d5, 1.05072985d4, -1.d0] ! sed_cutoff
-      scale(start_ind+11,:) = [1.d3, 0.3d5]
-      prior(:,start_ind+12) = [0.0d0, 4d0, 2.82996d-1, -1.d0] ! sed_b
-      scale(start_ind+12,:) = [1.d0, 1.d0]
     end subroutine init_cloud_priors_and_scales
 
     subroutine init_band_priors_and_scales(self, start_ind, prior, scale)
@@ -542,19 +536,16 @@ contains
       implicit none
       class(ZodiCloud),                intent(inout) :: self
       real(dp),         dimension(1:), intent(in)    :: x
-      self%n_0          = x(1)
-      self%incl         = x(2)
-      self%Omega        = x(3)
-      self%x_0          = x(4)
-      self%y_0          = x(5)
-      self%z_0          = x(6)
-      self%alpha        = x(7)
-      self%beta         = x(8)
-      self%gamma        = x(9)
-      self%mu           = x(10)
-      self%sed_ampl     = x(11)
-      self%sed_cutoff   = x(12)
-      self%sed_b        = x(13)       
+      self%n_0   = x(1)
+      self%incl  = x(2)
+      self%Omega = x(3)
+      self%x_0   = x(4)
+      self%y_0   = x(5)
+      self%z_0   = x(6)
+      self%alpha = x(7)
+      self%beta  = x(8)
+      self%gamma = x(9)
+      self%mu    = x(10)      
     end subroutine param2model_cloud
 
     subroutine model2param_cloud(self, x)
@@ -570,10 +561,7 @@ contains
       x(7)  = self%alpha 
       x(8)  = self%beta  
       x(9)  = self%gamma 
-      x(10) = self%mu  
-      x(11) = self%sed_ampl      
-      x(12) = self%sed_cutoff    
-      x(13) = self%sed_b           
+      x(10) = self%mu    
     end subroutine model2param_cloud
 
     subroutine param2model_band(self, x)

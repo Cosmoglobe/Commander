@@ -352,10 +352,7 @@ contains
                 & alpha=params(i, 7), &
                 & beta=params(i, 8), &
                 & gamma=params(i, 9), &
-                & mu=params(i, 10), &
-                & sed_ampl=params(i, 11), &
-                & sed_cutoff=params(i, 12), &
-                & sed_b=params(i, 13) &
+                & mu=params(i, 10) &
                 &)
             allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%cloud]
