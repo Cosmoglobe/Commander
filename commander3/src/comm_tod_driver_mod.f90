@@ -653,8 +653,6 @@ contains
           end if
        end do
 
-       !write(*,*) "sample 2: ext(1)= ", ext(1), " ext(2)= ", ext(2)
-
        ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
