@@ -1,0 +1,1421 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT LFI_tod.defaults
+
+OPERATION                     = sample  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+# Monte Carlo options
+NUMCHAIN             = 1       # Number of independent chains
+NUM_GIBBS_ITER       = 1000    # Length of each Markov chain
+FIRST_COMPSEP_SAMPLE = 1      # Start compsep on this sample
+CHAIN_STATUS         = new
+NUM_INIT_CHAINS      = 1
+INIT_CHAIN01 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/chain_c0001.h5:67
+
+SAMPLE_SIGNAL_AMPLITUDES      = .true.
+SAMPLE_SPECTRAL_INDICES       = .true.
+
+ENABLE_TOD_ANALYSIS           = .true.
+# TOD sampling options
+
+TOD_NUM_BP_PROPOSALS_PER_ITER    = 0    # 1 for sampling; >= 1 for optimize
+TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
+
+CG_CONVERGENCE_CRITERION       = residual   # {residual, chisquare}
+CG_MINITER                     =     3
+CG_TOLERANCE                   = 1.d-6   # Fractional CG convergence criterion
+
+FFTW3_MAGIC_NUMBERS           = /mn/stornext/d23/cmbco/globe/common/aux/fft3_magic_numbers_230810.txt
+
+NSIDE_CHISQ                    = 256
+
+##############################################################
+#                       Output options                       #
+##############################################################
+
+OUTPUT_DIRECTORY               = chains_compsep
+OUTPUT_SIGNALS_PER_BAND        = .true.
+OUTPUT_MIXING_MATRIX           = .false.
+THINNING_FACTOR                = 1      # output only every nth sample
+
+##############################################################
+#                         Data sets                          #
+##############################################################	
+
+DATA_DIRECTORY                 = /mn/stornext/d16/cmbco/AST9240/2022/data
+NUMBAND                        = 52
+
+# LFI
+INCLUDE_BAND001                = .false.   # 30 GHz
+INCLUDE_BAND002                = .false.   # 44 GHz
+INCLUDE_BAND003                = .false.   # 70 GHz
+
+# HFI T	       	   
+INCLUDE_BAND004                = .true.    # 143 GHz ff only
+
+# Haslam T
+INCLUDE_BAND005                = .true.    # Haslam
+
+# HFI P
+INCLUDE_BAND006                = .false.   # 353 GHz P
+
+# WMAP TOD
+INCLUDE_BAND007                = .false.    # WMAP K TOD
+INCLUDE_BAND008                = .false.    # WMAP Ka TOD
+INCLUDE_BAND009                = .false.    # WMAP Q1 TOD
+INCLUDE_BAND010                = .false.    # WMAP Q2 TOD
+INCLUDE_BAND011                = .false.    # WMAP V1 TOD
+INCLUDE_BAND012                = .false.    # WMAP V2 TOD
+INCLUDE_BAND013                = .false.    # WMAP W1
+INCLUDE_BAND014                = .false.    # WMAP W2
+INCLUDE_BAND015                = .false.    # WMAP W3
+INCLUDE_BAND016                = .false.    # WMAP W4
+
+#############################################################
+#                    Our map sets(2022)                     #
+#############################################################
+INCLUDE_BAND017                = .false.    #     10 MHz  DRAO      - Lukas Hergt
+INCLUDE_BAND018                = .false.    #     22 MHz  DRAO      - Alice
+INCLUDE_BAND019                = .false.    #     35 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND020                = .false.    #     38 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND021                = .false.    #     40 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND022                = .false.    #     45 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND023                = .false.    #     50 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND024                = .false.    #     60 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND025                = .false.    #     70 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND026                = .false.    #     74 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND027                = .false.    #     80 MHZ  LWA1      - Sanjeev
+INCLUDE_BAND028                =  .true.    #     36 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND029                =  .false.    #     41 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND030                =  .false.    #     46 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND031                =  .false.    #     52 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND032                =  .false.    #     57 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND033                =  .false.    #     62 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND034                =  .false.    #     67 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND035                =  .false.    #     73 MHz  OVRO-LWA  - Jonas Lunde
+INCLUDE_BAND036                = .false.    #     46 MHZ  Maipu     - Anshul
+INCLUDE_BAND037                = .false. .true.    #     85 MHz  Parkes    - Lukas Hergt
+INCLUDE_BAND038                = .false. .true.    #    150 MHz  Parkes    - Kat & Mathias
+INCLUDE_BAND039                = .false. .true.    #    159 MHz  EDA2      - Sanjeet
+INCLUDE_BAND040                = .false.    #    820 MHz  Dwingeloo - Gabriel
+INCLUDE_BAND041                = .false.    #   1395 MHz  Chipass   - Karin
+INCLUDE_BAND042                = .false.    #   1420 MHz  S+V-E     - Fazlu
+INCLUDE_BAND043                = .true.    #   2303 MHz  SPASS     - Simran
+INCLUDE_BAND044                = .false. .true.    #   2326 MHz  HartRao   - Wang
+INCLUDE_BAND045                = .false. .true.    #   2720 MHz  Stockert  - Lukas Hergt
+INCLUDE_BAND046                = .true.    #   3150 MHZ  Arcade2   - Valentina
+INCLUDE_BAND047                = .true.    #   3410 MHZ  Arcade2   - Valentina
+INCLUDE_BAND048                = .false.    #   7970 MHZ  Arcade2   - Valentina
+INCLUDE_BAND049                = .false.    #   8330 MHZ  Arcade2   - Valentina
+INCLUDE_BAND050                = .true.    #   9720 MHZ  Arcade2   - Valentina
+INCLUDE_BAND051                = .false.    #  10490 MHZ  Arcade2   - Valentina
+
+# CHIPASS
+INCLUDE_BAND052                = .true.    #   CHIPASS
+
+#############################################
+# LFI TODs                                  #
+#############################################
+
+# 30 GHz parameters
+@START 001
+@DEFAULT bands/LFI/LFI_030_TOD.defaults
+BAND_MAPFILE&&&                = tod_030_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_030_rms_c0001_k000015.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_BANDPASSFILE&&&           = LFI_instrument_v8.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_030_res_v5.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v3.dat
+BAND_TOD_RIMO&&&               = LFI_instrument_v8.h5
+BAND_TOD_FILELIST&&&           = filelist_30_v18_optimized2.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3
+BAND_TOD_END_SCANID&&&         = 44072
+BAND_TOD_INIT_FROM_HDF&&&      = default
+#BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d16/cmbco/bp/delivery/v10.00/v2/BP_c0001_v2.h5:1000
+BAND_TOD_LEVEL&&&              = L1
+@END 001
+
+# 44 GHz parameters
+@START 002
+@DEFAULT bands/LFI/LFI_044_TOD.defaults
+BAND_MAPFILE&&&                = tod_044_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_044_rms_c0001_k000015.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_BANDPASSFILE&&&           = LFI_instrument_v8.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_044_res_v5.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_044_v3.dat
+BAND_TOD_RIMO&&&               = LFI_instrument_v8.h5
+BAND_TOD_FILELIST&&&           = filelist_44_v18_optimized2.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3
+BAND_TOD_END_SCANID&&&         = 44072
+BAND_TOD_INIT_FROM_HDF&&&      = default
+#BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d16/cmbco/bp/delivery/v10.00/v2/BP_c0001_v2.h5:1000
+BAND_TOD_LEVEL&&&              = L1
+@END 002
+
+# 70 GHz parameters
+@START 003
+@DEFAULT bands/LFI/LFI_070_TOD.defaults
+BAND_MAPFILE&&&                = tod_070_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_070_rms_c0001_k000015.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_BANDPASSFILE&&&           = LFI_instrument_v8.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_070_res_v5.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6_n1024.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v3.dat
+BAND_TOD_RIMO&&&               = LFI_instrument_v8.h5
+BAND_TOD_FILELIST&&&           = filelist_30_v18_optimized2.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3
+BAND_TOD_END_SCANID&&&         = 44072
+BAND_TOD_INIT_FROM_HDF&&&      = default
+#BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d16/cmbco/bp/delivery/v10.00/v2/BP_c0001_v2.h5:1000
+BAND_TOD_LEVEL&&&              = L1
+@END 003
+
+#############################################
+# Map space additions                       #
+#############################################
+
+# 143 GHz (full frequency) freefree only
+@START 004
+@DEFAULT bands/HFI/HFI_143_map_ff_n1024.defaults
+BAND_LMAX&&&                   = 1300 ! REMOVE WHEN GENERATING POINT SOURCE TEMPLATES
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = all synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+BAND_MASKFILE_CALIB&&&         = mask_143_res_v1.fits
+@END 004
+
+# Haslam 0.4 GHz
+@START 005
+@DEFAULT bands/haslam/haslam_0.4_map.defaults
+BAND_LMAX&&&                   = 1300 ! REMOVE WHEN GENERATING POINT SOURCE TEMPLATES
+BAND_MAPFILE&&&                = haslam_n0512_60arcmin_uK.fits
+#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/haslam_n0512_60arcmin_uK_smoothed_60arcmin.fits
+BAND_MASKFILE&&&               = mask_haslam_brightsources_v1.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits AST9240__ARCADE2_nside16_prodmask.fits  mask_haslam_brightsources_v1.fits 
+#BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_1pct_0.08K.fits
+BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_0.8K.fits 
+BAND_REG_NOISEFILE&&&          = none BP_haslam_rmsreg_v2.fits
+BAND_NUM_BP_PROPOSALS_PER_ITER&&& = -1
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = all synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 005
+
+# 353 GHz (full frequency) parameters; only polarization, not temperature
+@START 006
+@DEFAULT bands/HFI/HFI_353_map_pol_only.defaults
+BAND_MAPFILE&&&                = npipe6v20_353_map_n1024_uK_udgrade.fits 
+BAND_NOISEFILE&&&              = npipe6v20_353_rms_n1024_hrscaled_uK_udgrade.fits
+BAND_REG_NOISEFILE&&&          = npipe6v20_353_n2048_rms_uK_mcscaled_n1024_10arc_mean_regnoise_10uK.fits
+BAND_NUM_BP_PROPOSALS_PER_ITER&&& = -1
+@END 006
+
+#############################################
+# WMAP TODs                                 #
+#############################################
+
+# WMAP 023 K
+@START 007
+@DEFAULT bands/WMAP/WMAP_K_TOD.defaults
+BAND_TOD_INIT_FROM_HDF&&&      = default
+#BAND_TOD_INIT_FROM_HDF&&&      = chain_c0001.h5:87 #chains_WMAP_K_burnin_220802/chain_c0001.h5:172
+BAND_MAPFILE&&&                = tod_023-WMAP_K_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_023-WMAP_K_rms_c0001_k000015.fits
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_MAIN_PROCMASK&&&      = wmap_kq75_TQU_mask_r9.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_023_v1.dat
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_023_v0.dat
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_TOD_FILELIST&&&           = filelist_023-WMAP_K.txt
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1066
+BAND_TOD_TOT_NUMSCAN&&&        = 1066
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_K_rms_n0032_5deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_K_rms_n0016_10deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_K_rms_n0016_mK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+@END 007
+
+
+@START 008
+@DEFAULT bands/WMAP/WMAP_Ka_TOD.defaults
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_MAPFILE&&&                = tod_030-WMAP_Ka_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_030-WMAP_Ka_rms_c0001_k000015.fits
+BAND_TOD_MAIN_PROCMASK&&&      = mask_hke.fits 
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_FILELIST&&&           = filelist_030-WMAP_Ka.txt
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_Ka_v0.dat
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Ka1_rms_n0032_5deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Ka1_rms_n0016_10deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Ka_rms_n0016_mK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1069
+BAND_TOD_TOT_NUMSCAN&&&        = 1069
+@END 008
+
+# WMAP 041 Q1
+@START 009
+@DEFAULT bands/WMAP/WMAP_Q1_TOD.defaults
+BAND_MAPFILE&&&                = tod_040-WMAP_Q1_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_040-WMAP_Q1_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_MAIN_PROCMASK&&&      = mask_hke.fits 
+BAND_TOD_FILELIST&&&           = filelist_040-WMAP_Q1.txt
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_040_Q1_v0.dat
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Q1_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Q1_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Q1_rms_n0016_uK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1330
+BAND_TOD_TOT_NUMSCAN&&&        = 1330
+@END 009
+
+# WMAP 041 Q2
+@START 010
+@DEFAULT bands/WMAP/WMAP_Q2_TOD.defaults
+BAND_MAPFILE&&&                = tod_040-WMAP_Q2_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_040-WMAP_Q2_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_MAIN_PROCMASK&&&      = mask_hke.fits wmap_processing_mask_K_v6.fits  
+BAND_TOD_FILELIST&&&           = filelist_040-WMAP_Q2.txt
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_040_Q2_v0.dat
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Q2_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Q2_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Q2_rms_n0016_uK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1328
+BAND_TOD_TOT_NUMSCAN&&&        = 1328
+@END 010
+
+# WMAP 061 V1
+@START 011
+@DEFAULT bands/WMAP/WMAP_V1_TOD.defaults
+BAND_MAPFILE&&&                = tod_060-WMAP_V1_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_060-WMAP_V1_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_MAIN_PROCMASK&&&      = mask_hke.fits
+BAND_TOD_FILELIST&&&           = filelist_060-WMAP_V1.txt
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_060_V1_v0.dat
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_V1_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_V1_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_V1_rms_n0016_uK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 897
+BAND_TOD_TOT_NUMSCAN&&&        = 897
+@END 011
+
+# WMAP 061 V2
+@START 012
+@DEFAULT bands/WMAP/WMAP_V2_TOD.defaults
+BAND_MAPFILE&&&                = tod_060-WMAP_V2_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_060-WMAP_V2_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_MAIN_PROCMASK&&&      = mask_hke.fits wmap_kq75_TQU_mask_r9.fits
+BAND_TOD_FILELIST&&&           = filelist_060-WMAP_V2.txt
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_060_V2_v0.dat
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_V2_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_V2_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_V2_rms_n0016_uK_true_clean_degrade_with_rmsreg_june2021.fits
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 895
+BAND_TOD_TOT_NUMSCAN&&&        = 895
+@END 012
+
+@START 013
+@DEFAULT bands/WMAP/WMAP_W1_TOD.defaults
+BAND_MAPFILE&&&                = tod_090-WMAP_W1_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_090-WMAP_W1_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = none
+BAND_TOD_FILELIST&&&           = filelist_090-WMAP_W1.txt
+BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits  
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1346
+BAND_TOD_TOT_NUMSCAN&&&        = 1346
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_090_W1_v0.dat
+@END 013
+
+@START 014
+@DEFAULT bands/WMAP/WMAP_W2_TOD.defaults
+BAND_MAPFILE&&&                = tod_090-WMAP_W2_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_090-WMAP_W2_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = none
+BAND_TOD_FILELIST&&&           = filelist_090-WMAP_W2.txt
+BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits  
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1327
+BAND_TOD_TOT_NUMSCAN&&&        = 1327
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_090_W2_v0.dat
+@END 014
+
+@START 015
+@DEFAULT bands/WMAP/WMAP_W3_TOD.defaults
+BAND_MAPFILE&&&                = tod_090-WMAP_W3_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_090-WMAP_W3_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = none
+BAND_TOD_FILELIST&&&           = filelist_090-WMAP_W3.txt
+BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits  
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1329
+BAND_TOD_TOT_NUMSCAN&&&        = 1329
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_090_W3_v0.dat
+@END 015
+
+@START 016
+@DEFAULT bands/WMAP/WMAP_W4_TOD.defaults
+BAND_MAPFILE&&&                = tod_090-WMAP_W4_map_c0001_k000015.fits
+BAND_NOISEFILE&&&              = tod_090-WMAP_W4_rms_c0001_k000015.fits
+BAND_TOD_INIT_FROM_HDF&&&      = none
+BAND_TOD_FILELIST&&&           = filelist_090-WMAP_W4.txt
+BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits  
+BAND_TOD_RIMO&&&               = WMAP_instrument_v14.h5
+BAND_BANDPASSFILE&&&           = WMAP_instrument_v14.h5
+BAND_TOD_TYPE&&&               = WMAP
+BAND_TOD_LEVEL&&&              = L1
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 1328
+BAND_TOD_TOT_NUMSCAN&&&        = 1328
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_090_W4_v0.dat
+@END 016
+
+##############################################################
+#                     Our map sets(2022)                     #
+##############################################################
+
+# DRAO 10 MHz - Alice
+@START 017
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____10_MHz_DRAO.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.010-DRAO
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 017
+
+# DRAO 22 MHz - Alice
+@START 018
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____22_MHz_DRAO.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.022-DRAO
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 018
+
+# LWA1  35 MHz - Sanjeev
+@START 019
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____35_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.035-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 019
+
+# LWA1  38 MHz - Sanjeev
+@START 020
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____38_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.038-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 020
+
+# LWA1  40 MHz - Sanjeev
+@START 021
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____40_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.040-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 021
+
+# LWA1  45 MHz - Sanjeev
+@START 022
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____45_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.045-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 022
+
+# LWA1  50 MHz - Sanjeev
+@START 023
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____50_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.050-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 023
+
+# LWA1  60 MHz - Sanjeev
+@START 024
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____60_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.060-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 024
+
+# LWA1  70 MHz - Sanjeev
+@START 025
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____70_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.070-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 025
+
+# LWA1  74 MHz - Sanjeev
+@START 026
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____74_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.074-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 026
+
+# LWA1  80 MHz - Sanjeev
+@START 027
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____80_MHz_LWA1.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.080-LWA1
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 027
+
+# OVRO-LWA 36 MHz - Jonas Lunde
+@START 028
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_36MHz_n512.defaults #AST9240____36_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.036-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.036-OVRO
+BAND_LMAX&&&                   = 1000
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 028
+
+# OVRO-LWA 41 MHz - Jonas Lunde
+@START 029
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_41MHz_n512.defaults #AST9240____41_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.041-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.041-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 029
+
+# OVRO-LWA 46 MHz - Jonas Lunde
+@START 030
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_46MHz_n512.defaults #AST9240____46_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.046-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.046-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 030
+
+# OVRO-LWA 52 MHz - Jonas Lunde
+@START 031
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_52MHz_n512.defaults #AST9240____52_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.052-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.052-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 031
+
+# OVRO-LWA 57 MHz - Jonas Lunde
+@START 032
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_57MHz_n512.defaults #AST9240____57_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.057-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.057-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 032
+
+# OVRO-LWA 62 MHz - Jonas Lunde
+@START 033
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_62MHz_n512.defaults #AST9240____62_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.062-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.062-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 033
+
+# OVRO-LWA 67 MHz - Jonas Lunde
+@START 034
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_67MHz_n512.defaults #AST9240____67_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.067-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.067-OVRO
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 034
+
+# OVRO-LWA 73 MHz - Jonas Lunde
+@START 035
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/OVRO-LWA_73MHz_n512.defaults #AST9240____73_MHz_OVRO.defaults
+BAND_LABEL&&&                  = 0.073-OVRO
+BAND_INSTRUMENT_LABEL&&&       = 0.073-OVRO
+BAND_LMAX&&&                   = 1000               
+BAND_MASKFILE&&&               = mask_OVRO_v1_n512.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = all synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = 20  
+BAND_GAIN_LMAX&&&              = 300
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 035
+
+# Maipu 46 MHz - Anshul
+@START 036
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____46_MHz_Maipu.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.04575-Maipu
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 036
+
+# Parkes 85 MHz - Lukas Hergt
+@START 037
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240____85_MHz_Parkes.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.085-Parkes
+BAND_NOISEFILE&&&              = AST9240____85_MHz_Parkes_nside64_rms_apod3deg.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0064.fits
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 037
+
+# Parkes 150 MHz - Kat & Mathias
+@START 038
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240___150_MHz_Parkes.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.150-Parkes
+BAND_NOISEFILE&&&              = AST9240___150_MHz_Parkes_nside64_rms_apod3deg.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0064.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 038
+
+# EDA2 159 MHz - Sanjeet
+@START 039
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240___159_MHz_EDA2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.159-EDA2
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0064.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 039
+
+# Dwingeloo 820 MHz - Gabriel
+@START 040
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240___820_MHz_Dwingeloo.defaults
+BAND_INSTRUMENT_LABEL&&&       = 0.820-Dwingeloo
+BAND_NOISEFILE&&&              = AST9240___820_MHz_Dwingeloo_nside256_rms_apod3deg.fits
+BAND_MASKFILE&&&               = /mn/stornext/d16/personal/daniersp/data/mask_file_Dwingeloo_exclude_CHIPASS_nside_256.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 040
+
+# Chipass 1395 MHz - Karin
+@START 041
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__1395_MHz_Chipass.defaults
+BAND_INSTRUMENT_LABEL&&&       = 001.395-Chipass
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 041
+
+# Stockert and Villa-Elisa 1420 MHz - Fazlu
+@START 042
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__1420_MHz_Stockert+Villa-Elisa.defaults
+BAND_INSTRUMENT_LABEL&&&       = 001.4-SV
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+@END 042
+
+# S-PASS 2303 MHz (only temperature) - Simran
+@START 043
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__2303_MHz_S-PASS.defaults
+BAND_INSTRUMENT_LABEL&&&       = 002.3-SPASS
+BAND_NOISEFILE&&&              = AST9240__2303_MHz_S-PASS_nside1024_rms_apod3deg.fits
+##BAND_NOISEFILE&&&              = spass_dr1_1902_healpix_Tb_sens_x2.62_uniform.fits
+#BAND_NOISE_FORMAT&&&           = lcut
+#BAND_NOISE_LCUT&&&             = 6
+BAND_LMAX&&&                   = 1300 ! REMOVE WHEN GENERATING POINT SOURCE TEMPLATES
+#BAND_LMAX&&&                   = 2955
+BAND_MASKFILE_CALIB&&&         = mask_ff_n1024.fits
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff 
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 60. ! arcmin
+@END 043
+
+# HartRAO 2326 MHz - Wang
+@START 044
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__2326_MHz_HartRAO.defaults
+BAND_INSTRUMENT_LABEL&&&       = 002.3-HartRAO
+BAND_NOISEFILE&&&              = AST9240__2326_MHz_HartRAO_nside256_rms_apod3deg.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0256.fits
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 044
+
+# Stockert 2720 MHz - Lukas
+@START 045
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__2720_MHz_Stockert.defaults
+BAND_INSTRUMENT_LABEL&&&       = 002.720-Stockert
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0512.fits
+BAND_SAMP_GAIN&&&              = .true.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 1.
+BAND_GAIN_LMIN&&&              = -1  
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+@END 045
+
+# Arcade2 3.15 GHz - Valentina
+@START 046
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__3150_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 003.15-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_BANDPASSFILE&&&           = arcade2_bandpass_3_GHz_Lo_3.15GHz.dat
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+BAND_LMAX&&&                   = 47
+@END 046
+
+# ARCADE2 3.41 GHz - Valentina
+@START 047
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__3410_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 003.41-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+BAND_LMAX&&&                   = 47
+@END 047
+
+# ARCADE2 7.97 GHz - Valentina
+@START 048
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__7970_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 007.97-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+@END 048
+
+# ARCADE2 8.33 GHz - Valentina
+@START 049
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__8330_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 008.33-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+@END 049
+
+# ARCADE2 9.72 GHz - Valentina
+@START 050
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240__9720_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 009.72-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+@END 050
+
+# ARCADE2 10.49 GHz - Valentina
+@START 051
+@INCLUDE /mn/stornext/d16/cmbco/AST9240/2022/defaults/AST9240_10490_MHz_ARCADE2.defaults
+BAND_INSTRUMENT_LABEL&&&       = 010.49-Arcade2
+BAND_MASKFILE&&&               = AST9240__ARCADE2_nside16_prodmask.fits
+BAND_MASKFILE_CALIB&&&         = mask_ff_n0016.fits
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+@END 051
+
+#############################################
+# CHIPASS                                   #
+#############################################
+
+# CHIPASS 1.4 GHz TOD
+@START 052
+#@INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS.defaults
+@INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
+#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
+#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
+BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init123/tod_1.4-CHIPASS_map_c0001_k000200.fits
+#BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init123/tod_1.4-CHIPASS_rms_c0001_k000200.fits
+BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
+#BAND_LMAX&&&                   = 2955
+BAND_LMAX&&&                   = 1300 ! REMOVE WHEN GENERATING POINT SOURCE TEMPLATES
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_CALIB_COMP&&&        = all  synch,ff
+BAND_GAIN_PRIOR_RMS&&&          = 0.
+BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
+BAND_TOD_TYPE&&&               = CHIPASS
+BAND_TOD_MAIN_PROCMASK&&&      = bitmask_chipass_v1.fits
+BAND_TOD_SMALL_PROCMASK&&&     = bitmask_chipass_v1.fits
+BAND_TOD_BP_INIT_PROP&&&       = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/bp_init_CHIPASS.dat
+BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
+#BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_elev/filelist_1395.txt
+BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_concat/filelist_1395.txt
+BAND_TOD_START_SCANID&&&       = 1 #3
+BAND_TOD_END_SCANID&&&         = 5528 #44072
+BAND_TOD_TOT_NUMSCAN&&&        = 5528 #45860
+BAND_UNIT&&&                   = mK_cmb
+#BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_INIT_FROM_HDF&&&      = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init116/chain_c0001.h5:29  /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init73/chain_c0001.h5:200
+BAND_TOD_LEVEL&&&              = L1
+#BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
+BAND_TOD_FLAG&&&               = 1
+BAND_TOD_JUMPLIST&&&           = none
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
+BAND_TOD_MOON_CENTRIC_MASK&&&     = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&    = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&     = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MAPMAKE_TYPE&&&       = binned
+#BAND_TOD_DETECTOR_LIST&&&      = 09 #,06
+BAND_TOD_4K_LINES&&&           = 'none'
+BAND_BANDPASS_TYPE&&&          = LFI #delta
+@END 052
+
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+EXTINCTION_E(B-V)_MAP = none
+
+INSTRUMENT_PARAM_FILE         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init131/instpar_c0001_k000043.dat
+INIT_INSTRUMENT_FROM_HDF      = default
+ 
+NUM_SIGNAL_COMPONENTS         = 19
+INCLUDE_COMP01                = .false.  # Cmb # CMB; no monopole or dipole
+INCLUDE_COMP02                = .true.  # synch # synch_curvature # Synch power-law
+INCLUDE_COMP03                = .false.  # dust # Thermal dust
+INCLUDE_COMP04                = .true.  # md # Mono and dipoles
+INCLUDE_COMP05                = .true.  # radio # Radio sources
+INCLUDE_COMP06                = .true.  # freefree
+INCLUDE_COMP07                = .false.  # Low-freq AME
+INCLUDE_COMP08                = .false.  # CMB relativistic quadrupole
+INCLUDE_COMP09                = .true.  # Extragalactic background; lmax= 0
+INCLUDE_COMP10                = .true.  # Bright radio sources
+INCLUDE_COMP11                = .true.  # Lcut S-PASS
+INCLUDE_COMP12                = .true.  # Lcut 0.036-OVRO
+INCLUDE_COMP13                = .false.  # Lcut 0.041-OVRO
+INCLUDE_COMP14                = .false.  # Lcut 0.046-OVRO
+INCLUDE_COMP15                = .false.  # Lcut 0.052-OVRO
+INCLUDE_COMP16                = .false.  # Lcut 0.057-OVRO
+INCLUDE_COMP17                = .false.  # Lcut 0.062-OVRO
+INCLUDE_COMP18                = .false.  # Lcut 0.067-OVRO
+INCLUDE_COMP19                = .false.  # Lcut 0.073-OVRO
+
+
+NUM_CG_SAMPLING_GROUPS = 9
+
+#@START 01
+#CG_SAMPLING_GROUP&&          = radio
+#CG_SAMPLING_GROUP_MASK&&     = fullsky
+#CG_SAMPLING_GROUP_MAXITER&&  = 5
+#CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,0.820-Dwingeloo,1.4-CHIPASS,002.3-SPASS
+#@END 01
+
+@START 01
+CG_SAMPLING_GROUP&&          = extgal
+CG_SAMPLING_GROUP_MASK&&     = AST9240__ARCADE2_nside16_prodmask_10deg.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 1000
+CG_SAMPLING_GROUP_BANDS&&    = 003.41-Arcade2,007.97-Arcade2,008.33-Arcade2,009.72-Arcade2,010.49-Arcade2
+@END 01
+
+@START 01
+CG_SAMPLING_GROUP&&          = 0.4-Haslam
+CG_SAMPLING_GROUP_MASK&&     = mask_haslam_30K.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam
+@END 01
+
+@START 02
+CG_SAMPLING_GROUP&&          = lcut_SPASS
+CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 300
+CG_SAMPLING_GROUP_BANDS&&    = 002.3-SPASS
+@END 02
+
+@START 03
+CG_SAMPLING_GROUP&&          = lcut_0.036-OVRO
+CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 300
+CG_SAMPLING_GROUP_BANDS&&    = 0.036-OVRO
+@END 03
+
+#@START 04
+#CG_SAMPLING_GROUP&&          = lcut_0.073-OVRO
+#CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 300
+#CG_SAMPLING_GROUP_BANDS&&    = 0.073-OVRO
+#@END 04
+
+#@START 04
+#CG_SAMPLING_GROUP&&          = 0.036-OVRO
+#CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 7
+#CG_SAMPLING_GROUP_BANDS&&    = 0.036-OVRO
+#@END 04
+
+@START 04
+CG_SAMPLING_GROUP&&          = 143
+CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = 143
+@END 04
+
+#@START 06
+#CG_SAMPLING_GROUP&&          = 1.4-CHIPASS
+#CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 7
+#CG_SAMPLING_GROUP_BANDS&&    = 1.4-CHIPASS
+#@END 06
+
+@START 05
+CG_SAMPLING_GROUP&&          = synch,ff
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 1000
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,1.4-CHIPASS,002.3-SPASS,0.036-OVRO,0.041-OVRO,0.046-OVRO,0.052-OVRO,0.057-OVRO,0.062-OVRO,0.067-OVRO,0.073-OVRO,143
+@END 05
+
+@START 06
+CG_SAMPLING_GROUP&&          = 0.4-Haslam
+CG_SAMPLING_GROUP_MASK&&     = mask_haslam_30K.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam
+@END 06
+
+@START 07
+CG_SAMPLING_GROUP&&          = lcut_SPASS
+CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 300
+CG_SAMPLING_GROUP_BANDS&&    = 002.3-SPASS
+@END 07
+
+@START 08
+CG_SAMPLING_GROUP&&          = lcut_0.036-OVRO
+CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 300
+CG_SAMPLING_GROUP_BANDS&&    = 0.036-OVRO
+@END 08
+
+#@START 09
+#CG_SAMPLING_GROUP&&          = 0.036-OVRO
+#CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 7
+#CG_SAMPLING_GROUP_BANDS&&    = 0.036-OVRO
+#@END 09
+
+#@START 10
+#CG_SAMPLING_GROUP&&          = lcut_0.073-OVRO
+#CG_SAMPLING_GROUP_MASK&&     = mask_haslam_3deg_80K.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 300
+#CG_SAMPLING_GROUP_BANDS&&    = 0.073-OVRO
+#@END 10
+
+@START 09
+CG_SAMPLING_GROUP&&          = 143
+CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = 143
+@END 09
+
+#@START 07
+#CG_SAMPLING_GROUP&&          = 1.4-CHIPASS
+#CG_SAMPLING_GROUP_MASK&&     = mask_ff_n0512.fits
+#CG_SAMPLING_GROUP_MAXITER&&  = 7
+#CG_SAMPLING_GROUP_BANDS&&    = 1.4-CHIPASS
+#@END 07
+
+# CMB
+@START 01
+@DEFAULT components/cmb/cmb_LFI.defaults
+COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 01
+
+## Power law synchrotron component
+#@START 02 
+##@DEFAULT components/synch/synch_LFI.defaults
+#@DEFAULT components/synch/synch_CHIPASS.defaults
+#COMP_AMP_LMAX&&               = 2000
+#COMP_APOD_LMAX&&              = 2000
+#COMP_NU_REF_T&&               = 3.15
+#COMP_OUTPUT_FWHM&&            = 20         # arcmin
+#COMP_CL_DEFAULT_BETA_T&&      = 20d0
+#COMP_CL_DEFAULT_AMP_T&&       = 2e12
+## New Local sampling parameters
+#@DEFAULT components/synch/synch_LFI_localsampler.defaults
+#COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init69/synch_c0001_k000011.fits
+#COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init69/synch_beta_c0001_k000011.fits
+#COMP_BETA_DEFAULT&&           = -2.62
+#COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
+#COMP_POLARIZATION&&           = .false.
+#COMP_INIT_FROM_HDF&&          = default
+#COMP_MONOPOLE_PRIOR&&         = none monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+#COMP_APPLY_DUST_EXTINCTION&& = .false.
+#@END 02
+
+# Curved power law synchrotron component
+@START 02 
+#@DEFAULT components/synch/synch_LFI.defaults
+@DEFAULT components/synch/synch_curvature_CHIPASS.defaults
+COMP_AMP_LMAX&&               = 1300  #2000
+COMP_APOD_LMAX&&              = 1300  #2000
+COMP_NU_REF_T&&               = 3.15
+COMP_OUTPUT_FWHM&&            = 60         # arcmin
+COMP_CL_DEFAULT_BETA_T&&      = 60d0
+COMP_CL_DEFAULT_AMP_T&&       = 2e12
+# New Local sampling parameters
+@DEFAULT components/synch/synch_CHIPASS_localsampler.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_c0001_k000067.fits
+COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_beta_c0001_k000067.fits
+COMP_C_S_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/synch_C_s_c0001_k000067.fits
+COMP_BETA_DEFAULT&&           = -2.65
+COMP_C_S_DEFAULT&&            = -0.04
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
+COMP_POLARIZATION&&           = .false.
+COMP_INIT_FROM_HDF&&          = default
+COMP_MONOPOLE_PRIOR&&         = none monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@END 02
+
+# Thermal dust component
+@START 03
+@DEFAULT components/dust/dust_LFI.defaults
+COMP_NU_REF_T&&               = 857
+COMP_INDMASK&&                = mask_dust_beta_BP8_10deg_HKE.fits 
+COMP_INPUT_AMP_MAP&&          = init_dust_amp_BP8.1_v1.fits
+COMP_INPUT_BETA_MAP&&         = init_dust_beta_BP8.1_v1.fits
+COMP_INPUT_T_MAP&&            = init_dust_T_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_dust_amp_BP8.1_v1.fits
+COMP_BETA_INPUT_MAP&&         = init_dust_beta_BP8.1_v1.fits
+COMP_T_INPUT_MAP&&            = init_dust_T_BP8.1_v1.fits
+COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.0    # 0.1
+COMP_T_PRIOR_GAUSS_RMS&&      =   0.0    # 0.1
+
+@DEFAULT components/dust/dust_LFI_localsampler.defaults
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
+COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg_HKE.fits 
+COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 03
+
+# Mono- and dipole component
+@START 04
+@DEFAULT components/monodipole/md_LFI.defaults
+COMP_MD_MONO_FROM_PRIOR&&     = none
+COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init131/md_c0001_k000043.dat
+COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 04
+
+# Radio sources
+@START 05
+@DEFAULT components/radio/radio_LFI.defaults
+COMP_CATALOG&&                 = /mn/stornext/d16/personal/daniersp/data/comm_ptsrc_cat_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin.dat
+COMP_INIT_CATALOG&&            = /mn/stornext/d16/personal/daniersp/data/comm_ptsrc_cat_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin.dat
+COMP_PTSRC_TEMPLATE&&          = /mn/stornext/u3/hke/data_chipass/ptsrc_template_NVSS_ASKAP_thresh_70_mJy_sep_20_arcmin_v8.h5
+COMP_AMP_RMS_SCALE_FACTOR&&    = 3.         # Scale amp rms by this factor
+COMP_MIN_DIST_BETWEEN_SRC&&    = 0.       ! arcmin
+COMP_NU_REF&&                  = 1.4
+COMP_NU_REF_T&&                = 1.4
+COMP_ALPHA_PRIOR_UNI_LOW&&     =  -2
+COMP_ALPHA_PRIOR_UNI_HIGH&&    =   2
+COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
+COMP_BETA_PRIOR_UNI_LOW&&      =  -3.
+COMP_BETA_PRIOR_UNI_HIGH&&     =   3.
+COMP_BETA_PRIOR_GAUSS_RMS&&    =   0.
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init104/chain_c0001.h5:18  default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 05
+
+# freefree component ---------------------------------------------------------------------
+@START 06
+@DEFAULT components/freefree/freefree_LFI.defaults
+#COMP_AMP_INPUT_MAP&&          = COM_CompMap_freefree-commander_1024_R2.00_amp1.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init142/ff_c0001_k000067.fits
+COMP_AMP_LMAX&&               = 1300  #2000 2955
+COMP_APOD_LMAX&&              = 1300  #2000 2955
+COMP_T_E_DEFAULT&&            = 4000.
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned,power_law, exp}
+COMP_CL_DEFAULT_AMP_T&&       = 100          # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_BETA_T&&      = 30.d0 # smoothing scale
+COMP_OUTPUT_FWHM&&            = 30         # arcmin
+COMP_MONOPOLE_PRIOR&&         = monopole:mask_ff_monoprior_bp10_n1024_TQU.fits
+COMP_EM_INPUT_MAP&&           = COM_CompMap_freefree-commander_1024_R2.00_EM_1deg.fits
+COMP_T_E_INPUT_MAP&&          = COM_CompMap_freefree-commander_1024_R2.00_Te.fits
+#COMP_EM_INPUT_MAP&&           = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init107/ff_EM_c0001_k000015.fits
+#COMP_T_E_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init107/ff_Te_c0001_k000015.fits
+@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = none default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 06
+
+#@START 06
+#@DEFAULT components/freefree/freefreeEM_DIRBE.defaults
+##COMP_AMP_INPUT_MAP&&          = init_ff_amp_EM10.fits
+#COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init93/ff_c0001_k000013.fits
+#@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+#COMP_INIT_FROM_HDF&&          = none default
+#COMP_APPLY_DUST_EXTINCTION&& = .false.
+#@END 06
+
+# Low-frequency AME component ------------------------------------------------------------------
+@START 07
+@DEFAULT components/ame/ame_LFI.defaults
+COMP_SED_TEMPLATE&&           = spdust2_cnm.dat
+COMP_INPUT_AMP_MAP&&          = init_ame_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_ame_amp_BP8.1_v1.fits
+COMP_NU_P_INPUT_MAP&&         = init_ame_nu_p_BP8.1_v1.fits #init_ame_nu_p_BP10_v1.fits
+COMP_NU_P_PRIOR_GAUSS_RMS&&   = 0.
+@DEFAULT components/ame/ame_LFI_localsampler.defaults
+# New Local sampling parameters, 'ame'
+COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 07
+
+
+# CMB relativistic quadrupole correction
+@START 08
+@DEFAULT components/cmb/cmb_relquad.defaults
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 08
+
+# Extragalactic background
+@START 09
+#@DEFAULT components/synch/synch_LFI.defaults
+@DEFAULT components/synch/synch_CHIPASS.defaults
+COMP_LABEL&&                  = extgal
+COMP_AMP_LMAX&&               = 0
+COMP_APOD_LMAX&&              = 0
+COMP_NU_REF_T&&               = 3.15
+COMP_OUTPUT_FWHM&&            = 0         # arcmin
+COMP_CL_DEFAULT_BETA_T&&      = 0d0
+COMP_CL_DEFAULT_AMP_T&&       = 3e15
+# New Local sampling parameters
+@DEFAULT components/synch/synch_LFI_localsampler.defaults
+COMP_BETA_PRIOR_UNI_HIGH&&    =  2
+COMP_AMP_INPUT_MAP&&          = none /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init113/extgal_c0001_k000120.fits  init_extgal_3.15GHz_20mK.fits
+COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init113/extgal_beta_c0001_k000120.fits  init_extgal_3.15GHz_20mK.fits
+COMP_BETA_DEFAULT&&           = -2.1
+COMP_BETA_ALMSAMP_INIT&&      = none
+COMP_POLARIZATION&&           = .false.
+COMP_INIT_FROM_HDF&&          = none default
+COMP_MONOPOLE_PRIOR&&         = none 
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 09
+
+# Bright radio sources
+@START 10
+@DEFAULT components/radio/radio_LFI.defaults
+COMP_LABEL&&                   = brightrad
+COMP_CATALOG&&                 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init94/brightrad_c0001_k000129.dat  comm_bright_radio_src_v1.dat
+COMP_INIT_CATALOG&&            = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init94/brightrad_c0001_k000129.dat  comm_bright_radio_src_v1.dat
+COMP_PTSRC_TEMPLATE&&          = /mn/stornext/u3/hke/data_chipass/comm_bright_radio_src_v6.h5
+COMP_AMP_RMS_SCALE_FACTOR&&    = 1.         # Scale amp rms by this factor
+COMP_MIN_DIST_BETWEEN_SRC&&    = 0.       ! arcmin
+COMP_NU_REF&&                  = 1.4
+COMP_NU_REF_T&&                = 1.4
+COMP_ALPHA_PRIOR_UNI_LOW&&     =  -2
+COMP_ALPHA_PRIOR_UNI_HIGH&&    =   2
+COMP_ALPHA_PRIOR_GAUSS_RMS&&   =   0.3
+COMP_BETA_PRIOR_UNI_LOW&&      =  -3.
+COMP_BETA_PRIOR_UNI_HIGH&&     =   3.
+COMP_BETA_PRIOR_GAUSS_RMS&&    =   0.3
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
+COMP_INIT_FROM_HDF&&           = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init113/chain_c0001.h5:120  init_extgal_3.15GHz_20mK.fits   default
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 10
+
+# Lcut S-PASS
+@START 11
+@DEFAULT components/lcut/lcut_SPASS.defaults
+COMP_BAND_REF&&               = 002.3-SPASS
+COMP_AMP_LMAX&&               = 6
+COMP_L_APOD&&                 = 6
+COMP_INIT_FROM_HDF&&          = default
+@END 11
+
+# Lcut S-PASS
+@START 12
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.036-OVRO
+COMP_BAND_REF&&               = 0.036-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 12
+
+# Lcut S-PASS
+@START 13
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.041-OVRO
+COMP_BAND_REF&&               = 0.041-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 13
+
+# Lcut S-PASS
+@START 14
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.046-OVRO
+COMP_BAND_REF&&               = 0.046-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 14
+
+# Lcut S-PASS
+@START 15
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.052-OVRO
+COMP_BAND_REF&&               = 0.052-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          =  default
+@END 15
+
+# Lcut S-PASS
+@START 16
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.057-OVRO
+COMP_BAND_REF&&               = 0.057-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 16
+
+# Lcut S-PASS
+@START 17
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.062-OVRO
+COMP_BAND_REF&&               = 0.062-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 17
+
+# Lcut S-PASS
+@START 18
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.067-OVRO
+COMP_BAND_REF&&               = 0.067-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 18
+
+# Lcut S-PASS
+@START 19
+@DEFAULT components/lcut/lcut_OVRO.defaults
+COMP_LABEL&&                  = lcut_0.073-OVRO
+COMP_BAND_REF&&               = 0.073-OVRO
+COMP_AMP_LMAX&&               = 16
+COMP_L_APOD&&                 = 16
+COMP_INIT_FROM_HDF&&          = default
+@END 19
+
+
+
+
+NUM_MCMC_SAMPLING_GROUPS = 1 2 4
+
+@START 01
+MCMC_SAMPLING_GROUP_PARAMS&&            = synch:scale%0.005,ff:scale%0.005
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2,007.97-Arcade2,008.33-Arcade2,009.72-Arcade2,010.49-Arcade2
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = AST9240__ARCADE2_nside16_prodmask.fits     mask_arcade2_l75_bm8_r35_n16.fits 
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 1000
+@END 01
+
+@START 02
+MCMC_SAMPLING_GROUP_PARAMS&&            = synch:C_S%0.005
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3,4,5,6,7,8,9,10,11
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 0.036-OVRO
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_res_0.036-OVRO_20K.fits
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 5
+@END 02
+
+@START 02
+MCMC_SAMPLING_GROUP_PARAMS&&            = synch:beta%0.002
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,2,3,4,5,6,7,8,9,10,11
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2,007.97-Arcade2,008.33-Arcade2,009.72-Arcade2,010.49-Arcade2
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&         = AST9240__ARCADE2_nside16_prodmask.fits  mask_arcade2_l75_bm8_r35_n16.fits   
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 5
+@END 02
+
+#@START 03
+#MCMC_SAMPLING_GROUP_PARAMS&&            = ff:scale%0.005
+#MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+#MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2,007.97-Arcade2,008.33-Arcade2,009.72-Arcade2,010.49-Arcade2
+#MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = AST9240__ARCADE2_nside16_prodmask.fits  
+#MCMC_SAMPLING_GROUP_NUMSTEP&&           = 100
+#@END 03
+
+@START 04
+MCMC_SAMPLING_GROUP_PARAMS&&            = extgal:beta%0.01
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 003.15-Arcade2,003.41-Arcade2,007.97-Arcade2,008.33-Arcade2,009.72-Arcade2,010.49-Arcade2
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&         = AST9240__ARCADE2_nside16_prodmask_10deg.fits
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 5
+@END 04
+
