@@ -249,7 +249,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default
-    logical(lgt)        :: select_data, output_scanlist, output_zodi_comps, output_files
+    logical(lgt)        :: select_data, output_scanlist, output_zodi_comps, output_noise_files
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
@@ -291,7 +291,7 @@ contains
        sample_ncorr          = .true.
        sample_xi_n           = .false.
        select_data           = .false.
-       output_files           = (iter == 10)
+       output_noise_files    = (iter == 10)
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 0 !.true.                 
@@ -299,7 +299,7 @@ contains
        sample_ncorr          = iter > 4 !.true.
        sample_xi_n           = iter > 5 
        select_data           = iter == 3 ! self%first_call  
-       output_files           = (iter == 10)
+       output_noise_files    = (iter == 10)
     else
        ! Do data selection, then start sampling
        !sample_gain           = iter  > 2 !.true.                 
@@ -308,7 +308,7 @@ contains
        sample_ncorr          = iter  > 2 !.true.
        sample_xi_n           = iter > 3
        select_data           = (iter == 1) .or. (iter == 6)
-       output_files           = (iter == 10)
+       output_noise_files    = (iter == 10)
     end if
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -414,14 +414,14 @@ contains
           call sample_n_corr(self, sd, handle)
           if (sample_xi_n) then
              write(*,*) "Sampling noise psd for scan ", self%scanid(i)
-             call sample_noise_psd(self, sd, handle, chaindir ,output_files=output_files)
+             call sample_noise_psd(self, sd, handle, chaindir ,output_noise_files=output_noise_files)
              write(*,*) "Done sampling scan number   ", self%scanid(i)
           else
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=output_files)
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_noise_files=output_noise_files)
           end if
        else
           call sample_n_corr(self, sd, handle, onlymono=.true.)
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_files=output_files)
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., output_noise_files=output_noise_files)
        end if
       call update_status(status, "sampled ncorr")
        
@@ -565,7 +565,7 @@ contains
        end if
 
        ! For debugging: write TOD to hdf
-       if (output_files) then
+       if (output_noise_files) then
           !if (self%scanid(i) == 915) then 
              !print *, self%scanid(i)
              call int2string(self%scanid(i), scantext)
