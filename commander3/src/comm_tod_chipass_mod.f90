@@ -154,7 +154,7 @@ contains
       c%nside_pixhist   = 64
       
       ! allocate CHIPASS-specific instrument file data
-      c%tsys_order      = 7
+      c%tsys_order      = 4
       c%tsys_eta0       = 58.0d0
       allocate(c%tsys_fit(c%ndet, 0:c%tsys_order))
       c%tsys_fit = 0.d0
@@ -435,12 +435,12 @@ contains
          call timer%stop(TOD_WAIT, self%band)
       end if
 
-      !if (self%myid == 0) then
+      if (self%myid == 0) then
       !   write(*,*) 'gain new scan 1 det 1:', self%scans(1)%d(1)%gain
       !   write(*,*) 'baseline new scan 1 det 1:', self%scans(1)%d(1)%baseline
-      !   if (self%per_slew_baseline) write(*,*) 'baseline_slew new scan 1 det 1:', self%scans(1)%d(1)%baseline_slew
-      !   write(*,*) 'tsys_fit new det 1:', self%tsys_fit(1, :)
-      !end if
+         if (self%per_slew_baseline) write(*,*) 'baseline_slew new scan 1 det 1:', self%scans(1)%d(1)%baseline_slew
+         write(*,*) 'tsys_fit new det 1:', self%tsys_fit(1, :)
+      end if
 
       ! Create pixel histograms
       if (self%first_call) call compute_tod_pixhist(self, spur_level=100)
@@ -449,7 +449,7 @@ contains
        ! Create dynamic mask
       if (select_data) then
          if (self%myid == 0) write(*,*) '   --> Creating dynamic mask'
-         if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 1:', self%scans(1)%d(1)%N_psd%sigma0
+         !if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 1:', self%scans(1)%d(1)%N_psd%sigma0
          do i = 1, self%nscan
             ! Skip scan if no accepted data
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -533,6 +533,7 @@ contains
                end do
             end if
             d_calib2(1, :, j) = sd%s_inst(:, j) - d_calib2(2, :, j)
+            d_calib2(1:2,:,j) = d_calib2(1:2,:,j) /  self%scans(i)%d(j)%gain ! Output in mK
          end do
 
          ! For debugging: write TOD to hdf
@@ -576,7 +577,7 @@ contains
          deallocate(d_calib2)
       end do
 
-      if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 2:', self%scans(1)%d(1)%N_psd%sigma0
+      !if (self%myid == 0) write(*,*) 'scan 1 det 1 N_psd%sigma0 2:', self%scans(1)%d(1)%N_psd%sigma0
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -689,14 +690,14 @@ contains
     real(sp), dimension(1:,1:),             intent(in)    :: raw, s_tot, mask
 
     integer(i4b) :: i, j, k, n, s, ntod_slew
-    real(dp)     :: t, dt
+    real(dp)     :: t, t2, dt, dt2, d1, d2, b
     real(dp), allocatable, dimension(:) :: x, y
 
     do s = 1, tod%scans(scan)%nslew
 
        ntod_slew = tod%scans(scan)%slew_inds(s, 2) - tod%scans(scan)%slew_inds(s, 1) + 1
        allocate(x(ntod_slew), y(ntod_slew))
-       dt = 1.d0 / ntod_slew
+       dt = 1.d0 / (ntod_slew-1)
 
        !if ((tod%myid == 0) .and. (scan == 1)) write(*,*) 'slew, inds, n:', s, tod%scans(scan)%slew_inds(s, :), ntod_slew
 
@@ -719,13 +720,45 @@ contains
                 end if
              end if
           end do
-          if (n > tod%baseline_order+1) call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline_slew(s, :))
+          if (n > tod%baseline_order+1) then
+             call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline_slew(s, :))
+          else
+             tod%scans(scan)%d(j)%baseline_slew(s,:) = 0.
+          end if
+          !if (tod%myid == 0) write(*,*) j, tod%scans(scan)%d(j)%baseline_slew(s,:)
        end do
 
        deallocate(x, y)
 
     end do
-
+    
+!!$    if (tod%myid == 0) then
+!!$       open(58,file='slew.dat', recl=1024)
+!!$       s   = 1
+!!$       dt2 = 1.d0 / (tod%scans(scan)%slew_inds(s, 2) - tod%scans(scan)%slew_inds(s, 1))
+!!$       do k = 1, tod%scans(scan)%ntod
+!!$          if (k > tod%scans(scan)%slew_inds(s, 2)) then
+!!$             s = s + 1
+!!$             dt2 = 1.d0 / (tod%scans(scan)%slew_inds(s, 2) - tod%scans(scan)%slew_inds(s, 1))
+!!$          end if
+!!$          if (mask(k,1) < 0.5) cycle
+!!$          d1 = raw(k,1) - tod%scans(scan)%d(1)%gain * s_tot(k,1) - splint(tod%tsys_spline(1),tod%scans(scan)%d(1)%elev(k))
+!!$          if (k .ge. tod%scans(scan)%slew_inds(s, 1) .and. tod%scans(scan)%slew_inds(s, 2) > tod%scans(scan)%slew_inds(s, 1)) then
+!!$             t2 = (k - tod%scans(scan)%slew_inds(s, 1))*dt2
+!!$             if ((t2 < 0.d0) .or. (t2 > 1.d0)) write(*,*) 'bad2 t2; t2, k, s', t2, k, s, tod%scans(scan)%slew_inds(s,:)
+!!$             b = 0.d0
+!!$             do i = 0, tod%baseline_order
+!!$                b = b + tod%scans(scan)%d(1)%baseline_slew(s, i) * t2**i
+!!$             end do
+!!$             d2 = d1 - b
+!!$          end if
+!!$          write(58,*) k, d1, b, d2
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$    call mpi_finalize(i)
+!!$    stop
+    
   end subroutine sample_chipass_baseline_per_slew
 
   subroutine read_scan_inst_chipass(self, file, slabel, detlabels, scan)
@@ -965,17 +998,20 @@ contains
        d = j; if (present(det)) d = det
        t = 0.d0
        if (.not. self%scans(scan)%d(d)%accept) cycle
-       s = 1
+       s   = 1
+       dt2 = 1.d0 / (self%scans(scan)%slew_inds(s, 2) - self%scans(scan)%slew_inds(s, 1))
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
-          if (sd%mask(k,j) .le. 0.5) cycle
           if (self%per_slew_baseline) then
-             if (k > self%scans(scan)%slew_inds(s, 2)) s = s + 1
-                !if(s < self%scans(scan)%nslew) if (k == self%scans(scan)%slew_inds(s+1, 1)) s = s + 1
-             dt2 = 1.d0 / (self%scans(scan)%slew_inds(s, 2) - self%scans(scan)%slew_inds(s, 1) + 1)
-             if (k .ge. self%scans(scan)%slew_inds(s, 1)) then
+             if (k > self%scans(scan)%slew_inds(s, 2)) then
+                s   = s + 1
+                dt2 = 1.d0 / (self%scans(scan)%slew_inds(s, 2) - self%scans(scan)%slew_inds(s, 1))
+             end if
+          end if
+          if (self%per_slew_baseline) then
+             if (k .ge. self%scans(scan)%slew_inds(s, 1) .and. self%scans(scan)%slew_inds(s, 2) > self%scans(scan)%slew_inds(s, 1)) then
                 t2 = (k - self%scans(scan)%slew_inds(s, 1))*dt2
-                if ((t2 < 0.d0) .or. (t2 > 1.d0)) write(*,*) 'bad t2; t2, k, s', t2, k, s
+                if (t2 < 0.d0 .or. t2 > 1.d0) write(*,*) 'bad1 t2; t2, k, s', t2, k, s, self%scans(scan)%slew_inds(s,:)
                 do i = 0, self%baseline_order
                    sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline_slew(s, i) * t2**i
                 end do

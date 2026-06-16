@@ -271,7 +271,7 @@ program commander
               call process_all_TODs(cpar, cpar%mychain, iter, handle)
            end do
         else
-           do i = 1, 5
+           do i = 1, 1
               call process_all_TODs(cpar, cpar%mychain, iter, handle)
            end do
         end if
