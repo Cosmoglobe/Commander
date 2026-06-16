@@ -356,6 +356,9 @@ program commander
             else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
               if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
               call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else if ((index(cpar%mcmc_samp_groups(i), ':node@') .ne. 0) .or. (index(cpar%mcmc_samp_groups(i), 'adscale:') .ne. 0)) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling spline SEDs nodes and/or adscale'
+              call sample_admbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
             else
               if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)

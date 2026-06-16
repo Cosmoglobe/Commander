@@ -33,16 +33,14 @@ module comm_MBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values
+     real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values and astrodust scale
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
 
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
-     procedure :: read_astrodust_table
      procedure :: update_spline  !!procedure to update the spline 
-     procedure :: update_spline_astrodust
      procedure :: write_spline !!procedure to print the spline 
   end type comm_MBBtab_comp
 
@@ -84,10 +82,6 @@ contains
     else if (trim(c%mbbtab_type) == 'spline_log') then
        c%npar_tab = 1  ! 3 column table, nu_min, nu_max sed, same setup as binned
        c%npar = 2 !['beta', 'T   ']
-    else if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
-       c%npar_tab = 0 ! 2 column table, nu_central, sed
-       c%npar = 3 ! ['beta', 'T   ', 'adScale']
-       c%nu_join = cpar%cs_nu_join(id_abs) * 1d9
     else
        write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
        stop
@@ -117,7 +111,7 @@ contains
     if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
       c%indlabel  = ['beta   ', 'T      ', 'adScale']
     else
-      c%indlabel  = ['beta', 'T   ']
+      c%indlabel  = ['beta   ', 'T      ']
     end if 
 
     ! Precompute mixmat integrator for each band
@@ -166,23 +160,16 @@ contains
     call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
 
 
-    !!!!!! RAELYN TO DO !!!!!!!!!
-   if  (trim(c%mbbtab_type) == 'spline_astrodust') then
-      call c%read_astrodust_table(cpar%cs_SED_template(2,id_abs))
-   else
-      c%nastrotab = 0
-   end if 
-
     ! Make the initial spline if the right type
     if (trim(c%mbbtab_type) == 'spline_log') then
       call c%update_spline(c%theta_def(1), c%theta_def(2), 1) !1 is for pol, not set up for polarization currently
       c%spl_buff=c%spl
-    else if (trim(c%mbbtab_type) == 'spline_astrodust')  then
-      call c%update_spline_astrodust(c%theta_def(1), c%theta_def(2), c%theta_def(3), 1)
-      c%spl_buff=c%spl
+      allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
+    else
+      allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
     end if
 
-    allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
+    
     c%theta_steplen = 0d0
 
     ! Initialize SED priors
@@ -208,7 +195,7 @@ contains
     real(dp)                                      :: evalSED_mbbtab
 
     integer(i4b) :: i
-    real(dp) :: x, x_ref, beta, T,maxnu,minnu, val,maxnu_ast
+    real(dp) :: x, x_ref, beta, T,maxnu,minnu, val
     logical, save :: spline_warning_printed = .false.
     
    ! nu, pol and theta are not in fact optional for this code so we should check we actually are getting those
@@ -232,18 +219,10 @@ contains
     ! SED table should be ordered from lowest to highest 
     if (self%ntab .ne. 0) then
        !SEDtab(1,1) !! minimum frequency in the spline, less than this uses MBB
-       !! maximum frequency in the spline, no astrodust
-      if (trim(self%mbbtab_type) == 'spline_astrodust') then 
-         minnu=self%nu_join
-         maxnu=self%astrotab(self%npar_tab+1,1)!self%SEDtab(self%npar_tab+1,self%ntab)
-         maxnu_ast=self%astrotab(self%npar_tab+1,self%nastrotab) !! maximum frequency in the spline, with astrodust
-      else 
-         minnu=self%SEDtab(1,1)
-         maxnu=self%SEDtab(self%npar_tab+1,self%ntab)
-         maxnu_ast=maxnu-1 !set like this so that the evaluation into astrodust never occurs for non-astrodust cases
-      end if 
+      minnu=self%SEDtab(1,1)
+      maxnu=self%SEDtab(self%npar_tab+1,self%ntab)
 
-      if (trim(self%mbbtab_type) == 'spline_log' .or. trim(self%mbbtab_type) == 'spline_astrodust') then
+      if (trim(self%mbbtab_type) == 'spline_log') then
          if (nu<=minnu) then
             ! evaluates the low frequency range as a MBB
             beta    = theta(1)
@@ -283,13 +262,6 @@ contains
                evalSED_mbbtab = self%posneg*exp(val) 
             end if 
             evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
-            return
-         else if (nu > maxnu .and. nu <= maxnu_ast) then 
-            ! evaluates the astrotab values with linear between the bins, scaled by the astrodust scaling and posneg
-            ! this should not evaluate if masnu_ast is set to maxnu-1, in which case there is no astrotab
-            ! and higher than the maximum tabulated value will return zero. 
-            i = locate_dp(self%astrotab(1,1:),nu)
-            evalSED_mbbtab = self%posneg*theta(3)*(self%nu_ref(pol)/nu)**2 * (self%astrotab(2,i) + (nu - self%astrotab(1,i))*(self%astrotab(2,i) - self%astrotab(2,i+1))/(self%astrotab(1,i) - self%astrotab(1,i+1)))
             return
          else
             evalSED_mbbtab = 0.d0
@@ -373,45 +345,6 @@ contains
     self%SEDtab_buff = self%SEDtab
     self%posneg=1
   end subroutine read_SED_table
-
-  subroutine read_astrodust_table(self, filename)
-    implicit none
-    class(comm_MBBtab_comp),    intent(inout)   :: self
-    character(len=*),           intent(in)      :: filename
-    
-    integer(i4b) :: i, unit
-    character(len=1024) :: line
-
-    unit = getlun()
-    self%nastrotab = 0
-    open(unit, file=trim(filename))
-    do while (.true.)
-       read(unit,'(a)', end=1) line
-       line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
-       if (len_trim(line) == 0) cycle 
-       self%nastrotab = self%nastrotab+1
-    end do
-1   close(unit)
-
-    allocate(self%astrotab(2,self%nastrotab)) 
-    ! npar_tab is zero for astrodust and we want 2 columns, frequency and SED amplitude
-    open(unit, file=trim(filename))
-    i = 0
-    do while (.true.)
-       read(unit,'(a)', end=2) line
-       line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
-       if (len_trim(line) == 0) cycle 
-       i = i+1
-       read(line,*) self%astrotab(:,i)
-    end do
-2   close(unit)
-
-    !!! astrodust type SED table only have the central frequency node and the amplitude, not two frequencies and the amplitude
-    self%astrotab(1,:) = self%astrotab(1,:) * 1d9
-  end subroutine read_astrodust_table
-
 
 
   subroutine update_spline(self,beta,T,pol)

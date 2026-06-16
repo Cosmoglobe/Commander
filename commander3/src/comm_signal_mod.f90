@@ -25,6 +25,7 @@ module comm_signal_mod
   use comm_cmb_relquad_comp_mod
   use comm_mbb_comp_mod
   use comm_mbbtab_comp_mod
+  use comm_admbbtab_comp_mod
   use comm_powlaw_comp_mod
   use comm_curvature_comp_mod
   use comm_spindust_comp_mod
@@ -91,6 +92,8 @@ contains
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("MBBtab")
              c => comm_MBBtab_comp(cpar, ncomp, i)
+          case ("adMBBtab")
+             c => comm_adMBBtab_comp(cpar, ncomp, i)
           case ("freefree")
              c => comm_freefree_comp(cpar, ncomp, i)
           case ("freefreeEM")
