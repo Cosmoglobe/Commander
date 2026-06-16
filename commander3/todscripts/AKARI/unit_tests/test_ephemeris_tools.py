@@ -1,24 +1,24 @@
-"""Test suite for ephemeris_flagging.py module.
+"""Test suite for ephemeris_tools.py module.
 
-This test suite includes unit tests for the EphemerisFlagger class and its methods.
+This test suite includes unit tests for the EphemerisTools class and its methods.
 
 Usage Examples
 --------------
 
 Run all tests:
-    pytest test_ephemeris_flagging.py -v
+    pytest test_ephemeris_tools.py -v
 
 Run specific test class:
-    pytest test_ephemeris_flagging.py::TestEphemerisFlaggerInitialization -v
+    pytest test_ephemeris_tools.py::TestEphemerisToolsInitialization -v
 
 Run specific test:
-    pytest test_ephemeris_flagging.py::TestEphemerisFlaggerInitialization::test_valid_directory -v
+    pytest test_ephemeris_tools.py::TestEphemerisToolsInitialization::test_valid_directory -v
 
 Run tests with detailed output:
-    pytest test_ephemeris_flagging.py -vv -s
+    pytest test_ephemeris_tools.py -vv -s
 
 Run with coverage report:
-    pytest test_ephemeris_flagging.py --cov=ephemeris_flagging --cov-report=html
+    pytest test_ephemeris_tools.py --cov=ephemeris_tools --cov-report=html
 """
 
 import sys
@@ -31,19 +31,21 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, Angle, BarycentricMeanEcliptic
 
-# Add parent directory to path so we can import ephemeris_flagging
+# Add parent directory to path so we can import ephemeris_tools
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ephemeris_flagging import EphemerisFlagger
-
+from Commander.commander3.todscripts.AKARI.ephemeris_tools import (
+    EphemerisTools,
+    CustomFrame,
+)
 
 # ============================================================================
 # Initialization Tests
 # ============================================================================
 
 
-class TestEphemerisFlaggerInitialization:
-    """Test EphemerisFlagger initialization and setup."""
+class TestEphemerisToolsInitialization:
+    """Test EphemerisTools initialization and setup."""
 
     def test_valid_directory_initialization(self):
         """Test initialization with a valid directory."""
@@ -52,7 +54,7 @@ class TestEphemerisFlaggerInitialization:
             open(os.path.join(tmpdir, "jupiter_ephemeris.txt"), "w").close()
             open(os.path.join(tmpdir, "saturn_ephemeris.txt"), "w").close()
 
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
 
             assert flagger.ephemeris_file_dir == tmpdir
             assert len(flagger.available_ephemeris_files) == 2
@@ -60,12 +62,12 @@ class TestEphemerisFlaggerInitialization:
     def test_invalid_directory_raises_error(self):
         """Test that invalid directory path raises ValueError."""
         with pytest.raises(ValueError, match="is not a directory"):
-            EphemerisFlagger(ephemeris_file_dir="/nonexistent/path/to/directory")
+            EphemerisTools(ephemeris_file_dir="/nonexistent/path/to/directory")
 
     def test_empty_directory_initialization(self):
         """Test initialization with an empty directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
 
             assert flagger.ephemeris_file_dir == tmpdir
             assert len(flagger.available_ephemeris_files) == 0
@@ -77,7 +79,7 @@ class TestEphemerisFlaggerInitialization:
             for body in bodies:
                 open(os.path.join(tmpdir, f"{body.lower()}_ephemeris.txt"), "w").close()
 
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
 
             assert len(flagger.available_ephemeris_files) == 5
 
@@ -116,7 +118,7 @@ class TestEphemerisLoading:
             ephemeris_file = os.path.join(tmpdir, "jupiter_ephemeris.txt")
             self.create_sample_ephemeris_file(ephemeris_file)
 
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
             mjd, pos = flagger.load_ephemeris(ephemeris_file)
 
             # Check returned types
@@ -136,7 +138,7 @@ class TestEphemerisLoading:
             ephemeris_file = os.path.join(tmpdir, "mars_ephemeris.txt")
             self.create_sample_ephemeris_file(ephemeris_file, num_points=5)
 
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
             mjd, _ = flagger.load_ephemeris(ephemeris_file)
 
             assert mjd.scale == "tdb"
@@ -150,7 +152,7 @@ class TestEphemerisLoading:
             ephemeris_file = os.path.join(tmpdir, "venus_ephemeris.txt")
             self.create_sample_ephemeris_file(ephemeris_file, num_points=3)
 
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
             _, pos = flagger.load_ephemeris(ephemeris_file)
 
             # Cartesian representation should be in AU
@@ -183,7 +185,7 @@ class TestEphemerisInterpolation:
             f.write("Header line 2\n")
             np.savetxt(f, data)
 
-        flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+        flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
         return flagger, ephemeris_file
 
     def test_interpolation_at_exact_time_point(self):
@@ -272,7 +274,7 @@ class TestFlagGeneration:
             f.write("Header line 2\n")
             np.savetxt(f, data)
 
-        flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+        flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
         return flagger
 
     def test_generate_tod_flag_basic(self):
@@ -373,7 +375,7 @@ class TestFlagGeneration:
     def test_generate_tod_flag_missing_ephemeris_file(self):
         """Test that missing ephemeris file raises ValueError."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
 
             with pytest.raises(ValueError, match="Ephemeris file"):
                 flagger.generate_tod_flag(
@@ -449,7 +451,7 @@ class TestIntegration:
                     np.savetxt(f, data)
 
             # Initialize flagger
-            flagger = EphemerisFlagger(ephemeris_file_dir=tmpdir)
+            flagger = EphemerisTools(ephemeris_file_dir=tmpdir)
 
             # Load data
             jupiter_time, jupiter_pos = flagger.load_ephemeris(
@@ -504,7 +506,7 @@ class TestIntegration:
         import matplotlib.pyplot as plt
         from astropy.coordinates import get_body, solar_system_ephemeris, EarthLocation
 
-        ephemeris_flagger = EphemerisFlagger()
+        ephemeris_flagger = EphemerisTools()
 
         celestial_bodies = [
             "Jupiter",
@@ -565,3 +567,77 @@ class TestIntegration:
             assert np.array_equal(
                 flags, reference_flags
             ), f"Flags should be the same regardless of the frame used for the observatory pointing. Discrepancy found in {frame} frame."
+
+
+# ============================================================================
+# CustomFrame transformation tests
+# ============================================================================
+
+
+class TestCustomFrame:
+    def test_custom_frame_transformation(self):
+        """Testing that the CustomFrame, custom observatory-centric,
+        coordinate frame transforms correctly to other default astropy
+        frames (forwards and backwards)
+        """
+        import astropy.coordinates as coord
+
+        t = Time("2026-01-01T00:00:00", scale="tdb")
+        jupiter_icrs = coord.get_body("jupiter", t).transform_to(coord.ICRS())
+
+        jup_frame = CustomFrame(origin=jupiter_icrs, obstime=t)
+
+        # Point 1 AU away from Jupiter along +x (in ICRS-parallel axes)
+        p_custom = SkyCoord(
+            lon=0 * u.deg, lat=0 * u.deg, distance=0 * u.au, frame=jup_frame
+        )
+
+        # Transform to standard frames
+        p_icrs = p_custom.transform_to(coord.ICRS())
+        p_gal = p_custom.transform_to(coord.Galactic())
+        p_ecl = p_custom.transform_to(coord.HeliocentricMeanEcliptic(obstime=t))
+
+        # Transform back
+        p_icrs_to_custom = p_icrs.transform_to(jup_frame)
+        p_gal_to_custom = p_gal.transform_to(jup_frame)
+        p_ecl_to_custom = p_ecl.transform_to(jup_frame)
+
+        # Assert if Jupiter's position equal in ICRS and the custom jupiter-centric frame
+        assert np.all(
+            np.abs(jupiter_icrs.cartesian.xyz.value - p_icrs.cartesian.xyz.value) < 1e-9
+        )
+
+        # Assert if Jupiter's position equal in Galactic coordinates and the custom jupiter-centric frame
+        assert np.all(
+            np.abs(
+                jupiter_icrs.transform_to(coord.Galactic).cartesian.xyz.value
+                - p_gal.cartesian.xyz.value
+            )
+            < 1e-9
+        )
+
+        # Assert if Jupiter's position equal in Heliocentric Mean Ecliptic coordinates and the custom jupiter-centric frame
+        assert np.all(
+            np.abs(
+                jupiter_icrs.transform_to(
+                    coord.HeliocentricMeanEcliptic(obstime=t)
+                ).cartesian.xyz.value
+                - p_ecl.cartesian.xyz.value
+            )
+            < 1e-9
+        )
+
+        # Assert if the custom jupiter-centric frame transform forwards and backwards to the same
+        # coordinate as we started with
+        assert np.all(
+            np.abs(p_icrs_to_custom.cartesian.xyz.value - p_custom.cartesian.xyz.value)
+            < 1e-9
+        )
+        assert np.all(
+            np.abs(p_gal_to_custom.cartesian.xyz.value - p_custom.cartesian.xyz.value)
+            < 1e-9
+        )
+        assert np.all(
+            np.abs(p_ecl_to_custom.cartesian.xyz.value - p_custom.cartesian.xyz.value)
+            < 1e-9
+        )
