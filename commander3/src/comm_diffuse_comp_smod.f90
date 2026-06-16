@@ -2796,7 +2796,7 @@ contains
             nu2=self%astrotab(1,2)
             theta(1)=self%theta(1)%p%map(1,1)
             theta(2)=self%theta(2)%p%map(1,1)
-            theta(3)=self%theta(3)%p%map(1,1)
+            ! theta(3)=self%theta(3)%p%map(1,1)
          else 
             nu2=self%SEDtab(2,self%ntab)
             theta(1)=self%theta(1)%p%map(1,1)
@@ -2878,7 +2878,7 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
-       if (trim(self%type) == 'MBBtab') then
+       if (trim(self%type) == 'MBBtab' .or. trim(self%type) == 'adMBBtab') then
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
        end if
 
