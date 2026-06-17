@@ -369,7 +369,8 @@ contains
 
   subroutine cr_compute_chisq(comm, samp_group, x, chisq)
     implicit none
-    integer(i4b),            intent(in)  :: comm, samp_group
+    type(MPI_Comm),          intent(in)  :: comm
+    integer(i4b),            intent(in)  :: samp_group
     real(dp), dimension(1:), intent(in)  :: x
     real(dp),                intent(out) :: chisq
 
@@ -1012,7 +1013,8 @@ contains
 
   function cr_invM(comm, x, samp_group)
     implicit none
-    integer(i4b),                        intent(in) :: comm, samp_group
+    type(MPI_Comm),                      intent(in) :: comm
+    integer(i4b),                        intent(in) :: samp_group
     real(dp),              dimension(:), intent(in) :: x
     real(dp), allocatable, dimension(:)             :: cr_invM
 

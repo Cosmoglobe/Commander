@@ -69,6 +69,8 @@ if(COMPILE_HDF5)
 												libaec
 			URL								"${hdf5_url}"
 			URL_MD5						"${hdf5_md5}"
+      URL_HASH          "${hdf5_sha256}"
+      DOWNLOAD_EXTRACT_TIMESTAMP              TRUE
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${HDF5_SOURCE_DIR}"
@@ -161,7 +163,7 @@ if(COMPILE_HDF5)
 	set(HDF5_Fortran_INCLUDE_DIRS 
 			"${CMAKE_INSTALL_PREFIX}/include"
 			#"${CMAKE_Fortran_MODULE_DIRECTORY}/static"
-			"${CMAKE_INSTALL_PREFIX}/include/static"
+      #"${CMAKE_INSTALL_PREFIX}/include/static"
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------

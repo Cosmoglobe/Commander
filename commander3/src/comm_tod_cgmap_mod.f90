@@ -23,28 +23,32 @@ module comm_tod_cgmap_mod
   use comm_tod_mod
   use comm_tod_Tbol_mod
   use comm_tod_crosstalk_mod
+  use comm_fft_mod
   implicit none
 
   private
   public comm_cgmap, dealloc_cgmap
   
   type comm_cgmap
-     integer(i4b)  :: comm, myid, nprocs
-     integer(i4b)  :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
-     logical(lgt),            allocatable, dimension(:,:) :: accept      ! Accept status, (ndet,nscan)
-     integer(i4b),            allocatable, dimension(:)   :: ind_scan    ! Index range for each scan (0:nscan)
-     real(dp),                allocatable, dimension(:,:) :: x           ! Final full-sky map; only stored by root processor
-     real(dp),                allocatable, dimension(:,:) :: invM        ! Diagonal preconditioner
-     real(dp),                allocatable, dimension(:,:) :: xi          ! Pixel index based mini-map; separate for each core
-     real(sp),                allocatable, dimension(:,:) :: tod         ! Stacked, calibrated and in-painted TOD, (ndet,nscan*ntod)
-     real(sp),                allocatable, dimension(:,:) :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
-     integer(i4b),            allocatable, dimension(:,:) :: ind         ! Stacked pixel index numbers, (ndet,nscan*ntod)
-     integer(i4b),            allocatable, dimension(:,:) :: psi         ! Stacked psi index numbers, (ndet,nscan*ntod)
-     integer(i4b),            allocatable, dimension(:,:) :: mask        ! Stacked TOD processing mask, (ndet,nscan*ntod)
-     type(comm_crosstalk),                 pointer        :: W_S         ! Signal crosstalk matrix
-     type(comm_crosstalk),                 pointer        :: W_N         ! Noise crosstalk matrix
-     type(Tbol_ptr),          allocatable, dimension(:)   :: T           ! Bolometer transfer function, (ndet)
-     integer(i4b),            allocatable, dimension(:)   :: ind2pix     ! Conversion table from reduced to full pixel index; individual for each processor
+     type(MPI_Comm) :: comm
+     integer(i4b)   :: myid, nprocs
+     integer(i4b)   :: maptype, ndet, ncol, nside, npix, nscan, ntod, nobs
+     type(C_PTR)    :: plan_fwd, plan_back
+     class(comm_tod), pointer :: tod0
+     logical(lgt),            allocatable, dimension(:,:)   :: accept      ! Accept status, (ndet,nscan)
+     integer(i4b),            allocatable, dimension(:)     :: ind_scan    ! Index range for each scan (0:nscan)
+     real(dp),                allocatable, dimension(:,:)   :: x           ! Final full-sky map; only stored by root processor
+     real(dp),                allocatable, dimension(:,:,:) :: invM        ! Diagonal preconditioner, (ncol,ncol,npix)
+     real(dp),                allocatable, dimension(:,:)   :: xi          ! Pixel index based mini-map; separate for each core
+     real(sp),                allocatable, dimension(:,:)   :: tod         ! Stacked, calibrated and in-painted TOD, (nscan*ntod,ntod)
+     real(dp),                allocatable, dimension(:,:)   :: invN        ! 1/sigma**2 per scan, (ndet,nscan)
+     integer(i4b),            allocatable, dimension(:,:)   :: ind         ! Stacked pixel index numbers, (nscan*ntod,ndet)
+     integer(i4b),            allocatable, dimension(:,:)   :: psi         ! Stacked psi index numbers, (nscan*ntod,ndet)
+     integer(i4b),            allocatable, dimension(:,:)   :: mask        ! Stacked TOD processing mask, (nscan*ntod,ndet)
+     type(comm_crosstalk),                 pointer          :: W_S         ! Signal crosstalk matrix
+     type(comm_crosstalk),                 pointer          :: W_N         ! Noise crosstalk matrix
+     type(Tbol_ptr),          allocatable, dimension(:)     :: T           ! Bolometer transfer function, (ndet)
+     integer(i4b),            allocatable, dimension(:)     :: ind2pix     ! Conversion table from reduced to full pixel index; individual for each processor
    contains
      procedure :: load_data => load_calibrated_data
      procedure :: solve     => solve_cgmap
@@ -66,71 +70,83 @@ module comm_tod_cgmap_mod
     
 contains
 
-  function constructor_cgmap(maptype, comm, nside, ndet, ntod_scan, ind2pix, W_S, W_N, Tbol) result(c)
+  function constructor_cgmap(tod0, maptype, W_S, W_N) result(c)
     implicit none
-    integer(i4b),                       intent(in) :: maptype, comm, nside, ndet
-    integer(i4b),         dimension(:), intent(in) :: ntod_scan
-    integer(i4b),         dimension(:), intent(in) :: ind2pix
+    class(comm_tod),      target,       intent(in) :: tod0
+    integer(i4b),                       intent(in) :: maptype
     type(comm_crosstalk), target,       intent(in), optional :: W_S
     type(comm_crosstalk), target,       intent(in), optional :: W_N
-    type(Tbol_ptr),       dimension(:), intent(in), optional :: Tbol
     class(comm_cgmap), pointer                  :: c
 
-    integer(i4b) :: i, ierr
+    integer(i4b) :: i, ierr, nfft, n
+    real(sp),     allocatable, dimension(:)   :: dt
+    complex(spc), allocatable, dimension(:)   :: dv    
     
     allocate(c)
-    c%comm      = comm
-    call mpi_comm_rank(comm, c%myid, ierr)
-    call mpi_comm_size(comm, c%nprocs, ierr) 
-    
+    c%comm      = tod0%comm
+    call mpi_comm_rank(c%comm, c%myid, ierr)
+    call mpi_comm_size(c%comm, c%nprocs, ierr) 
+
+    c%tod0      => tod0
     c%maptype   = maptype
-    c%nside     = nside
+    c%nside     = tod0%nside
     c%npix      = 12*c%nside**2
-    c%ndet      = ndet
-    c%nscan     = size(ntod_scan)
-    c%ntod      = sum(ntod_scan)
-    c%nobs      = size(ind2pix)
+    c%ndet      = tod0%ndet
+    c%nscan     = tod0%nscan
+    c%ntod      = sum(tod0%scans%ntod)
+    c%nobs      = size(tod0%pixcache%ind2pix)
 
     if (c%maptype == 1) then
        ! Temperature only
        c%ncol = 1
+    else if (c%maptype == 2) then
+       ! TQU
+       c%ncol = 3
     else
        write(*,*) 'CGmap type not supported = ', maptype
        stop
     end if
     
     allocate(c%ind2pix(c%nobs))
-    c%ind2pix   = ind2pix
+    c%ind2pix = tod0%pixcache%ind2pix
     
     ! Find start index for each scan; each scan is stored in (ind_scan(i-1)+1):ind_scan(i)
     allocate(c%ind_scan(0:c%nscan))
     c%ind_scan(0) = 0
     do i = 1, c%nscan
-       c%ind_scan(i) = c%ind_scan(i-1) + ntod_scan(i)
+       c%ind_scan(i) = c%ind_scan(i-1) + tod0%scans(i)%ntod
     end do
     
-    allocate(c%tod(c%ndet,c%ntod))
-    allocate(c%ind(c%ndet,c%ntod))
-    allocate(c%mask(c%ndet,c%ntod))
+    allocate(c%tod(c%ntod,c%ndet))
+    allocate(c%ind(c%ntod,c%ndet))
+    allocate(c%mask(c%ntod,c%ndet))
     allocate(c%invN(c%ndet,c%nscan))
     allocate(c%xi(c%ncol,c%nobs))
     allocate(c%accept(c%ndet,c%nscan))
-    if (c%myid == 0) allocate(c%x(c%ncol,c%npix))
-    if (c%myid == 0) allocate(c%invM(c%ncol,c%npix))
+    if (c%myid == 0) allocate(c%x(c%ncol,0:c%npix-1))
+    if (c%myid == 0) allocate(c%invM(c%ncol,c%ncol,0:c%npix-1))
     c%accept = .false.
+    c%tod    = 0.
 
     if (c%maptype > 1) then ! Polarization
-       allocate(c%psi(c%ndet,c%ntod))
+       allocate(c%psi(c%ntod,c%ndet))
     end if
     
     ! Check for optional matrix operators
     if (present(W_S))  c%W_S  => W_S
     if (present(W_N))  c%W_N  => W_N
-    if (present(Tbol)) then
+    if (tod0%correct_Tbol) then
        allocate(c%T(c%ndet))
        do i = 1, c%ndet
-          c%T(i)%p => Tbol(i)%p
+          c%T(i)%p => tod0%Tbol(i)%p
        end do
+
+       nfft     = get_closest_fft_pow2(c%ntod)
+       n        = nfft / 2 + 1
+       allocate(dt(nfft), dv(0:n-1))
+       c%plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       c%plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       deallocate(dt, dv)
     end if
     
   end function constructor_cgmap
@@ -147,7 +163,9 @@ contains
     if (allocated(c%x))         deallocate(c%x)
     if (allocated(c%xi))        deallocate(c%xi)
     if (allocated(c%ind2pix))   deallocate(c%ind2pix)
-    if (allocated(c%accept))   deallocate(c%accept)
+    if (allocated(c%accept))    deallocate(c%accept)
+    call fftw_destroy_plan(c%plan_fwd)
+    call fftw_destroy_plan(c%plan_back)
     deallocate(c)
   end subroutine dealloc_cgmap
 
@@ -163,9 +181,9 @@ contains
     
     i = self%ind_scan(scan-1)+1
     j = self%ind_scan(scan)
-    self%tod(:,i:j)     = transpose(d_calib)
-    self%ind(:,i:j)     = transpose(sd%ind(:,:,1))
-    self%mask(:,i:j)    = transpose(iand(sd%flag,tod%flag0))
+    self%tod(i:j,:)     = d_calib
+    self%ind(i:j,:)     = sd%ind(:,:,1)
+    self%mask(i:j,:)    = iand(sd%flag,tod%flag0)
     do det = 1, self%ndet
        self%accept(det,scan) = tod%scans(scan)%d(det)%accept
        self%invN(det,scan)   = 1./(tod%scans(scan)%d(det)%N_psd%sigma0/&
@@ -173,8 +191,19 @@ contains
     end do
 
     if (self%maptype > 1) then
-       self%psi(:,i:j) = transpose(sd%psi(:,:,1))
+       self%psi(i:j,:) = sd%psi(:,:,1)
     end if
+
+    ! Inpaint flagged samples
+    do det = 1, self%ndet
+       if (self%accept(det,scan)) then
+          where (self%mask(i:j,det) /= 0.)
+             self%tod(i:j,det) = tod%scans(scan)%d(det)%gain * sd%s_sky(:,det,0,1)
+          end where
+       else
+          self%tod(i:j,det) = tod%scans(scan)%d(det)%gain * sd%s_sky(:,det,0,1)
+       end if
+    end do
     
   end subroutine load_calibrated_data
 
@@ -183,7 +212,7 @@ contains
     class(comm_cgmap), intent(inout) :: self
     class(comm_map),   intent(inout) :: map_out
 
-    integer(i4b) :: i, j, oper, MAXITER=30, ierr
+    integer(i4b) :: i, j, oper, MAXITER=3000, ierr
     real(dp)     :: delta_old, delta_new, delta0, eps = 1d-6, lim_convergence, dq, alpha, beta, t1, t2
     real(dp), allocatable, dimension(:,:) :: b, invMb, r, d, q, s
 
@@ -191,6 +220,7 @@ contains
     call self%init_precond
     
     if (self%myid == 0) then
+
 
        if (sum(abs(self%invM)) == 0.d0) then
           write(*,*) "CGmap error: Preconditioner is zero; no accepted data; . Exiting."
@@ -243,7 +273,8 @@ contains
                & min(delta_new,1d30), ', tol = ', real(lim_convergence,sp), &
                & ', time = ', real(t2-t1,sp)
        end do
-       call mpi_bcast(0, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
+       oper = 0
+       call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)  ! Release slaves
        
        call wall_time(t2)
        write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  Final CG iter ', i, ' -- res = ', &
@@ -276,10 +307,12 @@ contains
     real(dp),          dimension(:,:), intent(in),  optional :: x
     real(dp),          dimension(:,:), intent(out), optional :: Ax
 
-    integer(i4b) :: ierr
+    integer(i4b) :: ierr, oper
 
     ! Activate slaves
-    if (self%myid == 0) call mpi_bcast(1, 1, MPI_INTEGER, 0, self%comm, ierr)
+    oper = 1
+    if (self%myid /= 0) oper = 0
+    call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
 
     ! Distrbute x; stored in self%xi on each core
     call self%x_bcast(x)
@@ -318,10 +351,13 @@ contains
     class(comm_cgmap),                 intent(inout)           :: self
     real(dp),          dimension(:,:), intent(inout), optional :: b
     
-    integer(i4b) ::  ierr
+    integer(i4b) ::  ierr, oper
 
     ! Activate slaves
-    if (self%myid == 0) call mpi_bcast(2, 1, MPI_INTEGER, 0, self%comm, ierr)
+    oper = 2
+    if (self%myid /= 0) oper = 0
+    !call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
+    call mpi_bcast(oper, 1, MPI_INTEGER, 0, self%comm, ierr)
 
     ! Compute y = W_N^t * invN * W_N * d
     if (associated(self%W_N)) call self%W_N%multiply(.false., self%tod)
@@ -344,35 +380,60 @@ contains
  
   subroutine apply_precond(self, x, invMx)
     implicit none
-    class(comm_cgmap),                 intent(in)  :: self
-    real(dp),          dimension(:,:), intent(in)  :: x
-    real(dp),          dimension(:,:), intent(out) :: invMx
-    invMx = self%invM * x
+    class(comm_cgmap),                   intent(in)  :: self
+    real(dp),          dimension(1:,0:), intent(in)  :: x
+    real(dp),          dimension(1:,0:), intent(out) :: invMx
+
+    integer(i4b) :: i
+    do i = 0, self%npix-1
+       invMx(:,i) = matmul(self%invM(:,:,i), x(:,i))
+    end do
   end subroutine apply_precond
 
   subroutine init_precond(self)
     implicit none
     class(comm_cgmap),                 intent(inout)    :: self
 
-    integer(i4b) :: i, j, scan, det, t
+    integer(i4b) :: i, j, col, scan, det, t
+    real(dp)     :: w, eig(3)
 
-    self%xi = 0.d0
-    do scan = 1, self%nscan
-       do det = 1, self%ndet
-          if (.not. self%accept(det,scan)) cycle
-          do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
-             if (self%mask(det,t) == 0) then
-                self%xi(1,self%ind(det,t)) = self%xi(1,self%ind(det,t)) + self%invN(det,scan)
-             end if
+    do col = 1, self%ncol
+       ! Build the preconditioner column-by-column, in order to reuse the MPI infrastructure    
+       self%xi = 0.d0
+       do scan = 1, self%nscan
+          do det = 1, self%ndet
+             if (.not. self%accept(det,scan)) cycle
+             do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
+                if (self%mask(t,det) /= 0) cycle
+                if (self%maptype == 1) then
+                   self%xi(1,self%ind(t,det)) = self%xi(1,self%ind(t,det)) + self%invN(det,scan)
+                else if (self%maptype == 2) then
+                   if (col == 1) then
+                      w = 1.
+                   else if (col == 2) then
+                      w = self%tod0%pixcache%cos2psi(self%psi(t,det))
+                   else if (col == 3) then
+                      w = self%tod0%pixcache%sin2psi(self%psi(t,det))
+                   end if
+                   self%xi(1,self%ind(t,det)) = self%xi(1,self%ind(t,det)) + self%invN(det,scan) * w 
+                   self%xi(2,self%ind(t,det)) = self%xi(2,self%ind(t,det)) + self%invN(det,scan) * w * self%tod0%pixcache%cos2psi(self%psi(t,det))
+                   self%xi(3,self%ind(t,det)) = self%xi(3,self%ind(t,det)) + self%invN(det,scan) * w * self%tod0%pixcache%sin2psi(self%psi(t,det))
+                end if
+             end do
           end do
        end do
-    end do
 
-    call self%x_reduce(self%invM)
+       call self%x_reduce(self%invM(:,col,:))
+    end do
+    
     if (self%myid == 0) then
-       where (self%invM > 0.d0) 
-          self%invM = 1.d0 / self%invM
-       end where
+       do i = 0, self%npix-1
+          if (self%invM(1,1,i) > 0.) then
+             call invert_singular_matrix(self%invM(:,:,i), 1.d-8)
+          else
+             self%invM(:,:,i) = 0.d0
+          end if
+       end do
     end if
     
   end subroutine init_precond
@@ -388,10 +449,10 @@ contains
        j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          where (self%mask(det,i:j) == 0)
-             self%tod(det,i:j) = self%tod(det,i:j) * self%invN(det,scan)
+          where (self%mask(i:j,det) == 0)
+             self%tod(i:j,det) = self%tod(i:j,det) * self%invN(det,scan)
           elsewhere
-             self%tod(det,i:j) = 0.  ! Remove flagged samples
+             self%tod(i:j,det) = 0.  ! Remove flagged samples
           end where
        end do
     end do
@@ -402,16 +463,21 @@ contains
     implicit none
     class(comm_cgmap),                 intent(inout)    :: self
 
-    integer(i4b) :: i, j, det, scan
+    integer(i4b) :: t, det, scan
     
     do scan = 1, self%nscan
-       i = self%ind_scan(scan-1)+1
-       j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          if (self%maptype == 1) then
-             self%tod(det,i:j) = self%xi(1,self%ind(det,i:j))
-          end if
+          do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
+             if (self%mask(t,det) /= 0) cycle
+             if (self%maptype == 1) then
+                self%tod(t,det) = self%xi(1,self%ind(t,det))
+             else if (self%maptype == 2) then
+                self%tod(t,det) = self%xi(1,self%ind(t,det)) +                                                 & ! T
+                               & self%xi(2,self%ind(t,det)) * self%tod0%pixcache%cos2psi(self%psi(t,det)) + & ! Q
+                               & self%xi(3,self%ind(t,det)) * self%tod0%pixcache%sin2psi(self%psi(t,det))     ! U
+             end if
+          end do
        end do
     end do
     
@@ -421,17 +487,22 @@ contains
     implicit none
     class(comm_cgmap),                 intent(inout) :: self
 
-    integer(i4b) :: i, j, det, scan
+    integer(i4b) :: t, det, scan
 
     self%xi = 0.d0
     do scan = 1, self%nscan
-       i = self%ind_scan(scan-1)+1
-       j = self%ind_scan(scan)
        do det = 1, self%ndet
           if (.not. self%accept(det,scan)) cycle
-          if (self%maptype == 1) then
-             self%xi(1,self%ind(det,i:j)) = self%xi(1,self%ind(det,i:j)) + self%tod(det,i:j)
-          end if
+          do t = self%ind_scan(scan-1)+1, self%ind_scan(scan)
+             if (self%mask(t,det) /= 0) cycle
+             if (self%maptype == 1) then
+                self%xi(1,self%ind(t,det)) = self%xi(1,self%ind(t,det)) + self%tod(t,det)
+             else if (self%maptype == 2) then
+                self%xi(1,self%ind(t,det)) = self%xi(1,self%ind(t,det)) + self%tod(t,det)                                                 ! T
+                self%xi(2,self%ind(t,det)) = self%xi(2,self%ind(t,det)) + self%tod(t,det) * self%tod0%pixcache%cos2psi(self%psi(t,det)) ! Q
+                self%xi(3,self%ind(t,det)) = self%xi(3,self%ind(t,det)) + self%tod(t,det) * self%tod0%pixcache%sin2psi(self%psi(t,det)) ! U
+             end if
+          end do
        end do
     end do
     
@@ -442,17 +513,16 @@ contains
     class(comm_cgmap),                 intent(inout) :: self
     logical(lgt),                      intent(in)    :: trans
 
-    integer(i4b) :: i, j, scan, det   
+    integer(i4b) :: det
 
-    do scan = 1, self%nscan
-       i = self%ind_scan(scan-1)+1
-       j = self%ind_scan(scan)
-       do det = 1, self%ndet
-          if (.not. self%accept(det,scan)) cycle
-          call self%T(det)%p%convolve(self%tod(det,i:j))
-       end do
+    do det = 1, self%ndet
+       if (trans) then
+          call self%T(det)%p%convolve("cgmap", "transpose", self%tod(:,det), self%plan_fwd, self%plan_back)
+       else
+          call self%T(det)%p%convolve("cgmap", "regular",   self%tod(:,det), self%plan_fwd, self%plan_back)
+       end if
     end do
-
+    
   end subroutine convolve_T
 
   subroutine x_bcast(self, x)
@@ -463,7 +533,7 @@ contains
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
     real(dp),     allocatable, dimension(:,:) :: buffer
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
     
     if (self%myid == 0) then
        self%xi = x(:,self%ind2pix)
@@ -493,7 +563,7 @@ contains
     integer(i4b) :: i, j, scan, det, nobs, ierr
     integer(i4b), allocatable, dimension(:)   :: p
     real(dp),     allocatable, dimension(:,:) :: buffer
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
     
     if (self%myid == 0) then
        x                 = 0.d0

@@ -520,11 +520,12 @@ contains
      class(ZodiModel),               intent(in)           :: self
      real(dp),         dimension(:), intent(out)          :: x
      integer(i4b),                   intent(in), optional :: samp_group
-     character(len=*), allocatable, optional, intent(inout) :: labels(:)
+     character(len=128), allocatable, optional, intent(inout) :: labels(:)
 
      integer(i4b) :: i, j, idx
      real(dp), allocatable, dimension(:) :: z
      character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
+     character(len=128) :: skip_label="skip"
      
      allocate(z(self%npar_tot))
 
@@ -545,7 +546,7 @@ contains
         else
            labels = self%general_labels(1:2)
            do i = 1, self%n_phase_params
-              labels = [labels, "SKIP"]
+              labels = [labels, skip_label]
            end do
         end if
      end if
@@ -579,7 +580,7 @@ contains
             labels = [labels, labels_copy]
             ! Add placeholders for emissivity and albedo
             do j = 1, numband
-               labels = [labels, ["skip","skip"]]
+               labels = [labels, [skip_label, skip_label]]
             end do
          end if
      end do
@@ -593,7 +594,7 @@ contains
         else
            z(idx) = 0.d0
         end if
-        if (present(labels)) labels = [labels, "skip"]
+        if (present(labels)) labels = [labels, skip_label]
      end do
      
      if (present(samp_group)) then
@@ -695,7 +696,7 @@ contains
       character(len=6) :: itext
       character(len=4) :: ctext
       character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label, general_group_path, path
-      character(len=32), allocatable :: labels(:)
+      character(len=128), allocatable :: labels(:)
       real(dp), allocatable :: params(:)
       type(hdf_file) :: file
 
@@ -1292,9 +1293,11 @@ contains
 
             ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
             if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-               comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
             else
-               comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
             end if
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
@@ -1556,9 +1559,11 @@ contains
 
            ! Get dust grain temperature along the line of sight, and compute splined blackbody emission
            if (trim(model%phasefunc_type) == 'Wright' .and. k > 1) then
-              comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               !comp_LOS(k)%T = exp(5.5301d0) * comp_LOS(k)%R**(-0.5d0)
+               comp_LOS(k)%T = exp(5.5301d0) / sqrt(comp_LOS(k)%R)
            else
-              comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               !comp_LOS(k)%T = model%T_0 * comp_LOS(k)%R**(-model%delta)
+               comp_LOS(k)%T = model%T_0 * exp(-model%delta * log(comp_LOS(k)%R))
            end if
            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
@@ -1723,6 +1728,7 @@ contains
 
      real(dp) :: C0, C1, C2, p20, p21, g1, g2, g3, w1, w2, w3, norm
      integer(i4b) :: n
+     real(dp) :: den1(size(Theta)), den2(size(Theta)), den3(size(Theta)), cosTheta(size(Theta))
      
      if (trim(self%phasefunc_type) == 'K98') then
         n    = self%numband
@@ -1732,19 +1738,26 @@ contains
         norm =  1.d0 / (2.d0*pi * (2.d0*C0 + pi*C1 + (exp(C2 * pi) + 1.d0)/(C2**2 + 1.d0)))
         Phi = norm * (C0 + (C1 * Theta) + exp(C2 * Theta))
      else if (trim(self%phasefunc_type) == 'Wright') then
+        cosTheta = cos(Theta)
         p20  = self%par_phase(1)
         p21  = self%par_phase(2)
-        Phi = exp(-p20*cos(Theta) + p21*cos(Theta)**2)
+        Phi = exp(-p20*cosTheta + p21*cosTheta**2)
      else if (trim(self%phasefunc_type) == 'Hong') then
+        cosTheta = cos(Theta)
         g1  = self%par_phase(1)
         g2  = self%par_phase(2)
         g3  = self%par_phase(3)
         w1  = 1.d0-sum(self%par_phase(4:5))
         w2  = self%par_phase(4)
         w3  = self%par_phase(5)
-        Phi =       w1 * (1d0-g1**2)/(1.d0+g1**2-2d0*g1*cos(Theta))**1.5d0
-        Phi = Phi + w2 * (1d0-g2**2)/(1.d0+g2**2-2d0*g2*cos(Theta))**1.5d0
-        Phi = Phi + w3 * (1d0-g3**2)/(1.d0+g3**2-2d0*g3*cos(Theta))**1.5d0 
+
+        den1 = (1.d0+g1**2-2d0*g1*cosTheta)
+        den2 = (1.d0+g2**2-2d0*g2*cosTheta)
+        den3 = (1.d0+g3**2-2d0*g3*cosTheta)
+
+        Phi =       w1 * (1d0-g1**2)/(den1*sqrt(den1))
+        Phi = Phi + w2 * (1d0-g2**2)/(den2*sqrt(den2))
+        Phi = Phi + w3 * (1d0-g3**2)/(den3*sqrt(den3)) 
         Phi = Phi / (4.d0*pi)
      else
         write(*,*) 'Unsupported zodi phase function type:', trim(self%phasefunc_type)
@@ -1998,9 +2011,10 @@ contains
       do i = 1, model%npar_tot
          if (trim(labels(i)) == 'skip' .or. trim(labels(i)) == 'SKIP') cycle
          if (any(comp_switch_indices == i)) then
-               write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
-            else
-               write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
+            write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i)
+            write(io, *)
+         else
+            write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
          end if
       end do
 

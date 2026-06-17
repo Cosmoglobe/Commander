@@ -26,7 +26,7 @@ contains
 
   subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
     implicit none
-    integer(i4b),                   intent(in)              :: comm
+    type(MPI_Comm),                 intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
     logical(lgt),                   intent(in),    optional :: evalpol
     !character(len=512),             intent(in),    optional :: evalsig
@@ -72,6 +72,7 @@ contains
       bandlist = band_list
       nbands = size(bandlist)
     else
+      allocate(bandlist(numband))
       bandlist = [(i, i=1,numband)]
       nbands = numband
     end if
@@ -468,6 +469,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     character(len=16),         dimension(100) :: abscal_labels
+    character(len=16)                         :: istr, istr2
     class(comm_mapinfo), pointer              :: info_pol => null()
 
     mono_ = .true.; if (present(mono)) mono_=mono 
@@ -563,9 +565,13 @@ contains
           deallocate(map)
        end select
        c => c%nextComp()
-    end do
-    
+    end do   
+ 
     call map_diff%Y()
+
+    !write(istr, '(I0)') band
+    !write(istr2, '(I0)') det
+    !call map_out%writeFITS('input_map_band' // trim(istr)//'_det' //trim(istr2) // '.fits')
 
     ! Compute residual map
     map_out%map = map_out%map + map_diff%map
@@ -574,13 +580,17 @@ contains
       gainmap%map = gainmap%map + gaindiff%map
       map_out%alm = gainmap%alm
       map_out%map = gainmap%map
+
+      call gaindiff%dealloc()
+      deallocate(gaindiff)
+      nullify(gaindiff)
     end if
 
-    ! Clean up
-    nullify(c)
-    call map_diff%dealloc; deallocate(map_diff)
+    call map_diff%dealloc; deallocate(map_diff); nullify(map_diff)
     if (present(cmbmap)) then
        call cmbmap_band%dealloc()
+       deallocate(cmbmap_band)
+       nullify(cmbmap_band)
     end if
 
   end subroutine get_sky_signal

@@ -70,7 +70,7 @@ contains
      do_gain = btest(sd%oper,SD_GAIN) .and. allocated(tod%pixcache%map_gain)
      do_bp   = btest(sd%oper,SD_BP)
      
-     !if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
+     ! if (tod%myid==0) write(*,*) 'd', tod%pixcache%map_sky(:,109952,1,1)
      
      ! s = T + eff*(Q * cos(2*psi) + U * sin(2*psi))
      ! T - temperature; Q, U - Stoke's parameters
@@ -121,7 +121,7 @@ contains
                     else if (nmaps == 1) then
                        s = tod%pixcache%map_sky(1,p,0,k)
                     end if
-                    sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
+                    if (allocated(sd%s_bp)) sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
                  end if
               end do
            end do

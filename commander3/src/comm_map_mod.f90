@@ -24,7 +24,7 @@ module comm_map_mod
   use fitstools
   use pix_tools
   use udgrade_nr
-  use iso_c_binding, only : c_ptr, c_double
+  use comm_utils
   use head_fits
   use comm_hdf_mod
   use extension
@@ -34,8 +34,6 @@ module comm_map_mod
   use comm_timing_mod
   implicit none
 
-!  include "mpif.h"
-      
   public comm_map, comm_mapinfo, map_ptr, write_map
 
 
@@ -48,7 +46,8 @@ module comm_map_mod
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
      logical(lgt) :: pol, dist, rms
-     integer(i4b) :: comm, myid, nprocs
+     type(MPI_Comm) :: comm
+     integer(i4b) :: myid, nprocs
      integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm, mmax
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
@@ -155,12 +154,15 @@ subroutine tod2file_dp3(filename,d)
    close(unit)
  end subroutine tod2file_dp3
 
+
+
   !**************************************************
   !             Constructors
   !**************************************************
   function constructor_mapinfo(comm, nside, lmax, nmaps, pol, dist, distribute_type, rms)
     implicit none
-    integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
+    type(MPI_Comm),               intent(in) :: comm
+    integer(i4b),                 intent(in) :: nside, lmax, nmaps
     logical(lgt),                 intent(in) :: pol
     logical(lgt),       optional, intent(in) :: dist
     character(len=128), optional, intent(in) :: distribute_type
@@ -411,7 +413,7 @@ subroutine tod2file_dp3(filename,d)
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      if (info%nmaps == 3) then
+      if (info%pol) then
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
          call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
       end if
@@ -443,21 +445,23 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout)          :: self
     class(comm_map), pointer :: link => null()
 
+
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
     if (allocated(self%alm_buff)) deallocate(self%alm_buff)
-    nullify(self%info)
+    if (associated(self%info)) nullify(self%info)
 
     if (associated(self%nextLink)) then
        ! Deallocate all links
        link => self%nextLink
        do while (associated(link))
-          if (allocated(link%map)) deallocate(link%map)
-          if (allocated(link%alm)) deallocate(link%alm)
-          nullify(link%info)
+          if (allocated(link%map))      deallocate(link%map)
+          if (allocated(link%alm))      deallocate(link%alm)
+          if (allocated(link%alm_buff)) deallocate(link%alm_buff)
+          if (associated(link%info)) nullify(link%info)
           link => link%nextLink
        end do
-       nullify(self%nextLink)
+       if (associated(self%nextLink)) nullify(self%nextLink)
     end if
 
   end subroutine deallocate_comm_map
@@ -471,7 +475,7 @@ subroutine tod2file_dp3(filename,d)
        deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
        call sharp_destroy_alm_info(self%alm_info)
        call sharp_destroy_geom_info(self%geom_info_T)
-       if (self%nmaps == 3) call sharp_destroy_geom_info(self%geom_info_P)
+       if (self%pol) call sharp_destroy_geom_info(self%geom_info_P)
     end if
 
   end subroutine comm_mapinfo_finalize
@@ -661,17 +665,25 @@ subroutine tod2file_dp3(filename,d)
   !                   IO routines
   !**************************************************
 
-  subroutine writeMapToHDF(self, hdffile, hdfpath, label)
+  subroutine writeMapToHDF(self, hdffile, hdfpath, label, cut_sky)
     implicit none
 
     class(comm_map),  intent(in) :: self
     type(hdf_file),   intent(in) :: hdffile
     character(len=*), intent(in) :: hdfpath, label
+    logical(lgt),     intent(in) :: cut_sky
 
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status)  :: mpistat
+
+
+    real(dp),     allocatable, dimension(:,:) :: cut_map
+    integer(i4b), allocatable, dimension(:)   :: cut_pixels
+
+    real(dp) :: fsky
+    integer(i4b) :: npix_obs, j
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
@@ -688,7 +700,38 @@ subroutine tod2file_dp3(filename,d)
           map(p(1:np),:) = buffer(1:np,:)
           deallocate(buffer)
        end do
-       call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+       if (cut_sky) then
+
+
+         npix_obs = 0
+         do i = 0, npix-1
+           if (sum(map(i,:)) .ne. 0d0) then
+             npix_obs = npix_obs + nmaps
+           end if
+         end do
+         fsky = real(npix_obs, dp) / size(map,kind=dp)
+
+         if (fsky < 0.1) then
+           allocate(cut_pixels(0:npix_obs-1))
+           allocate(cut_map(0:npix_obs-1, 1:nmaps))
+           j = 0
+           do i = 0, npix-1
+              if (sum(map(i,:)) .ne. 0d0) then
+                cut_pixels(j) = i
+                cut_map(j,:) = map(i,:)
+                j = j + 1
+              end if
+           end do
+           call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   cut_map)
+           if (trim(label) == 'map') call write_hdf(hdffile, trim(adjustl(hdfpath))//'map_pixels',  cut_pixels)
+           deallocate(cut_pixels, cut_map)
+         else
+           call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+         end if
+
+       else
+          call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
+       end if
        deallocate(p, map)
     else
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
@@ -706,11 +749,11 @@ subroutine tod2file_dp3(filename,d)
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2)
+    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2), nside_est
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
-    logical(lgt)                              :: rms_exception
+    type(MPI_Status) :: mpistat
+    logical(lgt)                              :: rms_exception, cut_sky_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
@@ -724,15 +767,24 @@ subroutine tod2file_dp3(filename,d)
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
        end if
+       ! Check if valid nside
+       ! ext(1) = npix, if npix = 12*nside**2, or sqrt(npix/12) is a valid integer, 
+       nside_est = int(sqrt(real(ext(1))/12))
+       if (nside_est .eq. 12*nside_est**2) then
+         cut_sky_exception = .false.
+       else
+         cut_sky_exception = .true.
+       end if
        npix  = self%info%npix
-       map = 0d0
        if (rms_exception) then
           allocate(p(npix), map(0:npix-1,self%info%nmaps))
+          map = 0d0
           call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
           nmaps = self%info%nmaps
           self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)**2
        else
           allocate(p(npix), map(0:npix-1,ext(2)))
+          map = 0d0
           call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
           nmaps = min(self%info%nmaps,ext(2))
           self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
@@ -757,7 +809,7 @@ subroutine tod2file_dp3(filename,d)
 
 
   subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
-       & hdffile, hdfpath, output_fits, output_hdf_map)
+       & hdffile, hdfpath, output_fits, output_hdf_map, cut_sky)
     implicit none
 
     class(comm_map),  intent(in) :: self
@@ -766,18 +818,21 @@ subroutine tod2file_dp3(filename,d)
     real(dp),         intent(in), optional :: nu_ref
     type(hdf_file),   intent(in), optional :: hdffile
     character(len=*), intent(in), optional :: hdfpath
-    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
+    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map, cut_sky
 
     integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
-    logical(lgt) :: output_fits_, output_hdf_map_
+    logical(lgt) :: output_fits_, output_hdf_map_, cut_sky_
     real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
+    real(dp),     allocatable, dimension(:,:) :: cut_map
+    integer(i4b), allocatable, dimension(:)   :: cut_pixels
 
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
+    cut_sky_ = .false.;       if (present(cut_sky))        cut_sky_        = cut_sky
 
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
@@ -801,11 +856,18 @@ subroutine tod2file_dp3(filename,d)
           end do
           !call update_status(status, "fits2")
           if (output_fits_) then
-             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, cut_sky=cut_sky_, &
+                 & cut_map=cut_map, cut_pixels=cut_pixels)
           end if
           if (present(hdffile) .and. self%info%lmax == -1) then
-             call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+             if (allocated(cut_map)) then 
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(cut_map,sp))
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map_pixels'),  cut_pixels)
+             else
+               call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+             end if
           end if
+          if (allocated(cut_map)) deallocate(cut_map, cut_pixels)
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then
@@ -982,7 +1044,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix, nmaps_in
     real(dp),     allocatable, dimension(:,:) :: map, buffer, map_in
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     ! Check file consistency 
     npix = int(getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps),i4b)
@@ -1185,17 +1247,21 @@ subroutine tod2file_dp3(filename,d)
   end subroutine readHDF_mmax
 
 
-  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile,nest)
+  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile, nest, cut_sky, cut_map, cut_pixels)
     implicit none
 
     character(len=*),                   intent(in)  :: filename
     real(dp),         dimension(0:,1:), intent(in)  :: map
     character(len=*),                   intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),                           intent(in), optional :: nu_ref
-    logical(lgt),                       intent(in), optional :: nest
+    logical(lgt),                       intent(in), optional :: nest, cut_sky
+    real(dp),     allocatable, dimension(:,:), optional, intent(out) :: cut_map
+    integer(i4b), allocatable, dimension(:),   optional, intent(out) :: cut_pixels
 
-    integer(i4b)   :: npix, nlheader, nmaps, i, nside
+    integer(i4b)   :: npix, nlheader, nmaps, i, j, nside, npix_obs
     logical(lgt)   :: polarization, rms_cov
+
+    real(dp) :: fsky
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1304,7 +1370,39 @@ subroutine tod2file_dp3(filename,d)
          & "Reference spectrum")
     call add_card(header,"COMMENT","-----------------------------------------------")
 
-    call output_map(map, header, "!"//trim(filename))
+
+    if (present(cut_sky)) then
+      if (cut_sky) then
+        npix_obs = 0
+        do i = 0, npix-1
+          if (sum(map(i,:)) .ne. 0d0) then
+            npix_obs = npix_obs + 1
+          end if
+        end do
+        fsky = real(npix_obs, dp) / real(npix,dp)
+      else
+        fsky = 1.0
+      end if
+    else
+      fsky = 1.0
+    end if
+
+    if (fsky < 0.1) then
+      allocate(cut_pixels(0:npix_obs-1))
+      allocate(cut_map(0:npix_obs-1, 1:nmaps))
+      j = 0
+      do i = 0, npix-1
+         if (sum(map(i,:)) .ne. 0d0) then
+           cut_pixels(j) = i
+           cut_map(j,:) = map(i,:)
+           j = j + 1
+         end if
+      end do
+      call write_fits_partial( "!"//trim(filename), cut_pixels, cut_map, header)
+    else
+      call output_map(map, header, "!"//trim(filename))
+    end if
+
 
   end subroutine write_map
 
@@ -1316,7 +1414,7 @@ subroutine tod2file_dp3(filename,d)
 
     integer(i4b) :: i, j, ierr, nmaps, np
     integer(i4b), allocatable, dimension(:) :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
     real(dp), allocatable, dimension(:) :: m_in, m_out, buffer
 
     if (self%info%nside == map_out%info%nside) then
@@ -1695,7 +1793,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(sp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     npix  = self%info%npix
     nmaps = self%info%nmaps
@@ -1749,7 +1847,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: buffer
     integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    type(MPI_Status) :: mpistat
 
     npix  = self%info%npix
     nmaps = self%info%nmaps

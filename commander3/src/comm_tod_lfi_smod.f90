@@ -335,7 +335,6 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
-    !self%output_n_maps = 1
 
     ! Define useful sd operation codes
     if (sample_rel_bandpass) then
@@ -517,7 +516,7 @@ contains
        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
        map_out%map = binmap%outmaps(1)%p%map
     else if(self%map_type == 'nplus2') then
-       call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d6)
+       call finalize_binned_map_nplus2_depol(self, binmap, rms_out, 1.d6)
        !Q+U maps
        map_out%map(:,2:3) = binmap%outmaps(1)%p%map(:,2:3)
        do i = 1, self%ndet
@@ -552,11 +551,16 @@ contains
     else if(self%map_type == 'nplus2') then
       do i = 1, self%ndet
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_map"//trim(postfix))
+        
         ! copy rms map for each detector into outmaps(0)
-        binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i)
-        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,self%ndet+1:self%ndet+2)
+        if(i == 1) then
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,1)
+        else
+            binmap%outmaps(i)%p%map(:,1)   = rms_out%map(:,i+2)
+        end if
+        binmap%outmaps(i)%p%map(:,2:3) = rms_out%map(:,2:3)
         call binmap%outmaps(i)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_rms"//trim(postfix))
-        !call rms_out%writeFITS 
+
         if(self%output_n_maps > 1) call binmap%outmaps(i+self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_res"//trim(postfix))
         if(self%output_n_maps > 2) call binmap%outmaps(i+2*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_ncorr"//trim(postfix))
         if(self%output_n_maps > 3) call binmap%outmaps(i+3*self%ndet)%p%writeFITS(trim(prefix_nplus2) // trim(self%label(i)) //"_bpcorr"//trim(postfix))
@@ -930,7 +934,7 @@ contains
 
     integer(i4b) :: i, j, k, nfft, n, n_bin
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu, sum_ref, sum_sky
-    integer*8    :: plan_fwd
+    type(C_PTR)  :: plan_fwd
 
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
     real(dp),     allocatable, dimension(:) :: filter
@@ -951,7 +955,7 @@ contains
     allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft-1))
    
     call timer%start(TOT_FFT) 
-    call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+    plan_fwd = fftwf_plan_dft_r2c_1d(n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT) 
 
 
@@ -965,10 +969,10 @@ contains
 
       call timer%start(TOT_FFT)
       ! FFT of ref signal
-      call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
+      call fftwf_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
       ! FFT of sky signal
-      call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
+      call fftwf_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
       call timer%stop(TOT_FFT)
 
       ! Compute cross correlation
@@ -1008,7 +1012,7 @@ contains
 
     end do
 
-    call sfftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_fwd)
 
     deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
 
@@ -1022,7 +1026,7 @@ contains
 
     real(dp)     :: filt
     integer(i4b) :: i, j, nfft, n
-    integer*8    :: plan_fwd, plan_back
+    type(C_PTR)  :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -1033,8 +1037,8 @@ contains
 
     allocate(dt(n), dv(0:nfft-1))
 
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  n, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, n, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_fwd  = fftwf_plan_dft_r2c_1d(n, dt, dv, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(n, dv, dt, fftw_estimate + fftw_unaligned)
 
 !!$    open(58,file='raw.dat')
 !!$    do i = 1, n
@@ -1050,7 +1054,7 @@ contains
 
       ! FFT of ref signalA
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
       call timer%stop(TOT_FFT)
 
       ! Filter ref with cross correlation transfer function
@@ -1066,7 +1070,7 @@ contains
 
       ! IFFT ref signal
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call fftwf_execute_dft_c2r(plan_back, dv, dt)
       call timer%stop(TOT_FFT)
       
       ! Normalize
@@ -1074,8 +1078,8 @@ contains
 
     end do
 
-    call sfftw_destroy_plan(plan_fwd)
-    call sfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_fwd)
+    call fftw_destroy_plan(plan_back)
 
     deallocate(dt, dv)
 
@@ -1382,7 +1386,8 @@ contains
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: self
 
-    integer(i4b) :: i, j, k, m, n, npix, unit, barrier, mpistat(MPI_STATUS_SIZE), ierr, oper
+    integer(i4b) :: i, j, k, m, n, npix, unit, barrier, ierr, oper
+    type(MPI_Status) :: mpistat
     character(len=4)   :: id
     character(len=6)   :: scantext
     character(len=512) :: filename

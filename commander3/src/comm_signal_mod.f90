@@ -404,8 +404,9 @@ contains
 
   subroutine initPrecond(comm, samp_group, verbosity)
     implicit none
-    integer(i4b), intent(in) :: comm, samp_group
-    integer(i4b), intent(in), optional :: verbosity
+    type(MPI_Comm), intent(in) :: comm
+    integer(i4b),   intent(in) :: samp_group
+    integer(i4b),   intent(in), optional :: verbosity
     call initDiffPrecond(comm, samp_group)
     call initPtsrcPrecond(comm, samp_group, verbosity)
     call initTemplatePrecond(comm, samp_group)
@@ -488,15 +489,15 @@ contains
              if (trim(cpar%cs_init_inst_hdf) == 'default' .or. present(init_from_output)) then
                 call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
-  
+ 
                 call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%instlabel)), ext)
+                     & trim(adjustl(data(i)%label)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
+                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)
@@ -511,13 +512,13 @@ contains
                      & data(i)%gain)
   
                 call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%instlabel)), ext)
+                     & trim(adjustl(data(i)%label)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
+                call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)

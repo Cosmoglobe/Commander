@@ -35,7 +35,7 @@ contains
   subroutine splie2_full_precomp_mpi(comm, x, y, f, coeff)
     implicit none
      
-    integer(i4b),                     intent(in)  :: comm
+    type(MPI_Comm),                   intent(in)  :: comm
     real(dp), dimension(1:),          intent(in)  :: x, y
     real(dp), dimension(1:,1:),       intent(in)  :: f
     real(dp), dimension(1:,1:,1:,1:), intent(out) :: coeff

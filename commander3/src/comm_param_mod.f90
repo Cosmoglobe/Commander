@@ -62,9 +62,10 @@ module comm_param_mod
 
      ! MPI info
      integer(i4b) :: myid, numprocs, root = 0
-     integer(i4b) :: myid_chain, numprocs_chain, comm_chain, mychain
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
+     integer(i4b) :: myid_chain, numprocs_chain, mychain
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_chain, comm_shared, comm_inter
+     type(MPI_Status) :: status
 
      ! Global parameters
      character(len=24)   :: operation
@@ -192,6 +193,7 @@ module comm_param_mod
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_model
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_mask
      character(len=2048), allocatable, dimension(:)   :: ds_tod_earth_init
+     character(len=2048), allocatable, dimension(:)   :: ds_tod_4k_lines
 
      ! Component parameters
      character(len=2048) :: cs_inst_parfile
@@ -289,7 +291,7 @@ module comm_param_mod
 
      ! Exctinction parameters
      character(len=2048) :: EBVmap
-     
+
      ! Zodi parameters
      integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
      character(len=24)                       :: zs_phasefunc, zs_bandpass
@@ -401,7 +403,8 @@ contains
     type(planck_rng),  intent(out)   :: handle, handle_noise
     integer(i4b),      intent(in), optional :: reinit_rng
 
-    integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
+    integer(i4b) :: i, j, m, n, ierr
+    type(MPI_Status) :: mpistat
     integer(i4b), allocatable, dimension(:,:) :: ind
 
     ! !the following commented lines are moved to commander.f90 in order to initialize
@@ -657,6 +660,7 @@ contains
     allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
     allocate(cpar%ds_tod_moon_model(n), cpar%ds_tod_moon_mask(n), cpar%ds_tod_moon_init(n))
     allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_mask(n), cpar%ds_tod_earth_init(n))
+    allocate(cpar%ds_tod_4k_lines(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -688,6 +692,8 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_SAMP_NOISE_AMP'//itext, len_itext=len_itext,  par_lgt=cpar%ds_samp_noiseamp(i))
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_TYPE'//itext, len_itext=len_itext,   par_string=cpar%ds_bptype(i))
        call get_parameter_hashtable(htbl, 'BAND_NOMINAL_FREQ'//itext, len_itext=len_itext,    par_dp=cpar%ds_nu_c(i))
+       ! Convert to proper internal units where necessary
+       cpar%ds_nu_c(i) = cpar%ds_nu_c(i) * 1d9                           ! From GHz to Hz
        call get_parameter_hashtable(htbl, 'BAND_BANDPASSFILE'//itext, len_itext=len_itext,    par_string=cpar%ds_bpfile(i), path=.true.)
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_MODEL'//itext, len_itext=len_itext,  par_string=cpar%ds_bpmodel(i))
        call get_parameter_hashtable(htbl, 'BAND_SAMP_GAIN'//itext, len_itext=len_itext,       par_lgt=cpar%ds_sample_gain(i))
@@ -760,6 +766,14 @@ contains
                   & par_int=cpar%ds_tod_scanrange(i,2))
              call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_tot_numscan(i))
+             if (cpar%ds_tod_type(i) == 'HFI') then
+                 call get_parameter_hashtable(htbl, 'BAND_TOD_4K_LINES'//itext, len_itext=len_itext, &
+                      & par_string=cpar%ds_tod_4k_lines(i), path=.false.)
+                 if (index(cpar%ds_tod_4k_lines(i), '.txt') /= 0) then
+                 call get_parameter_hashtable(htbl, 'BAND_TOD_4K_LINES'//itext, len_itext=len_itext, &
+                      & par_string=cpar%ds_tod_4k_lines(i), path=.true.)
+                 end if
+             end if
              call get_parameter_hashtable(htbl, 'BAND_TOD_MAPMAKE_TYPE'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_map_type(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
@@ -809,8 +823,6 @@ contains
 
     end do
 
-    ! Convert to proper internal units where necessary
-    cpar%ds_nu_c = cpar%ds_nu_c * 1d9                           ! From GHz to Hz
 
   end subroutine read_data_params_hash
 
@@ -1056,6 +1068,24 @@ contains
           end select
        end if
 
+
+       ! Convert to proper units
+       if (all(ieee_is_finite(cpar%cs_nu_ref(i,:)))) then
+           cpar%cs_nu_ref(i,:)      = 1d9 * cpar%cs_nu_ref(i,:)
+       end if
+       if (ieee_is_finite(cpar%cs_nu_min(i))) then
+           cpar%cs_nu_min(i)      = 1d9 * cpar%cs_nu_min(i)
+       end if
+       if (ieee_is_finite(cpar%cs_nu_max(i))) then
+           cpar%cs_nu_max(i)      = 1d9 * cpar%cs_nu_max(i)
+       end if
+       if (all(ieee_is_finite(cpar%cs_nu_min_beta(i,:)))) then
+          cpar%cs_nu_min_beta(i,:) = 1d9 * cpar%cs_nu_min_beta(i,:)
+       end if
+       if (all(ieee_is_finite(cpar%cs_nu_max_beta(i,:)))) then
+          cpar%cs_nu_max_beta(i,:) = 1d9 * cpar%cs_nu_max_beta(i,:)
+       end if
+
     end do
 
     if (cpar%myid == 0) then
@@ -1072,12 +1102,6 @@ contains
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
-    ! Convert to proper units
-    cpar%cs_nu_ref      = 1d9 * cpar%cs_nu_ref
-    cpar%cs_nu_min      = 1d9 * cpar%cs_nu_min
-    cpar%cs_nu_max      = 1d9 * cpar%cs_nu_max
-    cpar%cs_nu_min_beta = 1d9 * cpar%cs_nu_min_beta
-    cpar%cs_nu_max_beta = 1d9 * cpar%cs_nu_max_beta
 
 
   end subroutine read_component_params_hash
@@ -1143,6 +1167,7 @@ contains
             & par_dp=cpar%cs_cl_amp_def(i,1))
        call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext, &
             & par_dp=cpar%cs_cl_beta_def(i,1))
+       cpar%cs_cl_amp_def(i,1) = cpar%cs_cl_amp_def(i,1) / cpar%cs_cg_scale(1,i)**2
        if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
           call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_T'//itext, len_itext=len_itext, &
                & par_dp=cpar%cs_cl_theta_def(i,1))
@@ -1162,8 +1187,8 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_B'//itext, len_itext=len_itext, &
                   & par_dp=cpar%cs_cl_theta_def(i,3))
           end if
+          cpar%cs_cl_amp_def(i,2:3) = cpar%cs_cl_amp_def(i,2:3) / cpar%cs_cg_scale(2:3,i)**2
        end if
-       cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
     ! Note to future Mathew: don't try to add path=true, it's not always a path
     call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))

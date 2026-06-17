@@ -40,7 +40,8 @@ module comm_tod_adc_mod
     real(sp),          allocatable, dimension(:) :: adc_in, adc_out, rms_bins, rms2_bins, v_bins, vbin_edges
     real(sp),          allocatable, dimension(:) :: dpc_in, dpc_out, err_bins
     integer(i4b),      allocatable, dimension(:) :: nval
-    integer(i4b)                                 :: comm, myid, nbins, window
+    type(MPI_Comm)                               :: comm
+    integer(i4b)                                 :: myid, nbins, window
     real(sp)                                     :: v_min, v_max ! Global variable for the experiment determined in the parameter file 
     class(comm_mapinfo), pointer                 :: info => null()    ! Map definition
     character(len=512)                           :: outdir

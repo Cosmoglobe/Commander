@@ -1026,8 +1026,8 @@ contains
          !allocate(psi(ntod, nhorn))             ! Decompressed pol angle
          !allocate(flag(ntod))                   ! Decompressed flags
          call init_scan_data(self, i, oper, -1, sd, det=1)
-         !call self%decompress_pointing(sd, det=1)
-         !call self%decompress_flags(sd, det=1)
+         call self%decompress_pointing(sd, det=1)
+         call self%decompress_flags(sd, det=1)
 
          var = 0.d0
          ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
@@ -1044,8 +1044,8 @@ contains
             
             lpix = dgrade(sd%pix(t,1,1))
             rpix = dgrade(sd%pix(t,1,2))
-            lpsi = psi(t,1)
-            rpsi = psi(t,2)
+            lpsi = sd%psi(t,1,1)
+            rpsi = sd%psi(t,1,2)
 
             f_l = merge(0.0, 1.0, btest(self%pixcache%bitmask(lind),TODMASK_PROC))
             f_r = merge(0.0, 1.0, btest(self%pixcache%bitmask(rind),TODMASK_PROC))
