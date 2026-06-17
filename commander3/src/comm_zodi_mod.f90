@@ -350,16 +350,14 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_left=params(i, 8), &
-                & sed_right=params(i, 9), &
-                & sed_b=params(i, 10), &
-                & alpha=params(i, 11), &
-                & beta=params(i, 12), &
-                & gamma=params(i, 13), &
-                & mu=params(i, 14) &
+                & sed_cutoff=params(i, 7), &
+                & sed_b=params(i, 8), &
+                & alpha=params(i, 9), &
+                & beta=params(i, 10), &
+                & gamma=params(i, 11), &
+                & mu=params(i, 12) &
                 &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(12))
             self%comps(i)%labels = [param_labels%common, param_labels%cloud]
          case ('band')
             allocate (ZodiBand::self%comps(i)%c)
@@ -370,16 +368,14 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_left=params(i, 8), &
-                & sed_right=params(i, 9), &
-                & sed_b=params(i, 10), &
-                & delta_zeta=params(i, 11), &
-                & delta_r=params(i, 12), &
-                & v=params(i, 13), &
-                & p=params(i, 14) &
+                & sed_cutoff=params(i, 7), &
+                & sed_b=params(i, 8), &
+                & delta_zeta=params(i, 9), &
+                & delta_r=params(i, 10), &
+                & v=params(i, 11), &
+                & p=params(i, 12) &
             &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(12))
             self%comps(i)%labels = [param_labels%common, param_labels%band]
          case ('ring')
             allocate (ZodiRing::self%comps(i)%c)
@@ -390,17 +386,15 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & sed_ampl=params(i, 7), &
-               & sed_left=params(i, 8), &
-               & sed_right=params(i, 9), &
-               & sed_b=params(i, 10), &
-               & R_0=params(i, 11), &
-               & sigma_r=params(i, 12), &
-               & sigma_z=params(i, 13), &
-               & theta_0=params(i, 14), &
-               & sigma_theta=params(i, 15) &
+               & sed_cutoff=params(i, 7), &
+               & sed_b=params(i, 8), &
+               & R_0=params(i, 9), &
+               & sigma_r=params(i, 10), &
+               & sigma_z=params(i, 11), &
+               & theta_0=params(i, 12), &
+               & sigma_theta=params(i, 13) &
             &)
-            allocate(self%comps(i)%labels(15))
+            allocate(self%comps(i)%labels(13))
             self%comps(i)%labels = [param_labels%common, param_labels%ring]
          case ('feature')
             allocate (ZodiFeature::self%comps(i)%c)
@@ -411,17 +405,15 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & sed_ampl=params(i, 7), &
-               & sed_left=params(i, 8), &
-               & sed_right=params(i, 9), &
-               & sed_b=params(i, 10), &
-               & R_0=params(i, 11), &
-               & sigma_r=params(i, 12), &
-               & sigma_z=params(i, 13), &
-               & theta_0=params(i, 14), &
-               & sigma_theta=params(i, 15) &
+               & sed_cutoff=params(i, 7), &
+               & sed_b=params(i, 8), &
+               & R_0=params(i, 9), &
+               & sigma_r=params(i, 10), &
+               & sigma_z=params(i, 11), &
+               & theta_0=params(i, 12), &
+               & sigma_theta=params(i, 13) &
                &)
-            allocate(self%comps(i)%labels(15))
+            allocate(self%comps(i)%labels(13))
             self%comps(i)%labels = [param_labels%common, param_labels%feature]
          case ('interstellar')
             allocate (ZodiInterstellar::self%comps(i)%c)
@@ -432,14 +424,12 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_left=params(i, 8), &
-                 & sed_right=params(i, 9), &
-                 & sed_b=params(i, 10), &
-                 & R=params(i, 11), &
-                 & alpha=params(i, 12) &
+                 & sed_cutoff=params(i, 7), &
+                 & sed_b=params(i, 8), &
+                 & R=params(i, 9), &
+                 & alpha=params(i, 10) &
                  &)
-            allocate(self%comps(i)%labels(12))
+            allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%interstellar]
          case ('fan')
             allocate (ZodiFan::self%comps(i)%c)
@@ -450,17 +440,15 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_left=params(i, 8), &
-                 & sed_right=params(i, 9), &
-                 & sed_b=params(i, 10), &
-                 & Q=params(i, 11), &
-                 & P=params(i, 12), &
-                 & gamma=params(i, 13), &
-                 & Z_midplane_0=params(i, 14), &
-                 & R_outer=params(i, 15) &
+                 & sed_cutoff=params(i, 7), &
+                 & sed_b=params(i, 8), &
+                 & Q=params(i, 9), &
+                 & P=params(i, 10), &
+                 & gamma=params(i, 11), &
+                 & Z_midplane_0=params(i, 12), &
+                 & R_outer=params(i, 13) &
             &)
-            allocate(self%comps(i)%labels(15))
+            allocate(self%comps(i)%labels(13))
             self%comps(i)%labels = [param_labels%common, param_labels%fan]
          case ('comet')
             allocate (ZodiFan::self%comps(i)%c)
@@ -471,16 +459,14 @@ contains
                  & x_0=params(i, 4), &
                  & y_0=params(i, 5), &
                  & z_0=params(i, 6), &
-                 & sed_ampl=params(i, 7), &
-                 & sed_left=params(i, 8), &
-                 & sed_right=params(i, 9), &
-                 & sed_b=params(i, 10), &
-                 & P=params(i, 11), &
-                 & Z_midplane_0=params(i, 12), &
-                 & R_inner=params(i, 13), &
-                 & R_outer=params(i, 14) &
+                 & sed_cutoff=params(i, 7), &
+                 & sed_b=params(i, 8), &
+                 & P=params(i, 9), &
+                 & Z_midplane_0=params(i, 10), &
+                 & R_inner=params(i, 11), &
+                 & R_outer=params(i, 12) &
                  &)
-            allocate(self%comps(i)%labels(14))
+            allocate(self%comps(i)%labels(12))
             self%comps(i)%labels = [param_labels%common, param_labels%comet]
          case ('wrightcloudring')
             allocate (ZodiWrightCloudRing::self%comps(i)%c)
@@ -491,28 +477,26 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_left=params(i, 8), &
-                & sed_right=params(i, 9), &
-                & sed_b=params(i, 10), &
-                & p1=params(i, 11), &
-                & p3=params(i, 12), &
-                & p4=params(i, 13), &
-                & p5=params(i, 14), &
-                & p6=params(i, 15), &
-                & p7=params(i, 16), &
-                & p8=params(i, 17), &
-                & p9=params(i, 18), &
-                & p10=params(i, 19), &
-                & p13=params(i, 20), &
-                & p14=params(i, 21), &
-                & p15=params(i, 22), &
-                & p16=params(i, 23), &
-                & p17=params(i, 24), &
-                & p18=params(i, 25), &
-                & p19=params(i, 26) &
+                & sed_cutoff=params(i, 7), &
+                & sed_b=params(i, 8), &
+                & p1=params(i, 9), &
+                & p3=params(i, 10), &
+                & p4=params(i, 11), &
+                & p5=params(i, 12), &
+                & p6=params(i, 13), &
+                & p7=params(i, 14), &
+                & p8=params(i, 15), &
+                & p9=params(i, 16), &
+                & p10=params(i, 17), &
+                & p13=params(i,18), &
+                & p14=params(i, 19), &
+                & p15=params(i, 20), &
+                & p16=params(i, 21), &
+                & p17=params(i, 22), &
+                & p18=params(i, 23), &
+                & p19=params(i, 24) &
                 &)
-            allocate(self%comps(i)%labels(26))
+            allocate(self%comps(i)%labels(24))
             self%comps(i)%labels = [param_labels%common, param_labels%wrightcloudring]
          case ('wrightband')
             allocate (ZodiWrightBand::self%comps(i)%c)
@@ -523,18 +507,16 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & sed_ampl=params(i, 7), &
-                & sed_left=params(i, 8), &
-                & sed_right=params(i, 9), &
-                & sed_b=params(i, 10), &
-                & q1=params(i, 11), &
-                & q5=params(i, 12), &
-                & q6=params(i, 13), &
-                & q7=params(i, 14), &
-                & q8=params(i, 15), &
-                & R_1=params(i, 16) &
+                & sed_cutoff=params(i, 7), &
+                & sed_b=params(i, 8), &
+                & q1=params(i, 9), &
+                & q5=params(i, 10), &
+                & q6=params(i, 11), &
+                & q7=params(i, 12), &
+                & q8=params(i, 13), &
+                & R_1=params(i, 14) &
                 &)
-            allocate(self%comps(i)%labels(16))
+            allocate(self%comps(i)%labels(14))
             self%comps(i)%labels = [param_labels%common, param_labels%wrightband]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
@@ -1689,9 +1671,9 @@ contains
 
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr
       logical(lgt) :: scattering, thermal, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, lat, lon, s_tot, s_scat, s_therm, al, em, zodi_sed_ampl
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
-      real(dp), allocatable, dimension(:)   :: b_nu
+      real(dp), allocatable, dimension(:)   :: b_nu, mbb_integrand
 
       integer(i4b) :: cache_hits
       real(sp), allocatable, dimension(:,:)     :: cache
@@ -1812,34 +1794,26 @@ contains
             ! BB+MBB thing only for cloud at this stage
             if ((trim(model%comp_labels(k)) == 'cloud') .and. (trim(zodi_model%phasefunc_type) /= 'Wright')) then 
                
-               !Thermal emission=   BlackBody     for sed_right<=nu
-               !                =   Spline        for sed_left<nu<sed_right
-               !                =   Modified BB   for nu<=sed_left
+               !Thermal emission=   BlackBody     for sed_cutoff<nu
+               !                =   Modified BB   for nu<sed_cutoff
                if (thermal) then
                   allocate(mbb_integrand(size(comp_LOS(k)%B_nu)))
-                  allocate(spline_integrand(size(comp_LOS(k)%T)))
-                  allocate(z_spline(size(comp_LOS(k)%T)))
 
                   !call get_blackbody_emission(tod%bp(0)%p%nu, comp_LOS(k)%T, comp_LOS(k)%B_nu)  !Compute exact BlackBody, check frequency
                   call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
-                  if (model%comps(k)%c%sed_right <= tod%central_freq) then !THIS SHOULD BE INTEGRATION OF BANDPASS, HERE ONLY SIMPLE VERSION
+                  zodi_sed_ampl = model%comps(k)%c%sed_cutoff**(-model%comps(k)%c%sed_b) !amplitude of MBB such that MBB+BB function is continuous in nu_cutoff
+
+                  if (model%comps(k)%c%sed_cutoff <= tod%central_freq) then !THIS SHOULD BE INTEGRATION OF BANDPASS, HERE ONLY SIMPLE VERSION
                      s_therm = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights)*0.5d0*(R_max-R_MIN)*1d20 !BB integrated along line of sight (I think)
                   
-                  else if (tod%central_freq <= model%comps(k)%c%sed_left) then 
-                     mbb_integrand = model%comps(k)%c%sed_ampl*tod%bp(0)%p%nu**model%comps(k)%c%sed_b*comp_LOS(k)%B_nu
-                     s_therm = sum(comp_LOS(k)%n*mbb_integrand*comp_LOS(k)%gauss_weights)*0.5d0*(R_max-R_MIN)*1d20 !MBB integrated along line of sight (I think)
-                     
                   else 
-                     do z = 1, size(z_spline)
-                        call z_spline(z)%build(1, model%comps(k)%c%sed_left, model%comps(k)%c%sed_right, model%comps(k)%c%sed_ampl, model%comps(k)%c%sed_b, comp_LOS(k)%T(z))
-                        spline_integrand(z) = z_spline(z)%eval(tod%central_freq)
-                     end do
-                     s_therm = sum(comp_LOS(k)%n*spline_integrand*comp_LOS(k)%gauss_weights)*0.5d0*(R_max-R_MIN)*1d20 !spline integrated along line of sight (I think)
-                  
+                     mbb_integrand = zodi_sed_ampl*tod%central_freq**model%comps(k)%c%sed_b*comp_LOS(k)%B_nu !HERE ONLY SIMPLE VERSION
+                     s_therm = sum(comp_LOS(k)%n*mbb_integrand*comp_LOS(k)%gauss_weights)*0.5d0*(R_max-R_MIN)*1d20 !MBB integrated along line of sight (I think)
+
                   end if
 
-                  deallocate(mbb_integrand, spline_integrand, z_spline)
+                  deallocate(mbb_integrand)
                end if
                
                !Total intensity 
