@@ -109,6 +109,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_dust_extinction_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_zodi_spline_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_samp_mod.f90

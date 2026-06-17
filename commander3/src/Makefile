@@ -50,6 +50,7 @@ F90SOURCES=hashtbl.f90 \
            comm_cr_precond_mod.f90 \
            comm_zodi_mod.f90 \
            comm_zodi_comp_mod.f90 \
+           comm_zodi_spline_mod.f90 \
            comm_tod_objctr_mod.f90 \
            comm_shared_output_mod.f90 \
            comm_status_mod.f90 \
@@ -282,7 +283,7 @@ comm_tod_cgmap_mod.o        : comm_tod_mod.o
 comm_tod_bandpass_mod.o     : comm_tod_mod.o 
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
-comm_zodi_mod.o             : comm_zodi_comp_mod.o comm_tod_mod.o comm_bp_mod.o
+comm_zodi_mod.o             : comm_zodi_comp_mod.o comm_tod_mod.o comm_bp_mod.o comm_zodi_spline_mod.o
 comm_tod_objctr_mod.o       : comm_tod_mod.o comm_utils.o comm_param_mod.o
 comm_tod_dynmask_mod.o      : comm_tod_mod.o comm_status_mod.o comm_param_mod.o
 comm_tod_lb_mod.o           : comm_tod_driver_mod.o
@@ -337,6 +338,7 @@ comm_chisq_mod.o            : comm_comp_interface_mod.o
 comm_output_mod.o           : comm_chisq_mod.o
 comm_zodi_samp_mod.o        : comm_zodi_mod.o comm_chisq_mod.o powell_mod.o
 comm_tod_objctr_samp_mod.o  : comm_data_mod.o
+comm_zodi_spline_mod.o      : spline_1d_mod.o comm_defs.o
 
 comm_cr_mod.o               : comm_output_mod.o
 
