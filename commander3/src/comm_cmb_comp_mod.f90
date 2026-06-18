@@ -62,7 +62,7 @@ contains
     call c%initLmaxSpecind(cpar, id, id_abs)
     call c%initDiffuse(cpar, id, id_abs)
 
-
+    
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
     call c%update_F_int
@@ -90,8 +90,12 @@ contains
     real(dp)                                      :: evalSED_cmb
 
     real(dp) :: x
-    x           = h*nu / (k_B*T_CMB)
-    evalSED_cmb = (x**2 * exp(x)) / (exp(x)-1.d0)**2
+    if (nu>self%nu_max .or. nu<self%nu_min) then
+      evalSED_cmb = 0
+    else
+      x           = h*nu / (k_B*T_CMB)
+      evalSED_cmb = (x**2 * exp(x)) / (exp(x)-1.d0)**2
+    end if
 
   end function evalSED_cmb
 
@@ -115,7 +119,7 @@ contains
              end if
              f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%bp(j)%p%RJ2data
              !if (.not. associated(self%F_int(k,i,j)%p)) then
-                self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
+             self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
              !else
              !   call self%F_int(k,i,j)%p%update(f_precomp=f)
              !end if
