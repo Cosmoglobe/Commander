@@ -364,8 +364,8 @@ contains
       ! sz = ?
        denom=tsum(self%nu, self%tau*bnu_prime)
        if (denom <= 0.d0) then !choose a value to avoid divide by zero errors
-         self%a2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
-         self%f2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%a2t = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%f2t = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else
          self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
          self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
@@ -373,7 +373,7 @@ contains
        end if 
        denom=tsum(self%nu, self%tau*bnu_prime*sz)
        if (denom <= 0.d0) then
-         self%a2sz    = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%a2sz    = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else 
          self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6

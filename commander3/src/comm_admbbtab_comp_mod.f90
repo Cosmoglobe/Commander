@@ -198,6 +198,10 @@ contains
          stop
       end if
 
+    if (nu>self%nu_max .or. nu<self%nu_min) then
+      evalSED_admbbtab = 0.d0
+      return
+    end if 
     ! First check if requested frequency is in tabulated range
     ! SED table has nu_min nu_max SED or nu_central, SED for spline_astrodust
     ! SED table should be ordered from lowest to highest 
