@@ -15,19 +15,9 @@ module comm_tod_driver_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
   use comm_tod_dynmask_mod
-  !use comm_4d_map_mod
+  use comm_fft_mod
   use omp_lib
   implicit none
-
-!!$  ! Class for uncompressed data of a single detector over the full flight
-!!$  type :: comm_detdata
-!!$    integer(i4b) :: nscan
-!!$    integer(i4b), allocatable, dimension(:) :: ntod, scans
-!!$    real(sp), allocatable, dimension(:,:) :: tod
-!!$  contains
-!!$    procedure init_singlehorn => init_det_data_singlehorn
-!!$    procedure dealloc         => dealloc_det_data
-!!$  end type comm_detdata
 
 contains
 
@@ -40,11 +30,13 @@ contains
   !                   (1) = demodulate
   !                   (2) = (1) + adc corrections
   !                   (3) = (2) + fill gaps + rolloff deconvolution
+  !                   (4) = (3) + 4K lines correction
   !
   ! spurious levels   (0) = skip
   !                   (1) = monopole
   !                   (2) = (1) + jumps
   !                   (3) = (2) + instrument-specific
+  !                   (4) = (3) + spikes
   subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
@@ -55,7 +47,10 @@ contains
     integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
 
-    integer(i4b) :: i, j, k, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: n, nfft
+    real(sp),     allocatable, dimension(:)   :: dt
+    complex(spc), allocatable, dimension(:)   :: dv
 
     call timer%start(TOD_ALLOC, tod%band)
 
@@ -66,6 +61,7 @@ contains
     sd%ndet     = tod%ndet; if (present(det)) sd%ndet = 1
     sd%nhorn    = tod%nhorn
     sd%bitmask0 = bitmask0
+    !sd%bitmask0 = 0
     sd%nbp   = 1; if (btest(oper, SD_SKY_PROP) .or. btest(oper,SD_BP_PROP)) &
          & sd%nbp = size(tod%pixcache%map_sky,4)
     sd%hmax     = 0; if (tod%nhorn > 1) sd%hmax = tod%nhorn
@@ -97,9 +93,21 @@ contains
     if (btest(oper,SD_MONO))    allocate(sd%s_mono  (ntod, ndet))
     if (btest(oper,SD_INST))    allocate(sd%s_inst  (ntod, ndet))
     if (btest(oper,SD_JUMP))    allocate(sd%s_jump  (ntod, ndet))
+    if (btest(oper,SD_SPIKE))   allocate(sd%s_spike (ntod, ndet))
     if (btest(oper,SD_DARK))    allocate(sd%dark    (ntod, tod%ndark))
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
+
+
+    if (btest(oper,SD_NCORR) .or. tod%correct_Tbol) then
+       sd%enable_fft = .true.
+       nfft     = get_closest_fft_pow2(sd%ntod)
+       n        = nfft / 2 + 1
+       allocate(dt(nfft), dv(0:n-1))
+       sd%plan_fwd  = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+       sd%plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
+       deallocate(dt, dv)
+    end if
 
     ! Initialize detector list
     if (present(det)) then
@@ -113,7 +121,6 @@ contains
     ! Initialize arrays that are not set in this routine
     if (btest(oper,SD_NCORR)) sd%n_corr = 0.
     
-
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
     if (btest(oper,SD_BASE)) then
@@ -148,13 +155,6 @@ contains
        else
           call tod%diode2tod_inst(sd)
        end if
-
-       ! Apply non-linearity corrections
-       if (nonlin_lvl > 0) then
-          call timer%start(TOD_NONLIN, tod%band)
-          call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle)
-          call timer%stop(TOD_NONLIN, tod%band)
-       end if
     end if
 
     ! Precompute pix2ind
@@ -178,6 +178,7 @@ contains
        call timer%start(TOD_PROJECT, tod%band)
        call project_mask(tod, bitmask0, sd)
        call timer%stop(TOD_PROJECT, tod%band)
+       !sd%mask = 1.0
 
        ! Disable broken detector-scans
 !!$       do j = 1, ndet
@@ -223,6 +224,44 @@ contains
        call timer%stop(TOD_SL_INT, tod%band)
     end if
 
+    ! Apply Tbol convolution to all optical components
+    if (tod%correct_Tbol) then
+!!$       if (tod%myid == 0 .and. scan == 1 .and. allocated(sd%s_sky)) then
+!!$          open(58,file='sky_before_Tbol.dat', recl=1024)
+!!$          do i = 1, ntod
+!!$             write(58,*) i, sd%s_sky(i,1,0,1), sd%s_orb(i,1,0)
+!!$          end do
+!!$          close(58)
+!!$       end if
+       
+       do j = 1, ndet
+          d = j; if (present(det)) d = det
+          if (.not. tod%scans(scan)%d(d)%accept) cycle
+          do h = 0, hmax
+             do b = 1, nbp
+                if (allocated(sd%s_sky)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sky(:,j,h,b), sd%plan_fwd, sd%plan_back)
+                if (allocated(sd%s_bp))  call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_bp(:,j,h,b), sd%plan_fwd, sd%plan_back)
+             end do
+             if (allocated(sd%s_orb))    call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_orb(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_sl))     call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sl(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_zodi))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_zodi(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_objctr)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_objctr(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_gain))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_gain(:,j,h), sd%plan_fwd, sd%plan_back)
+          end do
+       end do
+
+!!$       if (tod%myid == 0 .and. scan == 1 .and. allocated(sd%s_sky)) then
+!!$          open(58,file='sky_after_Tbol.dat', recl=1024)
+!!$          do i = 1, ntod
+!!$             write(58,*) i, sd%s_sky(i,1,0,1), sd%s_orb(i,1,0)
+!!$          end do
+!!$          close(58)
+!!$          write(*,*) 'Done'
+!!$          call mpi_finalize(i)
+!!$          stop
+!!$       end if
+    end if
+
     ! Construct monopole correction template
     if (btest(oper,SD_MONO)) then
        do j = 1, ndet
@@ -233,22 +272,20 @@ contains
        end do
     end if
 
-
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
        !call tod%construct_jump_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
-    
 
-    ! Generate instrument-specific correction template
-    if (btest(oper,SD_INST) .and. spur_lvl>2 ) then
+    ! Construct spike correction template
+    if (btest(oper,SD_SPIKE)) then
        call timer%start(TOD_INSTCORR, tod%band)
-       call tod%construct_corrtemp_inst(sd, det)
+       call tod%construct_spike_corr(sd)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
-
+    
     ! Coadd optical components of total sky signal
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
@@ -270,7 +307,7 @@ contains
     ! Coadd horn signals into detector signals; store result in 0th horn-row
     if (nhorn > 1) call tod%coadd_horns(sd)
 
-    ! Add non-optical components into a net spurious component; subtract from data
+    ! Add non-optical components into a net spurious component
     if (btest(oper,SD_SPUR)) then
        sd%s_spur = 0.
        do j = 1, ndet
@@ -279,17 +316,33 @@ contains
           if (btest(oper,SD_MONO))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_mono(:,d)
           if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
           if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
+          if (btest(oper,SD_SPIKE)) sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_spike(:,d)
        end do
     end if
+    
+    ! Apply non-linearity corrections
+    if (btest(oper,SD_TOD) .and. nonlin_lvl > 0) then
+       call timer%start(TOD_NONLIN, tod%band)
+       call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle)
+       call timer%stop(TOD_NONLIN, tod%band)
+    end if
 
+    ! Generate instrument-specific correction template
+    if (btest(oper,SD_INST) .and. spur_lvl>2) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_corrtemp_inst(sd, det)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+    
     ! Subtract spurious corrections from TOD according to spur_level
     call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO)) sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP)) sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST)) sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
+       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
     
@@ -318,12 +371,19 @@ contains
     if (allocated(sd%s_bp))          deallocate(sd%s_bp)
     if (allocated(sd%s_mono))        deallocate(sd%s_mono)
     if (allocated(sd%s_jump))        deallocate(sd%s_jump)
+    if (allocated(sd%s_spike))       deallocate(sd%s_spike)
     if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
     if (allocated(sd%s_inst))        deallocate(sd%s_inst)
     if (allocated(sd%s_gain))        deallocate(sd%s_gain)
     if (allocated(sd%dark))          deallocate(sd%dark)
     if (allocated(sd%s_objctr))      deallocate(sd%s_objctr)
     if (allocated(sd%s_calib))       deallocate(sd%s_calib)
+
+    if (sd%enable_fft) then
+       call fftw_destroy_plan(sd%plan_fwd)
+       call fftw_destroy_plan(sd%plan_back)
+    end if
+
   end subroutine dealloc_scan_data
 
 
@@ -334,7 +394,7 @@ contains
   ! initializes a detector data structure for a single detector over the entire flight
   ! - Flagged data are omitted
   ! - nside_pix -> 0 = skip pix; >0 = ring; <0 = nest
-  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd)
+  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd, nonlin_level, spur_level)
     implicit none
     class(comm_tod),     intent(inout) :: tod
     integer(i4b),        intent(in)    :: det
@@ -343,6 +403,7 @@ contains
     integer(i4b),        intent(in)    :: nside_pix 
     logical(lgt),        intent(in)    :: init_mjd
     class(comm_detdata), intent(inout) :: dd
+    integer(i4b),        intent(in),   optional :: nonlin_level, spur_level
     
     integer(i4b) :: i, j, k, p, ntod, q
     type(comm_scandata) :: sd
@@ -367,7 +428,7 @@ contains
     k = 0 ! Number of unmasked samples
     do i = 1, tod%nscan
        if (.not. tod%scans(i)%d(det)%accept) cycle
-       call init_scan_data(tod, i, oper, bitmask0, sd, det=det)
+       call init_scan_data(tod, i, oper, bitmask0, sd, det=det, nonlin_level=nonlin_level, spur_level=spur_level)
 
        g = tod%scans(i)%d(det)%gain
        do j = 1, sd%ntod
@@ -543,17 +604,21 @@ contains
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
-       call init_scan_data(tod, i, oper, TODMASK_GAIN, sd)
+       call init_scan_data(tod, i, oper, TODMASK_GAIN, sd, handle=handle)
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
-       call tod%downsample_tod(sd%s_orb(:,1,0), ext)
+       call tod%downsample_tod(sd%tod(:,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
+
+       !write(*,*) "sample 1: ext(1)= ", ext(1), " ext(2)= ", ext(2)
+
+
        do j = 1, tod%ndet
-          if (.not. tod%scans(i)%d(j)%accept) cycle
+
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=threshold)
           !if (size(sd%mask(:,j)) > 0) write(*,*) "fsky", sum(sd%mask(:,j))/size(sd%mask(:,j)), sum(mask_lowres(:,j))/size(mask_lowres(:,j))
           if (trim(mode) == 'abscal') then
@@ -684,16 +749,16 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than a given percentage of good data
           tod%scans(scan)%d(j)%accept = .false.
-          write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
+          write(*, fmt='(a, i8, a, i8, a, i8)') ' | Reject scan = ', &
             & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
             &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
-       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+       else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold .or. tod%scans(scan)%d(j)%N_psd%sigma0 .le.  0d0) then
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
           tod%scans(scan)%d(j)%accept = .false.
 !!$       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then
@@ -727,7 +792,7 @@ contains
     label = ['chisq ', 'sigma0', 'fknee ', 'alpha ', 'base  ', 'base1 ', 'base2 ']
     
     ! Collect test statistics from all cores 
-    allocate(stat(tod%nscan_tot,tod%ndet,-1:nstat), accept(tod%nscan_tot,tod%ndet))
+    allocate(stat(tod%last_scan,tod%ndet,-1:nstat), accept(tod%last_scan,tod%ndet))
     stat = 0.
     do i = 1, tod%nscan
        scan = tod%scanid(i)
@@ -785,7 +850,7 @@ contains
                       sigma = sigma + real(stat(k,j,l),dp)**2
                       n     = n     + 1
                    end do
-                   if (n > window/2) then
+                   if (n > window/2 .and. n > 1) then
                       mu    = mu / n
                       sigma = sqrt((sigma/n-mu**2)*n/real(n-1,dp))
                       if (sigma > 0.) then
@@ -799,18 +864,18 @@ contains
           end do
        end do
 
-!!$       open(58,file='stat.dat', recl=1024)
-!!$       do i = 1, tod%nscan_tot
-!!$          write(58,*) i, accept(i,1) .and. stat(i,1,0)==1., accept(i,1), stat(i,1,:)
-!!$       end do
-!!$       close(58)
-!!$       open(58,file='stat2.dat', recl=1024)
-!!$       do i = 1, tod%nscan_tot
-!!$          if (accept(i,1) .and. stat(i,1,0) == 1.) then
-!!$             write(58,*) i, accept(i,1), stat(i,1,:)
-!!$          end if
-!!$       end do
-!!$       close(58)
+      !  open(58,file='stat.dat', recl=1024)
+      !  do i = 1, tod%nscan_tot
+      !     write(58,*) i, accept(i,1) .and. stat(i,1,0)==1., accept(i,1), stat(i,1,:)
+      !  end do
+      !  close(58)
+      !  open(58,file='stat2.dat', recl=1024)
+      !  do i = 1, tod%nscan_tot
+      !     if (accept(i,1) .and. stat(i,1,0) == 1.) then
+      !        write(58,*) i, accept(i,1), stat(i,1,:)
+      !     end if
+      !  end do
+      !  close(58)
 
     else
        call mpi_reduce(stat, stat, size(stat), &
@@ -900,7 +965,11 @@ contains
     d_calib = 0.d0
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       if (abs(tod%scans(scan)%d(j)%gain) < tiny(1.0)) then
+         inv_gain = 0.0
+       else
+         inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       end if
        ! sky signal
        d_calib(1,:,j) = sd%tod(:,j) * inv_gain
        if (allocated(sd%n_corr))   d_calib(1,:,j) = d_calib(1,:,j) - sd%n_corr(:,j) * inv_gain

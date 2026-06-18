@@ -55,7 +55,8 @@ module comm_timing_mod
 !  public comm_timing
 
   type comm_timing
-     integer(i4b) :: numband, comm, myid, n_tot
+     integer(i4b) :: numband, myid, n_tot
+     type(MPI_Comm) :: comm
      integer(i4b), allocatable, dimension(:)   :: numsamp
      real(dp),     allocatable, dimension(:)   :: t     ! Accumulated time for global timers (NUM_GLOBAL+NUM_TOD*numband)
      real(dp),     allocatable, dimension(:)   :: t1    ! Start time for currently active timers for global timers (NUM_GLOBAL+NUM_TOD*numband)
@@ -84,7 +85,8 @@ contains
     !    res      = pointer to comm_timing object
     ! 
     implicit none
-    integer(i4b),               intent(in) :: numband, comm
+    integer(i4b),               intent(in) :: numband
+    type(MPI_Comm),             intent(in) :: comm
     type(comm_timing), pointer             :: res
     
     integer(i4b) :: ierr

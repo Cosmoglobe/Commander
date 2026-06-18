@@ -1011,7 +1011,7 @@ contains
        do i = 1, numband
           ! Chooses an index that is polarized so that smoothing can be done
           ! correctly later on.
-          if (data(i)%info%nmaps == 3) ind_pol = i
+          if (data(i)%info%pol) ind_pol = i
           if (cpar%num_smooth_scales == 0) then
              status_fit(i)   = 1    ! Native
           else

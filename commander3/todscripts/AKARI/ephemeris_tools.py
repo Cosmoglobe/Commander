@@ -5,18 +5,26 @@ from typing import Optional
 import astropy.units as u
 import numpy as np
 import tqdm
+import astropy.coordinates as coord
 from astropy.coordinates import (
     Angle,
-    CartesianRepresentation,
-    HeliocentricMeanEcliptic,
     SkyCoord,
+    HeliocentricMeanEcliptic,
+    ICRS,
+    CartesianRepresentation,
     SphericalRepresentation,
+    BaseCoordinateFrame,
+    RepresentationMapping,
+    FunctionTransform,
+    frame_transform_graph,
     angular_separation,
 )
+import astropy.coordinates.representation as r
+from astropy.coordinates.attributes import TimeAttribute, CoordinateAttribute
 from astropy.time import Time
 
 
-class EphemerisFlagger:
+class EphemerisTools:
     """Generate flags for celestial bodies based on proximity to observatory pointing.
 
     This class loads ephemeris data for celestial bodies and generates boolean flags
@@ -31,7 +39,7 @@ class EphemerisFlagger:
         ] = "/mn/stornext/d23/cmbco/globe/common/aux/ephemeris",
         progressbar: bool = False,
     ):
-        """Initialize EphemerisFlagger with ephemeris data directory.
+        """Initialize EphemerisTools with ephemeris data directory.
 
         Args:
             ephemeris_file_dir: Path to directory containing ephemeris data files.
@@ -124,6 +132,93 @@ class EphemerisFlagger:
 
         return interpolated_position
 
+    def get_observatory_ephemeris_pointing(
+        self,
+        celestial_body_names: list[str],
+        observatory_position: SkyCoord,
+        observatory_time: Time,
+    ):
+        """Compute apparent coordinates of celestial bodies
+        as observed from observer position.
+
+        Args:
+            celestial_body_names: List of celestial body names (e.g., 'Jupiter', 'Saturn').
+            observatory_position: Observatory's position in space (astropy SkyCoord).
+            observatory_time: Time of observation (astropy Time).
+
+        Returns:
+            list: CustomFrame arrays containing the coordinates of the celestial bodies as
+            observed by the observatory. Each array has same length as input time series.
+
+        Raises:
+            ValueError: If input coordinates are not SkyCoord objects, the observatory time
+            is not an astropy Time object or if required ephemeris files are not found.
+        """
+        # Ensure inputs are of the correct types
+        if not isinstance(observatory_position, SkyCoord):
+            raise ValueError("Observatory position must be an astropy SkyCoord object.")
+        if not isinstance(observatory_time, Time):
+            raise ValueError("Observatory time must be an astropy Time object.")
+
+        observatory_position = observatory_position.transform_to(ICRS)
+
+        observatory_frame = CustomFrame(
+            origin=observatory_position, obstime=observatory_time
+        )
+
+        celestial_body_names = [
+            name.casefold() for name in celestial_body_names
+        ]  # Normalize names to lowercase for consistent file naming
+
+        apparent_body_pointing = []
+
+        if self.progressbar:
+            pbar = tqdm.tqdm(
+                total=len(celestial_body_names),
+                desc="Processing",
+                colour="red",
+                ncols=80,
+                position=0,
+                leave=True,
+            )
+
+        # Looping through each celestial body to generate flags based on proximity to the observatory's pointing
+        for body in celestial_body_names:
+            if self.progressbar:
+                pbar.set_description(f"\033[92mProcessing {body}\033[00m")
+
+            if body not in [
+                os.path.basename(f).replace("_ephemeris.txt", "")
+                for f in self.available_ephemeris_files
+            ]:
+                raise ValueError(f"""Ephemeris file for {body} not found in directory. 
+                    Run ephemeris generator script to generate the required file.""")
+
+            ephemeris_file = os.path.join(
+                self.ephemeris_file_dir, f"{body}_ephemeris.txt"
+            )
+
+            # Interpolating the celestial body's position at the observatory's time using the ephemeris data
+            ephemeris_time, ephemeris_position = self.load_ephemeris(ephemeris_file)
+
+            # Ensure all coordinates are in the same frame as the ovservatory position
+            ephemeris_position = ephemeris_position.transform_to(ICRS)
+
+            body_position = self.linearly_interpolate_ephemeris(
+                ephemeris_time, ephemeris_position, observatory_time
+            )
+
+            body_position_body_frame = body_position.transform_to(observatory_frame)
+            apparent_body_pointing.append(body_position_body_frame)
+
+            if self.progressbar:
+                pbar.update(1)
+
+        if self.progressbar:
+            pbar.close()
+
+        return body_position_body_frame
+
     def generate_tod_flag(
         self,
         celestial_body_names: list[str],
@@ -191,10 +286,8 @@ class EphemerisFlagger:
                 os.path.basename(f).replace("_ephemeris.txt", "")
                 for f in self.available_ephemeris_files
             ]:
-                raise ValueError(
-                    f"""Ephemeris file for {body} not found in directory. 
-                    Run ephemeris generator script to generate the required file."""
-                )
+                raise ValueError(f"""Ephemeris file for {body} not found in directory. 
+                    Run ephemeris generator script to generate the required file.""")
 
             ephemeris_file = os.path.join(
                 self.ephemeris_file_dir, f"{body}_ephemeris.txt"
@@ -257,14 +350,64 @@ class EphemerisFlagger:
         return proximity_flags
 
 
-def main():
-    """Demonstrate usage of the EphemerisFlagger class with example data.
+class CustomFrame(BaseCoordinateFrame):
+    """
+    Frame centered on a moving celestial object.
+    Axes are parallel to ICRS axes; only the origin is shifted.
+    """
 
-    Creates an EphemerisFlagger instance, defines example celestial bodies and
+    default_representation = SphericalRepresentation
+    frame_specific_representation_info = {
+        SphericalRepresentation: [
+            RepresentationMapping("lon", "lon"),
+            RepresentationMapping("lat", "lat"),
+            RepresentationMapping("distance", "distance"),
+        ],
+        CartesianRepresentation: [
+            RepresentationMapping("x", "x"),
+            RepresentationMapping("y", "y"),
+            RepresentationMapping("z", "z"),
+        ],
+    }
+
+    # Frame attributes
+    obstime = TimeAttribute(default=None)
+    origin = CoordinateAttribute(frame=ICRS, default=None)
+
+
+@frame_transform_graph.transform(FunctionTransform, CustomFrame, ICRS)
+def custom_to_icrs(custom_coord, icrs_frame):
+    if custom_coord.origin is None:
+        raise ValueError("`origin` must be set on `CustomFrame`.")
+
+    # Relative vector in custom frame (axes parallel to ICRS)
+    rel = custom_coord.cartesian
+    org = custom_coord.origin.transform_to(ICRS()).cartesian
+
+    # Translate to ICRS
+    return ICRS(rel + org)
+
+
+@frame_transform_graph.transform(FunctionTransform, ICRS, CustomFrame)
+def icrs_to_custom(icrs_coord, custom_frame):
+    if custom_frame.origin is None:
+        raise ValueError("`origin` must be set on target `CustomFrame`.")
+
+    org = custom_frame.origin.transform_to(ICRS()).cartesian
+    rel = icrs_coord.cartesian - org
+
+    # Realize target frame with translated representation
+    return custom_frame.realize_frame(rel)
+
+
+def main():
+    """Demonstrate usage of the EphemerisTools class with example data.
+
+    Creates an EphemerisTools instance, defines example celestial bodies and
     observatory parameters, and generates proximity flags for the bodies.
     """
-    # Example usage of the EphemerisFlagger class
-    ephemeris_flagger = EphemerisFlagger()
+    # Example usage of the EphemerisTools class
+    ephemeris_flagger = EphemerisTools()
 
     celestial_bodies = ["Jupiter", "Saturn", "Mars"]
     proximity_thresholds = [Angle(60, unit=u.degree)] * len(celestial_bodies)
@@ -303,7 +446,7 @@ def main2():
     import matplotlib.pyplot as plt
     from astropy.coordinates import get_body, solar_system_ephemeris, EarthLocation
 
-    ephemeris_flagger = EphemerisFlagger(progressbar=True)
+    ephemeris_flagger = EphemerisTools(progressbar=True)
 
     celestial_bodies = [
         "Jupiter",
@@ -334,7 +477,39 @@ def main2():
     flags = np.array(flags)
     print("Proximity Flags:", flags)
 
+    obs_pointing = ephemeris_flagger.get_observatory_ephemeris_pointing(
+        celestial_body_names=celestial_bodies,
+        observatory_position=observatory_position,
+        observatory_time=observatory_time,
+    )
+
+
+def main3():
+    # ------------------ Example ------------------
+
+    # Example origin: Jupiter position at given time (or your satellite ephemeris)
+    t = Time("2026-01-01T00:00:00", scale="tdb")
+    jupiter_icrs = coord.get_body("jupiter", t).transform_to(coord.ICRS())
+
+    jup_frame = CustomFrame(origin=jupiter_icrs, obstime=t)
+
+    # Point 1 AU away from Jupiter along +x (in ICRS-parallel axes)
+    p_custom = SkyCoord(
+        lon=0 * u.deg, lat=0 * u.deg, distance=0 * u.au, frame=jup_frame
+    )
+
+    # Transform to standard frames
+    p_icrs = p_custom.transform_to(coord.ICRS())
+    p_gal = p_custom.transform_to(coord.Galactic())
+    p_ecl = p_custom.transform_to(coord.HeliocentricMeanEcliptic(obstime=t))
+
+    # Transforming back to Jupiter-centric frame
+    p_icrs_to_custom = p_icrs.transform_to(jup_frame)
+    p_gal_to_custom = p_gal.transform_to(jup_frame)
+    p_ecl_to_custom = p_ecl.transform_to(jup_frame)
+
 
 if __name__ == "__main__":
-    main()
+    # main()
     main2()
+    # main3()

@@ -28,17 +28,24 @@
 #------------------------------------------------------------------------------
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-		"-O3"  
-		"-DNDEBUG"
-		"-fno-strict-aliasing"
-		"-march=native" 
-		"-flto" 
-		"-fopenmp"
-		"-fbacktrace" 
-		"-fexternal-blas"
-		"-ffpe-trap=zero"
-		"-fPIC"
-		#"-C"
+       "-O3"
+		   "-fbacktrace" 
+       "-fcheck=all"
+       "-fcheck=bounds"
+       "-fstack-protector-strong"
+       "-march=native"
+       "-mtune=native"
+       "-fopenmp"
+       "-ffast-math"
+       "-fno-math-errno"
+       "-fno-trapping-math"
+       "-fassociative-math"
+       "-freciprocal-math"
+       "-fno-signed-zeros"
+       "-funroll-loops"
+       "-fallow-argument-mismatch"
+       "-finline-functions"
+       "-Wno-deprecated-declarations"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -50,18 +57,29 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-fbacktrace" 
 		"-fexternal-blas"
 		"-fPIC"
-		#"-C" 
-		#"-fno-strict-aliasing"
-		#"-Wall" 
-		#"-Wextra" 
-		#"-Warray-temporaries"
-		#"-Wconversion-extra" 
-		#"-pedantic" 
-		#"-fcheck=all" 
-		#"-ffpe-trap=invalid,zero,overflow,underflow" 
-		#"-ffunction-sections" 
-		#"-pipe"
-		#"-ffpe-trap=zero"
+		"-C" 
+		"-fno-strict-aliasing"
+		"-Wall" 
+		"-Wextra" 
+		"-Wno-array-temporaries"
+    # Definitely don't want these
+    "-Wno-unused-variable"
+    "-Wno-unused-parameter"
+    "-Wno-unused-dummy-argument"
+    "-Wno-unused-function"
+    "-Wno-argument-mismatch"
+    "-Wno-implicit-interface"
+    # Maybe don't want this
+    "-Wno-compare-reals"
+    "-Wno-conversion"
+    "-Wno-c-binding-type"
+    # Could be worth keeping an eye on
+    "-Wno-character-truncation"
+		"-fcheck=all" 
+		"-ffpe-trap=invalid,zero,overflow,underflow" 
+		"-ffunction-sections" 
+		"-pipe"
+		"-ffpe-trap=zero"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
@@ -73,19 +91,18 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-fbacktrace" 
 		"-fexternal-blas"
 		"-fPIC"
-		#"-fno-strict-aliasing"
-		#"-DNDEBUG" 
-		#"-C"
-		#"-Wall" 
-		#"-Wextra" 
-		#"-Warray-temporaries"
-		#"-Wconversion-extra" 
-		#"-pedantic" 
-		#"-fcheck=all" 
-		#"-ffpe-trap=invalid,zero,overflow,underflow" 
-		#"-ffunction-sections" 
-		#"-pipe"
-		#"-ffpe-trap=zero"
+		"-fno-strict-aliasing"
+		"-DNDEBUG" 
+		"-C"
+		"-Wall" 
+		"-Wextra" 
+		"-Warray-temporaries"
+		"-Wconversion-extra" 
+		"-fcheck=all" 
+		"-ffpe-trap=invalid,zero,overflow,underflow" 
+		"-ffunction-sections" 
+		"-pipe"
+		"-ffpe-trap=zero"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
@@ -120,14 +137,14 @@ endif()
 # Linker flags
 # the same logic as with compiler flags
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto=auto" "-Wl,-z,noexecstack")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "-Wl,-z,noexecstack")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "-Wl,-z,noexecstack")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
+	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "-Wl,-z,noexecstack")
 endif()

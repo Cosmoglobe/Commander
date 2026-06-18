@@ -19,7 +19,6 @@
 !
 !================================================================================
 module comm_conviqt_mod
-  use iso_c_binding, only : c_ptr, c_double, c_int
   use comm_map_mod
   use comm_shared_arr_mod
   implicit none
@@ -28,7 +27,8 @@ module comm_conviqt_mod
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win, myid
+    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, optim, psisteps, win, myid
+    type(MPI_Comm) :: comm
     real(dp), allocatable, dimension(:)        :: lnorm
     type(shared_2d_sp) :: c
     !type(shared_1d_int) :: pixLookup
@@ -57,7 +57,8 @@ contains
   function constructor(myid_shared, comm_shared, myid_inter, comm_inter, nside, lmax, nmaps, bmax, beam, map, optim)
     implicit none
     integer(i4b),                 intent(in) :: nside, lmax, bmax, nmaps
-    integer(i4b),                 intent(in) :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),                 intent(in) :: myid_shared, myid_inter
+    type(MPI_Comm),               intent(in) :: comm_shared, comm_inter
     class(comm_map),              intent(in) :: beam, map
     integer(i4b),                 intent(in) :: optim ! desired optimization flags
     class(comm_conviqt), pointer             :: constructor
@@ -214,7 +215,7 @@ contains
     class(comm_map),                              intent(in)    :: map ! Must contain alms
 
     integer(i4b) :: i, j, np, ierr
-    integer*8    :: fft_plan
+    type(C_PTR)  :: fft_plan
     real(dp),       allocatable, dimension(:,:)   :: marray
     real(c_double), allocatable, dimension(:,:) :: alm    
     real(c_double), allocatable, dimension(:,:)   :: mout
@@ -269,11 +270,8 @@ contains
     ! Fourier transform in psi direction
     allocate(dt(self%psisteps), dv(0:self%psisteps/2))
     call timer%start(TOT_FFT)
-    call dfftw_plan_dft_c2r_1d(fft_plan, self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
+    fft_plan = fftw_plan_dft_c2r_1d(self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
     call timer%stop(TOT_FFT)
-    if(fft_plan == 0) then
-      write(*,*) 'Failed to create fftw plan, thread ', map%info%myid
-    end if
     do i=1, np
 
       !do fft of data, store to dt
@@ -283,7 +281,7 @@ contains
       end do
 
       call timer%start(TOT_FFT)
-      call dfftw_execute_dft_c2r(fft_plan, dv, dt)
+      call fftw_execute_dft_c2r(fft_plan, dv, dt)
       call timer%stop(TOT_FFT)
 
       self%c%a(self%info%pix(i)+1,:) = real(dt(1:self%psisteps),sp)
@@ -293,7 +291,7 @@ contains
  
     deallocate(marray, alm, mout) 
  
-    call dfftw_destroy_plan(fft_plan)
+    call fftw_destroy_plan(fft_plan)
     deallocate(dt)
     deallocate(dv)
  

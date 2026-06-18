@@ -25,7 +25,6 @@ module comm_utils
   use head_fits
   use pix_tools
   use udgrade_nr
-  use iso_c_binding
   use comm_system_mod
   use comm_defs
   use sort_utils
@@ -35,10 +34,9 @@ module comm_utils
   use math_tools
   use powell_mod
   use hmc_mod
+  use fftw3
   implicit none
 
-  !include "mpif.h"
-  include 'fftw3.f'
 
   interface compute_running_variance
      module procedure compute_running_variance_sp, compute_running_variance_dp
@@ -283,7 +281,7 @@ contains
 
     allocate(pixwin(0:4*nside,nmaps))
     
-    if (nmaps == 3) then
+    if (nmaps >= 3) then
        nc = 2
     else
        nc = 1
@@ -295,7 +293,7 @@ contains
     if (exist) then
        nullval = 0.d0
        call read_dbintab(pixwin_file, pixwin(0:4*nside,1:nc), 4*nside+1, nc, nullval, anynull)
-       if (nmaps == 3) pixwin(:,3) = pixwin(:,2)
+       if (nmaps >= 3) pixwin(:,3) = pixwin(:,2)
     else
        pixwin = 1.d0
        write(*,*) ''
@@ -323,7 +321,7 @@ contains
        matrix_is_positive_definite = (cl(1,1) > 0.d0)
        return
 
-    else if (nmaps == 3) then
+    else if (nmaps >= 3) then
 
        matrix_is_positive_definite = .true.
        do i = 1, nmaps
@@ -662,7 +660,7 @@ contains
   function mpi_dot_product(comm, x, y)
     implicit none
 
-    integer(i4b),               intent(in) :: comm
+    type(MPI_Comm),             intent(in) :: comm
     real(dp),     dimension(:), intent(in) :: x, y
     real(dp)                               :: mpi_dot_product
 
@@ -953,6 +951,16 @@ contains
        call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
        call add_card(header,"TUNIT3", unit_,"Map unit")
        call add_card(header)
+!!$    else !Something weird with a nonstandard number of maps, add dummy header
+!!$       call add_card(header)
+!!$       do i = 1, nmaps
+!!$         ! Will crash for nmaps > 9
+!!$         write(headernum, '(I1.1)') i
+!!$         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype")
+!!$         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+!!$         call add_card(header)
+!!$       end do
+!!$    end if
     else
        call add_card(header)
        do i = 2, nmaps
@@ -1724,5 +1732,169 @@ contains
     
   end subroutine compute_running_variance_dp
 
-   
+  function bin_spec_lin(x, ps, dx) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with uniform bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! dx: bin width
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the binned power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:), intent(in) :: ps, x
+    real(sp),                   intent(in) :: dx
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, n, nbin
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    nbin = (x(n) - x(1))/dx
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       j = (x(i) - x(1))/dx + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = x(1) + (j-0.5d0)*dx
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count)
+  end function bin_spec_lin
+
+  function bin_spec_log(x, ps, nbin) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin: number of bins
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:), intent(in) :: ps, x
+    integer(i4b),               intent(in) :: nbin
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, n
+    real(sp)     :: log_min, log_max, dx
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum, edges
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    log_min = log10(x(1))
+    log_max = log10(x(n))
+    dx = (log_max - log_min) / nbin
+    allocate(bin_sum(nbin), bin_count(nbin), edges(nbin+1))
+    allocate(bin_spec(nbin,2))
+
+    edges = 0.d0
+    do j = 1, nbin+1
+       edges(j) = 10.0**(log_min + (j-1)*dx)
+    end do
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       do j = 1, nbin
+          if (x(i) >= edges(j) .and. x(i) < edges(j+1)) then
+             bin_sum(j)   = bin_sum(j) + ps(i)
+             bin_count(j) = bin_count(j) + 1
+          end if
+       end do
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = sqrt(edges(j) * edges(j+1))
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count,edges)
+  end function bin_spec_log
+
+  function bin_spec_loglin(x, ps, nbin_log, dx_lin, threshold) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins up to a threshold
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin_log: Number of logarithmic bins
+    !
+    ! dx_lin:   Width of linear bins
+    !
+    ! threshold: Threshold from logarithmic to linear
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),     dimension(:), intent(in) :: ps, x
+    integer(i4b),               intent(in) :: nbin_log
+    real(sp),                   intent(in) :: dx_lin, threshold
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: n, nbin, thr_ind
+    real(sp),  allocatable, dimension(:,:) :: log_bin_spec, lin_bin_spec
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    thr_ind = locate(real(x,dp),dble(threshold))
+    log_bin_spec = bin_spec_log(x(:thr_ind),ps(:thr_ind),nbin_log)
+    lin_bin_spec = bin_spec_lin(x(thr_ind:),ps(thr_ind:),dx_lin)
+
+    nbin = nbin_log + size(lin_bin_spec(:,1))
+    allocate(bin_spec(nbin,2))
+    bin_spec(:nbin_log,:) = log_bin_spec
+    bin_spec(nbin_log+1:,:) = lin_bin_spec
+
+    deallocate(log_bin_spec,lin_bin_spec)
+  end function bin_spec_loglin
+
 end module comm_utils

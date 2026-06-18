@@ -73,11 +73,11 @@ module comm_template_comp_mod
      class(comm_template_comp), pointer :: p => null()
   end type template_ptr
   
-  integer(i4b) :: npre         =   0
-  integer(i4b) :: comm_pre     =  -1
-  integer(i4b) :: myid_pre     =  -1
-  integer(i4b) :: numprocs_pre =  -1
-  logical(lgt) :: recompute_template_precond = .true.
+  integer(i4b)   :: npre         =   0
+  type(MPI_Comm) :: comm_pre
+  integer(i4b)   :: myid_pre     =  -1
+  integer(i4b)   :: numprocs_pre =  -1
+  logical(lgt)   :: recompute_template_precond = .true.
   
 contains
 
@@ -337,7 +337,8 @@ contains
 
   subroutine initTemplatePrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2

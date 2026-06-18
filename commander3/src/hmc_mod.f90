@@ -340,6 +340,7 @@ contains
         !alpha = log(exp(alpha_p) + exp(alpha_pp))
         alpha = alpha_p + alpha_pp
         if (alpha_pp < 0) then
+          write(*,*) "hmc_mod: alpha_pp less than zero"
           write(*,*) alpha_pp, n_app, j, n_pp, s_pp, logu, theta_plus(1), p_plus(1), theta_minus(1), p_minus(1)
           stop
         end if
@@ -435,9 +436,9 @@ contains
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     real(dp)                                       :: FindReasonableEpsilon
-    real(dp)                                       :: eps, npar, pp_over_p
+    real(dp)                                       :: eps, pp_over_p
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
-    integer(i4b)                                   :: i, a
+    integer(i4b)                                   :: i, a, npar
     interface
        function lnlike(theta)
          use healpix_types

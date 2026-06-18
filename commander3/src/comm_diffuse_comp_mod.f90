@@ -247,14 +247,16 @@ interface
 
   module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond
 
   module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond_diagonal
@@ -262,7 +264,8 @@ interface
 
   module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond_pseudoinv

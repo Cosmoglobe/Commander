@@ -41,10 +41,11 @@ contains
 
   subroutine open_shared_ofile(ofile, fname, communicator)
     implicit none
-    type(shared_ofile)     :: ofile
-    character(len=*)       :: fname
-    integer(i4b), optional :: communicator
-    integer(i4b)           :: comm, id, ierr
+    type(shared_ofile)       :: ofile
+    character(len=*)         :: fname
+    type(MPI_Comm), optional :: communicator
+    type(MPI_Comm)           :: comm
+    integer(i4b)             :: id, ierr
     comm = mpi_comm_world; if(present(communicator)) comm = communicator
     ofile%filename = fname
     ofile%bufind   = 0

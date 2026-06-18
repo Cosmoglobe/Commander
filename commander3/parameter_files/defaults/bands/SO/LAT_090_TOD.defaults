@@ -1,0 +1,83 @@
+#SO LAT 90 GHz TOD default parameters
+
+BAND_LABEL&&&                  = LAT-090-w1
+BAND_INSTRUMENT_LABEL&&&       = LAT-090-w1
+BAND_OBS_PERIOD&&&             = 1
+BAND_POLARIZATION&&&           = .true.
+BAND_NSIDE&&&                  = 8192
+BAND_LMAX&&&                   = 1000
+BAND_UNIT&&&                   = uK_cmb
+BAND_NOISE_FORMAT&&&           = rms
+BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
+BAND_MASKFILE&&&               = fullsky
+BAND_MASKFILE_CALIB&&&         = fullsky
+BAND_BEAMTYPE&&&               = b_l         # {b_l,febecop}
+BAND_BEAM_B_L_FILE&&&          = common/beam/beam_005arcmin.fits
+BAND_BEAM_B_PTSRC_FILE&&&      = none
+BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n8192.fits 
+BAND_SAMP_NOISE_AMP&&&         = .false.
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt,additive_shift}
+BAND_NOMINAL_FREQ&&&           = 100
+BAND_SAMP_BANDPASS&&&          = .false.
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_PRIOR_MEAN&&&         = 1.
+BAND_GAIN_PRIOR_RMS&&&          = 0.1
+BAND_GAIN_CALIB_COMP&&&        = all cmb
+BAND_GAIN_LMIN&&&              = -1
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_MASK&&&         = fullsky
+BAND_GAIN_APOD_FWHM&&&         = 120.
+BAND_DEFAULT_GAIN&&&           =   1.
+BAND_DEFAULT_BP_DELTA&&&       =   0.
+BAND_DEFAULT_NOISEAMP&&&       =   1.
+BAND_COMPONENT_SENSITIVITY&&&  = broadband
+BAND_TOD_LEVEL&&&              = L2
+
+BAND_TOD_TYPE&&&               = LAT
+BAND_TOD_BP_INIT_PROP&&&       = none
+BAND_TOD_HALFRING&&&           = 0
+BAND_TOD_START_SCANID&&&       = 984
+BAND_TOD_END_SCANID&&&         = 984
+BAND_TOD_TOT_NUMSCAN&&&        = 984
+BAND_TOD_FLAG&&&               = 0
+BAND_TOD_ABSCAL_COMP&&&        = full
+BAND_TOD_DETECTOR_LIST&&&      = Mv24_f090_Ar00c07B,Mv24_f090_Ar00c08A,Mv24_f090_Ar00c08B,Mv24_f090_Ar00c09A,Mv24_f090_Ar00c09B,Mv24_f090_Ar00c10A,Mv24_f090_Ar00c10B,Mv24_f090_Ar00c11A,Mv24_f090_Ar00c11B,Mv24_f090_Ar01c00A,Mv24_f090_Ar01c01B,Mv24_f090_Ar01c02B,Mv24_f090_Ar01c03B,Mv24_f090_Ar01c04A,Mv24_f090_Ar01c04B,Mv24_f090_Ar01c05A,Mv24_f090_Ar01c05B,Mv24_f090_Ar01c06A,Mv24_f090_Ar01c06B,Mv24_f090_Ar01c07A,Mv24_f090_Ar01c07B,Mv24_f090_Ar01c08A,Mv24_f090_Ar01c09B,Mv24_f090_Ar01c11A,Mv24_f090_Ar01c11B,Mv24_f090_Ar02c00B,Mv24_f090_Ar02c04A,Mv24_f090_Ar02c05A,Mv24_f090_Ar02c05B,Mv24_f090_Ar02c06A,Mv24_f090_Ar02c06B,Mv24_f090_Ar02c07A,Mv24_f090_Ar02c07B,Mv24_f090_Ar02c08A,Mv24_f090_Ar02c09A,Mv24_f090_Ar02c09B,Mv24_f090_Ar02c10A,Mv24_f090_Ar02c11A,Mv24_f090_Ar02c11B,Mv24_f090_Ar03c00A
+#BAND_TOD_DETECTOR_LIST&&&      = Mv24_f090_Ar00c07B
+BAND_TOD_JUMPLIST&&&           = none
+BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
+BAND_TOD_INIT_FROM_HDF&&&      = default
+
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&   = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&    = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&& = none
+BAND_TOD_MOON_CENTRIC_MODEL&&&    = none
+BAND_TOD_MOON_CENTRIC_MASK&&&     = none
+BAND_TOD_MOON_CENTRIC_INITMAP&&&  = none
+BAND_TOD_EARTH_CENTRIC_MODEL&&&   = none
+BAND_TOD_EARTH_CENTRIC_MASK&&&    = none
+BAND_TOD_EARTH_CENTRIC_INITMAP&&& = none
+
+
+#TODO: make these paths into real defaults in the Oslo legacy archive 
+BAND_MAPFILE&&&                = common/maps/ones_n08192.fits
+BAND_NOISEFILE&&&              = common/maps/ones_n08192.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+BAND_BANDPASSFILE&&&           = so_lat/bp/SO-LAT_instrument_v01.h5
+
+BAND_TOD_MAIN_PROCMASK&&&      = common/maps/ones_n08192.fits
+BAND_TOD_SMALL_PROCMASK&&&     = common/maps/ones_n08192.fits
+N_GIBBS_PER_TOD&&&             = 1
+BAND_TOD_RIMO&&&               = so_lat/bp/SO-LAT_instrument_v01.h5
+BAND_TOD_FILELIST&&&           = filelist_100.txt
+
+BAND_TOD_ZODI_SUBTRACTION&&&   = .false. 
+BAND_TOD_ZODI_MASK&&&          = so_lat/maps/dummy_n08192.fits
+BAND_TOD_ZODI_EMISSIVITY&&&    = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
+BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+BAND_TOD_ZODI_REFERENCE_BAND&&&= .false.
+
+BAND_TOD_MAPMAKE_TYPE&&& = binned

@@ -6,7 +6,7 @@ BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 1024
 BAND_LMAX&&&                   = 3000
-BAND_UNIT&&&                   = K_cmb
+BAND_UNIT&&&                   = uK_cmb
 BAND_NOISE_FORMAT&&&           = rms
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
 BAND_MASKFILE&&&               = fullsky
@@ -45,6 +45,7 @@ BAND_TOD_FLAG&&&               = 0
 BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-2a,100-2b,100-3a,100-3b,100-4a,100-4b
 #BAND_TOD_DETECTOR_LIST&&&      = 100-1a,100-1b,100-4a,100-4b
+BAND_TOD_4K_LINES&&&           = 10.0207,20.041,30.062,50.104,70.145
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
 BAND_TOD_INIT_FROM_HDF&&&      = default
 
@@ -72,7 +73,7 @@ BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_100_n1024_mask.fits
 BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_100_n1024_mask.fits
 N_GIBBS_PER_TOD&&&             = 1
 BAND_TOD_RIMO&&&               = HFI_instrument_v4.h5
-BAND_TOD_FILELIST&&&           = filelist_100.txt
+BAND_TOD_FILELIST&&&           = filelist_100_v2.txt
 
 BAND_TOD_ZODI_SUBTRACTION&&&   = .false. 
 BAND_TOD_ZODI_MASK&&&          = mask_common_dx12_n1024_TQU.fits 

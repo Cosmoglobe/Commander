@@ -24,9 +24,11 @@ module comm_shared_arr_mod
 
   type shared_2d_dp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(dp),     pointer,     dimension(:,:) :: a => null()
@@ -35,9 +37,11 @@ module comm_shared_arr_mod
 
   type shared_3d_dp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(dp),     pointer,     dimension(:,:,:) :: a => null()
@@ -45,9 +49,11 @@ module comm_shared_arr_mod
 
   type shared_2d_sp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      real(sp),     pointer,     dimension(:,:) :: a => null()
@@ -55,9 +61,11 @@ module comm_shared_arr_mod
 
   type shared_2d_spc
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      complex(spc), pointer,     dimension(:,:) :: a => null()
@@ -66,9 +74,11 @@ module comm_shared_arr_mod
 
   type shared_1d_int
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      integer(i4b), pointer,     dimension(:)   :: a => null()
@@ -76,9 +86,11 @@ module comm_shared_arr_mod
 
   type shared_2d_int
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
-     !integer(i4b) :: win, wsize, disp_unit
-     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     integer(i4b) :: myid_shared, myid_inter
+     type(MPI_Comm) :: comm_shared, comm_inter
+     type(MPI_Win) :: win
+     integer(KIND=MPI_ADDRESS_KIND) :: wsize
+     integer(i4b) :: disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
      integer(i4b), pointer,     dimension(:,:)  :: a => null()
@@ -91,7 +103,8 @@ contains
   subroutine init_shared_2d_dp(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),       intent(in)  :: n(:)
     type(shared_2d_dp), intent(out) :: arr
 
@@ -162,7 +175,8 @@ contains
   subroutine init_shared_3d_dp(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),       intent(in)  :: n(:)
     type(shared_3d_dp), intent(out) :: arr
 
@@ -214,7 +228,8 @@ contains
   subroutine init_shared_2d_sp(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),       intent(in)  :: n(:)
     type(shared_2d_sp), intent(out) :: arr
 
@@ -287,7 +302,8 @@ contains
   subroutine init_shared_2d_spc(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),       intent(in)  :: n(:)
     type(shared_2d_spc), intent(out) :: arr
 
@@ -361,7 +377,8 @@ contains
   subroutine init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),        intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),        intent(in)  :: n(:)
     type(shared_1d_int), intent(out) :: arr
 
@@ -432,7 +449,8 @@ contains
   subroutine init_shared_2d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: myid_shared, myid_inter
+    type(MPI_Comm),     intent(in)  :: comm_shared, comm_inter
     integer(i4b),       intent(in)  :: n(:)
     type(shared_2d_int), intent(out) :: arr
 
