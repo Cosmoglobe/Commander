@@ -942,7 +942,10 @@ def run_comparison_suite(data, filename, det_type, pixelpos_dir, suite_csv=None)
         {"name": "GADS_attitude_offset_seasonal_ab", "attitude": "GADS", "offset_style": "attitude", "aberration_style": "seasonal", "use_aberration": True},
     ]
 
-    qpr_raw = data["PR"]["QUATERNION"].read().astype(np.float64)
+    try:
+        qpr_raw = data["PR"]["QUATERNION"].read().astype(np.float64)
+    except ValueError:
+        qpr_raw = data["PR"]["ATTITUDE"].read().astype(np.float64)
     pr_valid = np.linalg.norm(qpr_raw, axis=1) > 0.0
 
     rows = []
@@ -1203,7 +1206,10 @@ def main():
     filename = str(Path(args.fits_file).expanduser())
     data = fitsio.FITS(filename)
 
-    quat_raw = data[args.attitude]["QUATERNION"].read().astype(np.float64)
+    try:
+        quat_raw = data[args.attitude]["QUATERNION"].read().astype(np.float64)
+    except ValueError:
+        quat_raw = data[args.attitude]["ATTITUDE"].read().astype(np.float64)
     quat, valid = normalize_quat(quat_raw)
 
     print(f"Attitude source: {args.attitude}")
@@ -1239,47 +1245,50 @@ def main():
             pr_ra = data["PR"]["RA"].read().astype(np.float64)[valid]
             pr_dec = data["PR"]["DEC"].read().astype(np.float64)[valid]
             pr_roll = data["PR"]["ROLL"].read().astype(np.float64)[valid]
+            if np.all(pr_ra != 0.):
 
-            dra = wrap_pm180(ra_deg - wrap_360(pr_ra))
-            ddec = dec_deg - pr_dec
-            droll_pr = wrap_pm180(roll_prlike_deg - pr_roll)
-            droll_cpp = wrap_pm180(roll_cpp_deg - pr_roll)
+                dra = wrap_pm180(ra_deg - wrap_360(pr_ra))
+                ddec = dec_deg - pr_dec
+                droll_pr = wrap_pm180(roll_prlike_deg - pr_roll)
+                droll_cpp = wrap_pm180(roll_cpp_deg - pr_roll)
 
-            print("\nComparison against PR columns:")
-            print(f"RA   diff [deg] mean/std: {np.nanmean(dra):.6e} / {np.nanstd(dra):.6e}")
-            print(f"Dec  diff [deg] mean/std: {np.nanmean(ddec):.6e} / {np.nanstd(ddec):.6e}")
-            print(
-                f"Roll(PR-like) diff [deg] mean/std: "
-                f"{np.nanmean(droll_pr):.6e} / {np.nanstd(droll_pr):.6e}"
-            )
-            print(
-                f"Roll(C++ Euler) diff [deg] mean/std: "
-                f"{np.nanmean(droll_cpp):.6e} / {np.nanstd(droll_cpp):.6e}"
-            )
+                print("\nComparison against PR columns:")
+                print(f"RA   diff [deg] mean/std: {np.nanmean(dra):.6e} / {np.nanstd(dra):.6e}")
+                print(f"Dec  diff [deg] mean/std: {np.nanmean(ddec):.6e} / {np.nanstd(ddec):.6e}")
+                print(
+                    f"Roll(PR-like) diff [deg] mean/std: "
+                    f"{np.nanmean(droll_pr):.6e} / {np.nanstd(droll_pr):.6e}"
+                )
+                print(
+                    f"Roll(C++ Euler) diff [deg] mean/std: "
+                    f"{np.nanmean(droll_cpp):.6e} / {np.nanstd(droll_cpp):.6e}"
+                )
 
-            nplot = min(args.plot_samples, len(pr_ra))
-            _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
+                nplot = min(args.plot_samples, len(pr_ra))
+                _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
 
-            axes[0].plot(pr_ra[:nplot], label="PR RA", alpha=0.8)
-            axes[0].plot(ra_deg[:nplot], label=f"{args.attitude} quat to RA", alpha=0.8)
-            axes[0].set_ylabel("RA [deg]")
-            axes[0].legend(loc="best")
+                axes[0].plot(pr_ra[:nplot], label="PR RA", alpha=0.8)
 
-            axes[1].plot(pr_dec[:nplot], label="PR Dec", alpha=0.8)
-            axes[1].plot(dec_deg[:nplot], label=f"{args.attitude} quat to Dec", alpha=0.8)
-            axes[1].set_ylabel("Dec [deg]")
-            axes[1].legend(loc="best")
+                axes[1].plot(pr_dec[:nplot], label="PR Dec", alpha=0.8)
 
-            axes[2].plot(pr_roll[:nplot], label="PR Roll", alpha=0.8)
-            axes[2].plot(
-                roll_prlike_deg[:nplot], label=f"{args.attitude} quat to Roll (PR-like)", alpha=0.8
-            )
-            axes[2].set_ylabel("Roll [deg]")
-            axes[2].set_xlabel("Sample")
-            axes[2].legend(loc="best")
+                axes[2].plot(pr_roll[:nplot], label="PR Roll", alpha=0.8)
 
-            plt.tight_layout()
-            plt.show()
+
+                axes[0].plot(ra_deg[:nplot], label=f"{args.attitude} quat to RA", alpha=0.8)
+                axes[0].set_ylabel("RA [deg]")
+                axes[0].legend(loc="best")
+                axes[1].plot(dec_deg[:nplot], label=f"{args.attitude} quat to Dec", alpha=0.8)
+                axes[1].set_ylabel("Dec [deg]")
+                axes[1].legend(loc="best")
+                axes[2].plot(
+                    roll_prlike_deg[:nplot], label=f"{args.attitude} quat to Roll (PR-like)", alpha=0.8
+                )
+                axes[2].set_ylabel("Roll [deg]")
+                axes[2].set_xlabel("Sample")
+                axes[2].legend(loc="best")
+
+                plt.tight_layout()
+                plt.show()
 
     else:
         det_type = args.detector_type or infer_detector_type_from_filename(filename) or infer_detector_type(data)
@@ -1346,24 +1355,24 @@ def main():
         )
 
         nplot = min(args.plot_samples, len(ra_bore))
+        _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
         if args.sanity:
             run_sanity_checks(quat, ra_fp, dec_fp, roll_fp, plot_samples=nplot)
+            axes[0].plot(ra_bore[:nplot], label="Boresight RA", alpha=0.8)
+            axes[1].plot(dec_bore[:nplot], label="Boresight Dec", alpha=0.8)
+            axes[2].plot(roll_bore[:nplot], label="Boresight Roll", alpha=0.8)
 
-        _, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
 
-        axes[0].plot(ra_bore[:nplot], label="Boresight RA", alpha=0.8)
         for idx in det_indices:
             axes[0].plot(ra_fp[:nplot, idx], label=f"Det {idx+1} RA", alpha=0.8)
         axes[0].set_ylabel("RA [deg]")
         axes[0].legend(loc="best")
 
-        axes[1].plot(dec_bore[:nplot], label="Boresight Dec", alpha=0.8)
         for idx in det_indices:
             axes[1].plot(dec_fp[:nplot, idx], label=f"Det {idx+1} Dec", alpha=0.8)
         axes[1].set_ylabel("Dec [deg]")
         axes[1].legend(loc="best")
 
-        axes[2].plot(roll_bore[:nplot], label="Boresight Roll", alpha=0.8)
         for idx in det_indices:
             axes[2].plot(roll_fp[:nplot, idx], label=f"Det {idx+1} Roll", alpha=0.8)
         axes[2].set_ylabel("Roll [deg]")
