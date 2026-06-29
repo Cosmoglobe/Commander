@@ -839,7 +839,7 @@ contains
     ntod = size(flag,1)
     ndet = size(flag,2)
     do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       if (.not. tod%scans(scan)%d(j)%accept .or. tod%scans(scan)%d(j)%bright_signal) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than a given percentage of good data
           tod%scans(scan)%d(j)%accept = .false.
           write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &

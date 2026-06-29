@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, exclude_comps, evalpol, ndof)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -36,6 +36,7 @@ contains
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
     character(len=512),             intent(in),    optional :: maskpath
     integer(i4b), dimension(:),     intent(in),    optional :: band_list
+    character(len=512), dimension(:), intent(in),  optional :: exclude_comps
     integer(i4b),                   intent(out),   optional :: ndof
 
     integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
@@ -75,7 +76,7 @@ contains
       bandlist = [(i, i=1,numband)]
       nbands = numband
     end if
-
+    
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
@@ -93,7 +94,7 @@ contains
              end if
           end if
 
-          res => compute_residual(i)
+          res => compute_residual(i, exclude_comps=exclude_comps)
 
           if (present(mask)) then
             if (size(mask) .ne. nbands) write(*,*) 'Need as many masks as bands'
@@ -265,7 +266,9 @@ contains
        if (present(exclude_comps)) then
           ! Skip if the component is requested to be excluded
           do i = 1, size(exclude_comps)
-             if (trim(c%label) == trim(exclude_comps(i))) skip = .true.
+             if (trim(c%label) == trim(exclude_comps(i))) then
+                skip = .true.
+             end if
           end do
        end if
        if (present(cg_samp_group)) then

@@ -139,7 +139,8 @@ contains
       c%per_slew_baseline = .true.
       c%max_nslew       = 10
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      c%chisq_threshold = 30
+      c%chisq_threshold = 10
+      c%sigma0_threshold = 3
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
          c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
@@ -191,11 +192,12 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 500
+      c%dynmask%output_scan             = 3699 !500
       c%dynmask%output_det              = 1
-      c%dynmask%threshold_singlesamp    = 10  ! Exclude 10 sigma outliers
+      c%dynmask%threshold_minmax(1)     = 0.  ! Absolute TOD minimum
+      c%dynmask%threshold_singlesamp    = 20  ! Exclude single sample outliers
       c%dynmask%window_excessRMS(1)     = 7   ! Search for windows of 7 samples
-      c%dynmask%threshold_excessRMS(1)  = 10  ! Exclude 10 sigma outliers; planets?
+      c%dynmask%threshold_excessRMS(1)  = 5  ! Exclude strong extended outliers; planets?
 
       c%dynmask%apply_pixhist           = .false. !.true.
       !c%dynmask%remove_isolated_samples = .false.
@@ -292,7 +294,7 @@ contains
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
       type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default, n_unflagged, n_masked
       logical(lgt)        :: select_data, sample_gain, output_scanlist, sample_ncorr, sample_baseline, sample_tsys
       type(comm_binmap)   :: binmap, binmap2
       type(comm_scandata) :: sd
@@ -339,7 +341,7 @@ contains
          sample_baseline = iter > 1
          sample_tsys     = iter > 1
          sample_gain     = iter > 2                        ! Gain sampling
-         sample_ncorr    = iter > 3
+         sample_ncorr    = .false. !iter > 3
       else
          select_data     = self%first_call  !iter == 1                    
          sample_baseline = iter > 1
@@ -376,11 +378,25 @@ contains
       call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
       call update_status(status, "tod_init")
 
-
+      
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
 
+      ! Identify bright scans
+      if (self%first_call) then
+         do i = 1, self%nscan
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0)
+            do j = 1, self%ndet
+               n_unflagged = count(iand(sd%flag(:,j),self%flag0) == 0)
+               n_masked    = count(sd%mask(:,j) == 0)
+               self%scans(i)%d(j)%bright_signal = n_masked > 0.5*n_unflagged
+            end do
+            call dealloc_scan_data(sd)
+         end do
+      end if
+      
       !if (self%myid == 0) then
       !   write(*,*) 'gain init scan 1 det 1:', self%scans(1)%d(1)%gain
       !   write(*,*) 'baseline init scan 1 det 1:', self%scans(1)%d(1)%baseline
@@ -420,7 +436,7 @@ contains
          call update_status(status, "baseline")
          do i = 1, self%nscan
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=0)
+            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd, spur_level=0)
             call timer%start(TOD_BASELINE, self%band)
             if (self%per_slew_baseline) then
                call sample_chipass_baseline_per_slew(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask)
@@ -505,8 +521,8 @@ contains
          end do
 
          ! Select data
-         !if (select_data) call remove_bad_data(self, i, sd%flag)
-         if (iter==3) call remove_bad_data(self, i, sd%flag)
+         if (select_data) call remove_bad_data(self, i, sd%flag)
+         !if (iter == 3) call remove_bad_data(self, i, sd%flag)
          
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
@@ -538,7 +554,7 @@ contains
 
          ! For debugging: write TOD to hdf
          if (.true.) then
-            if (mod(self%scanid(i), 500) == 0) then
+            if (mod(self%scanid(i), 3699) == 0) then
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod/self%scans(i)%d(1)%gain)
@@ -592,7 +608,7 @@ contains
       map_out%map = binmap%outmaps(1)%p%map
 
       ! Inpaint missing pixels
-      call map_out%inpaint_misspix(rms_out, map_in(1,1)%p, 30.d0, handle)
+      !call map_out%inpaint_misspix(rms_out, map_in(1,1)%p, 30.d0, handle)
       
       ! Output maps to disk
       call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
@@ -702,7 +718,11 @@ contains
        !if ((tod%myid == 0) .and. (scan == 1)) write(*,*) 'slew, inds, n:', s, tod%scans(scan)%slew_inds(s, :), ntod_slew
 
        do j = 1, tod%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          !if (.not. tod%scans(scan)%d(j)%accept .or. tod%scans(scan)%d(j)%bright_signal) then
+          if (.not. tod%scans(scan)%d(j)%accept) then
+             tod%scans(scan)%d(j)%baseline_slew(s,:) = 0.             
+             cycle
+          end if
           t = 0.d0
           n = 0
           do k = tod%scans(scan)%slew_inds(s, 1), tod%scans(scan)%slew_inds(s, 2)

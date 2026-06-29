@@ -55,8 +55,8 @@ module comm_ptsrc_comp_mod
      real(dp)           :: cg_scale, amp_rms_scale
      integer(i4b)       :: nside, nside_febecop, nsrc, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps, recompute_ptsrc_precond
-     real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (nsrc,nmaps)
-     real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (nsrc,nmaps)
+     real(dp),        allocatable, dimension(:,:)   :: x        ! Amplitudes (nsrc,nmaps)
+     real(dp),        allocatable, dimension(:,:,:) :: x_buff   ! Amplitudes (nsrc,nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
      type(ptsrc),     allocatable, dimension(:)     :: src    ! Source template (nsrc)
@@ -780,7 +780,7 @@ contains
          & trim(cpar%cs_catalog(id_abs)))
     
     ! Initialize point sources based on catalog information
-    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
+    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
     open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     i    = 0
     call update_status(status, "read_ptsrc4")
@@ -1037,7 +1037,7 @@ contains
     call read_alloc_hdf(stars_file, 'coordinates', coords)
     !coords = coords * DEG2RAD  ! Convention now in degrees
 
-    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
+    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
 
     self%x = 1.d0
 !    self%x(1,1) = 1.d0

@@ -76,6 +76,7 @@ module comm_tod_mod
      character(len=30) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
      real(dp)          :: gain_def                          ! Default parameters
+     logical(lgt)      :: bright_signal                     ! Bright signal, skip ncorr, baseline, and data selection
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -141,7 +142,7 @@ module comm_tod_mod
      real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
      real(dp)       :: x0_earth(3)                                 ! Earth position (x,y,z) for start of chunk
      real(dp)       :: x1_earth(3)                                 ! Earth position (x,y,z) for end of chunk
-
+     
      real(dp), allocatable, dimension(:,:) :: xarr_moon            ! Moon positions
      real(dp), allocatable, dimension(:,:) :: xarr_earth           ! Earth positions
      real(dp), allocatable, dimension(:,:) :: xarr_obs             ! Observatory positions
@@ -1288,10 +1289,11 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-      
-       self%d(i)%gain_def   = scalars(1)
-       self%d(i)%gain       = scalars(1)
-       xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+
+       self%d(i)%bright_signal = .false.
+       self%d(i)%gain_def      = scalars(1)
+       self%d(i)%gain          = scalars(1)
+       xi_n(1)                 = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
        if (tod%n_xi >= 3) then
           xi_n(2) = min(max(scalars(3), tod%xi_n_P_uni(2,1)), tod%xi_n_P_uni(2,2))
           xi_n(3) = min(max(scalars(4), tod%xi_n_P_uni(3,1)), tod%xi_n_P_uni(3,2))

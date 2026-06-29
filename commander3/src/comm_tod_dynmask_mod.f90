@@ -63,6 +63,7 @@ module comm_tod_dynmask_mod
      logical(lgt)       :: output_current
      logical(lgt)       :: apply_pixhist              ! Pixel histogram outliers in units of sigma; tod%pixhist must be allocated
      real(sp)           :: threshold_extreme          ! Extreme outliers in white noise sigma; inside flagging mask; typically set to a high value
+     real(sp)           :: threshold_minmax(2)        ! Absolute allowed range
      real(sp)           :: threshold_singlesamp       ! Remove individual sample outliers above a given RMS threshold; only applied outside flagging mask
      real(sp)           :: threshold_excessRMS(N_rms) ! Excess variance in windows of N samples;
      integer(i4b)       :: window_excessRMS(N_rms)    ! Window length for excess variance
@@ -78,6 +79,7 @@ module comm_tod_dynmask_mod
      integer(i8b), dimension(-1:10)  :: stats    ! Statistics for dynamic mask (ntod_tot, ncut_base, ncut_1, ncut_2,...)
    contains
      procedure :: create => create_dynamic_mask
+     procedure :: remove_minmax
      procedure :: remove_pixhist_outliers
      procedure :: remove_extreme_outliers
      procedure :: remove_single_outliers
@@ -113,9 +115,10 @@ contains
     c%outdir                  = cpar%outdir
     c%tod                     => tod
     
-    c%output_scan             = -1
+    c%output_scan             = 3920 !-1
     c%apply_pixhist           = .false.
     c%threshold_extreme       = -1.
+    c%threshold_minmax        = [-1e30,1e30]
     c%threshold_singlesamp    = -1.
     c%threshold_excessRMS     = -1.
     c%window_excessRMS        = -1
@@ -139,14 +142,16 @@ contains
     integer(i4b) :: i, j, k, n, pix_nest, ntod, window, ntot, scan
     real(dp) :: rms0
     real(sp) :: var0, gain
+    logical(lgt) :: apply
     integer(i4b), allocatable, dimension(:,:) :: bad, buffer
     real(sp),     allocatable, dimension(:)   :: res, mask_dyn, var_window
     
-    if (sum(sd%mask(:,det)) == 0) return 
+    !if (sum(sd%mask(:,det)) == 0) return 
     call timer%start(TOD_DYNMASK, self%tod%band)
     
     scan        = sd%scan
     ntod        = sd%ntod
+    apply       = .not. self%tod%scans(scan)%d(det)%bright_signal
     ntot        = count(iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
     gain        = self%tod%scans(scan)%d(det)%gain
     self%stats(-1) = self%stats(-1) + ntod        ! Total number of samples
@@ -163,17 +168,18 @@ contains
     mask_dyn = 1.0
     
     ! Apply cuts
-    if (self%threshold_cr > 0.)         call self%remove_cr_hits         (sd, det, res, mask_dyn)
+    if (any(abs(self%threshold_minmax) < 1e30)) call self%remove_minmax   (sd, det, res, mask_dyn)
+    if (apply .and. self%threshold_cr > 0.)         call self%remove_cr_hits         (sd, det, res, mask_dyn)
     if (self%apply_pixhist)             call self%remove_pixhist_outliers(sd, det, res, mask_dyn)
-    if (self%threshold_extreme > 0.)    call self%remove_extreme_outliers(sd, det, res, mask_dyn)
+    if (apply .and. self%threshold_extreme > 0.)    call self%remove_extreme_outliers(sd, det, res, mask_dyn)
     if (self%threshold_singlesamp > 0.) call self%remove_single_outliers (sd, det, res, mask_dyn)
     do i = 1, N_rms
-       if (self%threshold_excessRMS(i) > 0.) then
+       if (apply .and. self%threshold_excessRMS(i) > 0.) then
           call self%remove_excessRMS(sd, det, self%threshold_excessRMS(i), self%window_excessRMS(i), res, mask_dyn)
        end if
     end do
     if (self%remove_isolated_samples)   call self%remove_isolated_samp   (sd, det, res, mask_dyn)
-    if (self%threshold_longchunks > 0.) call self%remove_longchunks      (sd, det, res, mask_dyn)
+    if (apply .and. self%threshold_longchunks > 0.) call self%remove_longchunks      (sd, det, res, mask_dyn)
     if (self%apply_solar_mask)          call self%exclude_solar_mask     (sd, det, res, mask_dyn)
     if (self%apply_moon_mask)           call self%exclude_moon_mask      (sd, det, res, mask_dyn)
     if (self%apply_earth_mask)          call self%exclude_earth_mask     (sd, det, res, mask_dyn)
@@ -191,9 +197,8 @@ contains
     call timer%stop(TOD_DYNMASK, self%tod%band)
     
   end subroutine create_dynamic_mask
-  
-  
-  subroutine remove_pixhist_outliers(self, sd, det, res, mask_dyn)
+
+  subroutine remove_minmax(self, sd, det, res, mask_dyn)
     implicit none
     class(comm_dynmask),                intent(inout) :: self
     class(comm_scandata),               intent(inout) :: sd
@@ -214,145 +219,26 @@ contains
        end where
     end if
     
-    ! Pixel histogram outliers
-    q    = (self%tod%nside / self%tod%nside_pixhist)**2
     ncut = 0
     do i = 1, sd%ntod
-       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0) then
-          call ring2nest(self%tod%nside, sd%pix(i,det,1), pix_nest)
-          pix_nest = pix_nest / q
-          !write(*,*) det, i, self%tod%pixhist(4,pix_nest,det), sd%tod(i,det), self%tod%pixhist(5,pix_nest,det)
-          if (sd%tod(i,det) < self%tod%pixhist(4,pix_nest,det) .or. &
-               & sd%tod(i,det) > self%tod%pixhist(5,pix_nest,det)) then
-             mask_dyn(i)    = 0.
-             sd%mask(i,det) = 0.
-             sd%flag(i,det) = sd%flag(i,det) + flag_dyn
-             ncut           = ncut + 1
-             if (self%output_current) mask(i) = 0.5
-          end if
+       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0 .and. &
+            & (sd%tod(i,det) < self%threshold_minmax(1) .or. &
+            & sd%tod(i,det) > self%threshold_minmax(2))) then
+          mask_dyn(i)    = 0.
+          sd%mask(i,det) = 0.
+          sd%flag(i,det) = sd%flag(i,det) + flag_dyn
+          ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
        end if
     end do
     self%stats(1) = self%stats(1) + ncut
     
     if (self%output_current) then
-       call self%dump_residual(sd, res, mask, det, "pixhist")
+       call self%dump_residual(sd, res, mask, det, "minmax")
        deallocate(mask)
     end if
     
-  end subroutine remove_pixhist_outliers
-  
-  subroutine remove_extreme_outliers(self, sd, det, res, mask_dyn)
-    implicit none
-    class(comm_dynmask),                intent(inout) :: self
-    class(comm_scandata),               intent(inout) :: sd
-    integer(i4b),                       intent(in)    :: det
-    real(sp),             dimension(:), intent(in)    :: res
-    real(sp),             dimension(:), intent(inout) :: mask_dyn
-    
-    integer(i4b) :: q, ncut, i, pix_nest
-    real(sp), allocatable, dimension(:) :: mask
-
-    ! Initialize current mask (for output only)
-    if (self%output_current) then
-       allocate(mask(sd%ntod))
-       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
-          mask = 1.
-       elsewhere
-          mask = 0.
-       end where
-    end if
-    
-    ncut = 0
-    do i = 1, sd%ntod
-       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0 .and. abs(res(i)) > self%threshold_extreme) then
-          mask_dyn(i)    = 0.
-          sd%mask(i,det) = 0.
-          sd%flag(i,det) = sd%flag(i,det) + flag_dyn
-          ncut           = ncut + 1
-          if (self%output_current) mask(i) = 0.5
-       end if
-    end do
-    self%stats(2) = self%stats(2) + ncut
-    
-    if (self%output_current) then
-       call self%dump_residual(sd, res, mask, det, "extreme")
-       deallocate(mask)
-    end if
-    
-  end subroutine remove_extreme_outliers
-  
-  subroutine remove_single_outliers(self, sd, det, res, mask_dyn)
-    implicit none
-    class(comm_dynmask),                intent(inout) :: self
-    class(comm_scandata),               intent(inout) :: sd
-    integer(i4b),                       intent(in)    :: det
-    real(sp),             dimension(:), intent(in)    :: res
-    real(sp),             dimension(:), intent(inout) :: mask_dyn
-    
-    integer(i4b) :: q, ncut, i
-    logical(lgt), allocatable, dimension(:) :: cut
-    real(sp), allocatable, dimension(:) :: mask
-
-    ! Initialize current mask (for output only)
-    if (self%output_current) then
-       allocate(mask(sd%ntod))
-       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
-          mask = 1.
-       elsewhere
-          mask = 0.
-       end where
-    end if
-    
-    allocate(cut(sd%ntod))
-    ncut = 0
-    
-    !if (self%output_scan == tod%scanid(scan)) open(58, file='flag_stage2.dat')
-    
-    ! Identify all samples above a given threshold and outside the mask
-    do i = 1, sd%ntod
-       cut(i) = (sd%mask(i,det) == 1. .and. abs(res(i)) > self%threshold_singlesamp)
-       !if (self%output_scan == tod%scanid(scan) .and. sd%mask(i,det) == 1.) write(58,*) i, res(i), count(cut(i:i) == 1.)
-    end do
-    
-    ! Check first sample manuall
-    if (cut(1) .and. (.not. cut(2) .or. sd%mask(2,det) == 0.)) then
-       mask_dyn(1)    = 0.
-       sd%mask(1,det) = 0.
-       sd%flag(1,det) = sd%flag(1,det) + flag_dyn
-       ncut           = ncut + 1
-       if (self%output_current) mask(i) = 0.5
-    end if
-    
-    ! Check all intermediate samples
-    do i = 2, sd%ntod-1
-       if (cut(i) .and. (.not. cut(i-1) .or. sd%mask(i-1,det) == 0.) .and. (.not. cut(i+1) .or. sd%mask(i+1,det) == 0.)) then
-          mask_dyn(i)    = 0.
-          sd%mask(i,det) = 0.
-          sd%flag(i,det) = sd%flag(i,det) + flag_dyn
-          ncut           = ncut + 1
-          if (self%output_current) mask(i) = 0.5
-       end if
-    end do
-    
-    ! Check last sample manually
-    if (cut(sd%ntod) .and. (.not. cut(sd%ntod-1) .or. sd%mask(sd%ntod-1,det) == 0.)) then
-       mask_dyn(sd%ntod)    = 0.
-       sd%mask(sd%ntod,det) = 0.
-       sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
-       ncut                 = ncut + 1
-       if (self%output_current) mask(i) = 0.5
-    end if
-    !if (self%output_scan == tod%scanid(scan)) close(58)
-    deallocate(cut)
-    
-    self%stats(3) = self%stats(3) + ncut
-
-    if (self%output_current) then
-       call self%dump_residual(sd, res, mask, det, "single")
-       deallocate(mask)
-    end if
-    
-  end subroutine remove_single_outliers
+  end subroutine remove_minmax
 
   subroutine remove_cr_hits(self, sd, det, res, mask_dyn)
     implicit none
@@ -433,7 +319,7 @@ contains
        end if
     end do    
 
-    self%stats(10) = self%stats(10) + ncut
+    self%stats(2) = self%stats(2) + ncut
     
     if (self%output_current) then
        open(58,file='dynmask_cr.dat')
@@ -451,6 +337,167 @@ contains
     deallocate(conv, norm)
 
   end subroutine remove_cr_hits
+  
+  subroutine remove_pixhist_outliers(self, sd, det, res, mask_dyn)
+    implicit none
+    class(comm_dynmask),                intent(inout) :: self
+    class(comm_scandata),               intent(inout) :: sd
+    integer(i4b),                       intent(in)    :: det
+    real(sp),             dimension(:), intent(in)    :: res
+    real(sp),             dimension(:), intent(inout) :: mask_dyn
+    
+    integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+    
+    ! Pixel histogram outliers
+    q    = (self%tod%nside / self%tod%nside_pixhist)**2
+    ncut = 0
+    do i = 1, sd%ntod
+       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0) then
+          call ring2nest(self%tod%nside, sd%pix(i,det,1), pix_nest)
+          pix_nest = pix_nest / q
+          !write(*,*) det, i, self%tod%pixhist(4,pix_nest,det), sd%tod(i,det), self%tod%pixhist(5,pix_nest,det)
+          if (sd%tod(i,det) < self%tod%pixhist(4,pix_nest,det) .or. &
+               & sd%tod(i,det) > self%tod%pixhist(5,pix_nest,det)) then
+             mask_dyn(i)    = 0.
+             sd%mask(i,det) = 0.
+             sd%flag(i,det) = sd%flag(i,det) + flag_dyn
+             ncut           = ncut + 1
+             if (self%output_current) mask(i) = 0.5
+          end if
+       end if
+    end do
+    self%stats(3) = self%stats(3) + ncut
+    
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "pixhist")
+       deallocate(mask)
+    end if
+    
+  end subroutine remove_pixhist_outliers
+  
+  subroutine remove_extreme_outliers(self, sd, det, res, mask_dyn)
+    implicit none
+    class(comm_dynmask),                intent(inout) :: self
+    class(comm_scandata),               intent(inout) :: sd
+    integer(i4b),                       intent(in)    :: det
+    real(sp),             dimension(:), intent(in)    :: res
+    real(sp),             dimension(:), intent(inout) :: mask_dyn
+    
+    integer(i4b) :: q, ncut, i, pix_nest
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+    
+    ncut = 0
+    do i = 1, sd%ntod
+       if (iand(sd%flag(i,det),self%tod%flag0) .eq. 0 .and. abs(res(i)) > self%threshold_extreme) then
+          mask_dyn(i)    = 0.
+          sd%mask(i,det) = 0.
+          sd%flag(i,det) = sd%flag(i,det) + flag_dyn
+          ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
+       end if
+    end do
+    self%stats(4) = self%stats(4) + ncut
+    
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "extreme")
+       deallocate(mask)
+    end if
+    
+  end subroutine remove_extreme_outliers
+  
+  subroutine remove_single_outliers(self, sd, det, res, mask_dyn)
+    implicit none
+    class(comm_dynmask),                intent(inout) :: self
+    class(comm_scandata),               intent(inout) :: sd
+    integer(i4b),                       intent(in)    :: det
+    real(sp),             dimension(:), intent(in)    :: res
+    real(sp),             dimension(:), intent(inout) :: mask_dyn
+    
+    integer(i4b) :: q, ncut, i
+    logical(lgt), allocatable, dimension(:) :: cut
+    real(sp), allocatable, dimension(:) :: mask
+
+    ! Initialize current mask (for output only)
+    if (self%output_current) then
+       allocate(mask(sd%ntod))
+       where (iand(sd%flag(:,det),self%tod%flag0) .eq. 0)
+          mask = 1.
+       elsewhere
+          mask = 0.
+       end where
+    end if
+    
+    allocate(cut(sd%ntod))
+    ncut = 0
+    
+    if (self%output_current) open(58, file='flag_stage2.dat', recl=1024)
+    
+    ! Identify all samples above a given threshold and outside the mask
+    do i = 1, sd%ntod
+       cut(i) = (sd%mask(i,det) == 1. .and. abs(res(i)) > self%threshold_singlesamp)
+       if (self%output_current .and. sd%mask(i,det) == 1.) write(58,*) i, res(i), count(cut(i:i)), self%threshold_singlesamp, sd%mask(i,det)
+    end do
+    
+    ! Check first sample manuall
+    if (cut(1) .and. (.not. cut(2) .or. sd%mask(2,det) == 0.)) then
+       mask_dyn(1)    = 0.
+       sd%mask(1,det) = 0.
+       sd%flag(1,det) = sd%flag(1,det) + flag_dyn
+       ncut           = ncut + 1
+       if (self%output_current) mask(i) = 0.5
+    end if
+    
+    ! Check all intermediate samples
+    do i = 2, sd%ntod-1
+       if (cut(i) .and. (.not. cut(i-1) .or. sd%mask(i-1,det) == 0.) .and. (.not. cut(i+1) .or. sd%mask(i+1,det) == 0.)) then
+          mask_dyn(i)    = 0.
+          sd%mask(i,det) = 0.
+          sd%flag(i,det) = sd%flag(i,det) + flag_dyn
+          ncut           = ncut + 1
+          if (self%output_current) mask(i) = 0.5
+       end if
+    end do
+    
+    ! Check last sample manually
+    if (cut(sd%ntod) .and. (.not. cut(sd%ntod-1) .or. sd%mask(sd%ntod-1,det) == 0.)) then
+       mask_dyn(sd%ntod)    = 0.
+       sd%mask(sd%ntod,det) = 0.
+       sd%flag(sd%ntod,det) = sd%flag(sd%ntod,det) + flag_dyn
+       ncut                 = ncut + 1
+       if (self%output_current) mask(i) = 0.5
+    end if
+    if (self%output_current) close(58)
+    deallocate(cut)
+    
+    self%stats(5) = self%stats(5) + ncut
+
+    if (self%output_current) then
+       call self%dump_residual(sd, res, mask, det, "single")
+       deallocate(mask)
+    end if
+    
+  end subroutine remove_single_outliers
 
   subroutine remove_excessRMS(self, sd, det, threshold,  window, res, mask_dyn)
     implicit none
@@ -483,9 +530,9 @@ contains
     var_window = sqrt(var_window)
     var0       = sqrt(var0)     
     ncut       = 0
-    !if (self%output_scan == tod%scanid(scan)) open(58, file='flag_stage3.dat')
+    if (self%output_current) open(58, file='flag_stage3.dat')
     do i = 1, sd%ntod
-       !if (self%output_scan == tod%scanid(scan) .and. sd%mask(i,det) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold(4)*var0), threshold(4)*var0
+       if (self%output_current .and. sd%mask(i,det) == 1.) write(58,*) i, res(i), var_window(i), var_window(i)/(threshold*var0), threshold*var0
        if (sd%mask(i,det) == 1. .and. var_window(i) > threshold*var0) then
           do k = max(i-window,1), min(i+window,sd%ntod)
              if (iand(sd%flag(k,det),self%tod%flag0) .eq. 0) then
@@ -498,15 +545,16 @@ contains
           end do
        end if
     end do
-    !if (self%output_scan == tod%scanid(scan)) close(58)
-    deallocate(var_window)
+    if (self%output_current) close(58)
     
-    self%stats(4) = self%stats(4) + ncut
+    self%stats(6) = self%stats(6) + ncut
 
     if (self%output_current) then
-       call self%dump_residual(sd, res, mask, det, "excessRMS")
+       call self%dump_residual(sd, res, mask, det, "excessRMS", var_window)
        deallocate(mask)
     end if
+
+    deallocate(var_window)
     
   end subroutine remove_excessRMS
   
@@ -768,13 +816,12 @@ contains
        else
           write(*,fmt='(a,f8.5,i16)') '  Total number of samples     = ', real(self%stats(-1),dp)/ntod, ntod
           write(*,fmt='(a,f8.5,i16)') '  Base flagging               = ', real(self%stats( 0),dp)/ntod, self%stats( 0)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, cosmic rays   = ', real(self%stats(10),dp)/ntod, self%stats(10)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%stats( 1),dp)/ntod, self%stats( 1)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%stats( 2),dp)/ntod, self%stats( 2)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%stats( 3),dp)/ntod, self%stats( 3)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,   5 window    = ', real(self%stats( 4),dp)/ntod, self%stats( 4)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask,  50 window    = ', real(self%stats( 5),dp)/ntod, self%stats( 5)
-          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, 500 window    = ', real(self%stats( 6),dp)/ntod, self%stats( 6)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, minmax        = ', real(self%stats( 1),dp)/ntod, self%stats( 1)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, cosmic rays   = ', real(self%stats( 2),dp)/ntod, self%stats( 2)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, pixhist       = ', real(self%stats( 3),dp)/ntod, self%stats( 3)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, extreme       = ', real(self%stats( 4),dp)/ntod, self%stats( 4)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single spikes = ', real(self%stats( 5),dp)/ntod, self%stats( 5)
+          write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, excessRMS     = ', real(self%stats( 6),dp)/ntod, self%stats( 6)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, single samp   = ', real(self%stats( 7),dp)/ntod, self%stats( 7)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, consecutive   = ', real(self%stats( 8),dp)/ntod, self%stats( 8)
           write(*,fmt='(a,f8.5,i16)') '  Dynamic mask, solar mask    = ', real(self%stats( 9),dp)/ntod, self%stats( 9)
@@ -784,7 +831,7 @@ contains
     
   end subroutine report_dynamic_mask_stats
   
-  subroutine dump_residual(self, sd, res, mask, det, tag)
+  subroutine dump_residual(self, sd, res, mask, det, tag, stat)
     implicit none
     class(comm_dynmask),               intent(in) :: self
     class(comm_scandata),              intent(in) :: sd
@@ -792,6 +839,7 @@ contains
     real(sp),            dimension(:), intent(in) :: mask
     integer(i4b),                      intent(in) :: det
     character(len=*),                  intent(in) :: tag
+    real(sp),            dimension(:), intent(in), optional :: stat
 
     integer(i4b) :: i
     character(len=6) :: scan_text
@@ -801,8 +849,15 @@ contains
     call int2string(det,  det_text)
     
     open(58, file=trim(self%outdir)//'/dynmask_'//trim(adjustl(tag))//'_'//trim(self%tod%freq)//'_'//scan_text//'_'//det_text//'.dat')
+    write(*,*) trim(self%outdir)//'/dynmask_'//trim(adjustl(tag))//'_'//trim(self%tod%freq)//'_'//scan_text//'_'//det_text//'.dat', present(stat)
     do i = 1, sd%ntod
-       if (mask(i) > 0.) write(58,*) i, res(i), 2*mask(i)-1
+       if (mask(i) > 0.) then
+          if (present(stat)) then
+             write(58,*) i, res(i), 2*mask(i)-1, stat(i)
+          else
+             write(58,*) i, res(i), 2*mask(i)-1
+          end if
+       end if
     end do
     close(58)
     

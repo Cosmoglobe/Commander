@@ -100,7 +100,7 @@ contains
 
     call update_status(status, "sample_nonlin_params")
 
-    call sample_all_gains(cpar, iter, handle)
+    !call sample_all_gains(cpar, iter, handle)
 
     ! Sample spectral parameters
     c => compList

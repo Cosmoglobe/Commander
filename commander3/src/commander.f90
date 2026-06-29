@@ -266,15 +266,10 @@ program commander
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
-        if (iter == 3) then
-           do i = 1, 1
-              call process_all_TODs(cpar, cpar%mychain, iter, handle)
-           end do
-        else
-           do i = 1, 1
-              call process_all_TODs(cpar, cpar%mychain, iter, handle)
-           end do
-        end if
+        do i = 1, 3
+           call process_all_TODs(cpar, cpar%mychain, iter, handle)
+        end do
+
         call timer%stop(TOT_TODPROC)
      end if
 
@@ -312,15 +307,36 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0 .and. iter > cpar%first_compsep_samp) then
-   !if (mod(iter+1,5) == 0 .and. iter > cpar%first_compsep_samp) then
+   !if (mod(iter+1,modfact) == 0 .and. iter > cpar%first_compsep_samp) then
+   if (iter > cpar%first_compsep_samp) then
 
+     ! Sample non-linear parameters
+     if (cpar%sample_specind) then
+        call timer%start(TOT_SPECIND)
+        call sample_nonlin_params(cpar, iter, handle, handle_noise)
+        call timer%stop(TOT_SPECIND)
+     end if
+     !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
+      
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
       !if (cpar%sample_signal_amplitudes .and. iter > 0) then
       if (cpar%sample_signal_amplitudes) then
 
-        ! Do CG group sampling
+         ! Do CG group sampling
+!!$         if (mod(iter,3) == 2) then
+!!$            call sample_amps_by_CG(cpar, 7, handle, handle_noise)
+!!$         else if (mod(iter,3) == 1 .or. mod(iter,3) == 0) then
+!!$            do i = 1, 1
+!!$               call sample_amps_by_CG(cpar, 1, handle, handle_noise)
+!!$               call sample_amps_by_CG(cpar, 2, handle, handle_noise)
+!!$               call sample_amps_by_CG(cpar, 3, handle, handle_noise)
+!!$               call sample_amps_by_CG(cpar, 4, handle, handle_noise)
+!!$               call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+!!$               call sample_amps_by_CG(cpar, 6, handle, handle_noise)
+!!$               call sample_all_gains(cpar, iter, handle)
+!!$            end do
+!!$         end if
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
         ! Perform joint alm-Cl Metropolis move
@@ -352,34 +368,32 @@ program commander
                  call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
               else
                  if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
-                 call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
+                 call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i, iter)
               end if
+!              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, 1)
 
               ! Sample calibration factors and amplitudes
               call sample_all_gains(cpar, iter, handle)
-              call sample_all_amps_by_CG(cpar, handle, handle_noise)
+                      !call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+!              call process_all_TODs(cpar, cpar%mychain, iter, handle)
+!              call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+!              call sample_all_amps_by_CG(cpar, handle, handle_noise)
            end do
          end do
         ! Do CG group sampling
         !call sample_all_amps_by_CG(cpar, handle, handle_noise)
-        !call sample_amps_by_CG(cpar, 1, handle, handle_noise)
-        !call sample_amps_by_CG(cpar, 2, handle, handle_noise)
-        !call sample_amps_by_CG(cpar, 3, handle, handle_noise)
-        !call sample_amps_by_CG(cpar, 4, handle, handle_noise)
-        !call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 1, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 2, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 3, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 4, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 5, handle, handle_noise)
+        call sample_amps_by_CG(cpar, 6, handle, handle_noise)
      end if
 
-     ! Sample non-linear parameters
-     if (cpar%sample_specind) then
-        call timer%start(TOT_SPECIND)
-        call sample_nonlin_params(cpar, iter, handle, handle_noise)
-        call timer%stop(TOT_SPECIND)
-     end if
-     !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
      if ((cpar%mcmc_num_samp_groups > 0 .or. cpar%sample_specind) .and. cpar%sample_signal_amplitudes) then
         ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
+        !call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
      
   end if

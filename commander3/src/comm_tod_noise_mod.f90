@@ -116,7 +116,7 @@ contains
     call timer%stop(TOT_FFT)
 
     do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
+       if (.not. self%scans(scan)%d(i)%accept .or. self%scans(scan)%d(i)%bright_signal) cycle
        if (sum(sd%mask(:,i)) == 0) cycle
        gain     = self%scans(scan)%d(i)%gain  ! Gain in V / K
 
@@ -723,7 +723,7 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),500) == 0) then
+       if (mod(self%scanid(scan),3699) == 0) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
@@ -764,7 +764,7 @@ contains
           end do
        end do
 
-       if (mod(self%scanid(scan),500) == 0) then
+       if (mod(self%scanid(scan),3699) == 0) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)

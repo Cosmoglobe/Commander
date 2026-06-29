@@ -73,7 +73,7 @@ module comm_map_mod
      class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
-     real(c_double), allocatable, dimension(:,:) :: alm_buff
+     !real(c_double), allocatable, dimension(:,:) :: alm_buff
    contains
      ! Data routines
      procedure     :: Y    => exec_sharp_Y
@@ -353,9 +353,9 @@ subroutine tod2file_dp3(filename,d)
     constructor_map%info => info
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
-    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))
+    !allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))
 
-    constructor_map%alm_buff = 0d0
+    !constructor_map%alm_buff = 0d0
 
     if (present(filename)) then
        if (present(mask_misspix)) then
@@ -441,7 +441,7 @@ subroutine tod2file_dp3(filename,d)
 
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
-    if (allocated(self%alm_buff)) deallocate(self%alm_buff)
+    !if (allocated(self%alm_buff)) deallocate(self%alm_buff)
     nullify(self%info)
 
     if (associated(self%nextLink)) then

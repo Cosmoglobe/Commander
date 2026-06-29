@@ -44,7 +44,7 @@ contains
     integer(i4b),                     intent(out)   :: stat
     integer(i4b),                     intent(in), optional :: verbosity
 
-    integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr, verbosity_
+    integer(i4b) :: i, j, k, l, m, n, miniter, maxiter, root, ierr, verbosity_
     integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
     real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff, dq
@@ -53,6 +53,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
+    miniter = cpar%cg_samp_group_miniter(samp_group)
     maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
@@ -194,7 +195,7 @@ contains
              val_convergence = abs((chisq_prev-chisq)/chisq)
           end if
           if (val_convergence < lim_convergence .and. &
-               & (i >= cpar%cg_miniter .or. delta_new <= 1d-40 * delta0) .and. &
+               & (i >= miniter .or. delta_new <= 1d-40 * delta0) .and. &
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
           if (delta_new <= 1d-40 * delta0 .and. &
                & trim(cpar%cg_conv_crit) == 'fixed_iter') exit

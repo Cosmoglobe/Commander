@@ -97,6 +97,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      class(comm_map),               pointer     :: defmask => null()
      class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
+     class(map_ptr), dimension(:),  allocatable :: x_buff                ! Buffer array
      real(dp)                                   :: x_scale !overall scaling parameter for component
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
