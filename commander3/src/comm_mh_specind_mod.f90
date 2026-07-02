@@ -590,8 +590,8 @@ contains
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
     !exclude(1) = ''
-    exclude(1) = 'lcut_0.036-OVRO'
-    Cstep      = 2
+!!$    exclude(1) = 'lcut_0.036-OVRO'
+!!$    Cstep      = 2
     
 
     ! Check for active samplers
@@ -625,13 +625,13 @@ contains
        call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
     end if
 
-    if (l  == Cstep) then
-        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_tmp, &
-            & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-    else
+!!$    if (l  == Cstep) then
+!!$        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_tmp, &
+!!$            & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$    else
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_tmp, &
             & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-    end if
+!!$    end if
     if (cpar%myid_chain .eq. 0) write(*,*) '| Chisq after burn-in = ', chisq_tmp
 
     
@@ -654,13 +654,13 @@ contains
           end if
           !if (l == 2) call sample_nonlin_params(cpar, iter, handle, handle_noise)
           chisq_old = 0d0
-          if (l  == Cstep) then
-             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
-                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-          else
+!!$          if (l  == Cstep) then
+!!$             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+!!$                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$          else
              call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
                   & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-          end if
+!!$          end if
           call store_buffer(4)
           !if (present(iter)) call output_FITS_sample(cpar, 10000+100*iter+0, .true.)
        end if
@@ -798,13 +798,13 @@ contains
 
        chisq_prop = 0d0
        !if (present(iter)) call output_FITS_sample(cpar, 10000+100*iter+m, .true.)
-       if (l == Cstep) then
-          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-       else
+!!$       if (l == Cstep) then
+!!$          call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+!!$               & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$       else
           call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-       end if
+!!$       end if
 
        if (cpar%myid_chain .eq. 0) then
          write(*,*) "|    Proposal chisq is ", chisq_prop
@@ -867,13 +867,13 @@ contains
          call revert_CG_amps(cpar, 4)
 
          chisq_prop = 0d0
-         if (l  == Cstep) then
-            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-         else
+!!$         if (l  == Cstep) then
+!!$            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+!!$                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$         else
             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-         end if
+!!$         end if
 
          if (cpar%myid_chain == 0) then
            write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
@@ -885,13 +885,13 @@ contains
          if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
             call sample_all_amps_by_CG(cpar, handle, handle_noise, cg_groups=cpar%mcmc_update_cg_groups(l), operation='optimize')
          end if
-         if (l == Cstep) then
-            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-         else
+!!$         if (l == Cstep) then
+!!$            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+!!$                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$         else
             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-         end if
+!!$         end if
          call store_buffer(4) 
          chisq_old = chisq_prop
          if (cpar%myid_chain == 0) then
