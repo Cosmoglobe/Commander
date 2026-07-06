@@ -57,7 +57,8 @@ module comm_defs
   integer(i4b), parameter, public :: TODMASK_BANDPASS   = 3
   integer(i4b), parameter, public :: TODMASK_ADC        = 4
   integer(i4b), parameter, public :: TODMASK_ZODI       = 5
-  integer(i4b), parameter, public :: TODMASK_PROC       = 6  
+  integer(i4b), parameter, public :: TODMASK_PROC       = 6
+  integer(i4b), parameter, public :: TODMASK_BASELINE   = 7
 
   !**************************************************
   !           Scan data bit definitions

@@ -436,7 +436,7 @@ contains
          call update_status(status, "baseline")
          do i = 1, self%nscan
             if (.not. any(self%scans(i)%d%accept)) cycle
-            call init_scan_data(self, i, oper_default, TODMASK_GAIN, sd, spur_level=0)
+            call init_scan_data(self, i, oper_default, TODMASK_BASELINE, sd, spur_level=0)
             call timer%start(TOD_BASELINE, self%band)
             if (self%per_slew_baseline) then
                call sample_chipass_baseline_per_slew(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask)
@@ -751,6 +751,23 @@ contains
        deallocate(x, y)
 
     end do
+
+    ! Check for zeros or outliers
+    do s = 1, tod%scans(scan)%nslew
+       do j = 1, tod%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (tod%scans(scan)%d(j)%baseline_slew(s,0) == 0.) then
+             if (s == 1) then
+                tod%scans(scan)%d(j)%baseline_slew(s,:) = tod%scans(scan)%d(j)%baseline_slew(s+1,:)
+             else if (s == tod%scans(scan)%nslew) then
+                tod%scans(scan)%d(j)%baseline_slew(s,:) = tod%scans(scan)%d(j)%baseline_slew(s-1,:)
+             else
+                tod%scans(scan)%d(j)%baseline_slew(s,:) = 0.5 * (tod%scans(scan)%d(j)%baseline_slew(s-1,:) + tod%scans(scan)%d(j)%baseline_slew(s+1,:))
+             end if
+          end if
+       end do
+    end do
+
     
 !!$    if (tod%myid == 0) then
 !!$       open(58,file='slew.dat', recl=1024)

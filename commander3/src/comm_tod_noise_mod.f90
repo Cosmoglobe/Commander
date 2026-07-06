@@ -628,11 +628,11 @@ contains
     samprate = self%samprate
     n_gibbs  = 3
     threshold = 5.d0 ! Remove outliers
-    outscan   = -1! 5020 !92
+    outscan  = 500 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
 
-    if (only_sigma0_) then
+    if (only_sigma0_ .or. any(self%scans(scan)%d%bright_signal)) then
        ! Sample sigma_0 from pairwise differenced TOD
        ntod0 = ntod; if (present(dec_wn)) ntod0 = ntod/dec_wn-1
        allocate(res0(ntod0), mask0(ntod0))
@@ -643,7 +643,18 @@ contains
              do j = 1, ntod0
                 j1 = (j-1)*dec_wn+1
                 j2 =  j   *dec_wn
-                if (any(sd%mask(j1:j2,i) < 0.5)) then
+                if (self%scans(scan)%d(i)%bright_signal) then
+                   if (any(iand(sd%flag(j1:j2,i), self%flag0) .ne. 0)) then
+                      mask0(j) = 0.
+                      res0(j)  = 1e30
+                   else
+                      mask0(j) = 1.
+                      res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                      if (allocated(sd%s_tot))  res0(j)  = res0(j) - sum(self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                      if (allocated(sd%n_corr)) res0(j)  = res0(j) - sum(sd%n_corr(j1:j2,i)) / (j2-j1+1)
+                      if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1)
+                   end if
+                else if (any(sd%mask(j1:j2,i) < 0.5)) then
                    mask0(j) = 0.
                    res0(j)  = 1e30
                 else
@@ -661,7 +672,15 @@ contains
              if (allocated(sd%s_tot))  res0 = res0 - self%scans(scan)%d(i)%gain*sd%s_tot(:,i,0,1)
              if (allocated(sd%n_corr)) res0 = res0 - sd%n_corr(:,i)
              if (allocated(sd%s_spur)) res0 = res0 - sd%s_spur(:,i)
-             mask0 = sd%mask(:,i)
+             if (self%scans(scan)%d(i)%bright_signal) then
+                where (iand(sd%flag(:,i), self%flag0) .ne. 0)
+                   mask0 = 0.
+                elsewhere
+                   mask0 = 1.
+                end where
+             else
+                mask0 = sd%mask(:,i)
+             end if
           end if
        
           ! Remove outliers
