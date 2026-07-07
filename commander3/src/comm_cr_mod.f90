@@ -60,7 +60,7 @@ contains
     verbosity_ = cpar%verbosity; if (present(verbosity)) verbosity_ = verbosity
 
     ! Allocate temporary data vectors
-    call update_status(status, "cr1")
+    !call update_status(status, "cr1")
     allocate(Ax(n), r(n), d(n), q(n), s(n))
 
     ! Update preconditioner
@@ -151,16 +151,16 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
     
-    call update_status(status, "cr4")
+    !call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
-    call update_status(status, "cr5")
+    !call update_status(status, "cr5")
     d  = cr_invM(cpar%comm_chain, r, samp_group)
-    call update_status(status, "cr6")
+    !call update_status(status, "cr6")
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
-    call update_status(status, "cr7")
+    !call update_status(status, "cr7")
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
-    call update_status(status, "cr8")
+    !call update_status(status, "cr8")
     if (delta0 > 1d30) then
        if(cpar%myid == root) then
           write(*,*) 'CR warning: Large initial residual = ', delta0
@@ -183,7 +183,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       call update_status(status, "cg1")
+       !call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -201,7 +201,7 @@ contains
                & trim(cpar%cg_conv_crit) == 'fixed_iter') exit
        end if
        
-       call update_status(status, "cg2")
+       !call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -221,7 +221,7 @@ contains
           r = r - alpha*q
        end if
        
-       call update_status(status, "cg3")
+       !call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
@@ -230,7 +230,7 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       call update_status(status, "cg4")
+       !call update_status(status, "cg4")
 
 !call mpi_finalize(ierr)
 !stop
@@ -282,7 +282,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       call update_status(status, "cg5")
+       !call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -306,7 +306,7 @@ contains
           end if
        end if
 
-       call update_status(status, "cg6")
+       !call update_status(status, "cg6")
 
     end do
 
@@ -364,7 +364,7 @@ contains
     end if
 
     deallocate(Ax, r, d, q, s)
-    call update_status(status, "cr9")
+    !call update_status(status, "cr9")
     
   end subroutine solve_cr_eqn_by_CG
 
