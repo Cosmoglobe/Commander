@@ -533,7 +533,7 @@ contains
           do j = 1, self%ndet
              if (self%scans(i)%d(j)%accept) call update_spline_noise_psd(self,sd,i,j)
           end do
-          if (self%myid==0 .and. i==1 .and. j==1) write(*,*) '|  Number of spline noise model parameters:', self%scans(i)%d(j)%N_psd%npar
+          if (self%myid==0) write(*,*) '|  Number of spline noise model parameters:', self%scans(i)%d(1)%N_psd%npar
        end if
 
 
