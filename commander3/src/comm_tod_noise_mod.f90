@@ -59,7 +59,7 @@ contains
     !          TOD-domain correlated noise realization
     ! 
     implicit none
-    class(comm_tod),                    intent(in)     :: self
+    class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(inout)  :: sd
 
     type(planck_rng),                   intent(inout)  :: handle
@@ -125,54 +125,9 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       ! Setting new white noise level from powspec
-       if (self%first_call) then
-          sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
-          N_wn     = sigma_0**2
-       else
-          allocate(ps(0:n-1))
-          dt(1:ntod)           = d_prime(:)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          call timer%start(TOT_FFT)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          call timer%stop(TOT_FFT)
-          do l = 1, n-1
-             ps(l) = abs(dv(l)) ** 2 / ntod
-          end do
-
-          ! Binning
-          dnu = 5.d-1 ! Hz
-          nbin = (samprate/2) * (n-2)/(n-1) / dnu
-          allocate(bin_sum(nbin), bin_count(nbin), bin_spec(nbin,2))
-
-          bin_sum = 0.d0; bin_count = 0; bin_spec = 0.d0
-          do l = 1, n-1
-             j = (samprate/2) * (l-1)/(n-1) /dnu + 1
-             if (j >= 1 .and. j <= nbin) then
-                bin_sum(j)   = bin_sum(j) + ps(l)
-                bin_count(j) = bin_count(j) + 1
-             end if
-          end do
-
-          do j = 1, nbin
-             bin_spec(j,1) = (samprate/2)/(n-1) + (j-0.5d0)*dnu
-             if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
-          end do
-          deallocate(ps,bin_sum,bin_count)
-
-          N_wn = 1.d30
-          !open(58,file='testdir/binned_psd.dat', recl=1024)
-          do j = 1, nbin
-             !write(58,*) bin_spec(j,1), bin_spec(j,2)
-             if (bin_spec(j,2) < N_wn) N_wn = bin_spec(j,2)
-          end do
-          !close(58)
-          deallocate(bin_spec)
-
-          sigma_0 = abs(sqrt(N_wn))
-          self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
-       end if
-
+       if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
+       sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
+       N_wn     = sigma_0**2
        !if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
 
        ! Only estimate monopole
@@ -252,44 +207,6 @@ contains
 !!$          close(58)
 !!$       end if
       
-
-!       ! Splined PSD evaluation
-!       if (self%noise_psd_model == 'spline') then
-!          if (self%myid == 0) write(*,*) 'Splined PSD evaluation'
-!          dt(1:ntod)           = d_prime(:)
-!          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-!          call timer%start(TOT_FFT)
-!          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-!          call timer%stop(TOT_FFT)
-!          allocate(psd(n-1,2))
-!          do l = 1, n-1
-!             psd(l,1) = real(l*(samprate/2)/(n-1))
-!             psd(l,2) = abs(dv(l)) ** 2 / ntod
-!          end do
-!
-!          threshold = 5.d0 ! Hz
-!          nbin = 10; dnu = 5.d0
-!          binned_psd = bin_spec_loglin(psd(:,1),psd(:,2),nbin,dnu,threshold)
-!
-!          deallocate(psd)
-!          call dfftw_destroy_plan(plan_fwd)
-!          call dfftw_destroy_plan(plan_back)
-!
-!          select type(N_psd => self%scans(scan)%d(i)%N_psd)
-!             type is (comm_noise_psd_spline)
-!                call N_psd%update_spline(binned_psd(:,2),binned_psd(:,1))
-!          end select
-!  
-!          if (self%scanid(scan) == 5000 .and. .not. self%first_call) then
-!             open(58,file='testdir/splined_noise_psd.dat', recl=1024)
-!             write(58,*) self%scans(scan)%d(i)%N_psd%sigma0
-!             do l = 2, self%scans(scan)%d(i)%N_psd%npar
-!                nu = self%scans(scan)%d(i)%N_psd%xi_n(l)
-!                write(58,*) nu, self%scans(scan)%d(i)%N_psd%eval_full(nu)
-!             end do
-!             close(58)
-!          end if
-!       end if
 
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, sd%mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
@@ -590,7 +507,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_out)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_preproc)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -599,12 +516,12 @@ contains
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
-    real(sp),                           intent(out), optional :: sigma0_out
+    logical(lgt),                       intent(in), optional :: sigma0_preproc
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
     integer(i4b) :: ndet, outscan
-    logical(lgt) :: only_sigma0_
+    logical(lgt) :: only_sigma0_, sigma0_preproc_
     real(sp)     :: f, logbin
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
     real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
@@ -629,6 +546,7 @@ contains
     threshold = 5.d0 ! Remove outliers
     outscan   = -1! 5020 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
+    sigma0_preproc_ = .false.; if (present(sigma0_preproc)) sigma0_preproc_ = sigma0_preproc
 
 
     if (only_sigma0_) then
@@ -680,9 +598,11 @@ contains
              if (nval > 100) then
                 if( present(dec_wn) )then
                    self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   if (sigma0_preproc_) self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                    s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                 else
                    self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   if (sigma0_preproc_) self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1))
                    s0 = threshold * sqrt(s/(nval-1))
                 end if
              else
@@ -797,6 +717,7 @@ contains
 
     function lnL_xi_n(x) 
       use healpix_types
+      use, intrinsic :: ieee_arithmetic
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_xi_n
@@ -816,14 +737,24 @@ contains
       ! Add likelihood term
       lnL_xi_n = 0.d0
       do l = n_low, n_high
+
+         if (.not. ieee_is_finite(ps(l))) then
+            lnL_xi_n = -1.d30
+            self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
+            return
+         end if
+
          if (present(freqmask)) then
+            if (l > sd%ntod/2) cycle ! ADDED
             if (freqmask(l) == 0.) cycle
          end if
          f         = l*(samprate/2)/(n-1)
          !N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
          N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_full(f)
-         if (N_corr .le. 0) then
+         if (.not. ieee_is_finite(N_corr) .or. N_corr .le. 0) then
            write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
+           lnL_xi_n = -1.d30
+           return
          else
            lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
          end if
@@ -849,6 +780,28 @@ contains
        
   end subroutine sample_noise_psd
 
+  ! Updates the spline noise PSD model
+  subroutine update_spline_noise_psd(self, sd, scan, i)
+    implicit none
+    class(comm_tod),            intent(inout)  :: self
+    class(comm_scandata),       intent(in)     :: sd
+    integer(i4b),               intent(in)     :: scan
+    integer(i4b),               intent(in)     :: i
+
+    real(sp), allocatable, dimension(:)   :: d_prime
+    real(sp), allocatable, dimension(:,:) :: noise_ps
+
+    allocate(d_prime(self%scans(scan)%ntod))
+    d_prime = sd%tod(:,i) - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
+    d_prime = d_prime * sd%mask(:,i)
+    call self%compute_powspec(d_prime, scan, powspec=noise_ps)
+    select type(N_psd => self%scans(scan)%d(i)%N_psd)
+       type is (comm_noise_psd_spline)
+          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
+       deallocate(d_prime,noise_ps)
+    end select
+
+  end subroutine update_spline_noise_psd
 
   ! Routine for multiplying a set of timestreams with inverse noise covariance 
   ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
