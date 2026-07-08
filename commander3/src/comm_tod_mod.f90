@@ -3358,7 +3358,7 @@ contains
 
     integer(i4b) :: i, j, ierr
 
-    allocate(self%v_sun(3,self%nscan_tot))
+    if (.not. allocated(self%v_sun)) allocate(self%v_sun(3,self%nscan_tot))
     self%v_sun = 0.d0
     do i = 1, self%nscan
        self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
