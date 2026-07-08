@@ -745,7 +745,7 @@ contains
          end if
 
          if (present(freqmask)) then
-            if (l > sd%ntod/2) cycle ! ADDED
+            if (l > sd%ntod/2) cycle ! freqmask isn't defined on upper edge
             if (freqmask(l) == 0.) cycle
          end if
          f         = l*(samprate/2)/(n-1)

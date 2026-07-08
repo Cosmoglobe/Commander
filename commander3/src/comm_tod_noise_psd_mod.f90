@@ -830,9 +830,6 @@ contains
        bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
     end do
     if (nlog_bins == 1) stop "Error: too few points under 1 Hz"
-    !do i = 1, size(bin_spec(:,1)) ! ADDED
-    !   write(*,*) bin_spec(i,1), bin_spec(i,2)
-    !end do
 
     nbin = size(bin_spec(:,1))
     x_first = 1.d-6 !x(1)   ! smaller than smallest frequency sample ! NOW IS SET ON HFI
@@ -906,11 +903,10 @@ contains
     ! Sigma0
     self%xi_n(1)       = sqrt(0.99 * wn_level) ! 0.99 to avoid singularity in correlated noise
     self%sigma0 => self%xi_n(1)
-    !write(*,*) 'self%sigma0, self%sigma0_preproc = ',self%sigma0, self%sigma0_preproc ! ADDED
     self%P_uni(1,:)    = [10.d0, 3000.d0]
     self%P_active(1,1) = self%xi_n(1)
     self%P_active(1,2) = 50.d0
-    self%nu_fit(1,1)   = 10.d0 ! only fit sigma0 from 10 Hz on
+    self%nu_fit(1,1)   = 5.d0 ! only fit sigma0 from 5 Hz on
     self%nu_fit(1,2)   = x(n)
 
     ! Correlated noise
@@ -932,8 +928,8 @@ contains
     end do
 
     self%spline_profile%y = 10**self%spline_profile%y - self%xi_n(1)**2 ! Correlated noise only!!
-    self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! ADDED
-    self%sigma0 => self%xi_n(1) ! ADDED
+    self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! avoid too low wn_level estimation from binning
+    self%sigma0 => self%xi_n(1)
     self%spline_profile%y = log10(self%spline_profile%y)
     self%xi_n(2:) = self%spline_profile%y(2:self%npar)
     self%P_active(2:,1) = self%spline_profile%y(2:self%npar)

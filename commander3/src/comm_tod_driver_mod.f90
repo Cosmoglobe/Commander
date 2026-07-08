@@ -666,7 +666,6 @@ contains
           else
              ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j,0,1)
-             !write(*,*) 'scan_id, j, sigma0 = ', tod%scanid(i), j, real(tod%scans(i)%d(j)%N_psd%sigma0, sp) ! ADDED
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if

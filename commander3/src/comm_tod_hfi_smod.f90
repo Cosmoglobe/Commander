@@ -345,7 +345,6 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    real(sp)            :: bin_width,nu, f_nu ! ADDED
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
@@ -354,7 +353,7 @@ contains
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext, itertext, dettext ! MODIFIED
+    character(len=6)    :: samptext, scantext, itertext, dettext
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
@@ -364,7 +363,6 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-    real(sp), allocatable, dimension(:,:)     :: powspec, binspec ! ADDED
     class(comm_cgmap), pointer :: cgmap
     
     ! file for saving tods
@@ -498,12 +496,11 @@ contains
        end if
        call demodulate_tod(sd, self, i)
 
-       ! Estimate pre-deconvolution white noise rms ! MODIFIED
+       ! Estimate pre-deconvolution white noise rms
        call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.)
     !   do j = 1, self%ndet
     !      if (.not. self%scans(i)%d(j)%accept) cycle
     !      !call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
-    !      write(*,*) 'scan, j, preproc = ',self%scanid(i),j,self%scans(i)%d(j)%N_psd%sigma0_preproc ! ADDED
     !   end do
           
 
@@ -524,7 +521,7 @@ contains
        call self%hfi_dark_correction(i, sd)       
 
        ! 4k Line corrections
-       if (.true. .and. fit_4k_lines) then
+       if (fit_4k_lines) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call estimate_hfi_4k_lines(self, sd, j)
@@ -536,39 +533,10 @@ contains
           do j = 1, self%ndet
              if (self%scans(i)%d(j)%accept) call update_spline_noise_psd(self,sd,i,j)
           end do
+
+          if (self%myid==0 .and. i==0 .and. j==0) write(*,*) 'Number of spline noise model parameters:', self%scans(i)%d(j)%N_psd%npar
        end if
 
-
-       ! ADDED =================================================================
-       if (.true. .and. mod(self%scanid(i),5000) == 0) then
-          do j = 1, self%ndet
-             if (self%scans(i)%d(j)%accept) then ! .and. mod(self%scanid(i),5000)==0) then
-                call int2string(iter, samptext)
-                call int2string(self%scanid(i), scantext)
-                call int2string(j,dettext)
-                allocate(d_prime(self%scans(i)%ntod))
-                d_prime = sd%tod(:,j) - self%scans(i)%d(j)%gain * sd%s_tot(:,j,0,1)
-                d_prime = d_prime * sd%mask(:,j)
-                call self%compute_powspec(d_prime,i,print_output= trim(chaindir) // '/firstloop_ps_' // scantext // &
-                     & '_' // samptext // '_' // dettext // '.dat')
-                deallocate(d_prime)
-
-                if (.true. .and. self%scans(i)%d(j)%accept) then ! .and. mod(self%scanid(i),1000)==0) then
-                   open(58,file= trim(chaindir) // '/fine_eval_' // scantext // '_' // samptext // '_' // dettext // '.dat', recl=1024)
-                   k = 1000
-                   bin_width = (self%samprate/2) *(1 - 1./sd%ntod)/k
-                   nu = (self%samprate/2)/sd%ntod - bin_width
-                   do l = 0, k+1
-                      nu = nu + bin_width
-                      f_nu = self%scans(i)%d(j)%N_psd%eval_full(nu)
-                      write(58,*) nu, f_nu
-                   end do
-                   close(58)
-                end if
-             end if
-          end do
-       end if
-       ! =======================================================================
 
        ! Clean up
        call dealloc_scan_data(sd)
@@ -1616,11 +1584,11 @@ contains
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: apply_mask_
-    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain, wn ! MODIFIED
+    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain, wn
     real(sp)     :: A_fit, f0_fit, sigma_fit
     real(sp),     allocatable, dimension(:)   :: dt, d_prime
     real(sp),     allocatable, dimension(:)   :: ps_flat, ps_spikes, W
-    complex(spc), allocatable, dimension(:)   :: dv, dv_4K ! MODIFIED
+    complex(spc), allocatable, dimension(:)   :: dv, dv_4K
     real(sp),     allocatable, dimension(:,:) :: ps, sub_ps, profile
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
@@ -1631,14 +1599,14 @@ contains
     samprate = self%samprate
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2!_preproc)**2 ! MODIFIED
+    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2!_preproc)**2
 
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
     allocate(ps_flat(1:n-1), ps_spikes(1:n-1), W(1:n-1))
-    if (present(ps_output)) allocate(dv_4K(0:n-1)) ! ADDED
+    if (present(ps_output)) allocate(dv_4K(0:n-1))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
@@ -1669,7 +1637,7 @@ contains
     deallocate(d_prime)
     ps_flat   = ps(:,2)
     ps_spikes = 1.d-12
-    if (present(ps_output)) dv_4K = dv ! ADDED
+    if (present(ps_output)) dv_4K = dv
     
     ! Output starting noise power spectrum
     if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
