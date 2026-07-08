@@ -148,6 +148,7 @@ contains
                 call tod%decompress_tod(scan, d, sd%tod(:,j))
              else
                 sd%tod(:,j) = tod%scans(scan)%d(d)%tod
+                !if(any(isnan(sd%tod(:,j)))) write(*,*) scan, d, j, size(tod%scans(scan)%d(d)%tod)
              end if
           end do
           call timer%stop(TOD_DECOMP, tod%band)
@@ -155,6 +156,15 @@ contains
           call tod%diode2tod_inst(sd)
        end if
     end if
+
+    !do j = 1, ndet
+    !  d = j; if (present(det)) d = det
+    !  if (.not. tod%scans(scan)%d(d)%accept) cycle
+    !  if(any(isnan(sd%tod(:,j)))) then
+    !    write(*,*) "end of tod, tod has nans"
+    !  end if
+    !end do
+
 
     ! Precompute pix2ind
     if (btest(oper,SD_IND)) then
@@ -167,8 +177,10 @@ contains
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (tod%scans(scan)%d(d)%N_psd%sigma0 <= 0.d0) &
-            & tod%scans(scan)%d(d)%accept = .false.
+       if (tod%scans(scan)%d(d)%N_psd%sigma0 <= 0.d0) then
+          tod%scans(scan)%d(d)%accept = .false.
+          !write(*,*) "Cutting scan ", scan, " because of negative sigma0"
+       end if
     end do
 
     
@@ -332,6 +344,15 @@ contains
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
     
+    !do j = 1, ndet
+    !  d = j; if (present(det)) d = det
+    !  if (.not. tod%scans(scan)%d(d)%accept) cycle
+    !  if(any(isnan(sd%tod(:,j)))) then
+    !    write(*,*) "before spurious, tod has nans"
+    !  end if
+    !end do
+
+
     ! Subtract spurious corrections from TOD according to spur_level
     call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
@@ -343,7 +364,15 @@ contains
        if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
-    
+   
+    !do j = 1, ndet
+    !  d = j; if (present(det)) d = det
+    !  if (.not. tod%scans(scan)%d(d)%accept) cycle
+    !  if(any(isnan(sd%tod(:,j)))) then
+    !    write(*,*) "end of init, tod has nans"
+    !  end if
+    !end do
+
   end subroutine init_scan_data
   
   subroutine dealloc_scan_data(sd)
