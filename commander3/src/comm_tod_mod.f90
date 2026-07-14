@@ -372,6 +372,7 @@ module comm_tod_mod
      procedure                           :: precompute_zodi_lookups
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
+     procedure                           :: compute_powspec
   end type comm_tod
   
   abstract interface
@@ -619,6 +620,8 @@ contains
        self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
     else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
+    else if (trim(self%noise_psd_model) == 'spline') then
+       self%n_xi = 13 !94 ! {sigma0, spline nodes}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -1276,7 +1279,7 @@ contains
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
-       if (tod%n_xi >= 3) then
+       if (tod%n_xi >= 3 .and. trim(tod%noise_psd_model) /= 'spline') then
           xi_n(2) = min(max(scalars(3), tod%xi_n_P_uni(2,1)), tod%xi_n_P_uni(2,2))
           xi_n(3) = min(max(scalars(4), tod%xi_n_P_uni(3,1)), tod%xi_n_P_uni(3,2))
        end if
@@ -1311,6 +1314,12 @@ contains
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == 'spline') then
+          xi_n(1) =  0.1
+          do j = 2, tod%n_xi
+             xi_n(j) = 1.d8 / j
+          end do
+          self%d(i)%N_psd => comm_noise_psd_spline(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
 !!$          do while (.true.)
@@ -3349,7 +3358,7 @@ contains
 
     integer(i4b) :: i, j, ierr
 
-    allocate(self%v_sun(3,self%nscan_tot))
+    if (.not. allocated(self%v_sun)) allocate(self%v_sun(3,self%nscan_tot))
     self%v_sun = 0.d0
     do i = 1, self%nscan
        self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
@@ -3580,8 +3589,9 @@ contains
 
   end subroutine get_s_static
 
-  subroutine print_powspec(self, tod, scan, ps_output)
-    ! Prints the power spectrum of the given timestream of data
+
+  subroutine compute_powspec(self, tod, scan, print_output, powspec)
+    ! Compute power spectrum of the given timestream of data and prints it
     !
     ! Arguments:
     ! ----------
@@ -3591,13 +3601,16 @@ contains
     !      tod of the scan
     ! scan: int
     !       scan number
-    ! ps_output: string
-    !            output filename
+    ! print_output: string
+    !               output filename
+    ! powspec: real(sp) 2D-array
+    !          optional variable to store computed ps
     implicit none
     class(comm_tod),                           intent(inout) :: self
     real(sp),                   dimension(1:), intent(in)    :: tod
     integer(i4b),                              intent(in)    :: scan
-    character(len=*),                          intent(in)    :: ps_output
+    character(len=*),                              optional, intent(in)    :: print_output
+    real(sp),         allocatable, dimension(:,:), optional, intent(inout) :: powspec
 
     integer(i4b) :: l, n, ntod, nomp, nfft, err
     integer*8    :: plan_fwd
@@ -3612,9 +3625,10 @@ contains
     n        = nfft / 2 + 1
 
     call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)  
+    call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
+    if (present(powspec)) allocate(powspec(1:n-1,2))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
 
     ! FFT
@@ -3624,18 +3638,28 @@ contains
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
-    open(58,file=ps_output, recl=1024)
-    do l = 1, n-1
-       ls = l*(samprate/2)/(n-1)
-       ps = abs(dv(l))** 2 / ntod
-       write(58,*) ls, ps
-    end do
-    close(58)
+
+    if (present(powspec)) then
+       do l = 1, n-1
+          powspec(l,1) = l*(samprate/2)/(n-1)
+          powspec(l,2) = abs(dv(l))** 2 / ntod
+       end do
+    end if
+
+    if (present(print_output)) then
+       open(58,file=print_output, recl=1024)
+       do l = 1, n-1
+          ls = l*(samprate/2)/(n-1)
+          ps = abs(dv(l))** 2 / ntod
+          write(58,*) ls, ps
+       end do
+       close(58)
+    end if
 
     deallocate(dt, dv)
     call dfftw_destroy_plan(plan_fwd)
 
-  end subroutine print_powspec
+  end subroutine compute_powspec
 
   function get_sd_operation_code(op_list) result(oper)
     implicit none

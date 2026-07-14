@@ -480,17 +480,13 @@ interface
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
+    !  
+    !  sd: comm_scandata object
+    !      scan data
     !  i_det: int
     !       detector id
-    !  tod: real(sp) array
-    !       tod of the scan
-    !  s_sub: real(sp) array
-    !         sky signal template
-    !  mask: real(sp) array
-    !        mask array
+    !  apply_mask: logical
+    !              apply mask to residuals    
     !  ps_output: character array
     !             output filename
     implicit none
@@ -501,28 +497,24 @@ interface
     character(len=*),        optional, intent(in)    :: ps_output
   end subroutine estimate_hfi_4k_lines
 
-  module subroutine remove_hfi_4k_lines(self, scan, i_det, tod, s_sub, mask)
+  module subroutine remove_hfi_4k_lines(self, sd, i_det, apply_mask)
     !  Apply HFI instrument-specific corrections from 4k lines
     !
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
+    !  
+    !  sd: comm_scandata object
+    !      scan data
     !  i_det: int
     !       detector id
-    !  tod: real(sp) array
-    !       tod of the scan
-    !  s_sub: real(sp) array
-    !         sky signal template
-    !  mask: real(sp) array
-    !        mask array
+    !  apply_mask: logical
+    !              .true. to apply mask to residuals
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
-    integer(i4b),                      intent(in)    :: scan, i_det
-    real(sp), dimension(1:),           intent(inout) :: tod
-    real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+    logical(lgt),            optional, intent(in)    :: apply_mask
   end subroutine remove_hfi_4k_lines
 
   module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
