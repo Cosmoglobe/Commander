@@ -98,7 +98,8 @@ def run_single_band_write(version):
         hdf_output_dir  = outpath,
         overwrite       = True, 
         num_processes   = NUM_PROCESSES,
-        bands           = BANDS
+        bands           = BANDS,
+        verbosity       = 2
         )
     t1 = time()
     print(f"DONE! dur: {t1-t0:.3f} sec")
@@ -133,7 +134,8 @@ def run_multiple_band_write(version, outpath=None, num_processes=NUM_PROCESSES):
         hdf_output_dir  = outpath, 
         overwrite       = True, 
         num_processes   = num_processes,
-        bands           = BANDS
+        bands           = BANDS,
+        verbosity       = 2
         )
     t1 = time()
     print(f"DONE! dur: {t1-t0:.3f} sec")
@@ -175,7 +177,8 @@ def run_multiple_band_write_external(
         hdf_output_dir  = outpath, 
         overwrite       = overwrite, 
         num_processes   = num_processes,
-        bands           = bands
+        bands           = bands,
+        verbosity       = 2
         )
     t1 = time()
     print(f"DONE! dur: {t1-t0:.3f} sec")
@@ -204,8 +207,8 @@ def main():
     # version = None # Integer. Which version of the hdf files we're writing. 
     # run_single_band_write(version=version)
 
-    BANDS, BAND_DETS = set_bands_and_band_dets(bands=["025"])
-    version = 3
+    BANDS, BAND_DETS = set_bands_and_band_dets(bands=["025"], testing=True)
+    version = 1
     outpath = f"{OUTPATH}/test_v{version}"
 
     run_multiple_band_write(version=version, outpath=outpath, num_processes=NUM_PROCESSES)

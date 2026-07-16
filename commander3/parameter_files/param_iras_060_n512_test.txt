@@ -1,9 +1,16 @@
 @DEFAULT ../param_iras_060.txt
 
 NUM_GIBBS_ITER   = 6       # Length of each Markov chain
+# OUTPUT_INPUT_MODEL            = .true.
 
+TOD_INCLUDE_ZODI              = .false. 
+# Line 19 in: /mn/stornext/u3/vetleav/Documents/IRAS_commander/Commander/commander3/parameter_files/defaults/IRAS_tod.defaults
+# Line 26 in: /mn/stornext/u3/vetleav/Documents/IRAS_commander/Commander/commander3/parameter_files/param_iras.txt
 
 @START 003
+# BAND_TOD_ZODI_SUBTRACTION&&&       = .false. 
+# Line 65 in: /mn/stornext/u3/vetleav/Documents/IRAS_commander/Commander/commander3/parameter_files/defaults/bands/IRAS/IRAS_060_v1.defaults
+
 @DEFAULT bands/IRAS/IRAS_060_n512_v1.defaults
 # All dets:
 BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08,IRAS_060-09,IRAS_060-10,IRAS_060-11,IRAS_060-12,IRAS_060-13,IRAS_060-15,IRAS_060-31,IRAS_060-32,IRAS_060-33,IRAS_060-34,IRAS_060-35,IRAS_060-37,IRAS_060-38
@@ -16,6 +23,10 @@ BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08,IRAS_060-09,IRAS_060-10,IRAS_06
 
 # Single det:
 # BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08
+
+# Double det:
+# BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08,IRAS_060-09
+
 
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_060_v1_n512.fits
 BAND_TOD_FILELIST&&&               = iras/tod/060/filelist_060.txt

@@ -19,13 +19,20 @@ Essentially modifications of Eirik Gjerløw's instrument script for AKARI
 [akari branch]: Commander/commander3/todscripts/AKARI/write_instrument.py
 """
 
+"""
+13.07.26 UPDATE
+ - Needs to be revisited. Not sure if everything here is used by commander atm
+ - nside 512 files written april 29 2026 use lmax=0->n_alms=1. 
+
+"""
+
 OUTPUT_PATH = "/mn/stornext/d23/cmbco/globe/iras/bp"
 NSIDE = 512
 
 # temporary values that needs to be updated
 TEMP_LMAX       = NSIDE * 3
 TEMP_MMAX       = 100
-TEMP_LMAX       = 0
+# TEMP_LMAX       = 0
 TEMP_MMAX       = 0
 TEMP_ELIP       = 1
 TEMP_PSI_ELL    = 0
@@ -53,14 +60,14 @@ def get_iras_fwhm():
             fwhms[det] = BEAM_SIZES[band].value
     return fwhms
 
-def get_iras_beams(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
+def get_iras_beams(nside: int, lmax: int) -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
     """
     # NSIDE = 128
-    # LMAX = 3 * NSIDE
-    N_ALMS = LMAX**2 + 2 * LMAX + 1
+    # LMAX = 3 * nside
+    N_ALMS = lmax**2 + 2 * lmax + 1
     DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
     beams: dict[str, NDArray[np.floating]] = {}
     for band_det_list in BAND_DETS.values():
@@ -68,14 +75,14 @@ def get_iras_beams(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
             beams[det] = DEFAULT_BEAM
     return beams
 
-def get_iras_sidelobes(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
+def get_iras_sidelobes(nside: int, lmax: int) -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
     """
     # NSIDE = 128
     # LMAX = 3 * NSIDE
-    N_ALMS = LMAX**2 + 2 * LMAX + 1
+    N_ALMS = lmax**2 + 2 * lmax + 1
     DEFAULT_SIDELOBE = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
     sidelobes: dict[str, NDArray[np.floating]] = {}
     for band_det_list in BAND_DETS.values():
@@ -127,17 +134,19 @@ def get_bandpass(band):
     return bp_freqs[band], bp_weights[band]
 
 
-def write_iras_instrument_file(output_path: str, version: int) -> None:
+def write_iras_instrument_file(output_path: str, version: int, nside: int = NSIDE) -> None:
     """Writes the iras filelists for Commander3 using Mathew's script."""
 
     filename = f"iras_instrument_v{version:02}.h5"
 
     instrument_file = commander_instrument(output_path, filename, version, "w")
 
+    lmax = nside * 3
+
     # dict keys for fwhms, beams, sidelobes: "IRAS_{band}-{det}"
     fwhms       = get_iras_fwhm() # fwhm in arcmin. Same for every band 
-    beams       = get_iras_beams(NSIDE, TEMP_LMAX) # zeros(3,1) 
-    sidelobes   = get_iras_sidelobes(NSIDE, TEMP_LMAX) # zeros(3,1)
+    beams       = get_iras_beams(nside, lmax) # zeros(3,1) 
+    sidelobes   = get_iras_sidelobes(nside, lmax) # zeros(3,1)
     for band, det_list in BAND_DETS.items():
         center_frequency        = CENTER_FREQS[band]
         bp_freqs, bp_weights    = get_bandpass(band)

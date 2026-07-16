@@ -1,0 +1,21 @@
+# IRAS 60 default parameters
+# nside 512 is currently default. Use this file as a placeholder/tester
+
+@DEFAULT bands/IRAS/IRAS_060_v1.defaults
+BAND_NSIDE&&&                  = 2048
+BAND_LMAX&&&                   = 6000
+BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n2048.fits
+
+BAND_TOD_FLAG&&&               = 15 # Four flags, all activated
+
+BAND_MAPFILE&&&                = iras/maps/iris_060_1_n2048.fits
+BAND_NOISEFILE&&&              = iras/rms/iras_060_temprms_n2048.fits
+
+# Entries below are not present in akari files. 
+BAND_MASKFILE&&&               = common/mask/mask_fullsky_n2048.fits 
+BAND_MASKFILE_CALIB&&&         = common/mask/mask_fullsky_n2048.fits 
+BAND_BEAM_B_L_FILE&&&          = iras/beam/iras_060_beam_240arcsec_n2048.fits
+BAND_GAIN_APOD_MASK&&&         = common/mask/mask_fullsky_n2048.fits 
+
+# BAND_TOD_MAIN_PROCMASK&&&      = fullsky # common/mask/mask_common_dx12_n0512.fits # Same as akari, but with n512 
+# BAND_TOD_SMALL_PROCMASK&&&     = fullsky # common/mask/mask_common_dx12_n0512.fits # Same as akari, but with n512

@@ -161,7 +161,7 @@ BAND_TOD_FILELIST&&&               = iras/tod/025/filelist_025.txt
 @DEFAULT bands/IRAS/IRAS_060_v1.defaults
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 5787
-BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08 #,IRAS_060-09,IRAS_060-10,IRAS_060-11,IRAS_060-12,IRAS_060-13,IRAS_060-14,IRAS_060-15,IRAS_060-31,IRAS_060-32,IRAS_060-33,IRAS_060-34,IRAS_060-35,IRAS_060-37,IRAS_060-38
+BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08,IRAS_060-09,IRAS_060-10,IRAS_060-11,IRAS_060-12,IRAS_060-13,IRAS_060-14,IRAS_060-15,IRAS_060-31,IRAS_060-32,IRAS_060-33,IRAS_060-34,IRAS_060-35,IRAS_060-37,IRAS_060-38
 BAND_TOD_ZODI_REFERENCE_BAND&&&    = .false.
 BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_060_v1_n512.fits
 BAND_TOD_INIT_FROM_HDF&&&          = none default
@@ -1468,7 +1468,7 @@ ZODI_TOD_THINNING_THRESHOLD      = 8      # Only neglect samples with lower devi
 ZODI_OUTPUT_COMP_MAPS            = .false.
 ZODI_OUTPUT_ASCII                = .true.
 ZODI_OPERATION                   = powell # {sample,powell}
-ZODI_INIT_FROM_ASCII             = /mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_zodi_akari_v3.dat 
+ZODI_INIT_FROM_ASCII             = /mn/stornext/d23/cmbco/globe/init_comm3/iras/init_zodi_iras_v0.dat #/mn/stornext/d23/cmbco/globe/init_comm3/akari_v00/init_zodi_akari_v3.dat 
 ZODI_RMS_RANDOMIZE_BETWEEN_STEPS = 0.3
 ZODI_SAMP_METHOD                 = powell
 ZODI_REFERENCE_BAND              = 05a
@@ -1497,12 +1497,12 @@ ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em,feature:e
 # ------------------------------------------------------------------
 NUM_ZODI_COMPS = 7
 
-! PARAMETER VALUE FORMAT: comma separated list of values and priors
-! valid examples:           ZODI_T_0 = 286.0 (no prior)
-!                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
-!                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
-!                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
-!                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
+# PARAMETER VALUE FORMAT: comma separated list of values and priors
+# valid examples:           ZODI_T_0 = 286.0 (no prior)
+#                           ZODI_T_0 = 286.0,none,1,uniform (interprets the prior as a uniform prior smaller than 1)
+#                           ZODI_T_0 = 286.0,0,none,uniform (interprets the prior as a uniform prior greater than 0)
+#                           ZODI_T_0 = 286.0,0,1,uniform (interprets the prior as a uniform prior between 0 and 1)
+#                           ZODI_T_0 = 286.0,3,0.4,gauss (interprets the prior as a gaussian with mean 3 and sigma 0.4)
 ZODI_T_0                    = 286.0
 ZODI_T_DELTA                = 0.4668626
 ZODI_G1                     =  0.70
@@ -1666,25 +1666,25 @@ NUM_ZODI_SAMPLING_GROUPS         = 1 6
 
 @START 01
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_065
+ZODI_SAMPLING_GROUP_BANDS&& = IRAS_012 # AKARI_065
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 01
 
 @START 02
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_160
+ZODI_SAMPLING_GROUP_BANDS&& = IRAS_025 # AKARI_160
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 02
 
 @START 03
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_090
+ZODI_SAMPLING_GROUP_BANDS&& = IRAS_060 # AKARI_090
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 03
 
 @START 04
 ZODI_SAMPLING_GROUP&&       = cloud:em,band1:em,ring:em
-ZODI_SAMPLING_GROUP_BANDS&& = AKARI_140
+ZODI_SAMPLING_GROUP_BANDS&& = IRAS_100 # AKARI_140
 ZODI_SAMPLING_GROUP_MAX_ECL_LAT&& = 90
 @END 04
 

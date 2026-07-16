@@ -1,0 +1,11 @@
+@DEFAULT ../param_iras_060.txt
+
+NUM_GIBBS_ITER                = 6       # Length of each Markov chain
+TOD_INCLUDE_ZODI              = .false. 
+
+@START 003
+@DEFAULT bands/IRAS/IRAS_060_n2048_v1.defaults
+BAND_TOD_DETECTOR_LIST&&&          = IRAS_060-08,IRAS_060-09,IRAS_060-10,IRAS_060-11,IRAS_060-12,IRAS_060-13,IRAS_060-15,IRAS_060-31,IRAS_060-32,IRAS_060-33,IRAS_060-34,IRAS_060-35,IRAS_060-37,IRAS_060-38
+BAND_TOD_MAIN_PROCMASK&&&          = iras/mask/bitmask_iris_060_v1_n2048.fits
+BAND_TOD_FILELIST&&&               = iras/tod/vetle_deplated_IPAC/v03/n2048/filelist_060.txt
+@END 003
