@@ -628,7 +628,8 @@ contains
        !if (mod(self%scanid(scan),1000) == 0) then
        if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
-          call int2string(i, dtext)
+        !   call int2string(i, dtext)
+          dtext = trim(self%label(i)(10:11)) ! Use IRAS' detector numbering convention
           open(58,file=trim(chaindir)//'/noise_tod_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           do j = 1, ntod
              write(58,*) j, dt(j)/self%scans(scan)%d(i)%gain * sd%mask(j,i), (1-sd%mask(j,i))*dt(j), sd%n_corr(j,i)/self%scans(scan)%d(i)%gain
@@ -669,7 +670,8 @@ contains
        !if (mod(self%scanid(scan),1000) == 0) then
        if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
-          call int2string(i, dtext)
+        !   call int2string(i, dtext)
+          dtext = trim(self%label(i)(10:11)) ! Use IRAS' detector numbering convention
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
           logbin = 1.05
