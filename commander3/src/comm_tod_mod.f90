@@ -2412,7 +2412,7 @@ contains
     ntod         = sd%ntod
     ndet         = self%ndet; if (present(det)) ndet = 1
 
-    do j = 1, self%ndet
+    do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. self%scans(scan)%d(d)%accept) cycle
        call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
@@ -3633,7 +3633,7 @@ contains
     close(58)
 
     deallocate(dt, dv)
-    call dfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_fwd)
 
   end subroutine print_powspec
 

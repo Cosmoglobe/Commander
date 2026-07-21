@@ -292,7 +292,7 @@ contains
     ! Construct spike correction template
     if (btest(oper,SD_SPIKE)) then
        call timer%start(TOD_INSTCORR, tod%band)
-       call tod%construct_spike_corr(sd)
+       call tod%construct_spike_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
     
@@ -302,14 +302,14 @@ contains
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_SKY)) sd%s_tot(:,d,:,:) = sd%s_tot(:,d,:,:) + sd%s_sky(:,d,:,:)
+          if (btest(oper,SD_SKY)) sd%s_tot(:,j,:,:) = sd%s_tot(:,j,:,:) + sd%s_sky(:,j,:,:)
           !write(*,*) 'a4 ', j, sd%s_tot(1,j,0,1)
           do k = 1, nbp
              !write(*,*) 'sky', j, sd%s_sky(1,j,0,1), k
-             if (btest(oper,SD_SL))     sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_sl(:,d,:)
-             if (btest(oper,SD_ORB))    sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_orb(:,d,:)
-             if (allocated(sd%s_zodi))  sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_zodi(:,d,:)
-             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,d,:,k) = sd%s_tot(:,d,:,k) + sd%s_objctr(:,d,:)
+             if (btest(oper,SD_SL))     sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_sl(:,j,:)
+             if (btest(oper,SD_ORB))    sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_orb(:,j,:)
+             if (allocated(sd%s_zodi))  sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_zodi(:,j,:)
+             if (btest(oper,SD_OBJCTR)) sd%s_tot(:,j,:,k) = sd%s_tot(:,j,:,k) + sd%s_objctr(:,j,:)
           end do
        end do
     end if
@@ -323,10 +323,10 @@ contains
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
-          if (btest(oper,SD_MONO))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_mono(:,d)
-          if (btest(oper,SD_JUMP))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_jump(:,d)
-          if (btest(oper,SD_INST))  sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_inst(:,d)
-          if (btest(oper,SD_SPIKE)) sd%s_spur(:,d) = sd%s_spur(:,d) + sd%s_spike(:,d)
+          if (btest(oper,SD_MONO))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_mono(:,j)
+          if (btest(oper,SD_JUMP))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_jump(:,j)
+          if (btest(oper,SD_INST))  sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_inst(:,j)
+          if (btest(oper,SD_SPIKE)) sd%s_spur(:,j) = sd%s_spur(:,j) + sd%s_spike(:,j)
        end do
     end if
     
@@ -358,10 +358,10 @@ contains
     do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. tod%scans(scan)%d(d)%accept) cycle
-       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,d) = sd%tod(:,d) - sd%s_mono(:,d)
-       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,d) = sd%tod(:,d) - sd%s_jump(:,d)
-       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,d) = sd%tod(:,d) - sd%s_inst(:,d)
-       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,d) = sd%tod(:,d) - sd%s_spike(:,d)
+       if (spur_lvl > 0 .and. btest(oper,SD_MONO))  sd%tod(:,j) = sd%tod(:,j) - sd%s_mono(:,j)
+       if (spur_lvl > 1 .and. btest(oper,SD_JUMP))  sd%tod(:,j) = sd%tod(:,j) - sd%s_jump(:,j)
+       if (spur_lvl > 2 .and. btest(oper,SD_INST))  sd%tod(:,j) = sd%tod(:,j) - sd%s_inst(:,j)
+       if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,j) = sd%tod(:,j) - sd%s_spike(:,j)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
    
@@ -407,8 +407,8 @@ contains
     if (allocated(sd%s_calib))       deallocate(sd%s_calib)
 
     if (sd%enable_fft) then
-       call dfftw_destroy_plan(sd%plan_fwd)
-       call dfftw_destroy_plan(sd%plan_back)
+       call sfftw_destroy_plan(sd%plan_fwd)
+       call sfftw_destroy_plan(sd%plan_back)
     end if
 
   end subroutine dealloc_scan_data

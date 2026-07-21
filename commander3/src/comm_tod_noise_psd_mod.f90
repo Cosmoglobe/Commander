@@ -592,7 +592,7 @@ contains
 !!$    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC))/self%xi_n(G_SIG)))**2 ) 
 !!$    eval_noise_psd_oof_gauss_full = S1 + S2
 
-    eval_noise_psd_oof_gauss_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)) + self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC))/self%xi_n(G_SIG)))**2 ) 
+    eval_noise_psd_oof_gauss_full = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)) + self%xi_n(SIGMA0)**2 *self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC)))/self%xi_n(G_SIG))**2 ) 
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
@@ -622,7 +622,7 @@ contains
     real(sp) :: S1, S2
 
     S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
-    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * (log10(nu) - log10(self%xi_n(G_LOC))/self%xi_n(G_SIG)) ** 2) 
+    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC)))/self%xi_n(G_SIG)) ** 2) 
 
     eval_noise_psd_oof_gauss_corr = S1 + S2
 
@@ -830,7 +830,7 @@ contains
        ! spline nodes
        self%xi_n(2:)       = x
        self%P_active(2:,1) = x
-       self%P_active(2:,1)  = old_P_rms
+       self%P_active(2:,2)  = old_P_rms
        self%P_lognorm      = old_P_lognorm
        do i = 2, self%npar
           self%P_uni(i,:)    = self%P_uni(1,:)

@@ -598,7 +598,7 @@ contains
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)
-       call rms%dealloc
+       call rms%dealloc; deallocate(rms); rms => null()
 
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
@@ -621,9 +621,14 @@ contains
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
           call nullify_monopole_amp(data(i)%label)
        end if
-       
+      
+       if (associated(gainmap)) then 
+          call gainmap%dealloc()
+          deallocate(gainmap)
+          nullify(gainmap)
+       end if
+
     end do
-    if (associated(gainmap)) call gainmap%dealloc()
 
   end subroutine process_all_TODs
 

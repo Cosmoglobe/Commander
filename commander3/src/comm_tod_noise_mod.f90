@@ -368,8 +368,8 @@ contains
     deallocate(d_prime)
     deallocate(ncorr2)
 
-    call dfftw_destroy_plan(plan_fwd)                                           
-    call dfftw_destroy_plan(plan_back)                                          
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
 
     call timer%stop(TOD_NCORR, self%band)
   
@@ -590,7 +590,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_out)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -599,7 +599,6 @@ contains
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
-    real(sp),                           intent(out), optional :: sigma0_out
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
@@ -648,7 +647,7 @@ contains
                 else
                    mask0(j) = 1.
                    !res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1) - sd%n_corr(j1:j2,i)) / (j2-j1+1)
-                   res0(j)  = sum(sd%tod(j1:j2,i) - self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
+                   res0(j)  = sum(sd%tod(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_tot))  res0(j)  = res0(j) - sum(self%scans(scan)%d(i)%gain*sd%s_tot(j1:j2,i,0,1)) / (j2-j1+1)
                    if (allocated(sd%n_corr)) res0(j)  = res0(j) - sum(sd%n_corr(j1:j2,i)) / (j2-j1+1)
                    if (allocated(sd%s_spur)) res0(j)  = res0(j) - sum(sd%s_spur(j1:j2,i)) / (j2-j1+1)
@@ -694,7 +693,7 @@ contains
        deallocate(res0, mask0)
 
        ! Exit if user only wants to estimate sigma0
-       call timer%start(TOD_XI_N, self%band)
+       call timer%stop(TOD_XI_N, self%band)
        if (only_sigma0_) return
     end if
     
@@ -746,7 +745,7 @@ contains
           do j = 1, self%scans(scan)%d(i)%N_psd%npar
              !if (self%myid==0) write(*,*) "psd", k, j, self%myid
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
+             n_high =     min(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)), n-1)
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 

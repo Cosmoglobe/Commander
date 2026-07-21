@@ -209,7 +209,7 @@ contains
     call timer%start(TOD_MAPBIN, tod%band)
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
-       off         = tod%output_n_maps + 4*(det-1)
+       off         = 6 + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
@@ -584,24 +584,24 @@ end subroutine bin_differential_TOD
 
     ! Collect contributions from all nodes
     !TODO: figure out why this causes a crash
-!    call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!    if (binmap%sA_map%myid_shared == 0) then
-!       do i = 1, size(binmap%sA_map%a, 1)
-!          write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
-!          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), size(binmap%sA_map%a, 2), &
-!               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
-!       end do
-!    end if
-!      call mpi_win_fence(0, binmap%sA_map%win, ierr)
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
-!      if (binmap%sb_map%myid_shared == 0) then
-!         do i = 1, size(binmap%sb_map%a, 1)
-!            write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
-!            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
-!                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter,ierr)
-!         end do
-!      end if
-!      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+    call mpi_win_fence(0, binmap%sA_map%win, ierr)
+    if (binmap%sA_map%myid_shared == 0) then
+       do i = 1, size(binmap%sA_map%a, 1)
+          write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
+          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+       end do
+    end if
+      call mpi_win_fence(0, binmap%sA_map%win, ierr)
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+      if (binmap%sb_map%myid_shared == 0) then
+         do i = 1, size(binmap%sb_map%a, 1)
+            write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
+            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter,ierr)
+         end do
+      end if
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
 
 
@@ -809,8 +809,8 @@ end subroutine bin_differential_TOD
          if (rms%info%nmaps == tod%ndet + 3) then
             ! Diagonal matrix; store RMS
             ! Q and U terms
-            rms%map(i,2) = sqrt(A_inv(ndet+1, ndet+1))
-            rms%map(i,3) = sqrt(A_inv(ndet+2, ndet+2))
+            rms%map(i,2) = sqrt(A_inv(ndet+1, ndet+1))*scale
+            rms%map(i,3) = sqrt(A_inv(ndet+2, ndet+2))*scale
             ! T maps
             do j = 1, tod%ndet
                rms%map(i,j+3) = sqrt(A_inv(j, j))*scale

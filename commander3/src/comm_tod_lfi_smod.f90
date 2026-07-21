@@ -408,7 +408,7 @@ contains
 
     ! Sample 1Hz spikes
     if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle); call update_status(status, "tod_1Hz")
     end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -581,7 +581,7 @@ contains
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)
-    deallocate(map_sky, m_gain, procmask, procmask2)
+    !deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -1169,7 +1169,7 @@ contains
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1183,9 +1183,6 @@ contains
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin, oper
     real(dp)     :: dt, t_tot, t, A, b, mval, eta
@@ -1215,11 +1212,11 @@ contains
        call wall_time(t1)
 
        ! Prepare data
-       tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
+       !TODO: convert this correction to the same infrastructure that gets used in other projects. Ideally, the 1Hz spike would be
+       !applied with oper = SD_SPIKE, but currently isn't and used sd_inst with spur_lvl > 2
        call init_scan_data(tod, i, oper, TODMASK_PROC, sd, 0)
 
        !call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
-       tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))

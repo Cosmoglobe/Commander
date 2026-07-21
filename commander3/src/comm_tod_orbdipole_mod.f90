@@ -100,8 +100,6 @@ contains
          !2xy 
          self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal* v(1) * v(2)
          !2xz 
-         self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal * v(1) *v(2)
-         !2xz 
          self%orb_dp_s(i, 6) = self%orb_dp_s(i, 6) + 2.d0 * pixVal* v(1) * v(3)
          !y^2 
          self%orb_dp_s(i, 7) = self%orb_dp_s(i, 7)+pixVal*v(2)*v(2)
@@ -193,7 +191,7 @@ contains
     real(sp),            dimension(:),     intent(out) :: s_dip
     real(dp),                              intent(in), optional :: factor
 
-    real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3)
+    real(dp)     :: b, x, q, b_dot, f, xx, v(3)
     integer(i4b) :: i, j, k, s_len, ntod, subsample
     type(spline_type) :: s
     real(dp), dimension(:), allocatable :: x_vec, y_vec
@@ -219,7 +217,7 @@ contains
        allocate(x_vec(s_len), y_vec(s_len))
        do k = 1, s_len !number of subsampled samples
           xx       = real(k-1,dp)/real(s_len-1,dp)
-          v        = (1.d0-xx)*v_ref + xx*vp_ref
+          v        = (1.d0-xx)*v_ref + xx*v_ref_next
           j        = subsample * (k-1) + 1
           X_vec(k) = j
           y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f

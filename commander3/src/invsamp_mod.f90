@@ -122,6 +122,7 @@ contains
              x_new = 0.5d0*(x_n(1)+prior_(1))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if(stat /= 0) exit
           end do
        end if
 
@@ -130,6 +131,7 @@ contains
              x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
           end do
        end if
        if (stat /= 0) then
@@ -147,6 +149,7 @@ contains
 !             prior_(1) = x_new 
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
 !          end if
        end do
 
@@ -157,6 +160,7 @@ contains
 !             prior_(2) = x_new 
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
 !          end if
        end do
        if (stat /= 0) then

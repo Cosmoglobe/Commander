@@ -415,10 +415,10 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0 .or. .true.) then
+    if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
-    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
+    if (output_zodi_comps) self%output_n_maps = 8 + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -429,6 +429,14 @@ contains
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
     call update_status(status, "tod_cache"//ctext)
+
+    !init procmask
+    if (sample_rel_bandpass .or. sample_abs_bandpass) then
+       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
+       call self%procmask%bcast_fullsky_map(m_buf)
+       procmask2 = real(m_buf(:,1),sp)
+       deallocate(m_buf)
+    end if
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -484,9 +492,10 @@ contains
        call demodulate_tod(sd, self, i)
 
        ! Estimate pre-deconvolution white noise rms
+       call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
+          self%scans(i)%d(j)%N_psd%sigma0_preproc = self%scans(i)%d(j)%N_psd%xi_n(1)
        end do
           
        ! Deconvolve high-frequency roll-off
@@ -852,6 +861,9 @@ contains
        end do
     end if
 
+    if (allocated(procmask2)) deallocate(procmask2)
+    if (allocated(chisq_S)) deallocate(chisq_S)
+
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
@@ -964,7 +976,7 @@ contains
        !write(*,*) 'Ab1', tod%scanid(scan), i, b1, real(A1,sp), real(rand_gauss(handle)/sqrt(A1),sp)
        
        ! Even samples
-       if (tod%scanid(scan) == 1151) write(58,*)
+       !if (tod%scanid(scan) == 1151) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
@@ -1637,7 +1649,7 @@ contains
           i1 = i1 + 1
        end do
        nsub = i1 - i0 + 1
-       if(nsub < 5) return ! too small window
+       if(nsub < 5) cycle ! too small window
        
        if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) then
           deallocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)
@@ -1719,8 +1731,8 @@ contains
     end if
 
     deallocate(dt, dv, ps)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
 
   end subroutine estimate_hfi_4k_lines
 
@@ -1801,7 +1813,8 @@ contains
           i1 = i1 + 1
        end do
        nsub = i1 - i0 + 1
-       if(nsub < 5) return ! too small window
+       if(nsub < 5) cycle ! too small window
+       if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) cycle 
 
        allocate(sub_ps(nsub,2), ratio(nsub))
        sub_ps(:,1) = ps(i0:i1,1)
@@ -1832,8 +1845,8 @@ contains
     tod = dt(1:ntod)
     if (present(s_sub)) tod = tod + gain * s_sub
     deallocate(dt, dv, ps)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
  
   end subroutine remove_hfi_4k_lines
 
@@ -2266,8 +2279,8 @@ contains
        
 
        deallocate(dt, dv, ps)
-       call dfftw_destroy_plan(plan_fwd)
-       call dfftw_destroy_plan(plan_back)
+       call sfftw_destroy_plan(plan_fwd)
+       call sfftw_destroy_plan(plan_back)
     end if
 
     tod = d_prime + gain * s_sub
