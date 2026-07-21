@@ -161,6 +161,8 @@ module comm_tod_noise_psd_mod
      ! Class definition for splined noise PSD model
      !
      type(spline_type) :: spline_profile    ! Spline profile for 'spline' type PSD
+     integer(i4b) :: n_common_points ! Number of common points
+     real(sp), allocatable, dimension(:,:) :: common_points ! coordinates of common points
    contains
      procedure :: eval_full   => eval_noise_psd_spline_full
      procedure :: eval_corr   => eval_noise_psd_spline_corr
@@ -769,6 +771,9 @@ contains
     real(sp),               dimension(:,:), intent(in)      :: P_uni
     real(sp),               dimension(:,:), intent(in)      :: nu_fit
     real(dp),     optional, dimension(:,:), intent(in)      :: filter
+
+    integer(i4b),                 parameter :: n_points = 19
+    integer(i4b) :: i
     class(comm_noise_psd_spline), pointer                   :: constructor_spline
 
     allocate(constructor_spline)
@@ -777,10 +782,16 @@ contains
     call constructor_spline%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
     constructor_spline%P_lognorm = .false.
 
+    constructor_spline%n_common_points = n_points
+    allocate(constructor_spline%common_points(n_points,2))
+    constructor_spline%common_points = 0.d0
+    constructor_spline%common_points(1:5,1) = (/1.d-5, 1.d-4, 1.d-3, 1.d-2, 1.d-1/) ! log points
+    constructor_spline%common_points(6:,1)  = (/1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0/) ! lin points
+
   end function constructor_spline
 
 
-  subroutine update_spline(self,y,x)
+  subroutine update_spline(self,x,y)
     !
     ! Routine to update spline profile
     !
@@ -789,63 +800,141 @@ contains
     ! self:    derived type (comm_noise_psd)
     !          Basic noise PSD object
     ! y:       sp (array)
-    !          Values of PSD points
+    !          PSD values
     ! x:       sp (array)
-    !          Frequencies (in Hz) of the interpolating points
+    !          PSD Frequencies (Hz)
     implicit none
     class(comm_noise_psd_spline), target, intent(inout) :: self
-    real(sp),           dimension(:),     intent(in)    :: y
-    real(sp), optional, dimension(:),     intent(in)    :: x
+    real(sp),           dimension(:),     intent(in)    :: x, y
 
-    integer(i4b) :: i
-    logical(lgt) :: old_P_lognorm
-    real(sp)     :: old_xi_n, old_P_rms
-    real(sp), dimension(2) :: old_P_uni, old_nu_fit
-    real(sp) :: spline_sigma_0
-    real(dp) :: y0
+    integer(i4b) :: i, j, n, nbin, nlog_bins, npar, n_finegrid_
+    real(sp) :: nu, f_nu, threshold, bin_width, wn_level
+    real(sp) :: x_first, x_last, y_first, y_last
+    character(len=6) :: binning_
+    real(sp), allocatable, dimension(:)   :: sigmas, sigmas_full_range, y_nodes
+    real(sp), allocatable, dimension(:,:) :: bin_spec, bin_spec_full_range, fixbins
 
-    if(present(x)) then
-       self%npar     = size(x) + 1 ! sigma0 + spline nodes
-       old_xi_n      = self%xi_n(1)
-       old_P_rms     = self%P_active(1,2)
-       old_P_uni     = self%P_uni(1,:)
-       old_nu_fit    = self%nu_fit(1,:)
-       old_P_lognorm = self%P_lognorm(1)
+
+    n = size(x)
+    if (size(y)/=n) stop "Error: x and y arrays have different sizes"
+
+    nlog_bins = 5
+    threshold = 1.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
+    bin_width = 2.d0 !1.d0 ! Hz
+    bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
+
+    ! Check if at least 2 points per bin
+    do while (bin_spec(1,1) == -1.d0 .and. nlog_bins > 1)
+       deallocate(bin_spec)
+       nlog_bins = nlog_bins - 1
+       bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
+    end do
+    if (nlog_bins == 1) stop "Error: too few points under 1 Hz"
+
+    nbin = size(bin_spec(:,1))
+    x_first = 1.d-6 !x(1)   ! smaller than smallest frequency sample ! NOW IS SET ON HFI
+    x_last  = x(n) + 0.5    ! bigger than biggest frequency sample
+    y_first = bin_spec(1,2)
+    y_last  = bin_spec(nbin,2)
+
+    do i = 1, nbin
+       if (bin_spec(i,2) .ne. bin_spec(i,2)) then ! nan entry
+          write(*,*) "bin = ",i
+          stop "Error: nan value in bin_spec"
+       end if
+    end do
+
+    wn_level = minval(bin_spec(nlog_bins+1:,2)) ! setting wn level on lowest point after threshold
+
+    ! Check if lower frequencies have less power. In that case inject regularization noise
+    do i = 1, nlog_bins
+       if (bin_spec(i,2) < wn_level) bin_spec(i,2) = bin_spec(i,2) + wn_level
+    end do
+    if (y_first < wn_level) y_first = y_first + wn_level
+
+    allocate(bin_spec_full_range(nbin+2,2), sigmas_full_range(nbin+2)) ! extend spline over first and last bins
+
+    ! rescale for logarithmic spline
+    bin_spec_full_range(1,1)        = log10(x_first)
+    bin_spec_full_range(2:nbin+1,1) = log10(bin_spec(:,1))
+    bin_spec_full_range(nbin+2,1)   = log10(x_last)
+    bin_spec_full_range(1,2)        = log10(y_first)
+    bin_spec_full_range(2:nbin+1,2) = log10(bin_spec(:,2))
+    bin_spec_full_range(nbin+2,2)   = log10(y_last)
+    sigmas_full_range(1)        = sigmas(1)
+    sigmas_full_range(2:nbin+1) = sigmas
+    sigmas_full_range(nbin+2)   = sigmas(nbin)
+    deallocate(bin_spec, sigmas)
+
+    call free_spline(self%spline_profile)
+    call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp), linear=.false.)
+    deallocate(bin_spec_full_range)
+
+    ! Resetting the white noise level on the lowest point
+    do i = 1, n
+       nu = log10(x(i))
+       f_nu = splint(self%spline_profile, dble(nu))
+       f_nu = 10**f_nu
+
+       if (f_nu > 0 .and. f_nu < wn_level) then
+          wn_level = f_nu
+       end if
+    end do
+
+    ! Rebinning in fixed bins which stay common through different scans
+    ! for remove_outlier routine
+    do i = 1, self%n_common_points
+       nu = log10(self%common_points(i,1))
+       f_nu = splint(self%spline_profile, dble(nu))
+       self%common_points(i,2) = f_nu
+    end do
+
+
+    if (self%npar /= nbin + 1) then ! spline nodes (but first and last) + sigma0
        deallocate(self%xi_n,self%P_active,self%P_uni,self%nu_fit,self%P_lognorm)
-
+       self%npar = nbin + 1
        allocate(self%xi_n(self%npar))
        allocate(self%P_uni(self%npar,2))
        allocate(self%P_active(self%npar,2))
        allocate(self%P_lognorm(self%npar))
        allocate(self%nu_fit(self%npar,2))
-       ! sigma0
-       self%xi_n(1)       = old_xi_n
-       self%P_uni(1,:)    = old_P_uni
-       self%P_active(1,1) = old_xi_n
-       self%P_active(1,2) = old_P_rms
-       self%nu_fit(1,:)   = old_nu_fit
-
-       self%sigma0 => self%xi_n(1)
-
-       ! spline nodes
-       self%xi_n(2:)       = x
-       self%P_active(2:,1) = x
-       self%P_active(2:,2)  = old_P_rms
-       self%P_lognorm      = old_P_lognorm
-       do i = 2, self%npar
-          self%P_uni(i,:)    = self%P_uni(1,:)
-          self%nu_fit(i,:)   = self%nu_fit(1,:)
-       end do
     end if
-    call free_spline(self%spline_profile)
-    call spline(self%spline_profile, real(self%xi_n(2:),dp), real(y,dp))
 
-    spline_sigma_0 = self%xi_n(1)
+    ! Sigma0
+    self%xi_n(1)       = sqrt(0.99 * wn_level) ! 0.99 to avoid singularity in correlated noise
+    self%sigma0 => self%xi_n(1)
+    self%P_uni(1,:)    = [10.d0, 3000.d0]
+    self%P_active(1,1) = self%xi_n(1)
+    self%P_active(1,2) = 50.d0
+    self%nu_fit(1,1)   = 5.d0 ! only fit sigma0 from 5 Hz on
+    self%nu_fit(1,2)   = x(n)
+
+    ! Correlated noise
     do i = 2, self%npar
-       y0 = splint(self%spline_profile,dble(self%xi_n(i)))
-       if (sqrt(y0) < spline_sigma_0) spline_sigma_0 = sqrt(y0)
+       self%P_uni(i,1)    = -6.0
+       self%P_uni(i,2)    = 12.0
+       self%P_active(i,2) = log10(sigmas_full_range(i))
+
+       if (i==2) then
+          self%nu_fit(i,1) = 10**self%spline_profile%x(i)
+          self%nu_fit(i,2) = (10**self%spline_profile%x(i+1) + 10**self%spline_profile%x(i)) / 2
+       else if (i==self%npar) then
+          self%nu_fit(i,1) = (10**self%spline_profile%x(i) + 10**self%spline_profile%x(i-1)) / 2
+          self%nu_fit(i,2) = 10**self%spline_profile%x(i)
+       else
+          self%nu_fit(i,1) = (10**self%spline_profile%x(i) + 10**self%spline_profile%x(i-1)) / 2
+          self%nu_fit(i,2) = (10**self%spline_profile%x(i+1) + 10**self%spline_profile%x(i)) / 2
+       end if
     end do
-    self%xi_n(1) = 0.95 * spline_sigma_0  ! To avoid singular values after subtracting white noise
+
+    self%spline_profile%y = 10**self%spline_profile%y - self%xi_n(1)**2 ! Correlated noise only!!
+    self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! avoid too low wn_level estimation from binning
+    self%sigma0 => self%xi_n(1)
+    self%spline_profile%y = log10(self%spline_profile%y)
+    self%xi_n(2:) = self%spline_profile%y(2:self%npar)
+    self%P_active(2:,1) = self%spline_profile%y(2:self%npar)
+
+    deallocate(sigmas_full_range)
 
   end subroutine update_spline
 
@@ -865,7 +954,7 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_spline_full
 
-    eval_noise_psd_spline_full = splint(self%spline_profile, dble(nu))
+    eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
@@ -891,7 +980,10 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_spline_corr
 
-    eval_noise_psd_spline_corr = splint(self%spline_profile, dble(nu)) - self%xi_n(SIGMA0)**2
+    real(sp) :: nu_
+
+    nu_ = log10(nu)
+    eval_noise_psd_spline_corr = 10**(splint(self%spline_profile, dble(nu_)))
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
