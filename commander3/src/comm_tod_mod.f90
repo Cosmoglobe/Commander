@@ -919,7 +919,8 @@ contains
     end if
 
     if(lmax_beam > 0) then
-      self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+       !self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+       self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, 1, .false.)
     end if
 
     do i = 1, self%ndet
@@ -928,12 +929,15 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
        if(lmax_sl > 0) then
-         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+          self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+          call self%slbeam(i)%p%Y()
+          if (i == 1) call self%slbeam(i)%p%writeFITS("sl.fits")
        end if
 
        if(lmax_beam > 0) then
          self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
          call self%mbeam(i)%p%Y()
+         if (i == 1) call self%mbeam(i)%p%writeFITS("beam.fits")
        end if
 
        call self%load_instrument_inst(h5_file, i)
@@ -1273,7 +1277,8 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-      
+       scalars(1) = 0.1d0 ! REMOVE THIS!! HKE
+       
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
@@ -2194,14 +2199,14 @@ contains
           ! Interpolate
           call spline_simple(spline, x_sl, sub_sl, regular=.true.)
           do i = 1, size(sub_sl)*subsamp  
-             sd%s_sl(i,j,h) = splint_simple(spline, real(i, dp))
+             sd%s_sl(i,j,hp) = splint_simple(spline, real(i, dp))
           end do
 
           ! Do last few samples
           do i = size(sub_sl)*subsamp+1, ntod
-             pix_           = self%pixcache%ind2sl(self%pixcache%pix2ind(sd%pix(i,d,h)))
-             psi_           = self%pixcache%psi(sd%psi(i,d,h))-self%mbang(d)
-             sd%s_sl(i,j,h) = self%slconv(d,h)%p%interp(pix_, psi_)
+             pix_            = self%pixcache%ind2sl(self%pixcache%pix2ind(sd%pix(i,d,h)))
+             psi_            = self%pixcache%psi(sd%psi(i,d,h))-self%mbang(d)
+             sd%s_sl(i,j,hp) = self%slconv(d,h)%p%interp(pix_, psi_)
           end do
        end do
     end do
@@ -2602,18 +2607,31 @@ contains
 
 
 ! Identifies and fills masked region
-  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle, chunk)
+  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle, chunk, gain, s_tot)
     implicit none
     real(sp),         intent(inout)  :: d_p(:)
     real(sp),         intent(in)     :: mask(:)
     real(sp),         intent(in), optional     :: sigma_0
+    real(dp),         intent(in), optional     :: gain
     type(planck_rng), intent(inout), optional  :: handle
+    real(sp),     dimension(:), intent(in), optional :: s_tot
     integer(i4b),     intent(in) :: ntod
     logical(lgt),     intent(in) :: sample
     integer(i4b),     intent(in) :: chunk
     integer(i4b) :: j_end, j_start, j, k
     logical(lgt) :: init_masked_region, end_masked_region
 
+    do j = 1,ntod
+       if (mask(j) == 0.) then
+          d_p(j) = gain * s_tot(j)
+          if (present(handle)) then
+             d_p(j) = d_p(j) + sigma_0 * rand_gauss(handle)
+          end if
+       end if
+    end do
+    
+    return
+    
     ! Fill gaps in data
     init_masked_region = .true.
     end_masked_region = .false.

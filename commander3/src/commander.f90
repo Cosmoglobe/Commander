@@ -51,7 +51,7 @@ program commander
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
   integer(i4b) :: ntot, npar
-!  class(comm_adc_binfit), pointer :: adc
+  class(comm_adc_binfit), pointer :: adc
   
   !bands_to_sample = (/1,2/)
   !bands_to_calibrate_against= (/1,2/)
@@ -91,7 +91,7 @@ program commander
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
 
-!!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "test", 16, 32376, 33163, 40)
+!!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "data", "chains", "100-1a", 16, 32376, 33163, 40)
 !!$  call mpi_finalize(ierr)
 !!$  stop
   

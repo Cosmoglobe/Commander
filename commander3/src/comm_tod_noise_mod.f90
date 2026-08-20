@@ -126,7 +126,7 @@ contains
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
        ! Setting new white noise level from powspec
-       if (self%first_call) then
+       if (.true. .or. self%first_call) then
           sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
           N_wn     = sigma_0**2
        else
@@ -169,6 +169,7 @@ contains
           !close(58)
           deallocate(bin_spec)
 
+          ! HKE: This is not OK -- sigma0 should be set in sample_noise_psd,not here
           sigma_0 = abs(sqrt(N_wn))
           self%scans(scan)%d(i)%N_psd%sigma0 = sigma_0 * 0.95 ! To avoid singularity when subtracting for correlated noise
        end if
@@ -679,10 +680,18 @@ contains
              end do
              if (nval > 100) then
                 if( present(dec_wn) )then
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   if (present(sigma0_out)) then
+                      sigma0_out = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                 else
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   if (present(sigma0_out)) then
+                      sigma0_out = sqrt(s/(nval-1))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1))
                 end if
              else

@@ -557,7 +557,7 @@ contains
     logical(lgt),                              intent(in),   optional :: smooth
     real(dp),                                  intent(in),   optional :: mask_threshold
 
-    integer(i4b) :: i, j, ext(2), ierr, timer_id
+    integer(i4b) :: i, j, k, ext(2), ierr, timer_id
     real(sp)     :: threshold
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
@@ -568,7 +568,7 @@ contains
 
 
     smooth_ = .true.
-    threshold = 0.9; if (present(mask_threshold)) threshold=mask_threshold
+    threshold = 0.5; if (present(mask_threshold)) threshold=mask_threshold
     if (present(smooth))  smooth_=smooth
 
     if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
@@ -581,6 +581,8 @@ contains
        timer_id = TOD_IMBAL
     else if (trim(mode) == 'deltaG') then
        timer_id = TOD_DELTAG
+    else if (trim(mode) == 'total') then
+       timer_id = TOD_DELTAG
     end if
 
     call timer%start(timer_id, tod%band)
@@ -591,6 +593,7 @@ contains
     else if (trim(mode) == 'deltaG') then
        allocate(dipole_mod(tod%last_scan, tod%ndet))
        dipole_mod = 0.d0
+    else if (trim(mode) == 'total') then
     else
        write(*,*) 'Unsupported sampling mode!'
        stop
@@ -627,8 +630,17 @@ contains
              else if (trim(tod%abscal_comps) == 'full') then
                 ! Calibrator = total signal
                 s_buf(:,j) = sd%s_tot(:,j,0,1)
-                call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+                !call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
                 call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
+
+!!$                if (j == 2) then
+!!$                   write(*,*) 'a'
+!!$                   open(58,file='calib_6700.dat', recl=1024)
+!!$                   do k = 1, size(s_invsqrtN(:,j))
+!!$                      write(58,*) k, s_invsqrtN(k,j)
+!!$                   end do                   
+!!$                   close(58)
+!!$                end if
              else
                 s_buf(:,j) = sd%s_gain(:,j,0)
                 call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
@@ -643,14 +655,25 @@ contains
           else
              ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j,0,1)
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             !call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
 
        ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampls tod'!(mode)
-       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+!!$       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) cycle
+          s_invsqrtN(:,j) = s_invsqrtN(:,j) / tod%scans(i)%d(j)%N_psd%sigma0
+       end do
 
+!!$       write(*,*) 'b'
+!!$       open(58,file='calib2_6700.dat', recl=1024)
+!!$       do k = ext(1), ext(2)
+!!$          if (mask_lowres(k,2) == 1.) write(58,*) k, s_invsqrtN(k,2)
+!!$       end do
+!!$       close(58)
+       
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
           do j = 1, tod%ndet
@@ -672,7 +695,11 @@ contains
              end if
           end do
           call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
+               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod, s_highres=sd%s_tot(:,:,0,1))
+       else if (trim(mode) == 'total') then
+          call calculate_tot_gain_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot(:,:,0,1), &
+               & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
+
        else
           ! Time-variable gain terms
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot(:,:,0,1), &
@@ -709,6 +736,8 @@ contains
        call sample_smooth_gain(tod, handle, dipole_mod, smooth_)
     else if (trim(mode) == 'imbal') then
        call sample_imbal_cal(tod, handle, A, b)
+    else if (trim(mode) == 'total') then
+       ! Nothing lefr to do
     end if
 
     ! Clean up

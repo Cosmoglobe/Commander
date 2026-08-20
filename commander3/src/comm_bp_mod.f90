@@ -142,19 +142,6 @@ contains
        call report_error('Error -- unsupported bandpass type = '//trim(c%type))
     end select
 
-    ! Initialize unit scale
-    if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
-       c%unit_scale = 1.d-3
-       c%Kcmb2unit  = 1.d3
-    else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
-       c%unit_scale = 1.d-6
-       c%Kcmb2unit  = 1.d0
-    else
-       c%unit_scale = 1.d0
-       c%Kcmb2unit  = 1.d6
-    end if
-
-
     ! Initialize raw bandpass
     if (trim(c%type) == 'delta') then
        allocate(c%nu0(1),c%tau0(1), c%nu(1), c%tau(1))
@@ -240,6 +227,25 @@ contains
     case default
        c%RJ2data = 1.d0
     end select
+
+    ! Initialize unit scale
+    if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
+       c%unit_scale = 1.d-3
+       c%Kcmb2unit  = 1.d3
+    else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
+       c%unit_scale = 1.d-6
+       c%Kcmb2unit  = 1.d0
+    else if (trim(cpar%ds_unit(id_abs)) == 'uK_cmb') then
+       c%unit_scale = 1.d0
+       c%Kcmb2unit  = 1.d6
+    else if (trim(cpar%ds_unit(id_abs)) == 'MJy/sr') then
+       c%unit_scale = 1.d0
+       c%Kcmb2unit  = c%a2f/c%a2t * 1d-6
+    else
+       write(*,*) 'Specify Kcmb2unit in comm_bp_mod for unit = ', trim(cpar%ds_unit(id_abs))
+       stop
+    end if
+
     
   end function constructor_bp
   

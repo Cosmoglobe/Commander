@@ -77,12 +77,12 @@ contains
     ! Initialize instrument-specific parameters
 
     c%compressed_tod    = .true.
-    c%correct_sl        = .false.
+    c%correct_sl        = .true.
     c%correct_orb       = .true.
     c%correct_S_crosstalk = .false.
     c%correct_N_crosstalk = .false.
     c%apply_inst_corr   = .true.
-    c%orb_4pi_beam      = .false.
+    c%orb_4pi_beam      = .true.
     c%symm_flags        = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
@@ -125,15 +125,15 @@ contains
     !call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
+    c%samprate_lowres = 1.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nhorn           = 1
     c%rawtod_dp       = .true.
     c%compressed_tod  = .true.
-    c%correct_sl      = .false.
+    c%correct_sl      = .true.
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
     c%correct_Tbol    = .true.
-    c%orb_4pi_beam    = .false.
+    c%orb_4pi_beam    = .true.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%nmaps           = info%nmaps
@@ -149,21 +149,31 @@ contains
     c%nside_beam      = 512
     c%nside_pixhist   = 64
 
+    c%gain_samprate    = 1.d0 / 3600.d0 * 100.d0 ! Gain smoothing stiffness
+        
     ! Channel specific parameters
-    if (c%freq(1:3) == "100") then
+    if (c%freq(1:3) == "100" .or. c%freq(1:3) == "143".or. c%freq(1:3) == "217" .or. c%freq(1:3) == "353") then
        c%chisq_threshold  = 1.d30  ! 120d0
        c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
-       c%correct_sl       = .false.
-    else if (c%freq(1:3) == "353") then
-       c%chisq_threshold  = 1000.d0
-       c%sigma0_threshold = 1000.d0
+       c%correct_sl       = .true.
+    else if (c%freq(1:3) == "545") then
+       c%chisq_threshold  = 1.d30  ! 120d0
+       c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
+       c%orb_4pi_beam     = .false.
+       c%correct_sl       = .false.
+    else if (c%freq(1:3) == "857") then
+       c%xi_n_P_uni(1,:)  = [10d0, 3000d0]  ! Sigma0
+       c%chisq_threshold  = 1.d30  ! 120d0
+       c%sigma0_threshold = 1.d30  !100.d0
+       c%accept_threshold = 0.8d0
+       c%orb_4pi_beam     = .false.
        c%correct_sl       = .false.
     else
-       c%chisq_threshold  = 100.d0 
-       c%accept_threshold = 0.5d0
-       c%correct_sl       = .false.
+       write(*,*) "Specify HFI defaults"
+       call mpi_finalize(ierr)
+       stop
     end if
 
     
@@ -210,11 +220,10 @@ contains
     call c%collect_v_sun
     
     ! Allocate sidelobe convolution data structures
-    if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
-    
-    allocate(c%orb_dp)
-    !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
-    c%orb_dp => comm_orbdipole(comm=c%comm)
+    if (c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
+    !allocate(c%orb_dp)
+    c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
+    !c%orb_dp => comm_orbdipole(comm=c%comm)
 
     ! Initialize all baseline corrections to zero
     do i = 1, c%nscan
@@ -373,24 +382,26 @@ contains
        sample_ncorr          = iter  > 0 !.true.
        sample_xi_n      = .false.
        select_data           = iter == 1
-       sample_adc            = .false. !iter  > 1 !.true.
+       sample_adc            = .false. !.false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = iter  > 0 !.true.                 
-       make_dyn_mask         = iter == 2
-       sample_ncorr          = .false. !iter  > 1 !.true.
-       sample_xi_n           = .false. ! iter > 5 
-       select_data           = .false. !iter == 3 ! self%first_call  
-       sample_adc            = .false. !iter  > 6 ! 3 !.true.
+       sample_gain           = iter  > 2 !.true.                 
+       make_dyn_mask         = iter == 20
+       sample_ncorr          = iter > 10 !.true.
+       sample_xi_n           = iter > 15 
+       select_data           = iter == 25 ! self%first_call  
+       sample_adc            = .false. !iter  > 0 ! 3 !.true.
     else
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
        make_dyn_mask         = iter == 1
-       sample_ncorr          = iter > 0 !.true.
+       sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 1 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
-       sample_adc            = iter  > 0 !.true.
+       sample_adc            = .false. !iter  > 0 !.true.
     end if
+    if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
+
     fit_4k_lines          = .false. !iter > 2
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -403,11 +414,25 @@ contains
     end if
 
     if (sample_ncorr) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+       if (self%correct_sl) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR,SD_SL])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+       end if
+       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
     else
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+       if (self%correct_sl) then
+           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
+       else
+           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+       end if
+       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
     end if
     
     ! Initialize local variables
@@ -458,15 +483,16 @@ contains
        if (.not. associated(self%adc(1)%p)) then
           call self%compute_adu_range
           do i = 1, self%ndet
-             self%adc(i)%p => comm_adc_binfit(self%comm, self%label(i), 16, &
+             self%adc(i)%p => comm_adc_binfit(self%comm, self%datadir, self%outdir, self%label(i), 16, &
                   & self%adu_range(i,1), self%adu_range(i,2), 40)
           end do
        end if
 
        ! Sample ADC parameters -- MUST BE FOLLOWED BY BASELINE SAMPLER
-       do i = 1, self%ndet
-          call self%sample_adc_and_baselines(handle, i)
-       end do
+       ! HKE: Comment out for now
+!!$       do i = 1, self%ndet
+!!$          call self%sample_adc_and_baselines(handle, i)
+!!$       end do
        call update_status(status, "tod_adc"//ctext)
     end if
     
@@ -492,6 +518,7 @@ contains
           call sample_hfi_baselines(sd, self, i, handle)
        end if
        call demodulate_tod(sd, self, i)
+       
 
        ! Estimate pre-deconvolution white noise rms
        do j = 1, self%ndet
@@ -552,7 +579,6 @@ contains
     call mpi_barrier(self%comm, ierr) ! Improve timing information
     call timer%stop(TOD_WAIT, self%band)
 
-    
 !!$    call update_status(status, "tod_nonlin"//ctext)
 
     ! Fit global timestream contaminants 
@@ -589,7 +615,8 @@ contains
        call sample_calibration(self, 'abscal', oper_default, handle)
        call sample_calibration(self, 'relcal', oper_default, handle)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
-       call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
+       !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
+!!$       call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
     end if
     
@@ -611,7 +638,7 @@ contains
 
     ! Initialize CG mapmaker, maptype = 2 = TQU
     !cgmap => comm_cgmap(self, 2)
-    
+
     ! Fit higher-level corrections
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     call update_status(status, "tod_preloop"//ctext)
@@ -623,20 +650,19 @@ contains
 
        ! Prepare data
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
-
+       
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
           if (trim(self%init_from_HDF) == 'none') then
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
-
+          
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call self%dynmask%create(sd, j)
           end do
-
 
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -653,8 +679,9 @@ contains
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
+             
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
-             call sample_noise_psd(self, sd, handle, chaindir)
+             !call sample_noise_psd(self, sd, handle, chaindir)
              deallocate(freqmask)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
@@ -662,7 +689,6 @@ contains
        else
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
-
        
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -700,9 +726,23 @@ contains
 !!$          close(58)
 !!$       end if
 
+       ! Bin TOD
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+       ! Feed CG mapmaker calibrated and cleaned data
+       !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-       if (self%scanid(i) == 6528 .or. self%scanid(i) == 6605) then
+       !if (mod(self%scanid(i),5000) == 0 .and. allocated(sd%n_corr)) then
+       if (mod(self%scanid(i),5000) == 0) then
+          do j = 1, sd%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             sd%tod(:,j)    = sd%tod(:,j) / self%scans(i)%d(j)%gain
+             !sd%n_corr(:,j) = sd%n_corr(:,j) / self%scans(i)%d(j)%gain             
+          end do
+
+
           call int2string(self%scanid(i), scantext)
 
           write(*,*) '| Writing tod to hdf'
@@ -711,18 +751,14 @@ contains
           call write_hdf(tod_file, '/calib',    d_calib(1,:,:))
           call write_hdf(tod_file, '/res',      d_calib(2,:,:))
           call write_hdf(tod_file, '/flag',     sd%flag)
+          !call write_hdf(tod_file, '/n_corr',   sd%n_corr)
           call write_hdf(tod_file, '/orb',      sd%s_orb)
           call write_hdf(tod_file, '/psi',      sd%psi)
+          call write_hdf(tod_file, '/pix',      sd%pix)
           call write_hdf(tod_file, '/s_tot',    sd%s_tot)
           call write_hdf(tod_file, '/mask',     sd%mask)
           call close_hdf_file(tod_file)
         end if
-
-       ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
-       ! Feed CG mapmaker calibrated and cleaned data
-       !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
        
        ! Update scan list
        call wall_time(t2)
@@ -1408,14 +1444,15 @@ contains
     integer(i4b) :: i, j, d, scan
 
     scan = sd%scan
-    
+
     ! Apply ADC corrections to raw self%tod_dp
     if (nonlin_lvl > 0 .and. associated(self%adc(1)%p)) then
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
           if (.not. self%scans(scan)%d(d)%accept) cycle
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             open(58,file='adc_before.dat')
+             write(*,*) trim(self%outdir)//'/adc_before.dat'
+             open(58,file=trim(self%outdir)//'/adc_before.dat')
              do j = 1, sd%ntod
                 write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
              end do
@@ -1424,9 +1461,9 @@ contains
           !call self%adc(d)%p%Q2As(92.)
           !call self%adc(d)%p%As2F
           call self%adc(d)%p%adc_correct(sd%tod_dp(:,i), &
-               & iand(sd%flag(:,i), self%flag0) .eq.0)
+               & iand(sd%flag(:,i), self%flag0) .eq.0, self%mod_phase(i,scan))
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             open(58,file='adc_after.dat')
+             open(58,file=trim(self%outdir)//'/adc_after.dat')
              do j = 1, sd%ntod
                 write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
              end do
@@ -1440,7 +1477,7 @@ contains
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
-
+    
     ! In-paint flagged samples with s_tot + white noise
     if (nonlin_lvl > 2) then
        do i = 1, self%ndet
@@ -1453,7 +1490,7 @@ contains
           end do
        end do
     end if
-    
+        
     ! Deconvolve high-frequency roll-off
     if (nonlin_lvl > 2) then
        do i = 1, self%ndet
@@ -1461,7 +1498,7 @@ contains
           !call deconvolve_rolloff(self, sd, i) !sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
        end do
     end if
-
+    
     ! Correct 4k lines (re-estimate after gain sampling)
     if (nonlin_lvl > 3) then
        do i = 1, self%ndet
@@ -1470,7 +1507,7 @@ contains
           !call estimate_hfi_4k_lines(self, sd, i)
        end do
     end if
-
+    
     ! Deconvolve regularized bolometer transfer function
     if (nonlin_lvl > 4) then
        do i = 1, self%ndet
@@ -2307,8 +2344,15 @@ contains
 
     decimation = 45 ! Downsampling rate; MUST BE ODD, to explore both parities
 
-    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+    if (self%correct_sl) then
+       oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
+    else
+       oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+    end if
+    !oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+    !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
     
     ! Count number of unmasked and decimated samples
     allocate(numsamp(self%nscan), sigma0(self%nscan))

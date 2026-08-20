@@ -123,11 +123,11 @@ contains
       self%orb_dp_s(i,:) = self%orb_dp_s(i,:)*4*pi/real(self%beam(i)%p%info%npix)
    end do
 
-!!$   if (self%tod%myid == 0) then
+!!$!   if (self%myid == 0) then
 !!$      do i = 1, 10
-!!$        write(*,*) self%orb_dp_s(1, i)
+!!$        write(*,*) i, self%orb_dp_s(1, i)
 !!$      end do
-!!$    end if
+!!$!    end if
 
     !npipe s factors for 27M
 !    self%orb_dp_s(:,1) = 0.005130801850847007
@@ -219,7 +219,7 @@ contains
        allocate(x_vec(s_len), y_vec(s_len))
        do k = 1, s_len !number of subsampled samples
           xx       = real(k-1,dp)/real(s_len-1,dp)
-          v        = (1.d0-xx)*v_ref + xx*vp_ref
+          v        = (1.d0-xx)*v_ref + xx*v_ref_next
           j        = subsample * (k-1) + 1
           X_vec(k) = j
           y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f

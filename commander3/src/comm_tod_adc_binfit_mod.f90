@@ -35,6 +35,7 @@ module comm_tod_adc_binfit_mod
   type :: comm_adc_binfit
      integer(i4b)       :: comm, myid, npar_adc
      character(len=128) :: label
+     character(len=2048) :: datadir, outdir
      integer(i4b)       :: min_adu, max_adu, min_coadd, max_coadd, ncoadd, nbit
      integer(i4b), allocatable, dimension(:,:) :: param_adc ! (code, width, global mod/local)
      real(dp),   allocatable, dimension(:) :: p ! (npar_adc)
@@ -44,7 +45,8 @@ module comm_tod_adc_binfit_mod
      real(dp),   allocatable, dimension(:) :: INL   ! Integral non-linearity
      type(spline_type)                     :: A_s   ! Noise weighted transfer functio
      type(spline_type)                     :: F     ! ADC transfer function (coadded)
-     real(dp),   allocatable, dimension(:) :: invF  ! ADC correction function 
+     real(dp),   allocatable, dimension(:) :: invF  ! ADC correction function
+     real(dp),   allocatable, dimension(:,:) :: invF_dpc ! DPC ADC correction function; two parities
   contains
     procedure :: adc_correct
     procedure :: param2Q
@@ -68,7 +70,7 @@ module comm_tod_adc_binfit_mod
   
 interface
 
-  module function constructor_adc_binfit(comm, label, nbit, min_adu, max_adu, ncoadd) result (c)
+  module function constructor_adc_binfit(comm, datadir, outdir, label, nbit, min_adu, max_adu, ncoadd) result (c)
     ! ====================================================================
     ! Sets up an adc correction object that maps 
     !
@@ -91,12 +93,12 @@ interface
     !    and the actual correction tables
     ! ====================================================================
     implicit none
-    character(len=*),       intent(in) :: label
+    character(len=*),       intent(in) :: label, datadir, outdir
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, tod, mask)
+  module subroutine adc_correct(self, tod, mask, mod_phase)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -118,6 +120,7 @@ interface
     class(comm_adc_binfit),          intent(in)    :: self
     real(dp), dimension(:),          intent(inout) :: tod
     logical(lgt), dimension(:),      intent(in)    :: mask
+    real(sp),                        intent(in)    :: mod_phase
   end subroutine adc_correct
 
   module subroutine Q2As(self, sigma0)

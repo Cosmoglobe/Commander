@@ -25,7 +25,7 @@
 submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
   contains
   
-  module function constructor_adc_binfit(comm, label, nbit, min_adu, max_adu, ncoadd) result(c)
+  module function constructor_adc_binfit(comm, datadir, outdir, label, nbit, min_adu, max_adu, ncoadd) result(c)
     ! ====================================================================
     ! Sets up an adc correction object that maps 
     !
@@ -48,17 +48,20 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !    and the actual correction tables
     ! ====================================================================
     implicit none
-    character(len=*),       intent(in) :: label
+    character(len=*),       intent(in) :: label, datadir, outdir
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
 
-    integer(i4b) :: i, j, k, c0, ierr
-    real(dp)     :: delta
+    integer(i4b) :: i, j, k, c0, ierr, n0, n1
+    real(dp)     :: delta, adc_dpc
+    character(len=1) :: comment
     
     allocate(c)
     c%comm      = comm
     call mpi_comm_rank(comm, c%myid, ierr)
     c%label     = label
+    c%datadir   = datadir
+    c%outdir    = outdir
     c%nbit      = nbit
     c%min_adu   = min_adu
     c%max_adu   = max_adu
@@ -71,6 +74,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     allocate(c%INL(min_adu:max_adu))
     allocate(c%DNL(min_adu:max_adu))
     allocate(c%invF(c%min_coadd:c%max_coadd))
+    allocate(c%invF_dpc(c%min_coadd:c%max_coadd,2))
 
     ! Count number of free parameters
     c%npar_adc = 0                
@@ -125,14 +129,15 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           !c%Q(32768) = 0.2
           call c%Q2As(92.)
 
-          open(58, file='adc_fast_'//trim(label)//'.dat', recl=1024)
+          write(*,*) trim(outdir)//'/adc_fast_'//trim(label)//'.dat'
+          open(58, file=trim(outdir)//'/adc_fast_'//trim(label)//'.dat', recl=1024)
           write(58,*) '# ADU        Q          v_min         DNL         INL'
           do i = min_adu, max_adu
              write(58,*) i, c%Q(i), c%v(i), c%DNL(i), c%INL(i)
           end do
           close(58)
 
-          open(58, file='adc_As_'//trim(label)//'.dat', recl=1024)
+          open(58, file=trim(outdir)//'/adc_As_'//trim(label)//'.dat', recl=1024)
           write(58,*) '# v_in       v_out'
           do i = 1, size(c%A_s%x)
              write(58,*) c%A_s%x(i), c%A_s%y(i)
@@ -141,7 +146,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 
           call c%As2F
           
-          open(58, file='adc_F_'//trim(label)//'.dat', recl=1024)
+          open(58, file=trim(outdir)//'/adc_F_'//trim(label)//'.dat', recl=1024)
           do i = c%min_coadd, c%max_coadd
              k      = nint(splint(c%F, real(i,dp)))
              if (k > c%max_coadd) exit
@@ -154,10 +159,60 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
 !!$       call mpi_finalize(ierr)
 !!$       stop
     end if
+
+    ! Read official correction tables
+    c%invF_dpc = -1d30
+    open(58,file='/mn/stornext/d23/cmbco/hfi/common/data/adc/ADC_NL_'//trim(adjustl(label))//'.dat')
+    read(58,fmt='(a,2i)') comment, n0, n1
+    do i = 1, n0
+       read(58,*) k, adc_dpc
+       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
+       if (k >= c%min_coadd .and. k <= c%max_coadd) then
+          c%invF_dpc(k,1) = k + adc_dpc
+          if (i == 1) then
+             do j = c%min_coadd, k-1
+                c%invF_dpc(j,1) = j + adc_dpc
+             end do
+          else if (i == n0) then
+             do j = k+1, c%max_coadd
+                c%invF_dpc(j,1) = j + adc_dpc
+             end do
+          end if
+       end if
+    end do
+    read(58,fmt='(a)') comment
+    do i = 1, n1
+       read(58,*) k, adc_dpc
+       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
+       if (k >= c%min_coadd .and. k <= c%max_coadd) then
+          c%invF_dpc(k,2) = k + adc_dpc
+          if (i == 1) then
+             do j = c%min_coadd, k-1
+                c%invF_dpc(j,2) = j + adc_dpc
+             end do
+          else if (i == n1) then
+             do j = k+1, c%max_coadd
+                c%invF_dpc(j,2) = j + adc_dpc
+             end do
+          end if
+       end if
+    end do
+    close(58)
+    !write(*,*) 'Number of non-initialized elements in invF_dpc = ', count(c%invF_dpc == -1.d30), trim(label)
+
+    if (c%myid == 0) then
+       write(*,*) trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat'
+       open(58, file=trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat', recl=1024)
+       do i = c%min_coadd, c%max_coadd
+          write(58,*) i, c%invF_dpc(i,1), c%invF_dpc(i,2)
+       end do
+       close(58)
+    end if
+
     
   end function constructor_adc_binfit
 
-  module subroutine adc_correct(self, tod, mask)
+  module subroutine adc_correct(self, tod, mask, mod_phase)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -179,14 +234,29 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     class(comm_adc_binfit),          intent(in)    :: self
     real(dp),     dimension(:),      intent(inout) :: tod
     logical(lgt), dimension(:),      intent(in)    :: mask
+    real(sp),                        intent(in)    :: mod_phase
 
     integer(i4b) :: i
+    real(sp)     :: phase
 
-    ! Apply correction
+!!$    ! Apply correction
+!!$    do i = 1, size(tod)
+!!$       if (mask(i)) then
+!!$          tod(i) = self%invF(nint(tod(i)))
+!!$       end if
+!!$    end do
+
+    ! Apply DPC correction, different for positive and negative phases
+    phase = mod_phase
     do i = 1, size(tod)
        if (mask(i)) then
-          tod(i) = self%invF(nint(tod(i)))
+          if (phase == 1.) then
+             tod(i) = self%invF_dpc(nint(tod(i)),1)
+          else
+             tod(i) = self%invF_dpc(nint(tod(i)),2)
+          end if
        end if
+       phase = -phase
     end do
   end subroutine adc_correct
 
