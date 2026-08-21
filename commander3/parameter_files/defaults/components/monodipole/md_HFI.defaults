@@ -5,5 +5,6 @@ COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
 COMP_POLARIZATION&&           = .false.
 COMP_CG_SAMPLE_GROUP&&        = 0
 COMP_MD_MONO_FROM_PRIOR&&     = none 
-COMP_MD_DEFINITION_FILE&&     = none
+COMP_MD_DEFINITION_FILE&&     = init_comm3/common/init_md.dat
 COMP_INIT_FROM_HDF&&          = none
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

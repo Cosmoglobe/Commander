@@ -19,7 +19,7 @@ COMP_NU_MIN&&                 = 0.d0
 COMP_NU_MAX&&                 = 1d30
 COMP_BAND_REF&&               = 353-1
 COMP_MASK&&                   = fullsky
-COMP_INDMASK&&                = mask_co_lineratio_v3_n2048.fits
+COMP_INDMASK&&                = common/mask/mask_co_lineratio_v3_n2048.fits
 COMP_MONOPOLE_PRIOR&&         = none
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
 COMP_CL_POLTYPE&&             = 1  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
@@ -32,7 +32,7 @@ COMP_CL_DEFAULT_AMP_B&&       =  1.d0
 COMP_CL_DEFAULT_BETA_T&&      =  9.5d0
 COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
 COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
-COMP_LINE_TEMPLATE&&          = /mn/stornext/d23/cmbco/cg/hfi/compsep/co353_line_template_HFI_v1.dat
+COMP_LINE_TEMPLATE&&          = common/models/co353_line_template_HFI_v0.dat
 COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
 COMP_AMP_INPUT_MAP&&          = none
 COMP_AMP_PRIOR_MAP&&          = none
