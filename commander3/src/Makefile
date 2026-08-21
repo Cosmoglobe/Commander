@@ -69,6 +69,7 @@ F90SOURCES=hashtbl.f90 \
            comm_mbb_comp_mod.f90 \
            comm_mbbtab_comp_mod.f90 \
            comm_admbbtab_comp_mod.f90 \
+           comm_tsz_comp_mod.f90 \
            comm_freefree_comp_mod.f90 \
            comm_freefreeEM_comp_mod.f90 \
            comm_line_comp_mod.f90 \
@@ -226,6 +227,7 @@ comm_map_mod.o              : sharp.o comm_hdf_mod.o comm_param_mod.o comm_statu
 comm_mbb_comp_mod.o         : comm_comp_interface_mod.o
 comm_mbbtab_comp_mod.o      : comm_comp_interface_mod.o
 comm_admbbtab_comp_mod.o    : comm_comp_interface_mod.o
+comm_tsz_comp_mod.o         : comm_comp_interface_mod.o
 comm_md_comp_mod.o          : comm_comp_interface_mod.o
 comm_mh_specind_mod.o       : comm_signal_mod.o
 comm_n_lcut_mod.o           : comm_n_mod.o
@@ -334,6 +336,7 @@ comm_line_comp_mod.o        : comm_comp_interface_mod.o
 comm_mbb_comp_mod.o         : comm_comp_interface_mod.o 
 comm_mbbtab_comp_mod.o      : comm_comp_interface_mod.o
 comm_admbbtab_comp_mod.o    : comm_comp_interface_mod.o 
+comm_tsz_comp_mod.o         : comm_comp_interface_mod.o 
 comm_md_comp_mod.o          : comm_comp_interface_mod.o 
 comm_physdust_comp_mod.o    : comm_comp_interface_mod.o 
 comm_powlaw_comp_mod.o      : comm_comp_interface_mod.o 
