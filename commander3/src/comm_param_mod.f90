@@ -947,6 +947,8 @@ contains
           select case (trim(cpar%cs_type(i)))
           case ('cmb')
              call read_cmb_params_hash(htbl,cpar)
+          case ('tsz')
+               !!RAELYN SET THIS UP!!
           case ('power_law')
              call read_power_law_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('exponential')
