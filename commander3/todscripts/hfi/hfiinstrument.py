@@ -30,9 +30,9 @@ from astropy.io import fits
 from astropy.table import Table
 
 ## Fill in path to the Commander python below!! ###
-sys.path.append('../Commander/commander3/python')
+#sys.path.append('../Commander/commander3/python')
 ####################
-# sys.path.append('/mn/stornext/u3/raelynsu/code/Commander/commander3/python')
+#sys.path.append('/mn/stornext/u3/raelynsu/code/Commander/commander3/python')
 #sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
 from commander_tools.tod_tools.hfi import hfi
 from commander_tools.tod_tools.lfi import lfi
@@ -47,14 +47,16 @@ def main():
 
     parser.add_argument('--rimo', type=str, action='store', help='path to the RIMO file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/RIMO_npipe2.fits')
 
-    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/beams')
+    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the beam alms', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/beams')
+
+    parser.add_argument('--fsl-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d23/cmbco/globe/planck/beam/fsl')
 
     tbol_file="/mn/stornext/d23/cmbco/globe/orig/planck/aux/Tbol_SI.txt"
 
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 5
+    version = 7
 
     rimo = fits.open(args.rimo)
     
@@ -71,22 +73,22 @@ def main():
             prefix = str(freq) + '-' + det
             bandNo = rimo.index_of('bandpass_' + str(freq) + '-' + det)
             inst_file.add_hfi_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
-            
-            beamData, mmax_b = hp.read_alm(os.path.join(args.beam_dir, 'blm_' + str(freq) + '-' + det + '.fits'), return_mmax=True)
-
-            #beamData_E = None
-
-            #beamData_B = None
-
-            #These should be in beam_fsl_Pxx_100-1a.fits and so on
-            if(freq < 545):
-                slData, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'fsl_alms_' + str(freq) + '-' + det + '.fits'), return_mmax=True)
            
-                slData_E, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'fsl_alms_' + str(freq) + '-' + det + '.fits'), return_mmax=True, hdu=1)
 
-                slData_B, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'fsl_alms_' + str(freq) + '-' + det + '.fits'), return_mmax=True, hdu=2)
+            mbData, mmax_mb = hp.read_alm(os.path.join(args.fsl_dir, 'mb_alms_' + str(freq) + '-' + det + '_v2.fits'), return_mmax=True)
+            fpibData, mmax_fpib = hp.read_alm(os.path.join(args.fsl_dir, 'fpib_alms_' + str(freq) + '-' + det + '_v2.fits'), return_mmax=True)
 
-                inst_file.add_alms(prefix, 'sl', hp.Alm.getlmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), lfi.complex2realAlms(slData_E, mmax_s), lfi.complex2realAlms(slData_B, mmax_s))
+            inst_file.add_alms(prefix, 'mb', hp.Alm.getlmax(len(mbData), mmax_mb), mmax_mb, lfi.complex2realAlms(mbData, mmax_mb), None, None)#, [0], [0])
+            inst_file.add_alms(prefix, 'beam', hp.Alm.getlmax(len(fpibData), mmax_fpib), mmax_fpib, lfi.complex2realAlms(fpibData, mmax_fpib), None, None)#, [0], [0])
+
+
+            if(freq < 545):
+                slData, mmax_s = hp.read_alm(os.path.join(args.fsl_dir, 'fsl_alms_' + str(freq) + '-' + det + '_v2.fits'), return_mmax=True)
+            
+                inst_file.add_alms(prefix, 'sl', hp.Alm.getlmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), None, None)#, [0], [0])
+
+
+
             elif(freq == 545):
                 #the 857 sidelobes are the best option we have for 545 according to Reijo
                 #for 545 1 and 2, 857-1, and for 3 and 4, 857-4
@@ -104,8 +106,6 @@ def main():
                 slData, mmax_s = hp.read_alm(os.path.join(args.beam_dir, 'FSL_' + str(freq) + '-' + det + '_alms_hamza_summed.fits'), return_mmax=True)
 
                 inst_file.add_alms(prefix, 'sl', hp.Alm.getlmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), None, None)
-
-            inst_file.add_alms(prefix, 'beam', hp.Alm.getlmax(len(beamData), mmax_b), mmax_b, lfi.complex2realAlms(beamData, mmax_b), None, None)
 
 
             #beam parameters
