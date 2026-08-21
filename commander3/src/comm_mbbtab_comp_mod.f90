@@ -41,7 +41,7 @@ module comm_MBBtab_comp_mod
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
-     procedure :: update_spline  !!procedure to update the spline 
+   !   procedure :: update_spline  !!procedure to update the spline 
      procedure :: write_spline !!procedure to print the spline 
   end type comm_MBBtab_comp
 
@@ -49,6 +49,15 @@ module comm_MBBtab_comp_mod
      procedure constructor_mbbtab
   end interface comm_MBBtab_comp
 
+
+  abstract interface
+   subroutine update_spline_interface(self,beta,T,pol)
+      import
+      class(comm_MBBtab_comp), intent(inout) :: self
+      real(dp), intent(in)                        :: T, beta
+      integer(i4b),            intent(in)         :: pol
+   end subroutine update_spline_interface
+  end interface
 contains
 
   !**************************************************
@@ -184,15 +193,6 @@ contains
 
   end function constructor_mbbtab
 
-
-  abstract interface
-   subroutine update_spline_interface(self,beta,T,pol)
-      import comm_MBBtab_comp
-      class(comm_MBBtab_comp), intent(inout) :: self
-      real(dp), intent(in)                        :: T, beta
-      integer(i4b),            intent(in)         :: pol
-   end subroutine update_spline_interface
-  end interface
 
   ! Definition:
   !      x  = h*nu/(k_b*T)
@@ -490,55 +490,8 @@ contains
   end subroutine  update_spline_log
 
 
-  ! Read precomputed SED table
-  !   Each line in the file should contain {nu_min, nu_max, SED}
-  !   The units should be  Mj/sr/map_units where map_units are usually uK_rj@545
-  subroutine read_SED_table(self, filename)
-    implicit none
-    class(comm_MBBtab_comp),    intent(inout)   :: self
-    character(len=*),           intent(in)      :: filename
-    
-    integer(i4b) :: i, unit
-    character(len=1024) :: line
 
-    unit = getlun()
-    self%ntab = 0
-    open(unit, file=trim(filename))
-    do while (.true.)
-       read(unit,'(a)', end=1) line
-       line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
-       if (len_trim(line) == 0) cycle ! fixes crash with empty lines in the table
-       self%ntab = self%ntab+1
-    end do
-1   close(unit)
-
-    allocate(self%SEDtab(2+self%npar_tab,self%ntab))
-    allocate(self%SEDtab_buff(2+self%npar_tab,self%ntab))
-    open(unit, file=trim(filename))
-    i = 0
-    do while (.true.)
-       read(unit,'(a)', end=2) line
-       line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
-       if (len_trim(line) == 0) cycle ! fixes crash with empty lines in the table
-       i = i+1
-       read(line,*) self%SEDtab(:,i)
-    end do
-2   close(unit)
-
-    !!! astrodust type SED table only have the central frequency node and the amplitude, not two frequencies and the amplitude
-    if (self%npar_tab==0) then 
-      self%SEDtab(1,:) = self%SEDtab(1,:) * 1d9
-    else 
-      self%SEDtab(1:2,:) = self%SEDtab(1:2,:) * 1d9
-    end if 
-    self%SEDtab_buff = self%SEDtab
-    self%posneg=1
-  end subroutine read_SED_table
-
-
-  subroutine update_spline_arcsinh(self,beta,T,pol)
+  subroutine update_spline_asinh(self,beta,T,pol)
     implicit none
     class(comm_MBBtab_comp),    intent(inout)   :: self
     real(dp), intent(in)                        :: T, beta
@@ -662,7 +615,7 @@ contains
    !  end if 
 
 
-  end subroutine  update_spline_arcsinh
+  end subroutine  update_spline_asinh
 
 
 
