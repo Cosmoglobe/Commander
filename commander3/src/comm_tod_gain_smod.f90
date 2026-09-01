@@ -89,11 +89,16 @@ contains
           residual(:,j) = 0.d0
           cycle
        end if
-       r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
+       r_fill = tod_arr(:, j) 
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num, tod%scans(scan_id)%d(j)%gain, s_tot(:,j))
+       r_fill = r_fill - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
-    call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+    !call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+    do j = 1, ndet
+       if (.not. tod%scans(scan_id)%d(j)%accept) cycle
+       residual(:,j) = residual(:,j) / tod%scans(scan_id)%d(j)%N_psd%sigma0
+    end do
 
     do j = 1, ndet
        if (.not. tod%scans(scan_id)%d(j)%accept) then
@@ -113,6 +118,8 @@ contains
 !!$             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
 !!$          end if
        end if
+
+       !write(*,*) j, scan_id, real(tod%scans(scan_id)%d(j)%dgain/tod%scans(scan_id)%d(j)%gain_invsigma,sp), real(tod%gain0(0),sp), real(tod%gain0(j),sp)
     end do
 !    tod%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    tod%scans(scan_id)%d(det)%gain_invsigma = sum(stot_invN * s_tot)
@@ -120,7 +127,7 @@ contains
 !       write(*,*) 's', sum(mask * stot_invN * s_tot), sum(stot_invN * s_tot)
 !    end if
 
-    !write(*,*) det, scan_id, real(tod%scans(scan_id)%d(det)%dgain/tod%scans(scan_id)%d(det)%gain_invsigma,sp), real(tod%gain0(0),sp), real(tod%gain0(det),sp), real(g_old,sp)
+
 
    ! write(*,*) tod%scanid(scan_id), real(tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), real(tod%gain0(0) + tod%gain0(3) + tod%scans(scan_id)%d(3)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), '# deltagain'
 
@@ -156,6 +163,132 @@ contains
     deallocate(residual, r_fill)
 
   end subroutine calculate_gain_mean_std_per_scan
+
+  module subroutine calculate_tot_gain_per_scan(tod, scan_id, s_invsqrtN, mask, s_tot, handle, mask_lowres, tod_arr)
+      ! 
+      ! Calculate the scan-specific contributions to the gain estimation. 
+      !
+      ! This subroutine is called during the processing of each scan, and the
+      ! results are stored in the TOD object. Then, after each scan has been
+      ! processed in the main loop, these data are used to calculate the total
+      ! gain estimate for each detector, since these gain estimates depend on
+      ! knowing all the scan-specific gain contributions. The data will be
+      ! downsampled before calculating the estimate.
+      !
+      ! Arguments:
+      ! ----------
+      ! tod:           derived class (comm_tod)
+      !                TOD object containing all scan-relevant data. Will be
+      !                modified.
+      ! scan_id:       integer(i4b)
+      !                The ID of the current scan.
+      ! s_invsqrtN:    real(sp) array
+      !                The product of the reference signal we want to calibrate
+      !                on multiplied by the square root of the inverse noise
+      !                matrix for this scan.
+      ! handle:        derived class (planck_rng)
+      !                Random number generator handle. Will be modified.
+      ! mask_lowres:   real(sp) array
+      !                The mask for the low-resolution downsampled data.
+      !
+      ! tod_arr:       To be deprecated soon.
+      !
+      ! Returns:
+      ! --------
+      ! tod:           derived class (comm_tod)
+      !                Will update the fields tod%scans(scan_id)%d(:)%dgain and
+      !                tod%scans(scan_id)%d(:)%gain_invsigma, which contain
+      !                incremental estimates to be used for global gain
+      !                estimation. 
+      !                dgain = s_ref * n_invN * residual where residual is
+      !                     d - (g_0 + g_i) * s_tot (g_0 being the absolute gain, and
+      !                     g_i the absolute gain per detector)
+      !                gain_invsigma =  s_ref * n_invN * s_ref
+
+      
+    implicit none
+    class(comm_tod),                      intent(inout) :: tod
+    real(sp),             dimension(:,:), intent(in)    :: tod_arr
+    real(sp),             dimension(:,:), intent(in)    :: s_invsqrtN, mask, s_tot
+    integer(i4b),                         intent(in)    :: scan_id
+    type(planck_rng),                     intent(inout) :: handle
+    real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
+
+    real(sp), allocatable, dimension(:,:) :: residual
+    real(sp), allocatable, dimension(:)   :: r_fill
+
+    real(dp) :: a, b
+    integer(i4b) :: ext(2), j, i, ndet, ntod
+    character(len=5) :: itext
+
+    ndet = tod%ndet
+    ntod = size(s_tot,1)
+
+    allocate(r_fill(size(s_tot,1)))
+    call tod%downsample_tod(s_tot(:,1), ext)    
+    allocate(residual(ext(1):ext(2),ndet))
+    do j = 1, ndet
+       if (.not. tod%scans(scan_id)%d(j)%accept) then
+          residual(:,j) = 0.d0
+          cycle
+       end if
+       r_fill = tod_arr(:, j)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num, tod%scans(scan_id)%d(j)%gain, s_tot(:,j))
+       call tod%downsample_tod(r_fill, ext, residual(:,j))
+    end do
+!!$    call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+    do j = 1, ndet
+       if (.not. tod%scans(scan_id)%d(j)%accept) cycle
+       residual(:,j) = residual(:,j) / tod%scans(scan_id)%d(j)%N_psd%sigma0
+    end do
+
+    do j = 1, ndet
+       if (.not. tod%scans(scan_id)%d(j)%accept) then
+          tod%scans(scan_id)%d(j)%gain  = 0.d0
+          tod%scans(scan_id)%d(j)%dgain = 0.d0
+       else
+          if (present(mask_lowres)) then
+             a = sum(s_invsqrtN(:,j) ** 2            * mask_lowres(:,j))
+             b = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+          else
+             a = sum(s_invsqrtN(:,j) ** 2)            
+             b = sum(s_invsqrtN(:,j) * residual(:,j))
+          end if
+          tod%scans(scan_id)%d(j)%gain = b/a + rand_gauss(handle)/sqrt(a)
+       end if
+    end do
+
+    if (.false.) then
+       call int2string(tod%scanid(scan_id), itext)
+       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
+       open(58,file='gain_delta_'//itext//'.dat', recl=1024)
+       write(58,*) "#", tod%scans(scan_id)%ntod, size(tod_arr), tod%gain0(0), tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
+       do i = 1, size(tod_arr)
+          write(58,*) i, r_fill(i), tod_arr(i,1), s_tot(i,1), mask(i,1)
+       end do
+       
+!!$       do i = ext(1), ext(2)
+!!$          write(58,*) i, residual(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       write(58,*)
+!!$       do i = 1, size(s_invsqrtN,1)
+!!$          write(58,*) i, s_invsqrtN(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_tot,1)
+!!$          write(58,*) i, tod_arr(i, 1)
+!!$       end do
+       close(58)
+    end if
+
+    deallocate(residual, r_fill)
+
+  end subroutine calculate_tot_gain_per_scan
 
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
@@ -400,7 +533,7 @@ contains
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
     real(dp)     :: A, b, scale, dA, db
-    integer(i4b) :: i, j, ext(2), ndet, ntod
+    integer(i4b) :: i, j, k, ext(2), ndet, ntod
     character(len=5) :: itext
 
     ndet = tod%ndet
@@ -414,13 +547,31 @@ contains
           residual(:,j) = 0.
           cycle
        end if
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num, tod%scans(scan)%d(j)%gain, s_highres(:,j))
        r_fill = tod_arr(:,j) - s_sub(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
-    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
-
+!!$    write(*,*) 'c'
+!!$    open(58,file='residual_6700.dat', recl=1024)
+!!$    do k = ext(1), ext(2)
+!!$       write(58,*) k, residual(k,2)
+!!$    end do
+!!$    close(58)
+    
+!    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+    do j = 1, ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       residual(:,j) = residual(:,j) / tod%scans(scan)%d(j)%N_psd%sigma0
+    end do
+    
+!!$    write(*,*) 'd'
+!!$    open(58,file='residual2_6700.dat', recl=1024)
+!!$    do k = ext(1), ext(2)
+!!$       if (mask_lowres(k-ext(1)+1,2) == 1.) write(58,*) k, residual(k,2)
+!!$    end do
+!!$    close(58)
+    
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (present(mask_lowres)) then
@@ -431,6 +582,19 @@ contains
           db = sum(s_invsqrtN(:,j) * residual(:,j))
        end if
 
+       !if (.false.) then
+       if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
+          call int2string(tod%scanid(scan), itext)
+          open(58,file='gain_delta_'//itext//'.dat', recl=1024)
+          write(58,*) "#", tod%scans(scan)%ntod, size(tod_arr), db/dA
+          do i = 1, size(s_invsqrtN(:,j))
+             !if (mask_lowres(i,j) == 1.) then
+                write(58,*) i, residual(i-ext(1)+1,j), s_invsqrtN(i,j), mask_lowres(i,j)!, tod_arr(i,j) - s_sub(i,j)
+             !end if
+          end do
+          close(58)
+       end if
+       
        if (dA == 0.) then
           !tod%scans(scan)%d(j)%accept = .false.
           !write(*,*) '| Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j
@@ -443,13 +607,13 @@ contains
           !write(*,*) scan, j, db/dA
        end if
 
-       !if (tod%scanid(scan) == 30 .and. out) then
-!       if (out .and. dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
-!         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-!       else if (dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
-!       end if
+!!$       !if (tod%scanid(scan) == 30 .and. out) then
+       if (.false. .and. out .and. dA > 0.d0) then
+          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
+         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+!!$       else if (dA > 0.d0) then
+!!$          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
+       end if
     end do
 
     deallocate(residual, r_fill)
@@ -481,6 +645,11 @@ contains
       
       if (sum(A) .ne. 0) then
          tod%gain0(0) = sum(b)/sum(A)
+         !tod%gain0(0) = 0.126d0
+         !               0.12326
+         !tod%gain0(0) = 0.1237d0
+         !tod%gain0(0) = 0.1235d0
+         !tod%gain0(0) = 0.1232601242148d0
          
          if (trim(tod%operation) == 'sample') then
             ! Add fluctuation term if requested

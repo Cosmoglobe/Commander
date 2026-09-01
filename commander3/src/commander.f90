@@ -25,6 +25,7 @@ program commander
   use comm_tod_objctr_samp_mod
   use comm_sparse_mod
   use comm_dust_extinction_mod
+  use comm_tod_adc_binfit_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -50,6 +51,7 @@ program commander
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
   integer(i4b) :: ntot, npar
+  class(comm_adc_binfit), pointer :: adc
   
   !bands_to_sample = (/1,2/)
   !bands_to_calibrate_against= (/1,2/)
@@ -88,6 +90,10 @@ program commander
   call MPI_Init(ierr)
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+
+!!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "data", "chains", "100-1a", 16, 32376, 33163, 40)
+!!$  call mpi_finalize(ierr)
+!!$  stop
   
   cpar%root = 0
   

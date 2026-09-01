@@ -76,6 +76,52 @@ interface
   end subroutine calculate_gain_mean_std_per_scan
 
 
+
+  module subroutine calculate_tot_gain_per_scan(tod, scan_id, s_invsqrtN, mask, s_tot, handle, mask_lowres, tod_arr)
+      ! 
+      ! Calculate the full contributions to the gain estimation. 
+      ! 
+      ! Arguments:
+      ! ----------
+      ! tod:           derived class (comm_tod)
+      !                TOD object containing all scan-relevant data. Will be
+      !                modified.
+      ! scan_id:       integer(i4b)
+      !                The ID of the current scan.
+      ! s_invsqrtN:    real(sp) array
+      !                The product of the reference signal we want to calibrate
+      !                on multiplied by the square root of the inverse noise
+      !                matrix for this scan.
+      ! handle:        derived class (planck_rng)
+      !                Random number generator handle. Will be modified.
+      ! mask_lowres:   real(sp) array
+      !                The mask for the low-resolution downsampled data.
+      !
+      ! tod_arr:       To be deprecated soon.
+      !
+      ! Returns:
+      ! --------
+      ! tod:           derived class (comm_tod)
+      !                Will update the fields tod%scans(scan_id)%d(:)%dgain and
+      !                tod%scans(scan_id)%d(:)%gain_invsigma, which contain
+      !                incremental estimates to be used for global gain
+      !                estimation. 
+      !                dgain = s_ref * n_invN * residual where residual is
+      !                     d - (g_0 + g_i) * s_tot (g_0 being the absolute gain, and
+      !                     g_i the absolute gain per detector)
+      !                gain_invsigma =  s_ref * n_invN * s_ref
+
+      
+    implicit none
+    class(comm_tod),                      intent(inout) :: tod
+    real(sp),             dimension(:,:), intent(in)    :: tod_arr
+    real(sp),             dimension(:,:), intent(in)    :: s_invsqrtN, mask, s_tot
+    integer(i4b),                         intent(in)    :: scan_id
+    type(planck_rng),                     intent(inout) :: handle
+    real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
+  end subroutine calculate_tot_gain_per_scan
+
+
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included

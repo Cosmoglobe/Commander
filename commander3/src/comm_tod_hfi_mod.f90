@@ -458,7 +458,7 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine hfi_dark_correction
 
-  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
+  module subroutine sample_adc_and_baselines(self, handle, det)
     !  Sample ADC parameters
     !
     !  Arguments:
@@ -469,8 +469,6 @@ interface
     class(comm_hfi_tod),                 intent(inout) :: self
     type(planck_rng),                    intent(inout) :: handle
     integer(i4b),                        intent(in)    :: det
-    real(sp),          dimension(1:,1:), intent(in)    :: map_sky
-    real(sp),          dimension(0:),    intent(in)    :: procmask
   end subroutine sample_adc_and_baselines
 
   module subroutine estimate_hfi_4k_lines(self, sd, i_det, apply_mask, ps_output)
