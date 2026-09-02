@@ -123,7 +123,7 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)        :: numband
-     character(len=2048) :: datadir, ds_sourcemask, ds_procmask
+     character(len=2048) :: datadir, pixwindir, ds_sourcemask, ds_procmask
      logical(lgt),        allocatable, dimension(:)   :: ds_active
      integer(i4b),        allocatable, dimension(:)   :: ds_period
      logical(lgt),        allocatable, dimension(:)   :: ds_polarization
@@ -633,6 +633,7 @@ contains
     !call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask, path=.true.)
     call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask, path=.true.)
+    call get_parameter_hashtable(htbl, 'PIXWIN_DIR',          par_string=cpar%pixwindir, path=.true.)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n), cpar%ds_instlabel(n))
