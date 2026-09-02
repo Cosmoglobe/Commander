@@ -2,9 +2,10 @@
 In this script, I want to try out the way that the Planck team used to remove the glitches.
 """
 
-import Commander.commander3.todscripts.hfi.glitches.globals as g
 import matplotlib.pyplot as plt
 import numpy as np
+
+import Commander.commander3.todscripts.hfi.glitches.globals as g
 import Commander.commander3.todscripts.hfi.glitches.templates as templates
 
 
@@ -90,9 +91,7 @@ def matched_filter(res):
     plt.savefig(g.FIGURES_PATH + "debug/matched_filter_result.png")
     plt.close()
 
-    
-
-    return result
+    return glitch_idx
 
 if __name__ == "__main__":
     res = np.load(f"{g.DATA_PATH}143-2a_simulations.npy")

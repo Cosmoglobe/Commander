@@ -1,7 +1,8 @@
-import Commander.commander3.todscripts.hfi.glitches.globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
+
+import Commander.commander3.todscripts.hfi.glitches.globals as g
 
 
 def glitch_model_func(t, A, band = "143-2a", glitch_type = "short"):
@@ -16,11 +17,12 @@ def glitch_model_func(t, A, band = "143-2a", glitch_type = "short"):
     tau = []
 
     glitch_model = 0
-    if glitch_type == "long": max_amp = 4
-    elif glitch_type == "short": max_amp = 3
-    elif glitch_type == "slow": max_amp = 6
-    for amp_i in range(1, max_amp + 1):
+    for amp_i in range(1, 9):
         amp.append(glitch_params[glitch_type][f"Amplitude{amp_i}"])
+
+        if amp[-1] == 0:
+            break
+
         tau.append(glitch_params[glitch_type][f"Tau{amp_i}"])
 
         # print(f"Band: {band}, Type: {glitch_type}, Amplitude{amp_i}: {amp[-1]}, "
