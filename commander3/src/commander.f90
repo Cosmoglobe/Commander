@@ -22,8 +22,10 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_tod_objctr_samp_mod
   use comm_sparse_mod
   use comm_dust_extinction_mod
+  use comm_tod_adc_binfit_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -49,6 +51,7 @@ program commander
 
   real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
   integer(i4b) :: ntot, npar
+  class(comm_adc_binfit), pointer :: adc
   
   !bands_to_sample = (/1,2/)
   !bands_to_calibrate_against= (/1,2/)
@@ -87,6 +90,10 @@ program commander
   call MPI_Init(ierr)
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+
+!!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "data", "chains", "100-1a", 16, 32376, 33163, 40)
+!!$  call mpi_finalize(ierr)
+!!$  stop
   
   cpar%root = 0
   
@@ -97,26 +104,8 @@ program commander
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
-  status%active = cpar%myid_chain == 0 !.false.
+  status%active = cpar%myid_chain == 1 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
-
-!!$  call initialize_dust_extinction_mod(cpar)
-!!$  do i = 1, 1000
-!!$     lambda = 0.09 + (i-1)/(1000-1.d0)*33.d0
-!!$     call get_dust_attenuation_pos([0.d0,1.d0,0.d0], [c/(lambda*1d-6)], A_ext)
-!!$  end do
-!!$  call mpi_finalize(ierr)
-!!$  stop
-  
-!!!  if (cpar%myid == cpar%root) then
-!!!      allocate(param_test(200))
-!!!      param_test = 0.5d0
-!!!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
-!!!      write(*,*) "first", param_test(1)
-!!!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
-!!!      write(*,*) "last", param_test(1)
-!!!  end if
 
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -132,7 +121,9 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
-     else
+    else if (cpar%on_the_fly_tod_sim) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime: on-the-fly tod sims followed by standard data processing', '|'
+    else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
      write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
@@ -156,6 +147,7 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
+  call initialize_objctr_mod(cpar);          call update_status(status, "init_objctr")
   call initialize_bp_mod(cpar);              call update_status(status, "init_bp")
   call initialize_dust_extinction_mod(cpar); call update_status(status, "init_ext")
   call initialize_data_mod(cpar, handle);    call update_status(status, "init_data")
@@ -276,7 +268,6 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-     !if (mod(iter,10) == 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
         call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
@@ -285,14 +276,19 @@ program commander
      ! Skip other steps if TOD simulations
      if (cpar%enable_tod_simulations) exit
 
+     ! Sample stationary components
+     !if (first_zodi) then
+        if (cpar%sample_earth_maps) call sample_objctr_map(cpar, handle, 'earth')
+        if (cpar%sample_solar_maps) call sample_objctr_map(cpar, handle, 'solar')
+        if (cpar%sample_moon_maps)  call sample_objctr_map(cpar, handle, 'moon')
+     !end if
+
      ! Sample zodi parameters
      if (mod(iter,modfact) == 0 .and. iter > 0 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
         if (first_zodi) then
            ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
            call downsamp_invariant_structs(cpar)
-           call precompute_lowres_zodi_lookups(cpar)
-           !call compute_downsamp_zodi(cpar, zodi_model)      
            call create_zodi_sampgroup_mask(cpar, handle)
            first_zodi = .false.
         end if
@@ -307,12 +303,6 @@ program commander
            end select
         end do
         
-        ! Sample stationary components
-        !if (first_zodi) then
-           if (cpar%sample_earth_maps) call sample_static_zodi_map(cpar, handle, 'earth')
-           if (cpar%sample_solar_maps) call sample_static_zodi_map(cpar, handle, 'solar')
-           if (cpar%sample_moon_maps)  call sample_static_zodi_map(cpar, handle, 'moon')
-        !end if
       
       call timer%stop(TOT_ZODI_SAMP)
    end if
@@ -361,7 +351,7 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
 
-     if (iter > 1) then
+     if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
@@ -375,13 +365,13 @@ program commander
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
             end if
         end do
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
-     ! Do CG group sampling
-     call sample_all_amps_by_CG(cpar, handle, handle_noise)
   end if
      
      ! Output sample to disk
-     call timer%start(TOT_OUTPUT)
+  call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
 
@@ -442,13 +432,18 @@ contains
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
+    type(map_ptr), allocatable, dimension(:)     :: s_gain
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
 
-    ndelta      = cpar%num_bp_prop + 1
+    if (iter > 1) then
+       ndelta      = cpar%num_bp_prop + 1
+    else
+       ndelta = 1
+    end if
 
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
@@ -483,7 +478,7 @@ contains
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
-       allocate(s_gain(ndet,1))
+       allocate(s_gain(ndet))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -500,12 +495,13 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                     !  write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
+                      !write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
                       do j = 1, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
                       end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
+                      !write(*,*) "delta", l, k, delta(0:ndet,l,k)
                    else
                       !write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
@@ -530,6 +526,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
@@ -554,10 +551,10 @@ contains
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
                 if (associated(gainmap)) then
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., &
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false., &
                      & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
                 else
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                   call get_sky_signal(i, j, s_gain(j)%p, mono=.false.) 
                 end if
              end do
           end if
@@ -607,7 +604,7 @@ contains
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)
-       call rms%dealloc
+       call rms%dealloc; deallocate(rms); rms => null()
 
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
@@ -622,7 +619,7 @@ contains
           do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
-          call s_gain(j,1)%p%dealloc
+          call s_gain(j)%p%dealloc
        end do
        deallocate(s_sky, s_gain, delta, eta)
 
@@ -630,9 +627,14 @@ contains
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
           call nullify_monopole_amp(data(i)%label)
        end if
-       
+      
+       if (associated(gainmap)) then 
+          call gainmap%dealloc()
+          deallocate(gainmap)
+          nullify(gainmap)
+       end if
+
     end do
-    if (associated(gainmap)) call gainmap%dealloc()
 
   end subroutine process_all_TODs
 

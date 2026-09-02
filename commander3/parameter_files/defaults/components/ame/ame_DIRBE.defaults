@@ -13,7 +13,7 @@ COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0016_600arcmin_rescaled_TQU
 #COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_120arcmin_rescaled_TQU.fits,64,120.d0,2.0,2.5,3.0,3.5,4.0,10  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1000
-
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_OUTPUT_FWHM&&            = 60         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0
@@ -77,3 +77,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

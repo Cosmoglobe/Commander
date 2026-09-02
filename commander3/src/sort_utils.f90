@@ -667,11 +667,50 @@ contains
        itemp = numbers(i)
        numbers(i) = numbers(right-1)
        numbers(right-1) = itemp
-          
+
        call quick_sort_int(numbers, left, i-1, depth+1)
        call quick_sort_int(numbers, i+1, right, depth+1)
     end if
+  
+    if (depth >= MAX_DEPTH) then
+       call insertion_sort_int(numbers(left:right))
+       return
+    end if
+  
+!!$    call median3_int(numbers, left, right, pivot)
+!!$  
+!!$    i = left
+!!$    j = right - 1
+!!$  
+!!$    do
+!!$       i = i + 1
+!!$       do while (numbers(i) < pivot)
+!!$          i = i + 1
+!!$       end do
+!!$  
+!!$       j = j - 1
+!!$       do while (numbers(j) > pivot)
+!!$          j = j - 1
+!!$       end do
+!!$  
+!!$       if (i >= j) exit
+!!$  
+!!$       itemp = numbers(i)
+!!$       numbers(i) = numbers(j)
+!!$       numbers(j) = itemp
+!!$    end do
+!!$  
+!!$    ! Restore pivot
+!!$    itemp = numbers(i)
+!!$    numbers(i) = numbers(right-1)
+!!$    numbers(right-1) = itemp
+!!$  
+!!$    call quick_sort_int(numbers, left, i-1, depth+1)
+!!$    call quick_sort_int(numbers, i+1, right, depth+1)
   end subroutine quick_sort_int
+
+
+
 
   subroutine median3_int(numbers, left, right, pivot)
     implicit none
@@ -681,6 +720,8 @@ contains
 
     integer(i4b)                  :: center, itemp
 
+    if (left == right) return
+    
     center = (left+right)/2
 
     if (numbers(left) > numbers(center)) then

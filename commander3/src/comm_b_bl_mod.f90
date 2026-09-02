@@ -59,11 +59,12 @@ contains
     class(comm_B_bl),   pointer                              :: constructor
 
     character(len=4)   :: nside_text
-    character(len=512) :: dir
+    character(len=512) :: dir, pixwin_dir
     
     ! General parameters
     allocate(constructor)
     dir = trim(cpar%datadir) // '/'
+    pixwin_dir = trim(cpar%pixwindir) // '/'
 
     ! Component specific parameters
     constructor%type        =  'b_l'    
@@ -77,7 +78,7 @@ contains
        if (present(nside)) then
           call int2string(nside, nside_text)
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'pixel_window_n'//nside_text//'.fits')
+               & pixwin=trim(pixwin_dir)//'pixel_window_n'//nside_text//'.fits')
        else if (present(pixwin)) then
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
                & pixwin=trim(dir)//'/'//trim(pixwin))
@@ -85,7 +86,7 @@ contains
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
        end if
     else
-       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
+      call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
             & beamfile=trim(cpar%ds_blfile(id_abs)), &
             & pixwin=trim(cpar%ds_pixwin(id_abs)))
     end if

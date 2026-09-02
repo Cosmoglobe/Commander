@@ -29,7 +29,9 @@ module comm_tod_WMAP_mod
   !       all data needed for TOD processing
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
-   use comm_tod_driver_mod
+  use comm_tod_driver_mod
+  use comm_tod_simulations_mod
+  use comm_tod_mapmaking_mod
    use comm_conviqt_mod
    implicit none
 
@@ -47,6 +49,7 @@ module comm_tod_WMAP_mod
       procedure     :: precompute_M_lowres
       procedure     :: apply_map_precond       => apply_wmap_precond
       procedure     :: construct_corrtemp_inst => construct_corrtemp_wmap
+      procedure     :: coadd_horns             => coadd_horns_wmap
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -217,6 +220,7 @@ contains
       c%nmaps           = info%nmaps
       c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       c%verbosity       = cpar%verbosity
+      c%pol_sign        = [1.0,1.0,-1.0,-1.0]
 
       ! Gain PSD Wiener filter parameters; determined by trial-and-error
       c%gain_tune_sigma0 = .false.
@@ -276,7 +280,7 @@ contains
       !load the instrument file
       call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-      ! Collect Sun velocities from all scals
+      ! Collect Sun velocities from all scans
       call c%collect_v_sun
 
 
@@ -285,10 +289,8 @@ contains
                           & 53957,54322,54688,55053,55418/)
 
 
-      ! Need precompute the main beam precomputation for both the A-horn and
-      ! B-horn.
       ! Allocate sidelobe convolution data structures
-      allocate(c%slconvA(c%ndet), c%slconvB(c%ndet))
+      allocate(c%slconv(c%ndet,c%nhorn))
       allocate(c%orb_dp)
       if (c%orb_4pi_beam) then
          c%orb_dp => comm_orbdipole(beam=c%mbeam)
@@ -348,11 +350,11 @@ contains
       real(dp),  dimension(0:, 1:, 1:), intent(inout) :: delta     ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr), dimension(1:, 1:), intent(inout), optional :: map_gain    ! (ndet,1)
+      type(map_ptr), dimension(1:),     intent(inout), optional :: map_gain    ! (ndet,1)
 
       real(dp)     :: t1, t2, monopole, sigma_mono
-      integer(i4b) :: i, j, k, l, n
-      integer(i4b) :: nside, npix, nmaps 
+      integer(i4b) :: i, j, k, h, l, n
+      integer(i4b) :: nside, npix, nmaps, oper_default
       integer(i4b) :: ierr, ndelta, t_mid=53765
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
@@ -364,7 +366,7 @@ contains
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist, split
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist, split, sample_ncorr
       type(comm_scandata) :: sd
 
       character(len=4)   :: ctext, myid_text
@@ -401,6 +403,7 @@ contains
       call timer%start(TOD_ALLOC, self%band)
 
       ! Toggle optional operations
+      sample_ncorr          = .true.
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
@@ -432,7 +435,14 @@ contains
          end if
       end if
 
-
+      ! Define useful sd operation codes
+      if (sample_rel_bandpass) then
+         oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+              & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP])
+      else
+         oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+              & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
+      end if
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -440,22 +450,8 @@ contains
       prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
       postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
-      ! Distribute maps
-      ! Allocate total map (for monopole sampling)
-      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(map_full(nmaps, 0:npix-1))
-      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-      !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
-      call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
-      call distribute_sky_maps(self, map_gain, 1., m_gain) ! uK to K
-
-
-
-      ! Distribute processing masks
-      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-      deallocate(m_buf)
+      ! Initialize index-based sky map and mask
+      call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -502,10 +498,10 @@ contains
          call timer%start(TOD_SL_PRE, self%band)
          do i = 1, self%ndet
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-            self%slconvA(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+            self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                  & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                  & 100, 3, 100, self%slbeam(1)%p, map_in(i,1)%p, 2)
-            self%slconvB(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+            self%slconv(i,2)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                  & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                  & 100, 3, 100, self%slbeam(3)%p, map_in(i,1)%p, 2)
                  ! lmax, nmaps, bmax, beam, map, optim
@@ -540,9 +536,9 @@ contains
               call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
-                 call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2)
+                 call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
                  call timer%start(TOD_BASELINE, self%band)
-                 call sample_baseline_WMAP(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+                 call sample_baseline_WMAP(self, i, sd%tod, sd%s_tot(:,:,0,1), sd%mask, handle)
                  call timer%stop(TOD_BASELINE, self%band)
                  call dealloc_scan_data(sd)
               end do
@@ -565,13 +561,13 @@ contains
                       self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
                    end do
                 end do
-              else
-                call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+             else
+                call sample_calibration(self, 'abscal', oper_default, handle)
               end if
               call update_status(status, "relcal")
-              call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+              call sample_calibration(self, 'relcal', oper_default, handle)
               call update_status(status, "deltaG")
-              call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2, smooth=.true.)
+              call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
            else
               self%correct_sl      = .false.
               do j = 1, self%nscan
@@ -583,7 +579,7 @@ contains
               self%gain0(1:) = 0
               self%x_im = 0
            end if
-           call sample_calibration(self, 'imbal',  handle, map_sky, m_gain, procmask, procmask2)
+           call sample_calibration(self, 'imbal', oper_default, handle)
       end if
 
 
@@ -601,16 +597,15 @@ contains
       n_flag = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
-
          if (.not. any(self%scans(i)%d%accept)) then
             if (output_scanlist) then
                write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                     & '"', 0.0, &
                     & real(self%spinaxis(i,:),sp)
             end if
-            if (select_data) then 
-               call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
-                 & init_s_bp=bp_corr)
+            if (select_data) then
+               ! HKE: What is happening here..? Could just be removed?
+               call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
                n_tot = n_tot + sd%ntod/1000
                n_flag = n_flag + sd%ntod/1000
                call dealloc_scan_data(sd)
@@ -620,34 +615,23 @@ contains
          call wall_time(t1)
 
          ! Prepare data
-         if (sample_rel_bandpass) then
-            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
-              & init_s_bp=.true., init_s_bp_prop=.true.)
-         else if (sample_abs_bandpass) then
-            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
-              & init_s_bp=.true., init_s_sky_prop=.true.)
-         else
-            call init_scan_data_differential(sd, self, i, map_sky, m_gain, procmask, procmask2, &
-              & init_s_bp=.true.)
-         end if
+         call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
-         ! Make simulations or Sample correlated noise
+         ! Make simulations 
          if (self%enable_tod_simulations) then
-            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-         else
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            !call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
          end if
 
-
-
-         ! Compute noise spectrum parameters
-         call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         ! Sample correlated noise
+         if (sample_ncorr) then
+            call sample_n_corr(self, sd, handle)
+            call sample_noise_psd(self, sd, handle, chaindir)
+         end if
 
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+            call self%compute_tod_chisq(sd, j)
          end do
 
          ! Select data
@@ -931,7 +915,6 @@ contains
       end if
 
       ! Clean up temporary arrays
-
       call timer%start(TOD_ALLOC, self%band)
       deallocate(procmask, procmask2)
       deallocate(b_map, M_diag)
@@ -952,8 +935,9 @@ contains
 
       if (self%correct_sl) then
          do i = 1, self%ndet
-            call self%slconvA(i)%p%dealloc(); deallocate(self%slconvA(i)%p)
-            call self%slconvB(i)%p%dealloc(); deallocate(self%slconvB(i)%p)
+            do h = 1, self%nhorn
+               call self%slconv(i,h)%p%dealloc(); deallocate(self%slconv(i,h)%p)
+            end do
          end do
       end if
       call timer%stop(TOD_ALLOC, self%band)
@@ -981,7 +965,7 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1, p2, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
+      integer(i4b) :: i, j, k, t, p1, p2, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi, oper, lp, rp, lind, rind
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
       real(dp)     :: dx, xbar, f_l, f_r, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
@@ -991,7 +975,7 @@ contains
       real(dp),  allocatable, dimension(:, :)      :: m_buf
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       type(hdf_file) :: precond_file
-
+      type(comm_scandata) :: sd
 
 
       call update_status(status, "M_lowres")
@@ -1003,7 +987,8 @@ contains
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
       npix_hi             = 12  * self%info%nside**2
-    
+      oper                = get_sd_operation_code([SD_BASE,SD_IND])
+      
       allocate(m_buf(0:npix_hi-1,3), procmask(0:npix_hi-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       deallocate(m_buf)
@@ -1037,10 +1022,12 @@ contains
          if (.not. self%scans(i)%d(1)%accept) cycle
 
          ntod = self%scans(i)%ntod
-         allocate(pix(ntod, nhorn))             ! Decompressed pointing
-         allocate(psi(ntod, nhorn))             ! Decompressed pol angle
-         allocate(flag(ntod))                   ! Decompressed flags
-         call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
+         !allocate(pix(ntod, nhorn))             ! Decompressed pointing
+         !allocate(psi(ntod, nhorn))             ! Decompressed pol angle
+         !allocate(flag(ntod))                   ! Decompressed flags
+         call init_scan_data(self, i, oper, -1, sd, det=1)
+         !call self%decompress_pointing(sd, det=1)
+         !call self%decompress_flags(sd, det=1)
 
          var = 0.d0
          ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
@@ -1051,34 +1038,37 @@ contains
          inv_sigma = sqrt(1.d0/var)
 
          do t = 1, ntod
-            if (iand(flag(t),self%flag0) .ne. 0) cycle
-            lpix = dgrade(pix(t, 1))
-            rpix = dgrade(pix(t, 2))
+            if (iand(sd%flag(t,1),self%flag0) .ne. 0) cycle
+            lind = sd%ind(t,1,1)
+            rind = sd%ind(t,1,1)
+            
+            lpix = dgrade(sd%pix(t,1,1))
+            rpix = dgrade(sd%pix(t,1,2))
             lpsi = psi(t,1)
             rpsi = psi(t,2)
 
-            f_l = procmask(pix(t,2))
-            f_r = procmask(pix(t,1))
+            f_l = merge(0.0, 1.0, btest(self%pixcache%bitmask(lind),TODMASK_PROC))
+            f_r = merge(0.0, 1.0, btest(self%pixcache%bitmask(rind),TODMASK_PROC))
 
             dl(1) = 1+xbar
-            dl(2) = dx * self%cos2psi(lpsi)
-            dl(3) = dx * self%sin2psi(lpsi)
+            dl(2) = dx * self%pixcache%cos2psi(lpsi)
+            dl(3) = dx * self%pixcache%sin2psi(lpsi)
             dl    = dl * inv_sigma * f_l
 
             dr(1) = -(1-xbar)
-            dr(2) = dx * self%cos2psi(rpsi)
-            dr(3) = dx * self%sin2psi(rpsi)
+            dr(2) = dx * self%pixcache%cos2psi(rpsi)
+            dr(3) = dx * self%pixcache%sin2psi(rpsi)
             dr    = dr * inv_sigma * f_r
 
 
             pl(1) = dx
-            pl(2) = (1+xbar) * self%cos2psi(lpsi)
-            pl(3) = (1+xbar) * self%sin2psi(lpsi)
+            pl(2) = (1+xbar) * self%pixcache%cos2psi(lpsi)
+            pl(3) = (1+xbar) * self%pixcache%sin2psi(lpsi)
             pl    = pl * inv_sigma * f_l
 
             pr(1) = dx
-            pr(2) = -(1-xbar) * self%cos2psi(rpsi)
-            pr(3) = -(1-xbar) * self%sin2psi(rpsi)
+            pr(2) = -(1-xbar) * self%pixcache%cos2psi(rpsi)
+            pr(3) = -(1-xbar) * self%pixcache%sin2psi(rpsi)
             pr    = pr * inv_sigma * f_r
 
             do k1 = 1, self%nmaps_M_lowres
@@ -1111,7 +1101,7 @@ contains
 
          end do
 
-         deallocate(pix, psi, flag)
+         call dealloc_scan_data(sd)
       end do
 
       call timer%start(TOD_WAIT, self%band)
@@ -1269,7 +1259,7 @@ contains
 
   end subroutine sample_baseline_WMAP
 
-  subroutine construct_corrtemp_wmap(self, scan, pix, psi, s, det)
+  subroutine construct_corrtemp_wmap(self, sd, det)
     !  Construct an WMAP instrument-specific correction template; for now contains baseline
     !
     !  Arguments:
@@ -1288,25 +1278,24 @@ contains
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_wmap_tod),                  intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
-    real(sp),            dimension(:,:),   intent(out)   :: s
-    integer(i4b),                          intent(in), optional :: det
+    class(comm_wmap_tod), intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
 
-    integer(i4b) :: i, j, k, nbin, b
+    integer(i4b) :: i, j, k, d, nbin, b, scan
     real(dp)     :: dt, t
 
-
-    dt = 1.d0 / self%scans(scan)%ntod
-    s = 0.
+    scan      = sd%scan
+    dt        = 1.d0 / self%scans(scan)%ntod
+    sd%s_inst = 0.
     do j = 1, self%ndet
+       d = j; if (present(det)) d = det
        t = 0.d0
-       if (.not. self%scans(scan)%d(j)%accept) cycle
+       if (.not. self%scans(scan)%d(d)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
           do i = 0, self%baseline_order
-             s(k,j) = s(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
+             sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
           end do
        end do
     end do
@@ -1314,5 +1303,55 @@ contains
 
   end subroutine construct_corrtemp_wmap
 
+  subroutine coadd_horns_wmap(self, sd, det)
+    ! Coadd horn TOD into effective TODs; store in 0-th column
+    ! Must be overridden by instrument-specific implementations
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  Returns:
+    !  --------
+    !  
+    !  
+    implicit none
+    class(comm_wmap_tod), intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
 
+    integer(i4b) :: i, j, k, d, h, oper, nh
+    real(sp)     :: w(sd%nhorn)
+
+    oper = sd%oper
+    nh   = sd%nhorn
+
+    do j = 1, sd%ndet
+       d = j; if (present(det)) d = det
+
+       ! Get (normalized) horn weights
+       w(1) =  1.0+self%x_im(d)
+       w(2) = -1.0+self%x_im(d)
+
+       ! Coadd horns; fields with multiple bandpasses
+       do k = 1, sd%nbp
+          do i = 1, sd%ntod
+             if (btest(oper,SD_TOT))  sd%s_tot(i,j,0,k)  = sum(w*sd%s_tot(i,j,1:nh,k))
+             if (btest(oper,SD_BP))   sd%s_bp(i,j,0,k)   = sum(w*sd%s_bp(i,j,1:nh,k))
+             if (btest(oper,SD_SKY))  sd%s_sky(i,j,0,k)  = sum(w*sd%s_sky(i,j,1:nh,k))
+          end do
+       end do
+
+       ! Coadd horns; fields with zero or one bandpass
+       do i = 1, sd%ntod
+          if (btest(oper,SD_GAIN))   sd%s_gain(i,j,0)   = sum(w*sd%s_gain(i,j,1:nh))
+          if (btest(oper,SD_SL))     sd%s_sl(i,j,0)     = sum(w*sd%s_sl(i,j,1:nh))
+          if (btest(oper,SD_ORB))    sd%s_orb(i,j,0)    = sum(w*sd%s_orb(i,j,1:nh))
+          if (btest(oper,SD_ZODI))   sd%s_zodi(i,j,0)   = sum(w*sd%s_zodi(i,j,1:nh))
+          if (btest(oper,SD_OBJCTR)) sd%s_objctr(i,j,0) = sum(w*sd%s_objctr(i,j,1:nh))
+       end do
+    end do
+    
+  end subroutine coadd_horns_wmap
+  
 end module comm_tod_WMAP_mod

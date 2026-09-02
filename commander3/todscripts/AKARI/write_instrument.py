@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import sys
+import os
 import numpy as np
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from ....python.commander_tools.tod_tools.commander_instrument import commander_instrument
 
-sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
+# from typing import TYPE_CHECKING
+# if TYPE_CHECKING:
+#    from ....python.commander_tools.tod_tools.commander_instrument import commander_instrument
+
+# sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "python"))
 from commander_tools.tod_tools.commander_instrument import commander_instrument
 from numpy.typing import NDArray
 import astropy.units as u
 import akari_utils
 
-TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/akari/data"
+# TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/duncanwa/akari/data"
+TEMP_OUTPUT_PATH = "/mn/stornext/u3/eirikgje/data/akari_analysis/akari_instrumentfile/"
 NSIDE = 128
 
 # temporary values that needs to be updated
@@ -37,32 +41,34 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
     sidelobes = akari_utils.get_akari_sidelobes(NSIDE, TEMP_LMAX)
     for band, detector in enumerate(akari_utils.BANDS):
         center_frequency = akari_utils.WAVELENGTHS[band]
-        center_frequency = (center_frequency*u.micron).to(u.GHz, equivalencies=u.spectral()).value
+        center_frequency = (
+            (center_frequency * u.micron).to(u.GHz, equivalencies=u.spectral()).value
+        )
         wavelengths, weights = akari_utils.get_bandpass(detector)
         frequencies = wavelengths.to(u.GHz, equivalencies=u.spectral())[::-1].value
         weights = weights[::-1]
-        instrument_file.add_bandpass(
-            f'AKARI_{detector}', frequencies, weights
-        )
+        instrument_file.add_bandpass(f"AKARI_{detector}", frequencies, weights)
 
-   
-        for i in range(1, akari_utils.NDETS[band]+1):
+        for i in range(1, akari_utils.NDETS[band] + 1):
             band_group_name = f"{detector}_{i:02}"
             instrument_file.add_bandpass(
-                f'AKARI_{band_group_name}', frequencies, weights
+                f"AKARI_{band_group_name}", frequencies, weights
             )
             _add_fields(
                 instrument_file=instrument_file,
-                band_label=f'AKARI_{band_group_name}',
+                band_label=f"AKARI_{band_group_name}",
                 beam=beams[band_group_name],
                 sidelobe=sidelobes[band_group_name],
-                fwhm=fwhms[band_group_name],
+                fwhm=fwhms[band_group_name]
+                * 180
+                / np.pi
+                * 60,  # In arcminutes instead of radians - Commander requires arcminutes
                 elip=TEMP_ELIP,
                 psi_ell=TEMP_PSI_ELL,
                 mbeam_Eff=TEMP_MBEAM_EFF,
                 central_wavelength=center_frequency,
             )
-            
+
     instrument_file.finalize()
 
 
@@ -97,7 +103,9 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 2
+    version = 4
+    # Version 4: Update correct order of columns when extracting data from
+    # original bandpass file
     write_akari_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)
 
 

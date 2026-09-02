@@ -29,7 +29,7 @@ module comm_bp_mod
      logical(lgt)       :: sample_bandpass
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, Kcmb2unit, nu_eff, a2f
      real(dp)           :: RJ2data
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
@@ -103,11 +103,11 @@ contains
     class(comm_bp),     pointer                            :: c
 
     integer(i4b)       :: i, j, ndet
-    character(len=512) :: label
+    character(len=512) :: instlabel
     character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
  
-    label = cpar%ds_label(id_abs)
+    instlabel = cpar%ds_instlabel(id_abs)
 
     ! General parameters
     allocate(c)
@@ -141,16 +141,6 @@ contains
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(c%type))
     end select
-
-    ! Initialize unit scale
-    if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
-       c%unit_scale = 1.d-3
-    else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
-       c%unit_scale = 1.d-6
-    else
-       c%unit_scale = 1.d0
-    end if
-
 
     ! Initialize raw bandpass
     if (trim(c%type) == 'delta') then
@@ -209,7 +199,7 @@ contains
 
     ! Read default delta from instrument parameter file
     call read_instrument_file(trim(cpar%cs_inst_parfile), &
-         & 'delta', cpar%ds_label(id_abs), 0.d0, c%delta(1))
+         & 'delta', cpar%ds_instlabel(id_abs), 0.d0, c%delta(1))
 
     ! Initialize active bandpass 
     call c%update_tau(c%delta)
@@ -237,6 +227,25 @@ contains
     case default
        c%RJ2data = 1.d0
     end select
+
+    ! Initialize unit scale
+    if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
+       c%unit_scale = 1.d-3
+       c%Kcmb2unit  = 1.d3
+    else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
+       c%unit_scale = 1.d-6
+       c%Kcmb2unit  = 1.d0
+    else if (trim(cpar%ds_unit(id_abs)) == 'uK_cmb') then
+       c%unit_scale = 1.d0
+       c%Kcmb2unit  = 1.d6
+    else if (trim(cpar%ds_unit(id_abs)) == 'MJy/sr') then
+       c%unit_scale = 1.d0
+       c%Kcmb2unit  = c%a2f/c%a2t * 1d-6
+    else
+       write(*,*) 'Specify Kcmb2unit in comm_bp_mod for unit = ', trim(cpar%ds_unit(id_abs))
+       stop
+    end if
+
     
   end function constructor_bp
   
@@ -257,7 +266,6 @@ contains
 
     select case (trim(self%model))
     case ('powlaw_tilt')
-
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n

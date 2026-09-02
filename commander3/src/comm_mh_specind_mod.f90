@@ -48,6 +48,7 @@ contains
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
        ! Check if there are any gains to sample
+
     do m = 1, cpar%mcmc_samp_group_numstep(l)
        if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
        num_to_samp = 0
@@ -360,12 +361,18 @@ contains
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
+    real(dp) :: accept_rate
+
+    pol=1
+    ! Should be updated to loop over polarization, but tabulated dust currently does not support?
     if (cpar%myid == 0) then
        write(*,fmt='(a,i3,a,a)') ' | MH MBBtab sampling group ', l, ', active CG sampling groups = ', trim(cpar%mcmc_update_cg_groups(l))
-       if (mh_accept_stat(l,1) > 30 .and. real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1) < 0.1d0) then
-          write(*,*) 'MH MBBtab ADJUSTING STEP LENGTH for group', l
-          mh_scale(l)         = mh_scale(l) / 2.
-          mh_accept_stat(l,:) = 0
+       if (mh_accept_stat(l,1) > 30) then
+          if (real(mh_accept_stat(l,2),sp)/mh_accept_stat(l,1) < 0.1d0) then
+              write(*,*) 'MH MBBtab ADJUSTING STEP LENGTH for group', l
+              mh_scale(l)         = mh_scale(l) / 2.
+              mh_accept_stat(l,:) = 0
+          end if
        end if
        write(*,fmt='(a,f10.5)') ' |    Step length modifier = ', mh_scale(l)
        if (mh_accept_stat(l,1) > 0) then
@@ -384,7 +391,7 @@ contains
           select type (c)
           type is (comm_MBBtab_comp)
             if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
-               mval = maxval(c%theta_steplen(3:,l))
+               mval = maxval(c%theta_steplen(c%npar+1:,l))
                mval_0 = max(mval, mval_0)
                exit
             end if
@@ -443,6 +450,13 @@ contains
             call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
 
+            if (c%mbbtab_type == 'spline_log') then
+                c%spl_buff=c%spl
+                ! beta    = theta(1)
+                ! T       = theta(2)
+                ! pol is set to 1, mbbTab not currently setup to support polarization
+                call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)
+            end if 
           end select
           
           !go to next component
@@ -485,6 +499,9 @@ contains
                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
                         & 0, data(1)%info%comm, ierr)
                 end if
+                if (c%mbbtab_type == 'spline_log') then
+                    c%spl=c%spl_buff
+                end if 
              end select
              c => c%nextComp()
           end do
@@ -507,12 +524,19 @@ contains
 
        else if (cpar%myid_chain == 0) then                   
           write(*,fmt='(a,f12.2,a,f12.2,a,f7.3)') " |    ACCEPT -- X^2 = ", chisq_prop, ', dX^2 = ', (chisq_prop - chisq_old), ', X^2/dof = ', chisq_prop/ndof
+
           chisq_old = chisq_prop
           mh_accept_stat(l,2) = mh_accept_stat(l,2) + 1
        end if
      end do
 
+     accept_rate = real(mh_accept_stat(l,2),dp)/max(1,mh_accept_stat(l,1))
+      if (cpar%myid_chain == 0) then
+          write(*,fmt='(a,i3,a,i3,a,f8.4)') ' | Finished MH sampling group ', l, ', nsamp_tot = ', mh_accept_stat(l,1), ', accept rate = ', accept_rate
+      end if
+
   end subroutine sample_mbbtab_mh
+
 
   subroutine sample_specind_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
@@ -629,6 +653,19 @@ contains
  
              end select
 
+            select type (c)
+            class is (comm_MBBtab_comp)
+            !if this is a spline type then the spline needs to be recalculated since the left derivative and leftmost spline
+            !point is defined by the MBB 
+               if (c%mbbtab_type == 'spline_log') then
+                 c%spl_buff=c%spl
+                 pol=1
+                 call c%update_spline(c%theta(1)%p%map(1,pol), c%theta(2)%p%map(1,pol), pol)
+               end if 
+            end select
+                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
+                              ! & 0, data(1)%info%comm, ierr)
+
           end do
           
           !go to next component
@@ -695,10 +732,18 @@ contains
                end select
             end do
             
+            select type (c)
+            class is (comm_MBBtab_comp)
+               if (c%mbbtab_type == 'spline_log') then
+                  c%spl=c%spl_buff
+               end if 
+            end select
+
             !go to next component
             c => c%nextComp()
                 
          end do
+
 
          ! Update mixing matrices
          call update_mixing_matrices(update_F_int=.true.)

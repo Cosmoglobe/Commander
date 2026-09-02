@@ -38,6 +38,7 @@ import glob
 from scipy.spatial.transform import Rotation as rot
 import pickle
 import codecs
+import astropy.time as time
 
 import matplotlib.pyplot as plt
 
@@ -45,18 +46,27 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format', default='/mn/stornext/d16/cmbco/bp/HFI/hfi_miss03_adc')
+    parser.add_argument('--planck-dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03_adc')
 
-    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/HFI/aux/gains')
+    parser.add_argument('--extra-dir', type=str, action='store', help='path to the extra flag files in hdf5 format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03_adc')
 
-    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/RIMO_npipe2.fits')
 
-    parser.add_argument('--pid-database', type=str, action='store', help='path to the sql database storing the PID info', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_raw_rings_v3.db')
+    parser.add_argument('--warm-dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03')
 
-    parser.add_argument('--extra-flags', type=str, action='store', help='path to extra flagging in txt file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_bad_intervals_15s_elephants.txt')
+    parser.add_argument('--raw-dir', type=str, action='store', help='path to the raw legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03')
+
+    parser.add_argument('--npipe-dir', type=str, action='store', help='path to the preprocessed npipe data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_toi_preprocessed')
+
+    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/gains')
+
+    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/RIMO_npipe2.fits')
+
+    parser.add_argument('--pid-database', type=str, action='store', help='path to the sql database storing the PID info', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hfi_raw_rings_v3.db')
+
+    parser.add_argument('--extra-flags', type=str, action='store', help='path to extra flagging in txt file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hfi_bad_intervals_15s_elephants.txt')
 
     #https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
-    parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hficalibparams.dat')
+    parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hficalibparams.dat')
 
     parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
 
@@ -64,7 +74,9 @@ def main():
 
     parser.add_argument('--freqs', type=int, nargs='+', default=hfi.freqs, help='which hfi frequencies to operate on')
 
-    parser.add_argument('--ods', type=int, nargs=2, default=[91, 975], help='the operational days to operate on')
+    parser.add_argument('--ods', type=int, nargs=2, default=[91, 974], help='the operational days to operate on')
+    
+    parser.add_argument('--warm-ods', type=int, nargs=2, default=[975, 1604], help='operational days to stor warm data for')
 
     parser.add_argument('--no-compress', action='store_true', default=False, help='Produce uncompressed data output')
 
@@ -74,7 +86,7 @@ def main():
 
     in_args = parser.parse_args()
 
-    in_args.version = 1
+    in_args.version = 2
     
     random.seed()
 
@@ -83,7 +95,9 @@ def main():
     pool = mp.Pool(processes=in_args.num_procs)
     manager = mp.Manager()
 
-    ods = range(in_args.ods[0], in_args.ods[1], 1)
+    ods = range(in_args.ods[0], in_args.ods[1]+1, 1)
+    warm_ods = range(in_args.warm_ods[0], in_args.warm_ods[1]+1, 1)
+
 
     manager = mp.Manager()
     dicts = {}
@@ -101,9 +115,144 @@ def main():
     pool.close()
     pool.join()
 
-    if ((in_args.ods[0] == 91 and in_args.ods[1] == 975) or in_args.produce_filelist) :
+    pool = mp.Pool(processes=in_args.num_procs)
+
+    # now make files for the warm data which have much less stuff in them
+    if(in_args.warm_ods[1] > 0):
+        x = [[pool.apply_async(make_warm_od, args=[comm_tod, freq, od, in_args]) for freq in in_args.freqs] for od in warm_ods]
+
+        for res1 in np.array(x):
+            for res in res1:
+                res.get()
+
+        pool.close()
+        pool.join()
+
+    if ((in_args.ods[0] == 91 and in_args.ods[1] == 974) or in_args.produce_filelist) :
         comm_tod.make_filelists()
         #write file lists 
+
+
+def make_warm_od(comm_tod, freq, od, args):
+
+    try:
+    
+        comm_tod.init_file(freq, od, mode='w')
+
+        dataFileName = glob.glob(os.path.join(args.warm_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
+
+        try:
+            exFile = fits.open(dataFileName)
+        except (OSError):
+            print("Failed to open file " + dataFileName)
+            return
+
+        #make start and end time for warm chunks 
+        starttime = exFile[1].data['obt'][0]
+        endtime = exFile[1].data['obt'][-1]
+
+        #Make 24 chunks per day
+        chunks = []
+        chunksize = int((endtime-starttime)/24)
+        for i in np.arange(24): #make 24 chunks per day
+            chunks.append([268163+(od-975)*24 +i,starttime+i*chunksize, 0, 0,starttime-1+(i+1)*chunksize])
+
+        if(args.restart and comm_tod.exists):
+            print('Skipping existing file ' + comm_tod.outName)
+            #add each chunk to filelist
+            for chunk in chunks:
+                pid = int(chunk[0]/2)
+                comm_tod.finalize_chunk(pid)
+            comm_tod.finalize_file()
+            return
+
+
+
+        rimo = fits.open(args.rimo)
+        rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + hfi.dets[freq][0])
+
+        prefix = '/common'
+
+        #sampling frequency
+        fsamp = rimo[1].data.field('f_samp')[rimo_i]
+        comm_tod.add_field(prefix + '/fsamp', fsamp)
+
+        detNames = ''
+        for det in hfi.dets[freq]:
+            rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)
+
+            detNames += str(freq) + '-' + det + ', '
+
+        #make detector names lookup
+        comm_tod.add_field(prefix + '/det', np.string_(detNames[0:-2]))
+
+        #per pid
+        for chunk in chunks:
+            pid = chunk[0]
+
+            start_time = chunk[1]
+            end_time = chunk[4]
+
+            startIndex = np.where(exFile[1].data['obt'] > start_time)
+            endIndex = np.where(exFile[1].data['obt'] > end_time)
+
+            if len(startIndex[0]) > 0:
+                pid_start = startIndex[0][0]
+            else:#catch days with no pids
+                continue
+            if len(endIndex[0]) != 0:
+                pid_end = endIndex[0][0]
+            else:#catch final pid per od
+                pid_end = len(exFile[1].data['obt'])
+            if pid_start == pid_end:#catch chunks with no data like od 1007
+                continue
+
+            #common fields per pid
+            prefix = str(pid).zfill(6) + '/common'
+
+            # calculate mjd from TAI nanoseconds
+            t = time.Time([exFile[1].data['obt'][pid_start]/1e9, exFile[1].data['obt'][pid_end]/1e9], format='unix_tai')
+
+            mjds = t.mjd
+
+
+            #time field
+            comm_tod.add_field(prefix + '/time', [mjds[0], exFile[1].data['obt'][pid_start], 0])
+            comm_tod.add_attribute(prefix + '/time','index','[MJD, obt in sec, 0]')
+
+            comm_tod.add_field(prefix + '/time_end', [mjds[1], exFile[1].data['obt'][pid_end], 0])
+            comm_tod.add_attribute(prefix + '/time_end','index','[MJD, obt in s, 0]')
+
+            #length of the tod
+            comm_tod.add_field(prefix + '/ntod', [pid_end - pid_start])
+
+            #per detector fields
+            for det in hfi.dets[freq]:
+
+                prefix = str(pid).zfill(6) + '/' + str(freq) + '-' + det
+                #get Rimo index
+                rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)
+                data_i = exFile.index_of(str(freq) + '-' + det)
+
+                #make tod data
+                tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end] #- offset
+
+                compArray = [hfi.todDtype, hfi.huffTod]
+                if(args.no_compress):
+                    compArray = [hfi.todDtype]
+                    comm_tod.add_field(prefix + '/tod', tod, compArray)
+                else:
+                    comm_tod.add_field(prefix + '/ztod', tod, compArray)
+
+            print(freq, od, pid)
+            comm_tod.finalize_chunk(pid)
+        comm_tod.finalize_file()
+
+    except:
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        raise Exception("".join(traceback.format_exception(exc_type, exc_val, exc_tb)))
+
+
 
 def make_od(comm_tod, freq, od, args):
 
@@ -120,9 +269,57 @@ def make_od(comm_tod, freq, od, args):
 
         comm_tod.init_file(freq, od, mode='w')
 
+        try:
+            pointingFile = fits.open(os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+        except (OSError):
+            print("Failed to open file " + os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+            return
+
+        #open database with pid info in it
+        conn = sqlite3.connect(args.pid_database)
+        c = conn.cursor()
+
+        starttime = pointingFile[1].data['obt'][0]/1e9
+        endtime = pointingFile[1].data['obt'][-1]/1e9
+
+        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
+
+        #Make a new list where the each short chunk is prepended to a long chunk
+        chunks = []
+
+        start = True
+        for dbentry in dbs:
+            pid = dbentry[0]
+            start_time = dbentry[2]
+            end_time = dbentry[3]
+
+            if(pid%2 == 0 and start):
+                #file starts on an even chunk
+                continue
+
+            if(start):
+                curr_chunk = []
+                curr_chunk.append(pid)
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                start = False
+            else:
+                curr_chunk.append(start_time)
+                curr_chunk.append(end_time)
+                chunks.append(curr_chunk)
+                start = True
+
+        if(start): #we ended with an odd number of chunks
+            chunks.append(curr_chunk)
+
+
         if(args.restart and comm_tod.exists):
-            comm_tod.finalize_file()
             print('Skipping existing file ' + comm_tod.outName)
+            #add each chunk to filelist
+            for chunk in chunks:
+                pid = int(chunk[0]/2)
+                comm_tod.finalize_chunk(pid)
+            comm_tod.finalize_file()
             return
 
         rimo = fits.open(args.rimo)
@@ -164,63 +361,47 @@ def make_od(comm_tod, freq, od, args):
         comm_tod.add_field(prefix + '/mbang', mainbeamangs)
         comm_tod.add_attribute(prefix + '/mbang', 'index', detNames[0:-2])
 
-        dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201505??.fits'))[0]
+        dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
+
+        npipeFileName = ''
+
+        try:
+            npipeFileName = glob.glob(os.path.join(args.npipe_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
+        except (IndexError):
+            print("No matching files found for od " + str(od) + ", " + str(freq) + " GHz")
+            return
 
         try:
             exFile = fits.open(dataFileName)
         except (OSError):
             print("Failed to open file " + dataFileName)
             return
+        except (ValueError):
+            print("Empty file name for " + str(freq) + ' ' + str(od))
 
         try:
-            pointingFile = fits.open(os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+            npipeFile = fits.open(npipeFileName)
         except (OSError):
-            print("Failed to open file " + os.path.join(args.planck_dir, str(od).zfill(4), 'pointing-' + str(od).zfill(4)  + '.fits'))
+            print("Failed to open file " + npipeFileName)
             return
 
         try:
-            extraFlagsFile = h5py.File(os.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
+            extraFlagsFile = h5py.File(os.path.join(args.extra_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
         except (OSError):
-            print("Failed to open file " + s.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
+            print("Failed to open file " + s.path.join(args.extra_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
             return
-
-
-        #open database with pid info in it
-        conn = sqlite3.connect(args.pid_database) 
-        c = conn.cursor()
-
-        starttime = pointingFile[1].data['obt'][0]/1e9
-        endtime = pointingFile[1].data['obt'][-1]/1e9
-
-        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
-
-        #Make a new list where the each short chunk is prepended to a long chunk
-        chunks = []
-
-        start = True
-        for dbentry in dbs:
-            pid = dbentry[0]
-            start_time = dbentry[2]
-            end_time = dbentry[3]
-
-            if(start):
-                curr_chunk = []
-                curr_chunk.append(pid)
-                curr_chunk.append(start_time)
-                curr_chunk.append(end_time)
-                start = False
-            else:
-                curr_chunk.append(start_time)
-                curr_chunk.append(end_time)
-                chunks.append(curr_chunk)
-                start = True 
+            
 
         #per pid
         for chunk in chunks:
-            pid = chunk[0]
+            pid = int(chunk[0]/2)
 
-            start_time = chunk[1]
-            end_time = chunk[4]        
+            if(len(chunk) == 5):
+                start_time = chunk[1]
+                end_time = chunk[4]
+            else: #single chunk chunk
+                start_time = chunk[1]
+                end_time = chunk[2]
 
             startIndex = np.where(exFile[1].data['obt']/1e9 > start_time)
             endIndex = np.where(exFile[1].data['obt']/1e9 > end_time)
@@ -236,17 +417,30 @@ def make_od(comm_tod, freq, od, args):
             if pid_start == pid_end:#catch chunks with no data like od 1007
                 continue
 
-            #There are some samples that are not included in either chunk...
-            garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[2])[0][0]
-            garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[3])[0][0]
-            ngarbage = garbageEnd - garbageStart
+            if(len(chunk) == 5):
+                #There are some samples that are not included in either chunk...
+                garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[2])[0][0]
+                garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[3])[0][0]
+                ngarbage = garbageEnd - garbageStart
+            else:
+                ngarbage = 0
+                garbageStart = -1
+                garbageEnd = -1
 
             #common fields per pid
             prefix = str(pid).zfill(6) + '/common'
 
+            # calculate mjd from TAI nanoseconds
+            t = time.Time([exFile[1].data['obt'][pid_start]/1e9, exFile[1].data['obt'][pid_end]/1e9], format='unix_tai')
+
+            mjds = t.mjd
+
             #time field
-            comm_tod.add_field(prefix + '/time', [exFile[1].data['obt'][pid_start]])
-            comm_tod.add_attribute(prefix + '/time','index','OBT in s')
+            comm_tod.add_field(prefix + '/time', [mjds[0], exFile[1].data['obt'][pid_start], 0])
+            comm_tod.add_attribute(prefix + '/time','index','[MJD, obt in sec, 0]')
+
+            comm_tod.add_field(prefix + '/time_end', [mjds[1], exFile[1].data['obt'][pid_end], 0])
+            comm_tod.add_attribute(prefix + '/time_end','index','[MJD, obt in s, 0]')
 
             #length of the tod
             comm_tod.add_field(prefix + '/ntod', [pid_end - pid_start])
@@ -255,7 +449,8 @@ def make_od(comm_tod, freq, od, args):
             #rotate from ecliptic to galactic
             #might be required, I'm not sure what coordinate system these are in 
             r = hp.Rotator(coord=['E', 'G'])
-            comm_tod.add_field(prefix + '/vsun', r([pointingFile[4].data['x_vel'][pid_start], pointingFile[4].data['y_vel'][pid_start], pointingFile[4].data['z_vel'][pid_start]])) 
+            comm_tod.add_field(prefix + '/vsun', r([pointingFile[4].data['x_vel'][pid_start], pointingFile[4].data['y_vel'][pid_start], pointingFile[4].data['z_vel'][pid_start]])*1000)
+            #convert from km/s to m/s 
           
             #add some metadata so someone might be able to figure out what is going on 
             comm_tod.add_attribute(prefix + '/vsun','index', '[x, y, z]')
@@ -278,9 +473,15 @@ def make_od(comm_tod, freq, od, args):
 
             r_boresight = rot.from_quat(quat_arr)
 
-            extra_flags = extraFlagsFile[str(pid).zfill(6) + '/flag_extra'][()]
-            extra_flags = np.append(extra_flags, np.ones(ngarbage, dtype='uint16'))
-            extra_flags = np.append(extra_flags, extraFlagsFile[str(pid+1).zfill(6) + '/flag_extra'][()])
+            try:
+                #256 is a bit that indicates the repointing period
+                extra_flags = extraFlagsFile[str(2*pid+1).zfill(6) + '/flag_extra'][()] + 256
+                extra_flags = np.append(extra_flags, np.ones(ngarbage, dtype='uint16'))
+                extra_flags = np.append(extra_flags, np.array(extraFlagsFile[str(2*pid+2).zfill(6) + '/flag_extra'][()], dtype='uint16'))
+
+            except(KeyError):
+                print("Missing extra flags in", od, chunk)
+                extra_flags = np.zeros(pid_end - pid_start, dtype='uint16')
 
             #per detector fields
             for det in hfi.dets[freq]:
@@ -295,21 +496,31 @@ def make_od(comm_tod, freq, od, args):
                 #make flag data
                 flagArray = np.array(exFile[data_i].data.field('flag')[pid_start:pid_end], dtype='uint16')
 
+                flagArray = np.bitwise_or(flagArray, extra_flags)
+
                 #add extra flagging from txt files
-                ex_flags = extra_flags
                 if(det == '353-1'):
                     #add extra flags and a bit for the repointing period
-                    ex_flags = extraFlagsFile[str(pid).zfill(6) + '/flags_extra_353-1'] + 256
+                    ex_flags = extraFlagsFile[str(2*pid+1).zfill(6) + '/flags_extra_353-1']
                     #add flags for garbage data
                     ex_flags = np.append(ex_flags, np.zeros(ngarbage, dtype=uint16))
 
                     #add flags from scanning chunk
-                    ex_flags = np.append(extraFlagsFile[str(pid+1).zfill(6) + '/flags_extra_353-1'])
-                flagArray += ex_flags
+                    ex_flags = np.append(extraFlagsFile[str(2*pid+2).zfill(6) + '/flags_extra_353-1'])
+                    flagArray = np.bitwise_or(flagArray, ex_flags)
 
                 #with np.printoptions(threshold=np.inf):
                 #    print(flagArray)
     
+                # now add per-detector flags from npipe
+                npipe_flags = npipeFile[str(freq) + '-' + det].data['flag'][pid_start:pid_end] 
+
+                flagArray += npipe_flags*512 
+
+                #with np.printoptions(threshold=np.inf):
+                #    print(flagArray)
+
+
                 if (len(flagArray) > 0):
                     comm_tod.add_field(prefix + '/flag', flagArray, compArr)
 
@@ -448,9 +659,12 @@ def make_od(comm_tod, freq, od, args):
                 compArray = [hfi.todDtype, hfi.huffTod]
                 if(args.no_compress):
                     compArray = [hfi.todDtype] 
-                comm_tod.add_field(prefix + '/tod', tod, compArray)
+                    comm_tod.add_field(prefix + '/tod', tod, compArray)
+                else:
+                    comm_tod.add_field(prefix + '/ztod', tod, compArray)
 
-            print(freq, od, pid)                 
+
+            print('Done: ',freq, od, pid)                 
             comm_tod.finalize_chunk(pid, loadBalance=outAng)
         comm_tod.finalize_file()
     except:

@@ -32,7 +32,9 @@ module comm_tod_lfi_mod
   !       Routine which processes the time ordered data
   !
   use comm_conviqt_mod
+  use comm_tod_mapmaking_mod
   use comm_tod_driver_mod
+  use comm_tod_simulations_mod
   implicit none
 
   private
@@ -66,6 +68,7 @@ module comm_tod_lfi_mod
      procedure     :: get_nsmooth
      procedure     :: get_freq_bins
      procedure     :: preprocess_L1_to_L2
+     procedure     :: init_adc_and_filter
   end type comm_lfi_tod
 
   interface comm_lfi_tod
@@ -164,7 +167,7 @@ interface
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-    type(map_ptr),       dimension(1:,1:),   intent(inout), optional :: map_gain       ! (ndet,1)
+    type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
   end subroutine process_lfi_tod
   
   
@@ -213,7 +216,7 @@ interface
   end subroutine initHDF_lfi
 
  
-  module subroutine diode2tod_lfi(self, scan, map_sky, procmask, tod)
+  module subroutine diode2tod_lfi(self, sd)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -233,10 +236,7 @@ interface
     !
     implicit none
     class(comm_lfi_tod),                       intent(inout) :: self
-    integer(i4b),                              intent(in)    :: scan
-    real(sp),          dimension(0:,1:,1:,1:), intent(in)    :: map_sky
-    real(sp),          dimension(0:),          intent(in)    :: procmask
-    real(sp),          dimension(:,:),         intent(out)   :: tod
+    class(comm_scandata),                      intent(inout) :: sd
   end subroutine diode2tod_lfi
 
   module function get_nsmooth(self)
@@ -309,7 +309,7 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -323,12 +323,9 @@ interface
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
   end subroutine sample_1Hz_spikes
 
-  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s, det)
+  module subroutine construct_corrtemp_lfi(self, sd, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -347,19 +344,15 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_lfi_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
-    real(sp),            dimension(:,:),   intent(out)   :: s
-    integer(i4b),                          intent(in), optional :: det
+    class(comm_lfi_tod),  intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
   end subroutine construct_corrtemp_lfi
 
 
-  module subroutine preprocess_L1_to_L2(self, map_sky, procmask)
+  module subroutine preprocess_L1_to_L2(self)
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: self
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:),           intent(in)    :: procmask
   end subroutine preprocess_L1_to_L2
 
   module subroutine remove_fixed_scans_lfi(self)
@@ -379,6 +372,13 @@ interface
     class(comm_lfi_tod),                  intent(inout)  :: self
   end subroutine remove_fixed_scans_lfi
 
+  module subroutine init_adc_and_filter(self, cpar, handle)
+    implicit none
+    class(comm_lfi_tod), intent(inout) :: self
+    type(comm_params),   intent(in)    :: cpar
+    type(planck_rng),    intent(inout) :: handle
+  end subroutine init_adc_and_filter
+  
 end interface
 
 end module comm_tod_lfi_mod

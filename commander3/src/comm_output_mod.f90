@@ -20,6 +20,7 @@
 !================================================================================
 module comm_output_mod
   use comm_chisq_mod
+  use comm_line_comp_mod
   implicit none
 
 contains
@@ -89,9 +90,10 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max, nmaps
+    integer(i4b)                 :: i, j, k, p, hdferr, ierr, unit, p_min, p_max, nmaps
     real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
+    character(len=3)             :: det_text
     character(len=4)             :: ctext
     character(len=6)             :: itext
     character(len=512)           :: postfix, chainfile, hdfpath, fg_file, temptxt, fg_txt
@@ -179,6 +181,7 @@ contains
        end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
        select type (c)
+       class is (comm_line_comp)
        class is (comm_diffuse_comp)
           if (output_hdf) then
              hdfpath = trim(adjustl(itext))//'/'//trim(adjustl(c%label))
@@ -476,11 +479,14 @@ contains
              if (trim(data(i)%tod_type) == 'none') cycle
              if (allocated(data(i)%tod%pixhist)) then
                 allocate(map_out(0:size(data(i)%tod%pixhist,2)-1,5))
-                map_out = transpose(data(i)%tod%pixhist(:,:,1))
-                do j = 1, size(map_out,2)
-                   call convert_nest2ring(data(i)%tod%nside_pixhist, map_out(:,j))
+                do j = 1, data(i)%ndet
+                   map_out = transpose(data(i)%tod%pixhist(:,:,j))
+                   do k = 1, size(map_out,2)
+                      call convert_nest2ring(data(i)%tod%nside_pixhist, map_out(:,k))
+                   end do
+                   call int2string(j, det_text)
+                   call write_map2(trim(cpar%outdir)//'/tod_'//trim(data(i)%label)//'_'//det_text//'_pixhist.fits', map_out)
                 end do
-                call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_pixhist.fits', map_out)
                 deallocate(map_out)
              end if
           end do

@@ -11,6 +11,7 @@ COMP_NSIDE&& = 256
 COMP_AMP_LMIN&& = 0
 COMP_AMP_LMAX&& = 750
 COMP_L_APOD&& = 750
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_UNIT&& = MJy/sr
 COMP_NU_MIN&&                 = 0.d0
 COMP_NU_MAX&&                 = 1d30
@@ -28,3 +29,4 @@ COMP_INIT_FROM_HDF&& = .false.
 
 #custom 
 COMP_SED_TEMPLATE&&           = PAH_3e-3micron.dat
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

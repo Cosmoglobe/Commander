@@ -32,14 +32,23 @@ module comm_tod_akari_mod
    !
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
+  use comm_tod_mapmaking_mod
+  use comm_tod_cgmap_mod
    implicit none
 
    private
    public comm_akari_tod
 
    type, extends(comm_tod) :: comm_akari_tod
+      integer(i4b)                                  :: ntempl       ! Number of tod correction templates
+      integer(i4b), allocatable, dimension(:)       :: nsamp_templ  ! length of each template [ntempl]
+      real(dp),     allocatable, dimension(:,:,:,:) :: tod_correction_templ  ! [nsamp,ntempl,ndet,nscan]
+      class(comm_dynmask), pointer :: dynmask
    contains
-      procedure     :: process_tod          => process_akari_tod
+     procedure     :: process_tod             => process_akari_tod
+     procedure     :: apply_fast_flags_inst   => apply_fast_flags_akari
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_akari
+     procedure     :: sample_ramp
    end type comm_akari_tod
 
    interface comm_akari_tod
@@ -128,9 +137,51 @@ interface
       real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map),                          intent(inout) :: map_out      ! Combined output map
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-      type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+      type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet,1)
    end subroutine process_akari_tod   
+   
+   module subroutine apply_fast_flags_akari(self, sd)
+     !  Apply fast flags to sd%flag; should only depend on time, pix or flag arrays, not TOD
+     !  Expensive operations should instead be added to the dynamic mask
+     !
+     !  Arguments:
+     !  ----------
+     !  self: comm_tod object
+     !
+     implicit none
+     class(comm_akari_tod),                 intent(inout)    :: self
+     class(comm_scandata),                  intent(inout)    :: sd
+   end subroutine apply_fast_flags_akari
 
+   
+   module subroutine construct_corrtemp_akari(self, sd, det)
+     ! construct AKARI instrument-specific correction template from ramp template
+     ! puts this into sd%s_inst
+    implicit none
+    class(comm_akari_tod), intent(in)             :: self
+    class(comm_scandata),  intent(inout)          :: sd
+    integer(i4b),          intent(in),   optional :: det
+  end subroutine construct_corrtemp_akari
+
+  module subroutine init_sample_ramp(self, sd)
+    ! scans tod flags to find length of tod segment between ramp flags (= length of correction template)
+    ! puts this into self%nsamp_templ
+    implicit none
+    class(comm_akari_tod), intent(inout)       ::self
+    class(comm_scandata),  intent(in)          :: sd
+
+  end subroutine init_sample_ramp
+
+  module subroutine sample_ramp(self, sd)
+    ! find template of baseline beween to ramp events, by averaging over all events in a scan
+    ! put this into self%tod_correction_templ
+    implicit none
+    class(comm_akari_tod), intent(inout)       ::self
+    class(comm_scandata),  intent(in)          :: sd
+
+  end subroutine sample_ramp
+
+   
 end interface
    
 end module comm_tod_akari_mod

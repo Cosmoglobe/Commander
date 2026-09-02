@@ -34,6 +34,9 @@ module comm_tod_hfi_mod
   use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
+  use comm_tod_Tbol_mod
+  use comm_tod_mapmaking_mod
+  use comm_tod_cgmap_mod
   use comm_tod_pixhist_mod
   use comm_tod_adc_binfit_mod
   use comm_tod_4k_lines_mod
@@ -49,12 +52,13 @@ module comm_tod_hfi_mod
   type, extends(comm_tod) :: comm_hfi_tod
      integer(i4b) :: n_4k_lines
      real(sp) :: f_spin
+     type(planck_rng) :: handle
      real(sp), allocatable, dimension(:) :: nus_4k_lines ! (n_4k_lines)
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
+     class(comm_dynmask), pointer :: dynmask
      class(comm_crosstalk),    pointer :: xtalk
      class(comm_4k_lines_pointer), allocatable, dimension(:,:,:) :: cooler_4k_lines ! (n_4k_lines,ndet,nscan)
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
-     real(sp), allocatable, dimension(:) :: pol_eff ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
      procedure     :: read_tod_inst           => read_tod_inst_hfi
@@ -163,7 +167,7 @@ interface
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-    type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
+    type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
   end subroutine process_hfi_tod
 
   module subroutine load_instrument_hfi(self, instfile, band)
@@ -368,7 +372,7 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_hfi
 
-  module subroutine construct_corrtemp_hfi(self, scan, pix, psi, s, det)
+  module subroutine construct_corrtemp_hfi(self, sd, det)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -387,14 +391,12 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_hfi_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan
-    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
-    real(sp),            dimension(:,:),   intent(out)   :: s
-    integer(i4b),                          intent(in), optional :: det
+    class(comm_hfi_tod),  intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, scan, sd, skip_nonlin, handle, det)
+  module subroutine apply_nonlin_corr_hfi(self, sd, nonlin_lvl, handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -413,9 +415,8 @@ interface
     !       output template timestream
     implicit none
     class(comm_hfi_tod),                   intent(inout) :: self
-    integer(i4b),                          intent(in)    :: scan
     class(comm_scandata),                  intent(inout) :: sd
-    integer(i4b),                          intent(in)    :: skip_nonlin
+    integer(i4b),                          intent(in)    :: nonlin_lvl
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
   end subroutine apply_nonlin_corr_hfi
@@ -457,7 +458,7 @@ interface
     class(comm_scandata),                  intent(inout) :: sd
   end subroutine hfi_dark_correction
 
-  module subroutine sample_adc_and_baselines(self, handle, det, map_sky, procmask)
+  module subroutine sample_adc_and_baselines(self, handle, det)
     !  Sample ADC parameters
     !
     !  Arguments:
@@ -468,93 +469,70 @@ interface
     class(comm_hfi_tod),                 intent(inout) :: self
     type(planck_rng),                    intent(inout) :: handle
     integer(i4b),                        intent(in)    :: det
-    real(sp),          dimension(1:,1:), intent(in)    :: map_sky
-    real(sp),          dimension(0:),    intent(in)    :: procmask
   end subroutine sample_adc_and_baselines
 
-  module subroutine estimate_hfi_4k_lines(self, scan, i_det, tod, s_sub, mask, ps_output)
+  module subroutine estimate_hfi_4k_lines(self, sd, i_det, apply_mask, ps_output)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4k lines
     !
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
+    !  
+    !  sd: comm_scandata object
+    !      scan data
     !  i_det: int
     !       detector id
-    !  tod: real(sp) array
-    !       tod of the scan
-    !  s_sub: real(sp) array
-    !         sky signal template
-    !  mask: real(sp) array
-    !        mask array
+    !  apply_mask: logical
+    !              apply mask to residuals    
     !  ps_output: character array
     !             output filename
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
-    integer(i4b),                      intent(in)    :: scan, i_det
-    real(sp), dimension(1:),           intent(inout) :: tod
-    real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+    logical(lgt),            optional, intent(in)    :: apply_mask
     character(len=*),        optional, intent(in)    :: ps_output
   end subroutine estimate_hfi_4k_lines
 
-  module subroutine remove_hfi_4k_lines(self, scan, i_det, tod, s_sub, mask)
+  module subroutine remove_hfi_4k_lines(self, sd, i_det, apply_mask)
     !  Apply HFI instrument-specific corrections from 4k lines
     !
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !
-    !  scan: int
-    !       scan number
+    !  
+    !  sd: comm_scandata object
+    !      scan data
     !  i_det: int
     !       detector id
-    !  tod: real(sp) array
-    !       tod of the scan
-    !  s_sub: real(sp) array
-    !         sky signal template
-    !  mask: real(sp) array
-    !        mask array
+    !  apply_mask: logical
+    !              .true. to apply mask to residuals
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
-    integer(i4b),                      intent(in)    :: scan, i_det
-    real(sp), dimension(1:),           intent(inout) :: tod
-    real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+    logical(lgt),            optional, intent(in)    :: apply_mask
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, tod, scan, i_det, s_sub, mask, flag, handle, ps_output, set_wn_level)
+  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
     ! ----------
     ! self: comm_tod object
     !
-    ! tod: real(sp) array
-    !      tod of the scan
-    ! scan: int
-    !       scan number
+    ! sd: comm_scandata object
     ! i_det: int
     !        detector id
-    ! s_sub: real(sp) array
-    !        sky signal template
-    ! mask: real(sp) array
-    !       mask array
-    ! flag:  integer array
-    !        quality flags
     ! handle: planck_rng
     !         rng handle
     ! ps_output: character array
     !            output filename
     implicit none
     class(comm_hfi_tod),                       intent(inout) :: self
-    real(sp),                   dimension(1:), intent(inout) :: tod
-    integer(i4b),                              intent(in)    :: scan, i_det
-    real(sp),                   dimension(1:), intent(in)    :: s_sub
-    real(sp),                   dimension(1:), intent(in)    :: mask
-    integer(i4b),               dimension(1:), intent(inout) :: flag
-    type(planck_rng),                          intent(inout) :: handle
+    class(comm_scandata),                      intent(inout) :: sd
+    integer(i4b),                              intent(in)    :: i_det
     character(len=*),                optional, intent(in)    :: ps_output
     logical(lgt),                    optional, intent(in)    :: set_wn_level
   end subroutine deconvolve_rolloff
