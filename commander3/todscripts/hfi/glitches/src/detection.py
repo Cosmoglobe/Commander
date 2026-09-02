@@ -2,11 +2,11 @@
 In this script, I want to try out the way that the Planck team used to remove the glitches.
 """
 
+import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
-
-import Commander.commander3.todscripts.hfi.glitches.globals as g
-import Commander.commander3.todscripts.hfi.glitches.templates as templates
+import templates as templates
+from scipy.signal import find_peaks
 
 
 def threepointfilter(data, kernel=(0.25, 0.5, 0.25)):
@@ -66,31 +66,41 @@ def search(filtered, x_axis, flags=None, windowsize=1000, threshold=3.2):
 
 
 def matched_filter(res):
-    fourier = np.fft.fft(res)
+    res = np.asarray(res, dtype=float)
+    glitch_model = templates.glitch_model_func(np.arange(0, 2, 1 / g.SAMPRATE), 1)
+    template_norm = np.linalg.norm(glitch_model)
+    if len(res) < len(glitch_model):
+        raise ValueError("The TOD must be longer than the glitch template")
 
-    glitch_model_short = templates.glitch_model_func(np.arange(0, 2, 1 / g.SAMPRATE), 1)
-    glitch_fourier = np.fft.fft(glitch_model_short)
+    # Correlate each possible onset with the causal template.  Reversing the
+    # template converts correlation into convolution; the valid slice has
+    # one score for each possible template start.
+    fft_length = len(res) + len(glitch_model) - 1
+    correlation = np.fft.irfft(np.fft.rfft(res, fft_length) * np.fft.rfft(glitch_model[::-1],
+                                                                          fft_length), fft_length)
+    score = correlation[len(glitch_model) - 1:len(res)] / (g.SIGMA * template_norm)
 
-    matched_filter_fourier = np.convolve(fourier, glitch_fourier)
-    result = np.fft.ifft(matched_filter_fourier)
-
-    glitch_idx = np.where(result[:1000] > 5)
-    print(f"Glitch indices: {glitch_idx}")
+    peak_indices, _ = find_peaks(score, height=g.CUT_OFF, distance=max(1, int(0.05 * g.SAMPRATE)))
+    glitch_idx = peak_indices
+    print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
 
     plt.plot(res[:1000], label='Original')
-    plt.scatter(glitch_idx, res[glitch_idx], color='red', label='Glitches')
+    visible = glitch_idx[glitch_idx < 1000]
+    plt.scatter(visible, res[visible], color='red', label='Glitches')
     plt.title("Original TOD with detected Glitches")
     plt.savefig(g.FIGURES_PATH + "debug/original_tod.png")
     plt.close()
 
-    plt.plot(result[:1000])
-    plt.scatter(glitch_idx, result[glitch_idx], color='red', label='Glitches')
+    plt.plot(score[:1000])
+    visible = glitch_idx[glitch_idx < 1000]
+    plt.scatter(visible, score[visible], color='red', label='Glitches')
     plt.legend()
     plt.title("Matched Filter Result")
     plt.ylabel("Amplitude")
     plt.savefig(g.FIGURES_PATH + "debug/matched_filter_result.png")
     plt.close()
 
+    # Keep the historical np.where-style return shape used by main.py.
     return glitch_idx
 
 if __name__ == "__main__":

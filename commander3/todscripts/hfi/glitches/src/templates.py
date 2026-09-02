@@ -1,21 +1,27 @@
+import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-import Commander.commander3.todscripts.hfi.glitches.globals as g
 
+def short_glitch(t, A, a0):
+    return glitch_model_func(t, A, a0, "143-2a", "short")
 
-def glitch_model_func(t, A, band = "143-2a", glitch_type = "short"):
+def long_glitch(t, A, a0):
+    return glitch_model_func(t, A, a0, "143-2a", "long")
+
+def slow_glitch(t, A, a0):
+    return glitch_model_func(t, A, a0, "143-2a", "slow")
+
+def glitch_model_func(t, A=1, a0=0, band="143-2a", glitch_type = "short"):
     glitches = np.load("/mn/stornext/d23/cmbco/globe/planck/glitch/glitch_params.npy",
                         allow_pickle=True).item()
     
     glitch_params = glitches[band]
     # print(f"Band: {band}, Glitch Params: {glitch_params}")
 
-    print(f"{glitch_params.keys()}")
     amp = []
     tau = []
-
     glitch_model = 0
     for amp_i in range(1, 9):
         amp.append(glitch_params[glitch_type][f"Amplitude{amp_i}"])
@@ -30,7 +36,9 @@ def glitch_model_func(t, A, band = "143-2a", glitch_type = "short"):
 
         glitch_model += amp[-1] * np.exp(-t / tau[-1])
 
-    return glitch_model * A
+    glitch_model = glitch_model / np.max(glitch_model)  # normalize the glitch model to have a max of 1
+
+    return glitch_model * A + a0
 
 def fit_glitch(res, glitch, secs):
     adjusted_res = res - np.median(res)
@@ -79,5 +87,19 @@ def fit_glitch(res, glitch, secs):
     plt.close()
 
 
+if __name__ == "__main__":
+    twosecs = np.linspace(0, 2, 2 * 180, endpoint=False)  # glitch model lasts 2 seconds
+    tensecs = np.linspace(0, 10, 10 * 180, endpoint=False)  # glitch model lasts 10 seconds
 
+    short = glitch_model_func(tensecs, glitch_type = "short")
+    long = glitch_model_func(tensecs, glitch_type = "long")
+    slow = glitch_model_func(tensecs, glitch_type = "slow")
 
+    plt.plot(tensecs, short, label="Short Glitch")
+    plt.plot(tensecs, long, label="Long Glitch")
+    plt.plot(tensecs, slow, label="Slow Glitch")
+    plt.title("Glitch Models")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Amplitude")
+    plt.legend()
+    plt.savefig(f"{g.FIGURES_PATH}debug/glitch_models.png")

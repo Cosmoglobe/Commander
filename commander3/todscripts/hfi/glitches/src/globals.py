@@ -7,3 +7,8 @@ GLITCH_TYPES = ["short", "long", "slow"]
 
 SAMPRATE = 180.3737 #Hz
 SIGMA = 0.01 #random std for the white noise
+
+FAST_PART = 0 # seconds
+CUT_OFF = 100
+
+NSECS = 60
