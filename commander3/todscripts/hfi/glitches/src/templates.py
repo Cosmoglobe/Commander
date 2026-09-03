@@ -128,27 +128,41 @@ if __name__ == "__main__":
 
 def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     window = int(g.NSECS * g.SAMPRATE)
-    stack = np.zeros(window)
-    count = 0
+    stack = {'short': np.zeros(window), 'long': np.zeros(window), 'slow': np.zeros(window)}
+    count = {'short': 0, 'long': 0, 'slow': 0}
+
     for i, idx in enumerate(glitch_idx):
         if idx + window > len(result):
             continue
         model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=glitch_labels[i])
-        stack += result[idx:idx + window] + model
-        count += 1
+
+        stack[glitch_labels[i]] += result[idx:idx + window] + model
+        count[glitch_labels[i]] += 1
 
         if i == 0:
-            plt.plot(seconds[:window], result[idx:idx + window] + model, label="Data + Glitch Model")
+            plot_res = result.copy()
+            plot_res[idx:idx + window] += model
+            plt.plot(seconds[:window], plot_res[:window], label="Data + Glitch Model")
+            plt.scatter(seconds[idx], plot_res[idx], color='red',
+                        label='First Glitch Sample')
             plt.title("First Glitch and Model")
             plt.xlabel("Time (s)")
             plt.ylabel("Amplitude")
             plt.legend()
-            plt.show()
+            plt.xlim(0, seconds[1000])
+            plt.savefig(f"{g.FIGURES_PATH}templates/first_glitch_and_model.png")
+            plt.close()
 
-    if count == 0:
-        return
+    for glitch_type in ['short', 'long', 'slow']:
+        if count[glitch_type] == 0:
+            continue
 
-    stack /= count
-    plt.plot(stack, label="Data + Glitch Model (stacked average)")
-    plt.legend()
-    plt.show()
+        stack[glitch_type] /= count[glitch_type]
+        plt.plot(seconds[:window], stack[glitch_type], label=glitch_type)
+        plt.title("Stacked Average")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.legend()
+        plt.xlim(-0.1, 2)
+    plt.savefig(f"{g.FIGURES_PATH}templates/stacked_average_{glitch_type}.png")
+    plt.close()

@@ -9,7 +9,7 @@ SAMPRATE = 180.3737 #Hz
 SIGMA = 0.01 #random std for the white noise
 
 FAST_PART = 0 # seconds
-CUT_OFF = 100
+CUT_OFF = 30
 
 NSECS = 60
 
