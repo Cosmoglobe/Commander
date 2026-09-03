@@ -65,7 +65,7 @@ def search(filtered, x_axis, flags=None, windowsize=1000, threshold=3.2):
         return biggest_glitch
 
 
-def matched_filter(res):
+def matched_filter(res, seconds):
     res = np.asarray(res, dtype=float)
     glitch_model = templates.glitch_model_func(np.arange(0, 2, 1 / g.SAMPRATE), 1)
     template_norm = np.linalg.norm(glitch_model)
@@ -84,19 +84,20 @@ def matched_filter(res):
     glitch_idx = peak_indices
     print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
 
-    plt.plot(res[:1000], label='Original')
+    plt.plot(seconds[:1000], res[:1000], label='Original')
     visible = glitch_idx[glitch_idx < 1000]
-    plt.scatter(visible, res[visible], color='red', label='Glitches')
+    plt.scatter(seconds[visible], res[visible], color='red', label='Glitches')
     plt.title("Original TOD with detected Glitches")
     plt.savefig(g.FIGURES_PATH + "debug/original_tod.png")
     plt.close()
 
-    plt.plot(score[:1000])
+    plt.plot(seconds[:1000], score[:1000])
     visible = glitch_idx[glitch_idx < 1000]
-    plt.scatter(visible, score[visible], color='red', label='Glitches')
+    plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
     plt.legend()
     plt.title("Matched Filter Result")
     plt.ylabel("Amplitude")
+    plt.xlabel("Time (s)")
     plt.savefig(g.FIGURES_PATH + "debug/matched_filter_result.png")
     plt.close()
 

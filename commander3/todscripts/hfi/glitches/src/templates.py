@@ -4,16 +4,16 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
-def short_glitch(t, A, a0):
-    return glitch_model_func(t, A, a0, "143-2a", "short")
+def short_glitch(t, A):
+    return glitch_model_func(t, A, "143-2a", "short")
 
-def long_glitch(t, A, a0):
-    return glitch_model_func(t, A, a0, "143-2a", "long")
+def long_glitch(t, A):
+    return glitch_model_func(t, A, "143-2a", "long")
 
-def slow_glitch(t, A, a0):
-    return glitch_model_func(t, A, a0, "143-2a", "slow")
+def slow_glitch(t, A):
+    return glitch_model_func(t, A, "143-2a", "slow")
 
-def glitch_model_func(t, A=1, a0=0, band="143-2a", glitch_type = "short"):
+def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short"):
     glitches = np.load("/mn/stornext/d23/cmbco/globe/planck/glitch/glitch_params.npy",
                         allow_pickle=True).item()
     
@@ -38,7 +38,7 @@ def glitch_model_func(t, A=1, a0=0, band="143-2a", glitch_type = "short"):
 
     glitch_model = glitch_model / np.max(glitch_model)  # normalize the glitch model to have a max of 1
 
-    return glitch_model * A + a0
+    return glitch_model * A
 
 def fit_glitch(res, glitch, secs):
     adjusted_res = res - np.median(res)
