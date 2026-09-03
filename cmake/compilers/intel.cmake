@@ -113,7 +113,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-fPIC"
     "-init=snan"
     "-init=arrays"
-    "-fsanitize=address"
+    "-fsanitize=memory"
   )
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
