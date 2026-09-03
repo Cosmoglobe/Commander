@@ -51,19 +51,20 @@ def fit_glitch(res, glitch, secs):
     # print(f"Infodict: {infodict}")
     print(f"Message: {mesg}")
 
-    plt.scatter(secs[glitch], adjusted_res[glitch], color='red', label='Glitch Sample')
-    plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
-             adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
-             label="Data")
-    plt.plot(secs[glitch: glitch + 2 * 180],
-             glitch_model_func(secs[glitch: glitch + 2 * 180] - secs[glitch], 1),
-             label="Glitch model")
-    plt.title("Glitch Model")
-    plt.legend()
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-    plt.legend()
-    plt.savefig(f"{g.SAVE_PATH}glitch_model.png")
+    if g.PLOTS:
+        plt.scatter(secs[glitch], adjusted_res[glitch], color='red', label='Glitch Sample')
+        plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
+                adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
+                label="Data")
+        plt.plot(secs[glitch: glitch + 2 * 180],
+                glitch_model_func(secs[glitch: glitch + 2 * 180] - secs[glitch], 1),
+                label="Glitch model")
+        plt.title("Glitch Model")
+        plt.legend()
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.legend()
+        plt.savefig(f"{g.SAVE_PATH}glitch_model.png")
     # plt.close()
 
     # subtract the glitch model from the data
@@ -71,20 +72,21 @@ def fit_glitch(res, glitch, secs):
     adjusted_res[glitch + nr_flag: glitch + 2 * 180] -= glitch_model_func(secs[glitch + nr_flag: glitch + 2 * 180] - secs[glitch], 1)
     adjusted_res[glitch: glitch + nr_flag] = 0
 
-    plt.vlines(secs[glitch:glitch+nr_flag], ymin=np.min(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
-                   ymax=np.max(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
-                   color='grey', alpha=0.1, label=f'First {nr_flag} samples are flagged')
-    plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
-             adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
-             label="Data - Glitch Model")
-    
-    plt.title("Data - Glitch Model")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-    plt.ylim(-0.1, 0.2)
-    plt.legend()
-    plt.savefig(f"{g.SAVE_PATH}data_minus_glitch_model.png")
-    plt.close()
+    if g.PLOTS:
+        plt.vlines(secs[glitch:glitch+nr_flag], ymin=np.min(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
+                    ymax=np.max(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
+                    color='grey', alpha=0.1, label=f'First {nr_flag} samples are flagged')
+        plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
+                adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
+                label="Data - Glitch Model")
+        
+        plt.title("Data - Glitch Model")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.ylim(-0.1, 0.2)
+        plt.legend()
+        plt.savefig(f"{g.SAVE_PATH}data_minus_glitch_model.png")
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -95,11 +97,12 @@ if __name__ == "__main__":
     long = glitch_model_func(tensecs, glitch_type = "long")
     slow = glitch_model_func(tensecs, glitch_type = "slow")
 
-    plt.plot(tensecs, short, label="Short Glitch")
-    plt.plot(tensecs, long, label="Long Glitch")
-    plt.plot(tensecs, slow, label="Slow Glitch")
-    plt.title("Glitch Models")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-    plt.legend()
-    plt.savefig(f"{g.FIGURES_PATH}debug/glitch_models.png")
+    if g.PLOTS:
+        plt.plot(tensecs, short, label="Short Glitch")
+        plt.plot(tensecs, long, label="Long Glitch")
+        plt.plot(tensecs, slow, label="Slow Glitch")
+        plt.title("Glitch Models")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.legend()
+        plt.savefig(f"{g.FIGURES_PATH}debug/glitch_models.png")

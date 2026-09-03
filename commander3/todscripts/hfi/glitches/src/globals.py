@@ -12,3 +12,5 @@ FAST_PART = 0 # seconds
 CUT_OFF = 100
 
 NSECS = 60
+
+PLOTS = False

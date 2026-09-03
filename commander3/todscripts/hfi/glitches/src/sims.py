@@ -64,10 +64,11 @@ for i in range(0, len(res), plot_window):
                                                     #  glitch_type="slow"), alpha=0.5,
                                                     #  label="Glitch model (slow)")
 
-    plt.xlim(seconds[i], seconds[i + plot_window])
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-    plt.title("Glitch Simulation")
-    plt.legend()
-    plt.savefig(f"{g.FIGURES_PATH}sims/{i}_{i+plot_window}.png")
-    plt.close()
+    if g.PLOTS:
+        plt.xlim(seconds[i], seconds[i + plot_window])
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.title("Glitch Simulation")
+        plt.legend()
+        plt.savefig(f"{g.FIGURES_PATH}sims/{i}_{i+plot_window}.png")
+        plt.close()
