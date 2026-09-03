@@ -13,4 +13,4 @@ CUT_OFF = 100
 
 NSECS = 60
 
-PLOTS = False
+PLOTS = True

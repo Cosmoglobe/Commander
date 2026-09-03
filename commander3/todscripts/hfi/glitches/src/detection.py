@@ -36,31 +36,31 @@ def search(filtered, x_axis, flags=None, windowsize=1000, threshold=3.2):
         if flags is not None:
             plt.vlines(flags[:windowsize], ymin=np.min(window), ymax=np.max(window),
                        color='grey', alpha=0.5, label='Flags')
-        plt.scatter(x_axis[glitch_samples], window[glitch_samples], color='red', label='Glitch Samples')
-        plt.plot(x_axis[:windowsize], window, label='Filtered')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Signal')
-        plt.title('Glitch Detection')
-        plt.legend()
-        plt.savefig(g.SAVE_PATH + "glitch_samples.png")
-        plt.clf()
+        # plt.scatter(x_axis[glitch_samples], window[glitch_samples], color='red', label='Glitch Samples')
+        # plt.plot(x_axis[:windowsize], window, label='Filtered')
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Signal')
+        # plt.title('Glitch Detection')
+        # plt.legend()
+        # plt.savefig(g.SAVE_PATH + "glitch_samples.png")
+        # plt.clf()
 
         biggest_glitch = np.argmax(window[glitch_samples])
         biggest_glitch = glitch_samples[biggest_glitch]
         print("Biggest glitch sample:", biggest_glitch)
         # first_glitch = glitch_samples[biggest_glitch]
         # plot first glitch and previous 1 sec and next 3 seconds
-        plt.scatter(x_axis[biggest_glitch],
-                    window[biggest_glitch], color='red',
-                    label='Glitch Samples')
-        plt.plot(x_axis[biggest_glitch - 1 * 180:biggest_glitch + 3 * 180],
-                 window[biggest_glitch - 1 * 180:biggest_glitch + 3 * 180], label = 'Filtered')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Signal')
-        plt.legend()
-        plt.title('First Glitch and previous 1 Second and Next 3 Seconds')
-        plt.savefig(g.SAVE_PATH + "biggest_glitch.png")
-        plt.close()
+        # plt.scatter(x_axis[biggest_glitch],
+        #             window[biggest_glitch], color='red',
+        #             label='Glitch Samples')
+        # plt.plot(x_axis[biggest_glitch - 1 * 180:biggest_glitch + 3 * 180],
+        #          window[biggest_glitch - 1 * 180:biggest_glitch + 3 * 180], label = 'Filtered')
+        # plt.xlabel('Time (s)')
+        # plt.ylabel('Signal')
+        # plt.legend()
+        # plt.title('First Glitch and previous 1 Second and Next 3 Seconds')
+        # plt.savefig(g.SAVE_PATH + "biggest_glitch.png")
+        # plt.close()
 
         return biggest_glitch
 
@@ -82,15 +82,15 @@ def matched_filter(res, seconds):
 
     peak_indices, _ = find_peaks(score, height=g.CUT_OFF, distance=max(1, int(0.05 * g.SAMPRATE)))
     glitch_idx = peak_indices
-    print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
+    # print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
 
     if g.PLOTS:
-        plt.plot(seconds[:1000], res[:1000], label='Original')
-        visible = glitch_idx[glitch_idx < 1000]
-        plt.scatter(seconds[visible], res[visible], color='red', label='Glitches')
-        plt.title("Original TOD with detected Glitches")
-        plt.savefig(g.FIGURES_PATH + "debug/original_tod.png")
-        plt.close()
+        # plt.plot(seconds[:1000], res[:1000], label='Original')
+        # visible = glitch_idx[glitch_idx < 1000]
+        # plt.scatter(seconds[visible], res[visible], color='red', label='Glitches')
+        # plt.title("Original TOD with detected Glitches")
+        # plt.savefig(g.FIGURES_PATH + "debug/original_tod.png")
+        # plt.close()
 
         plt.plot(seconds[:1000], score[:1000])
         visible = glitch_idx[glitch_idx < 1000]
@@ -102,7 +102,6 @@ def matched_filter(res, seconds):
         plt.savefig(g.FIGURES_PATH + "debug/matched_filter_result.png")
         plt.close()
 
-    # Keep the historical np.where-style return shape used by main.py.
     return glitch_idx
 
 if __name__ == "__main__":

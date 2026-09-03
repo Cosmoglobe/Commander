@@ -13,7 +13,7 @@ res = np.random.normal(0, g.SIGMA, len(seconds))  # white noise
 # res = np.zeros(len(seconds)) 
 
 # there is about 1 glitch per second, so per hour we have about
-nglitches = 500
+nglitches = 3600
 # get that number of random points to inser the glitches
 
 glitch_time = np.linspace(0, g.NSECS, g.NSECS * 180, endpoint=False)  # glitch model lasts n seconds
@@ -65,6 +65,8 @@ for i in range(0, len(res), plot_window):
                                                     #  label="Glitch model (slow)")
 
     if g.PLOTS:
+        if i > 0:
+            break
         plt.xlim(seconds[i], seconds[i + plot_window])
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
