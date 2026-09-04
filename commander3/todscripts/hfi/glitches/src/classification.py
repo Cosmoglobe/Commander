@@ -6,6 +6,7 @@ import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 import templates
+from scipy.optimize import curve_fit
 
 
 def chi2(data, model):

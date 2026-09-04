@@ -6,11 +6,24 @@ We then subtract the glitches from the data.
 We can do this using a CG solver to solve the equation Ax = b
 """
 
+import multiprocessing
+
 import globals as g
 import numpy as np
 import templates
+from numba import njit
 from scipy.sparse.linalg import cg
 
+
+def add_glitch_to_data(args):
+    index, glitch_i, glitch_label, glitch_amp, ntod, oneminute = args
+    glitch_model = templates.glitch_model_func(oneminute, glitch_amp, band="143-2a",
+                                                glitch_type=glitch_label)
+    column = np.zeros(ntod)
+    end = min(glitch_i + len(glitch_model), ntod)
+    if glitch_i < end:
+        column[glitch_i:end] += glitch_model[:end - glitch_i]
+    return index, column
 
 # let's build the T (template) matrix first. it should be a ntod x nglitch matrix
 def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps):
@@ -23,20 +36,26 @@ def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps):
     print(f"Building template matrix with {nglitch} glitches and {ntod} samples. Shape of "
           f"glitch_idx: {glitch_idx.shape}, glitch_labels: {len(glitch_labels)}, glitch_amps: "
           f"{len(glitch_amps)}")
-    for i, glitch_i in enumerate(glitch_idx):
-        glitch_model = templates.glitch_model_func(oneminute, glitch_amps[i], band="143-2a",
-                                                   glitch_type=glitch_labels[i])
-        if glitch_i + len(glitch_model) < ntod:
-            T[glitch_i:glitch_i + len(glitch_model), i] = glitch_model
-        else:
-            T[glitch_i:, i] = glitch_model[:ntod - glitch_i]
-    return T
+    tasks = [
+        (index, glitch_i, glitch_labels[index], glitch_amps[index], ntod, oneminute)
+        for index, glitch_i in enumerate(glitch_idx)
+    ]
+    if not tasks:
+        return T
+
+    processes = min(multiprocessing.cpu_count(), len(tasks))
+    with multiprocessing.Pool(processes=processes) as pool:
+        columns = pool.map(add_glitch_to_data, tasks)
+
+    columns.sort(key=lambda item: item[0])
+    return np.column_stack([column for _, column in columns])
 
 def calculate_b(res, T):
     N_invd = res / g.SIGMA**2
     b = T.T @ N_invd
     return b
 
+@njit
 def calculate_A(T):
     A = T.T @ T / g.SIGMA**2
     return A
@@ -61,10 +80,10 @@ def subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps,
 
     result = res.copy()
     for (glitch_i, glitch_id), glitch_amp in zip(enumerate(glitch_idx), x):
-        glitch_model = templates.glitch_model_func(np.arange(0, g.NSECS, 1 / g.SAMPRATE), glitch_amp,
-                                                band="143-2a", glitch_type=glitch_labels[glitch_i])
+        glitch_model = templates.glitch_model_func(np.arange(0, g.NSECS, 1 / g.SAMPRATE),
+                                                   glitch_amp, glitch_type=glitch_labels[glitch_i])
         if glitch_id + len(glitch_model) < len(res):
             result[glitch_id:glitch_id + len(glitch_model)] -= glitch_model
         else:
             result[glitch_id:] -= glitch_model[:len(res) - glitch_id]
-    return result
+    return result, x

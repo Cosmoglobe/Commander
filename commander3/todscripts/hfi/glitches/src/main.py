@@ -38,8 +38,8 @@ def main():
         # plt.close()
 
     print("Starting glitch subtraction...")
-    result = subtraction.subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps,
-                                                    res)
+    result, fitted_amps = subtraction.subtract_glitches_from_data(
+        glitch_idx, seconds, glitch_labels, glitch_amps, res)
 
     if g.PLOTS:
         plt.plot(seconds[:1000], res[:1000], label='Original Data')
@@ -53,10 +53,11 @@ def main():
         plt.savefig(f"{g.FIGURES_PATH}debug/glitch_subtraction_result_0.png")
         plt.close()
 
-    # maxiter = 1
-    # for i in range(maxiter):
+    templates.stacking(result, glitch_idx, glitch_labels, fitted_amps, seconds)
 
-    templates.stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds)
+    # maxiter = 1
+        # for i in range(maxiter):
 
 if __name__ == "__main__":
-    cProfile.run('main()', filename=f"{g.FIGURES_PATH}debug/profile_results.txt", sort='time')
+    cProfile.run('main()', sort='time')
+    # main()
