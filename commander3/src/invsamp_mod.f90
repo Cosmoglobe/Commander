@@ -210,7 +210,7 @@ contains
                 write(69,*) x_n(i), S_n(i)
              end do
              close(69)
-             stop
+             write(*,*) "Over 100 iterations"
              exit
           end if
           if (stat /= 0) exit
