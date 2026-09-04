@@ -11,12 +11,12 @@ def _load_glitch_params():
     return np.load("/mn/stornext/d23/cmbco/globe/planck/glitch/glitch_params.npy",
                    allow_pickle=True).item()
 
-
 @cache
-def glitch_model_samples(sample_count, sample_rate, band, glitch_type):
+def glitch_model_samples(sample_count, sample_rate, band, glitch_type, glitch_params=None):
     """Return a unit-amplitude glitch template on the sample grid."""
     t = np.arange(sample_count) / sample_rate
-    glitch_params = _load_glitch_params()[band][glitch_type]
+    if glitch_params is None:
+        glitch_params = _load_glitch_params()[band][glitch_type]
     model = np.zeros(sample_count)
     for amp_i in range(1, 9):
         amplitude = glitch_params[f"Amplitude{amp_i}"]
@@ -91,55 +91,20 @@ def fit_glitch(res, glitch, secs):
     adjusted_res[glitch + nr_flag: glitch + 2 * 180] -= glitch_model_func(secs[glitch + nr_flag: glitch + 2 * 180] - secs[glitch], 1)
     adjusted_res[glitch: glitch + nr_flag] = 0
 
-    # if g.PLOTS:
-    #     plt.vlines(secs[glitch:glitch+nr_flag], ymin=np.min(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
-    #                 ymax=np.max(adjusted_res[glitch - 1 * 180:glitch + 3 * 180]),
-    #                 color='grey', alpha=0.1, label=f'First {nr_flag} samples are flagged')
-    #     plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
-    #             adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
-    #             label="Data - Glitch Model")
-        
-    #     plt.title("Data - Glitch Model")
-    #     plt.xlabel("Time (s)")
-    #     plt.ylabel("Amplitude")
-    #     plt.ylim(-0.1, 0.2)
-    #     plt.legend()
-    #     plt.savefig(f"{g.SAVE_PATH}data_minus_glitch_model.png")
-    #     plt.close()
-
-
-if __name__ == "__main__":
-    twosecs = np.linspace(0, 2, 2 * 180, endpoint=False)  # glitch model lasts 2 seconds
-    tensecs = np.linspace(0, 10, 10 * 180, endpoint=False)  # glitch model lasts 10 seconds
-
-    short = glitch_model_func(tensecs, glitch_type = "short")
-    long = glitch_model_func(tensecs, glitch_type = "long")
-    slow = glitch_model_func(tensecs, glitch_type = "slow")
-
-    # if g.PLOTS:
-    #     plt.plot(tensecs, short, label="Short Glitch")
-    #     plt.plot(tensecs, long, label="Long Glitch")
-    #     plt.plot(tensecs, slow, label="Slow Glitch")
-    #     plt.title("Glitch Models")
-    #     plt.xlabel("Time (s)")
-    #     plt.ylabel("Amplitude")
-    #     plt.legend()
-    #     plt.savefig(f"{g.FIGURES_PATH}debug/glitch_models.png")
-
 def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     window = int(g.NSECS * g.SAMPRATE)
     stack = {'short': np.zeros(window), 'long': np.zeros(window), 'slow': np.zeros(window)}
-    count = {'short': 0, 'long': 0, 'slow': 0}
+    final_stack = {'short': np.zeros(window), 'long': np.zeros(window), 'slow': np.zeros(window)}
 
     for i, idx in enumerate(glitch_idx):
         if idx + window > len(result):
             continue
         model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=glitch_labels[i])
 
-        stack[glitch_labels[i]] += result[idx:idx + window] + model
-        count[glitch_labels[i]] += 1
+        stack[glitch_labels[i]] = np.vstack((stack[glitch_labels[i]],
+                                            result[idx:idx + window] + model))
 
-        if i == 0:
+        if i == 0 and g.PLOTS:
             plot_res = result.copy()
             plot_res[idx:idx + window] += model
             plt.plot(seconds[:window], plot_res[:window], label="Data + Glitch Model")
@@ -154,15 +119,43 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
             plt.close()
 
     for glitch_type in ['short', 'long', 'slow']:
-        if count[glitch_type] == 0:
-            continue
+        # print(f"shape of stack for {glitch_type}: {stack[glitch_type].shape}")
+        final_stack[glitch_type] = np.median(stack[glitch_type], axis=0)
 
-        stack[glitch_type] /= count[glitch_type]
-        plt.plot(seconds[:window], stack[glitch_type], label=glitch_type)
-        plt.title("Stacked Average")
-        plt.xlabel("Time (s)")
-        plt.ylabel("Amplitude")
-        plt.legend()
-        plt.xlim(-0.1, 2)
-    plt.savefig(f"{g.FIGURES_PATH}templates/stacked_average_{glitch_type}.png")
-    plt.close()
+        if g.PLOTS:
+            plt.plot(seconds[:window], final_stack[glitch_type], label=glitch_type)
+            plt.title("Stacked Average")
+            plt.xlabel("Time (s)")
+            plt.ylabel("Amplitude")
+            plt.legend()
+            plt.xlim(-0.1, 2)
+
+    if g.PLOTS:
+        plt.savefig(f"{g.FIGURES_PATH}templates/stacked_average.png")
+        plt.close()
+
+    return final_stack
+
+def glitch_model(seconds, *params):
+    # curve_fit passes each parameter as a separate scalar arg, so unpack and split here
+    amps, taus = params[:8], params[8:]
+    model = np.zeros_like(seconds, dtype=float)
+    for i in range(8):
+        model += amps[i] * np.exp(-seconds / taus[i])
+
+    return model / np.max(model)  # normalize the glitch model to have a max of 1
+
+def glitch_estimation(seconds, stack):
+    tau_guess = np.geomspace(seconds[-1], seconds[1], 8)
+    amp_guess = np.linspace(np.max(stack), np.max(stack) * 1e-8, 8)
+    p0 = np.concatenate([amp_guess, tau_guess])
+    popt, _ = curve_fit(glitch_model, seconds, stack, p0=p0,
+                        bounds=(0, np.inf), max_nfev=20000, sigma=g.SIGMA*np.ones_like(stack),
+                        absolute_sigma=True)
+    
+    # print(f"shape of popt: {popt.shape}")
+    return popt[:8], popt[8:]  # return amplitudes and taus separately
+
+if __name__ == "__main__":
+    params = _load_glitch_params()
+    print(f"Loaded glitch parameters: {params}")
