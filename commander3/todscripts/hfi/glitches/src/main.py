@@ -16,7 +16,7 @@ def main():
     print("Iteration 0")
 
     print("Starting glitch detection...")
-    glitch_idx = detection.matched_filter(res, seconds)
+    glitch_idx, _ = detection.matched_filter(res)
     print(f"Detected {len(glitch_idx)} glitches at indices: {glitch_idx}")
 
     print("Starting glitch classification...")
@@ -40,16 +40,19 @@ def main():
 
     final_stack = templates.stacking(result, glitch_idx, glitch_labels, fitted_amps, seconds)
 
+    glitch_params = {}
     for glitch_type in ['short', 'long', 'slow']:
-        amps, taus = templates.glitch_estimation(seconds[:int(g.NSECS * g.SAMPRATE)],
+        glitch_params[glitch_type] = templates.glitch_estimation(seconds[:int(g.NSECS * g.SAMPRATE)],
                                            final_stack[glitch_type])
         # print(f"Estimated parameters for {glitch_type} glitch: amplitudes={amps}, taus={taus}")
         if g.PLOTS:
             plt.plot(seconds[:int(2*g.SAMPRATE)], final_stack[glitch_type][:int(2*g.SAMPRATE)],
                     label="Stacked median")
             plt.plot(seconds[:int(2*g.SAMPRATE)],
-                    templates.glitch_model(seconds[:int(g.NSECS * g.SAMPRATE)], *amps, *taus)[:int(2*g.SAMPRATE)],
-                    label="Fitted Model")
+                    templates.glitch_model(seconds[:int(g.NSECS * g.SAMPRATE)],
+                                           *glitch_params[glitch_type]['Amplitude1': 'Amplitude8'],
+                                           *glitch_params[glitch_type]['Tau1': 'Tau8'])[:int(2*g.SAMPRATE)],
+                                           label="Fitted Model")
 
             plt.title(f"Glitch Stacking and Fitting for {glitch_type} Glitches")
             plt.xlabel("Time (s)")
@@ -62,7 +65,18 @@ def main():
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
         print("Starting glitch detection...")
-        glitch_idx = detection.matched_filter(res, seconds)
+        glitch_idx, score = detection.matched_filter(res, glitch_params)
+
+        if g.PLOTS:
+            plt.plot(seconds[:1000], score[:1000])
+            visible = glitch_idx[glitch_idx < 1000]
+            plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
+            plt.legend()
+            plt.title("Matched Filter Result")
+            plt.ylabel("Amplitude")
+            plt.xlabel("Time (s)")
+            plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i) + ".png")
+            plt.close()
 
 if __name__ == "__main__":
     # cProfile.run('main()', sort='time')
