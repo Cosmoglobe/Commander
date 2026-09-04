@@ -659,6 +659,7 @@ contains
     allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_mask(n), cpar%ds_tod_earth_init(n))
     allocate(cpar%ds_tod_4k_lines(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
+    cpar%ds_nu_c = 0d0
 
     do i = 1, n
        call int2string(i, itext)
@@ -911,6 +912,14 @@ contains
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
     cpar%cs_apply_dust_ext=.false.
+
+    cpar%cs_cg_scale = 1d0
+    cpar%cs_cl_amp_def = 0d0
+    cpar%cs_nu_ref      = 0d0
+    cpar%cs_nu_min      = 0d0
+    cpar%cs_nu_max      = 0d0
+    cpar%cs_nu_min_beta = 0d0
+    cpar%cs_nu_max_beta = 0d0
 
     do i = 1, n
        call int2string(i, itext)

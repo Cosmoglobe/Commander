@@ -906,17 +906,17 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than a given percentage of good data
           tod%scans(scan)%d(j)%accept = .false.
-          write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
-            & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
-            &  ' flagged data out of', ntod
+          !write(*, fmt='(a, i, a, i8, a, i8)') ' | Reject scan = ', &
+          !  & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
+          !  &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-               & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
+          !write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          !     & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        else if (abs(tod%scans(scan)%d(j)%N_psd%sigma0) > tod%sigma0_threshold) then
-          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
-               & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
+          !write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
+          !     & tod%scanid(scan), j, ', sigma0 = ', tod%scans(scan)%d(j)%N_psd%sigma0
           tod%scans(scan)%d(j)%accept = .false.
 !!$       else if (abs(tod%scans(scan)%d(j)%N_psd%xi_n(2)) > 1.5d0) then
 !!$          write(*,fmt='(a,i,i5,a,f12.1)') ' | Reject scan, det = ', &
@@ -1068,7 +1068,7 @@ contains
     character(len=6), dimension(nstat) :: label
 
     call timer%start(TOD_CHISQ, tod%band)
-    label = ['chisq ', 'sigma0', 'xi_n', 'base  ', 'base1 ', 'base2 ']
+    label = ['chisq ', 'sigma0', 'xi_n  ', 'base  ', 'base1 ', 'base2 ']
 
     if (tod%myid==0) then
        select type(N_psd => tod%scans(1)%d(1)%N_psd)

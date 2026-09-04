@@ -338,15 +338,28 @@ contains
     end if
 
     ! Define useful sd operation codes
-    if (sample_rel_bandpass) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP])
-    else if (sample_abs_bandpass) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP])
+    if (sample_ncorr) then
+       if (sample_rel_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP, SD_NCORR])
+       else if (sample_abs_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP, SD_NCORR])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST, SD_NCORR])
+       end if
     else
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
+       if (sample_rel_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP])
+       else if (sample_abs_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
+       end if
     end if
        
     call int2string(chain, ctext)
@@ -1230,6 +1243,7 @@ contains
              if (sd%tod(k,j) /= sd%tod(k,j)) then
                 write(*,*) tod%scanid(i), j, k, sd%tod(k,j), tod%scans(i)%d(j)%gain, sd%s_sky(k,j,0,1), sd%s_sl(k,j,0), sd%s_orb(k,j,0)
                 write(*,*) "NaN in tod during 1Hz spike"
+                sd%tod(k,j) = 0.0
                 stop
              end if
              !res(k) = 1/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &

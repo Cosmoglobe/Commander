@@ -192,7 +192,7 @@ module comm_tod_mod
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -1998,21 +1998,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -2190,7 +2190,7 @@ contains
     integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
     real(dp)     :: psi_, unwrap, x0, x1
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: my_spline
 
     ntod    = sd%ntod
     ndet    = sd%ndet; if (present(det)) ndet = 1
@@ -2215,9 +2215,9 @@ contains
           end do
 
           ! Interpolate
-          call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+          call spline_simple(my_spline, x_sl, sub_sl, regular=.true.)
           do i = 1, size(sub_sl)*subsamp  
-             sd%s_sl(i,j,hp) = splint_simple(spline, real(i, dp))
+             sd%s_sl(i,j,hp) = splint_simple(my_spline, real(i, dp))
           end do
 
           ! Do last few samples
@@ -2230,7 +2230,7 @@ contains
     end do
        
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(my_spline)
 
   end subroutine construct_sl_template
 

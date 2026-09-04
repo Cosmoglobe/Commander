@@ -30,6 +30,15 @@ module InvSamp_mod
   integer(i4b), parameter, private :: MIN_NUM_ACTIVE_POINT  = 50
   real(dp),     parameter, private :: TOLERANCE             = 1d-2
 
+    abstract interface
+      function lnL_int(x)
+         use healpix_types
+         implicit none
+         real(dp), intent(in) :: x
+         real(dp)             :: lnL_int
+      end function lnL_int
+    end interface
+
 contains
 
   function sample_InvSamp(handle, x_in, lnL, prior, status, n_eval, lnL_in, optimize, use_precomputed_grid, &
@@ -45,14 +54,6 @@ contains
     logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
     real(dp), dimension(1:), intent(in),  optional :: lnL_in
     real(dp),                intent(in),  optional :: tolerance_
-    abstract interface
-      function lnL_int(x)
-         use healpix_types
-         implicit none
-         real(dp), intent(in) :: x
-         real(dp)             :: lnL_int
-      end function lnL_int
-    end interface
 
 
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b

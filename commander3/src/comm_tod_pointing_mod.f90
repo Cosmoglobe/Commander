@@ -83,7 +83,7 @@ contains
 
         if (.not. tod%scans(scan)%d(d)%accept) then
            sd%s_sky(:,j,:,:) = 0.
-           if (allocated(tod%pixcache%map_gain)) sd%s_gain(:,j,:) = 0.
+           if (do_gain) sd%s_gain(:,j,:) = 0.
            cycle
         end if
 
