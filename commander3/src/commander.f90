@@ -439,11 +439,7 @@ contains
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
 
-    if (iter > 1) then
-       ndelta      = cpar%num_bp_prop + 1
-    else
-       ndelta = 1
-    end if
+    ndelta      = cpar%num_bp_prop + 1
 
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
