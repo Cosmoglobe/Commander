@@ -1139,7 +1139,8 @@ contains
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    if (trim(self%level) == 'L1') then
+    !if (trim(self%level) == 'L1') then
+    if (.not. self%L2_exist) then
        allocate(R(self%last_scan,self%ndet,size(self%R,3)),R_tot(self%last_scan,self%ndet,size(self%R,3)))
        R = 0.d0
        R(self%scanid,:,:) = self%R
@@ -1178,7 +1179,7 @@ contains
     end if
 
     deallocate(amp, amp_tot)
-    if (trim(self%level) == 'L1') deallocate(R, R_tot)
+    if (.not. self%L2_exist) deallocate(R, R_tot)
 
   end subroutine dumpToHDF_lfi
 
