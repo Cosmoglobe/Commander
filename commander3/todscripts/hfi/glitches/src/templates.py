@@ -35,9 +35,10 @@ def long_glitch(t, A):
 def slow_glitch(t, A):
     return glitch_model_func(t, A, "143-2a", "slow")
 
-def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short"):
+def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short", glitch_params=None):
     t = np.asarray(t)
-    glitch_params = _load_glitch_params()[band][glitch_type]
+    if glitch_params is None:
+        glitch_params = _load_glitch_params()[band][glitch_type]
 
     amp = []
     tau = []
@@ -69,22 +70,6 @@ def fit_glitch(res, glitch, secs):
     print(f"Fitted parameters: {popt}")
     # print(f"Infodict: {infodict}")
     print(f"Message: {mesg}")
-
-    # if g.PLOTS:
-    #     plt.scatter(secs[glitch], adjusted_res[glitch], color='red', label='Glitch Sample')
-    #     plt.plot(secs[glitch - 1 * 180:glitch + 3 * 180],
-    #             adjusted_res[glitch - 1 * 180:glitch + 3 * 180],
-    #             label="Data")
-    #     plt.plot(secs[glitch: glitch + 2 * 180],
-    #             glitch_model_func(secs[glitch: glitch + 2 * 180] - secs[glitch], 1),
-    #             label="Glitch model")
-    #     plt.title("Glitch Model")
-    #     plt.legend()
-    #     plt.xlabel("Time (s)")
-    #     plt.ylabel("Amplitude")
-    #     plt.legend()
-    #     plt.savefig(f"{g.SAVE_PATH}glitch_model.png")
-    # plt.close()
 
     # subtract the glitch model from the data
     nr_flag = 5
@@ -154,7 +139,9 @@ def glitch_estimation(seconds, stack):
                         absolute_sigma=True)
     
     # print(f"shape of popt: {popt.shape}")
-    return popt[:8], popt[8:]  # return amplitudes and taus separately
+    glitch_params = {'Amplitude' + str(i + 1): popt[i] for i in range(8)}
+    glitch_params.update({'Tau' + str(i + 1): popt[i +8] for i in range(8)})
+    return glitch_params
 
 if __name__ == "__main__":
     params = _load_glitch_params()
