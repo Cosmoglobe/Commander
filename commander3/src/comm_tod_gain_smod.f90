@@ -582,8 +582,8 @@ contains
           db = sum(s_invsqrtN(:,j) * residual(:,j))
        end if
 
-       !if (.false.) then
-       if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
+       if (.false.) then
+       !if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
           call int2string(tod%scanid(scan), itext)
           open(58,file='gain_delta_'//itext//'.dat', recl=1024)
           write(58,*) "#", tod%scans(scan)%ntod, size(tod_arr), db/dA
