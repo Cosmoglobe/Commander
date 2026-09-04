@@ -210,7 +210,6 @@ contains
 
        pcg_converged = .false.
        call get_ncorr_sm_cg(handle, d_prime, ncorr2, sd%mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
-       write(*,*) "Is htis allocated?", allocated(sd%n_corr), allocated(ncorr2)
        sd%n_corr(:,i) = ncorr2(:)
 
        ! Check goodness-of-fit
