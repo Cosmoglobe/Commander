@@ -2197,6 +2197,8 @@ contains
     nhorn   = self%nhorn
     subsamp = 5
     !subsamp =  1 ! For testing, set subsamp = 1 and compare the sidelobe output
+
+    sd%s_sl = 0.
     
     allocate(sub_sl(ntod/subsamp), x_sl(ntod/subsamp))
 
@@ -2228,7 +2230,7 @@ contains
           end do
        end do
     end do
-       
+
     deallocate(sub_sl, x_sl)
     call free_spline(my_spline)
 

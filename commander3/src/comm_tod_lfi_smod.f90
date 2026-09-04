@@ -1228,7 +1228,7 @@ contains
        ! Prepare data
        !TODO: convert this correction to the same infrastructure that gets used in other projects. Ideally, the 1Hz spike would be
        !applied with oper = SD_SPIKE, but currently isn't and used sd_inst with spur_lvl > 2
-       call init_scan_data(tod, i, oper, TODMASK_PROC, sd, 0)
+       call init_scan_data(tod, i, oper, TODMASK_PROC, sd)
 
        !call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
 
