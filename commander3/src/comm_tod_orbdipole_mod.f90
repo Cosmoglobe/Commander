@@ -100,8 +100,6 @@ contains
          !2xy 
          self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal* v(1) * v(2)
          !2xz 
-         self%orb_dp_s(i, 5) = self%orb_dp_s(i, 5) + 2.d0 * pixVal * v(1) *v(2)
-         !2xz 
          self%orb_dp_s(i, 6) = self%orb_dp_s(i, 6) + 2.d0 * pixVal* v(1) * v(3)
          !y^2 
          self%orb_dp_s(i, 7) = self%orb_dp_s(i, 7)+pixVal*v(2)*v(2)
@@ -193,7 +191,7 @@ contains
     real(sp),            dimension(:),     intent(out) :: s_dip
     real(dp),                              intent(in), optional :: factor
 
-    real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3)
+    real(dp)     :: b, x, q, b_dot, f, xx, v(3)
     integer(i4b) :: i, j, k, s_len, ntod, subsample
     type(spline_type) :: s
     real(dp), dimension(:), allocatable :: x_vec, y_vec

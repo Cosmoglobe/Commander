@@ -163,7 +163,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     ! Read official correction tables
     c%invF_dpc = -1d30
     open(58,file='/mn/stornext/d23/cmbco/hfi/common/data/adc/ADC_NL_'//trim(adjustl(label))//'.dat')
-    read(58,fmt='(a,2i)') comment, n0, n1
+    read(58,fmt='(A80,2I10)') comment, n0, n1
     do i = 1, n0
        read(58,*) k, adc_dpc
        !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc

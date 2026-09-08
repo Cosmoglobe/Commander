@@ -123,7 +123,7 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)        :: numband
-     character(len=2048) :: datadir, ds_sourcemask, ds_procmask
+     character(len=2048) :: datadir, pixwindir, ds_sourcemask, ds_procmask
      logical(lgt),        allocatable, dimension(:)   :: ds_active
      integer(i4b),        allocatable, dimension(:)   :: ds_period
      logical(lgt),        allocatable, dimension(:)   :: ds_polarization
@@ -633,6 +633,7 @@ contains
     !call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask, path=.true.)
     call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask, path=.true.)
+    call get_parameter_hashtable(htbl, 'PIXWIN_DIR',          par_string=cpar%pixwindir, path=.true.)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n), cpar%ds_instlabel(n))
@@ -658,6 +659,7 @@ contains
     allocate(cpar%ds_tod_earth_model(n), cpar%ds_tod_earth_mask(n), cpar%ds_tod_earth_init(n))
     allocate(cpar%ds_tod_4k_lines(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
+    cpar%ds_nu_c = 0d0
 
     do i = 1, n
        call int2string(i, itext)
@@ -910,6 +912,14 @@ contains
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
     cpar%cs_apply_dust_ext=.false.
+
+    cpar%cs_cg_scale = 1d0
+    cpar%cs_cl_amp_def = 0d0
+    cpar%cs_nu_ref      = 0d0
+    cpar%cs_nu_min      = 0d0
+    cpar%cs_nu_max      = 0d0
+    cpar%cs_nu_min_beta = 0d0
+    cpar%cs_nu_max_beta = 0d0
 
     do i = 1, n
        call int2string(i, itext)

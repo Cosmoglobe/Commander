@@ -30,6 +30,15 @@ module InvSamp_mod
   integer(i4b), parameter, private :: MIN_NUM_ACTIVE_POINT  = 50
   real(dp),     parameter, private :: TOLERANCE             = 1d-2
 
+    abstract interface
+      function lnL_int(x)
+         use healpix_types
+         implicit none
+         real(dp), intent(in) :: x
+         real(dp)             :: lnL_int
+      end function lnL_int
+    end interface
+
 contains
 
   function sample_InvSamp(handle, x_in, lnL, prior, status, n_eval, lnL_in, optimize, use_precomputed_grid, &
@@ -45,14 +54,6 @@ contains
     logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
     real(dp), dimension(1:), intent(in),  optional :: lnL_in
     real(dp),                intent(in),  optional :: tolerance_
-    abstract interface
-      function lnL_int(x)
-         use healpix_types
-         implicit none
-         real(dp), intent(in) :: x
-         real(dp)             :: lnL_int
-      end function lnL_int
-    end interface
 
 
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
@@ -122,6 +123,7 @@ contains
              x_new = 0.5d0*(x_n(1)+prior_(1))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if(stat /= 0) exit
           end do
        end if
 
@@ -130,6 +132,7 @@ contains
              x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
              y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
           end do
        end if
        if (stat /= 0) then
@@ -147,6 +150,7 @@ contains
 !             prior_(1) = x_new 
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
 !          end if
        end do
 
@@ -157,6 +161,7 @@ contains
 !             prior_(2) = x_new 
 !          else
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+             if (stat /= 0) exit
 !          end if
        end do
        if (stat /= 0) then
@@ -205,7 +210,7 @@ contains
                 write(69,*) x_n(i), S_n(i)
              end do
              close(69)
-             stop
+             write(*,*) "Over 100 iterations"
              exit
           end if
           if (stat /= 0) exit

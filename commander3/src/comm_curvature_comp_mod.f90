@@ -84,7 +84,7 @@ contains
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
     c%theta_steplen = 0d0
-    c%indlabel = ['beta','C_s']
+    c%indlabel = ['beta','C_s ']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &

@@ -204,6 +204,7 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, 3, .false.)
     call c%precompute_lookups()
 
     ! allocate LFI specific instrument file data
@@ -337,15 +338,28 @@ contains
     end if
 
     ! Define useful sd operation codes
-    if (sample_rel_bandpass) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP])
-    else if (sample_abs_bandpass) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP])
+    if (sample_ncorr) then
+       if (sample_rel_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP, SD_NCORR])
+       else if (sample_abs_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP, SD_NCORR])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST, SD_NCORR])
+       end if
     else
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
+       if (sample_rel_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_BP_PROP])
+       else if (sample_abs_bandpass) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,    SD_SKY_PROP])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
+       end if
     end if
        
     call int2string(chain, ctext)
@@ -407,7 +421,7 @@ contains
 
     ! Sample 1Hz spikes
     if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle); call update_status(status, "tod_1Hz")
     end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
@@ -580,7 +594,7 @@ contains
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)
-    deallocate(map_sky, m_gain, procmask, procmask2)
+    !deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -1125,7 +1139,8 @@ contains
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    if (trim(self%level) == 'L1') then
+    !if (trim(self%level) == 'L1') then
+    if (.not. self%L2_exist) then
        allocate(R(self%last_scan,self%ndet,size(self%R,3)),R_tot(self%last_scan,self%ndet,size(self%R,3)))
        R = 0.d0
        R(self%scanid,:,:) = self%R
@@ -1164,11 +1179,11 @@ contains
     end if
 
     deallocate(amp, amp_tot)
-    if (trim(self%level) == 'L1') deallocate(R, R_tot)
+    if (.not. self%L2_exist) deallocate(R, R_tot)
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1182,9 +1197,6 @@ contains
     implicit none
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin, oper
     real(dp)     :: dt, t_tot, t, A, b, mval, eta
@@ -1214,10 +1226,11 @@ contains
        call wall_time(t1)
 
        ! Prepare data
-       tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call init_scan_data(tod, i, oper, TODMASK_PROC, sd, 0)
+       !TODO: convert this correction to the same infrastructure that gets used in other projects. Ideally, the 1Hz spike would be
+       !applied with oper = SD_SPIKE, but currently isn't and used sd_inst with spur_lvl > 2
+       call init_scan_data(tod, i, oper, TODMASK_PROC, sd)
+
        !call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
-       tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))
@@ -1230,6 +1243,9 @@ contains
           do k = 1, tod%scans(i)%ntod
              if (sd%tod(k,j) /= sd%tod(k,j)) then
                 write(*,*) tod%scanid(i), j, k, sd%tod(k,j), tod%scans(i)%d(j)%gain, sd%s_sky(k,j,0,1), sd%s_sl(k,j,0), sd%s_orb(k,j,0)
+                write(*,*) "NaN in tod during 1Hz spike"
+                sd%tod(k,j) = 0.0
+                stop
              end if
              !res(k) = 1/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &
              !     & sd%s_sl(k,j) + sd%s_orb(k,j))
@@ -1398,14 +1414,14 @@ contains
 
     call timer%start(TOD_ALLOC, self%band)
 
+    oper = get_sd_operation_code([SD_BASE, SD_TOD])
+
     if (self%L2_exist) then
        if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
        call update_status(status, "Opened HDF file")
+       oper = get_sd_operation_code([SD_BASE])
     end if
-
-    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST])
     
     ! Reduce all scans
     do i = 1, self%nscan
@@ -1427,8 +1443,9 @@ contains
 
        ! Store relevant data
        do j = 1, self%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle 
           if (any(isnan(tod(:,j)))) self%scans(i)%d(j)%accept = .false.
+          if (any(isnan(tod(:,j)))) write(*,*) 'NaN in L2 TOD', i, j
+          if (.not. self%scans(i)%d(j)%accept) cycle 
           allocate(self%scans(i)%d(j)%tod(n))
           self%scans(i)%d(j)%tod = tod(:,j)
        end do
@@ -1447,6 +1464,7 @@ contains
         end do
         call huff_deallocate(self%scans(i)%todkey)
         deallocate(tod)
+        call dealloc_scan_data(sd)
      end do
      if (self%L2_exist) call close_hdf_file(h5_file)
 

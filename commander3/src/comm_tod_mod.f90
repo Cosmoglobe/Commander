@@ -192,7 +192,7 @@ module comm_tod_mod
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -373,6 +373,7 @@ module comm_tod_mod
      procedure                           :: precompute_zodi_lookups
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
+     procedure                           :: compute_powspec
   end type comm_tod
   
   abstract interface
@@ -622,6 +623,8 @@ contains
        self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
     else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
+    else if (trim(self%noise_psd_model) == 'spline') then
+       self%n_xi = 13 !94 ! {sigma0, spline nodes}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -1129,6 +1132,8 @@ contains
        end do
     end do
     
+    call self%collect_v_sun
+
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
@@ -1282,7 +1287,7 @@ contains
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1)              = scalars(2) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
-       if (tod%n_xi >= 3) then
+       if (tod%n_xi >= 3 .and. trim(tod%noise_psd_model) /= 'spline') then
           xi_n(2) = min(max(scalars(3), tod%xi_n_P_uni(2,1)), tod%xi_n_P_uni(2,2))
           xi_n(3) = min(max(scalars(4), tod%xi_n_P_uni(3,1)), tod%xi_n_P_uni(3,2))
        end if
@@ -1317,6 +1322,12 @@ contains
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == 'spline') then
+          xi_n(1) =  0.1
+          do j = 2, tod%n_xi
+             xi_n(j) = 1.d8 / j
+          end do
+          self%d(i)%N_psd => comm_noise_psd_spline(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
 !!$          do while (.true.)
@@ -1413,11 +1424,18 @@ contains
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       !TODO: this needs to be generalized to work for both floats and ints
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_int(hsymb,htree,self%todkey)
-       deallocate(hsymb, htree)
+       if(trim(tod%tod_type)=='LFI') then ! if you have a float TOD type
+        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+        call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
+        deallocate(hsymb_sp)
+       else
+        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+        call hufmak_precomp_int(hsymb,htree,self%todkey)
+        deallocate(hsymb)
+       end if
+       deallocate(htree)
     end if
 
     ! Read instrument-specific infomation
@@ -1980,21 +1998,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -2172,13 +2190,15 @@ contains
     integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
     real(dp)     :: psi_, unwrap, x0, x1
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: my_spline
 
     ntod    = sd%ntod
     ndet    = sd%ndet; if (present(det)) ndet = 1
     nhorn   = self%nhorn
     subsamp = 5
     !subsamp =  1 ! For testing, set subsamp = 1 and compare the sidelobe output
+
+    sd%s_sl = 0.
     
     allocate(sub_sl(ntod/subsamp), x_sl(ntod/subsamp))
 
@@ -2197,9 +2217,9 @@ contains
           end do
 
           ! Interpolate
-          call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+          call spline_simple(my_spline, x_sl, sub_sl, regular=.true.)
           do i = 1, size(sub_sl)*subsamp  
-             sd%s_sl(i,j,hp) = splint_simple(spline, real(i, dp))
+             sd%s_sl(i,j,hp) = splint_simple(my_spline, real(i, dp))
           end do
 
           ! Do last few samples
@@ -2210,9 +2230,9 @@ contains
           end do
        end do
     end do
-       
+
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(my_spline)
 
   end subroutine construct_sl_template
 
@@ -2411,7 +2431,7 @@ contains
     ntod         = sd%ntod
     ndet         = self%ndet; if (present(det)) ndet = 1
 
-    do j = 1, self%ndet
+    do j = 1, ndet
        d = j; if (present(det)) d = det
        if (.not. self%scans(scan)%d(d)%accept) cycle
        call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
@@ -2772,6 +2792,8 @@ contains
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
+       if(.not. self%scans(scan)%d(d)%accept) cycle
+
        do h = 1, self%nhorn
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%pix(h)%p,  sd%pix(:,j,h))
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%psi(h)%p,  sd%psi(:,j,h))
@@ -2866,6 +2888,7 @@ contains
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
+       if(.not. self%scans(scan)%d(d)%accept) cycle
        call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%flag, sd%flag(:,j))
        ! Apply dynamic mask if it exists
        if (allocated(self%scans(scan)%d(d)%mask_dyn)) then
@@ -3362,7 +3385,7 @@ contains
 
     integer(i4b) :: i, j, ierr
 
-    allocate(self%v_sun(3,self%nscan_tot))
+    if (.not. allocated(self%v_sun)) allocate(self%v_sun(3,self%nscan_tot))
     self%v_sun = 0.d0
     do i = 1, self%nscan
        self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
@@ -3593,8 +3616,9 @@ contains
 
   end subroutine get_s_static
 
-  subroutine print_powspec(self, tod, scan, ps_output)
-    ! Prints the power spectrum of the given timestream of data
+
+  subroutine compute_powspec(self, tod, scan, print_output, powspec)
+    ! Compute power spectrum of the given timestream of data and prints it
     !
     ! Arguments:
     ! ----------
@@ -3604,13 +3628,16 @@ contains
     !      tod of the scan
     ! scan: int
     !       scan number
-    ! ps_output: string
-    !            output filename
+    ! print_output: string
+    !               output filename
+    ! powspec: real(sp) 2D-array
+    !          optional variable to store computed ps
     implicit none
     class(comm_tod),                           intent(inout) :: self
     real(sp),                   dimension(1:), intent(in)    :: tod
     integer(i4b),                              intent(in)    :: scan
-    character(len=*),                          intent(in)    :: ps_output
+    character(len=*),                              optional, intent(in)    :: print_output
+    real(sp),         allocatable, dimension(:,:), optional, intent(inout) :: powspec
 
     integer(i4b) :: l, n, ntod, nomp, nfft, err
     integer*8    :: plan_fwd
@@ -3625,9 +3652,10 @@ contains
     n        = nfft / 2 + 1
 
     call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)  
+    call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
+    if (present(powspec)) allocate(powspec(1:n-1,2))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
 
     ! FFT
@@ -3637,18 +3665,28 @@ contains
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
-    open(58,file=ps_output, recl=1024)
-    do l = 1, n-1
-       ls = l*(samprate/2)/(n-1)
-       ps = abs(dv(l))** 2 / ntod
-       write(58,*) ls, ps
-    end do
-    close(58)
+
+    if (present(powspec)) then
+       do l = 1, n-1
+          powspec(l,1) = l*(samprate/2)/(n-1)
+          powspec(l,2) = abs(dv(l))** 2 / ntod
+       end do
+    end if
+
+    if (present(print_output)) then
+       open(58,file=print_output, recl=1024)
+       do l = 1, n-1
+          ls = l*(samprate/2)/(n-1)
+          ps = abs(dv(l))** 2 / ntod
+          write(58,*) ls, ps
+       end do
+       close(58)
+    end if
 
     deallocate(dt, dv)
-    call dfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_fwd)
 
-  end subroutine print_powspec
+  end subroutine compute_powspec
 
   function get_sd_operation_code(op_list) result(oper)
     implicit none
