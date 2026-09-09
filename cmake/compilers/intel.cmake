@@ -105,6 +105,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-check" "all,noarg_temp_created"
     "-warn" "all,nounused,noexternal"
     "-fstack-protector-all"
+<<<<<<< HEAD
     "-traceback"
     "-qopenmp"
     "-assume" "byterecl"
@@ -113,6 +114,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
     "-fPIC"
     "-init=snan"
     "-init=arrays"
+    "-fsanitize=address"
   )
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
@@ -151,7 +153,7 @@ if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
   list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-  list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+  list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "-fsanitize=address")
 endif()
 if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
   list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
