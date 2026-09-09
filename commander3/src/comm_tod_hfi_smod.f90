@@ -89,7 +89,7 @@ contains
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
-    c%n_cray_temps    = 3
+    c%active_cr_types = [1,2,3]
     c%ndiode          = 1
     nmaps_beam        = 3
     pol_beam          = .true.
@@ -135,7 +135,6 @@ contains
     c%f_spin           = 1./60.                 ! Planck spin frequency in Hz
     
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
-    c%n_cray_temps    = 3
     c%ndiode = 1
 
     ! Initialize common parameters
@@ -504,7 +503,7 @@ contains
        if (.not. associated(self%adc(1)%p)) then
           call self%compute_adu_range
           do i = 1, self%ndet
-             self%adc(i)%p => comm_adc_binfit(self%comm, self%datadir, self%outdir, self%label(i), 16, &
+             self%adc(i)%p => comm_adc_binfit(self%comm, self%outdir, self%label(i), 16, &
                   & self%adu_range(i,1), self%adu_range(i,2), 40)
           end do
        end if
@@ -628,7 +627,6 @@ contains
 !!$       call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
     end if
-    
 !!$    ! Create pixel histograms
 !!$    if (self%first_call) call compute_tod_pixhist(self)
 !!$    call update_status(status, "tod_hist"//ctext)

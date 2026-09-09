@@ -84,6 +84,7 @@ module comm_tod_mod
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
      class(comm_tod_spike), pointer :: spike                             ! Spike object
+     class(comm_tod_cray),  pointer :: cray                              ! Cosmic ray object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -191,8 +192,8 @@ module comm_tod_mod
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
-     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
+     integer(i4b), allocatable, dimension(:) :: active_cr_types   ! integer list of cosmic ray base types to fit
+     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -290,7 +291,6 @@ module comm_tod_mod
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_S     ! Signal crosstalk object, (ndet x ndet) matrix
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_N     ! Noise crosstalk object, (ndet x ndet) matrix
      class(Tbol_ptr),    allocatable, dimension(:)     :: Tbol     ! Bolometer transfer function 
-     class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      !class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -352,6 +352,7 @@ module comm_tod_mod
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: construct_spike_corr
+     procedure                           :: construct_cray_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -424,6 +425,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
      real(sp),     allocatable, dimension(:,:)     :: s_spike       ! Spike correction [ntod,ndet]
+     real(sp),     allocatable, dimension(:,:)     :: s_cray        ! Cosmic ray correction [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
@@ -539,7 +541,7 @@ contains
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
 
-    integer(i4b) :: i, ndelta, ierr, unit
+    integer(i4b) :: i, j, ndelta, ierr, unit
     real(sp)     :: elon
     character(len=512) :: datadir, solar_init
 
@@ -753,11 +755,12 @@ contains
     !self%orb_dp => comm_orbdipole(self%mbeam)
 
     ! Init cosmic ray template removal
-    if(self%n_cray_temps > 0) then 
-      allocate(self%cray(self%ndet))
-      do i = 1, self%ndet
-        self%cray(i)%p => comm_cray(self%n_cray_temps)
-      end do
+    if (allocated(self%active_cr_types)) then
+       do i = 1, self%nscan
+          do j = 1, self%ndet
+             self%scans(i)%d(j)%cray => comm_tod_cray(self%freq, j, self%scanid(i), self%active_cr_types)
+          end do
+       end do
     end if
 
   end subroutine tod_constructor
@@ -2438,7 +2441,38 @@ contains
     end do
 
   end subroutine construct_spike_corr
-  
+
+  subroutine construct_cray_corr(self, sd, det)
+    ! construct cosmc ray correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output cosmic ray template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ndet, scan
+
+    scan         = sd%scan
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%cray%generate(sd%s_cray(:,j))
+    end do
+
+  end subroutine construct_cray_corr
+
   
   subroutine output_scan_list(self, slist)
     implicit none

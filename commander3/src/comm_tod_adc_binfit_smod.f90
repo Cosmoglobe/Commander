@@ -25,7 +25,7 @@
 submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
   contains
   
-  module function constructor_adc_binfit(comm, datadir, outdir, label, nbit, min_adu, max_adu, ncoadd) result(c)
+  module function constructor_adc_binfit(comm, outdir, label, nbit, min_adu, max_adu, ncoadd) result(c)
     ! ====================================================================
     ! Sets up an adc correction object that maps 
     !
@@ -48,7 +48,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     !    and the actual correction tables
     ! ====================================================================
     implicit none
-    character(len=*),       intent(in) :: label, datadir, outdir
+    character(len=*),       intent(in) :: label, outdir
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
 
@@ -60,7 +60,6 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     c%comm      = comm
     call mpi_comm_rank(comm, c%myid, ierr)
     c%label     = label
-    c%datadir   = datadir
     c%outdir    = outdir
     c%nbit      = nbit
     c%min_adu   = min_adu
@@ -161,53 +160,53 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     end if
 
     ! Read official correction tables
-    c%invF_dpc = -1d30
-    open(58,file='/mn/stornext/d23/cmbco/hfi/common/data/adc/ADC_NL_'//trim(adjustl(label))//'.dat')
-    read(58,fmt='(A80,2I10)') comment, n0, n1
-    do i = 1, n0
-       read(58,*) k, adc_dpc
-       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
-       if (k >= c%min_coadd .and. k <= c%max_coadd) then
-          c%invF_dpc(k,1) = k + adc_dpc
-          if (i == 1) then
-             do j = c%min_coadd, k-1
-                c%invF_dpc(j,1) = j + adc_dpc
-             end do
-          else if (i == n0) then
-             do j = k+1, c%max_coadd
-                c%invF_dpc(j,1) = j + adc_dpc
-             end do
-          end if
-       end if
-    end do
-    read(58,fmt='(a)') comment
-    do i = 1, n1
-       read(58,*) k, adc_dpc
-       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
-       if (k >= c%min_coadd .and. k <= c%max_coadd) then
-          c%invF_dpc(k,2) = k + adc_dpc
-          if (i == 1) then
-             do j = c%min_coadd, k-1
-                c%invF_dpc(j,2) = j + adc_dpc
-             end do
-          else if (i == n1) then
-             do j = k+1, c%max_coadd
-                c%invF_dpc(j,2) = j + adc_dpc
-             end do
-          end if
-       end if
-    end do
-    close(58)
-    !write(*,*) 'Number of non-initialized elements in invF_dpc = ', count(c%invF_dpc == -1.d30), trim(label)
-
-    if (c%myid == 0) then
-       write(*,*) trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat'
-       open(58, file=trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat', recl=1024)
-       do i = c%min_coadd, c%max_coadd
-          write(58,*) i, c%invF_dpc(i,1), c%invF_dpc(i,2)
-       end do
-       close(58)
-    end if
+!!$    c%invF_dpc = -1d30
+!!$    open(58,file='/mn/stornext/d23/cmbco/hfi/common/data/adc/ADC_NL_'//trim(adjustl(label))//'.dat')
+!!$    read(58,fmt='(a,2i)') comment, n0, n1
+!!$    do i = 1, n0
+!!$       read(58,*) k, adc_dpc
+!!$       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
+!!$       if (k >= c%min_coadd .and. k <= c%max_coadd) then
+!!$          c%invF_dpc(k,1) = k + adc_dpc
+!!$          if (i == 1) then
+!!$             do j = c%min_coadd, k-1
+!!$                c%invF_dpc(j,1) = j + adc_dpc
+!!$             end do
+!!$          else if (i == n0) then
+!!$             do j = k+1, c%max_coadd
+!!$                c%invF_dpc(j,1) = j + adc_dpc
+!!$             end do
+!!$          end if
+!!$       end if
+!!$    end do
+!!$    read(58,fmt='(a)') comment
+!!$    do i = 1, n1
+!!$       read(58,*) k, adc_dpc
+!!$       !write(*,*) c%min_coadd, k, c%max_coadd, adc_dpc
+!!$       if (k >= c%min_coadd .and. k <= c%max_coadd) then
+!!$          c%invF_dpc(k,2) = k + adc_dpc
+!!$          if (i == 1) then
+!!$             do j = c%min_coadd, k-1
+!!$                c%invF_dpc(j,2) = j + adc_dpc
+!!$             end do
+!!$          else if (i == n1) then
+!!$             do j = k+1, c%max_coadd
+!!$                c%invF_dpc(j,2) = j + adc_dpc
+!!$             end do
+!!$          end if
+!!$       end if
+!!$    end do
+!!$    close(58)
+!!$    !write(*,*) 'Number of non-initialized elements in invF_dpc = ', count(c%invF_dpc == -1.d30), trim(label)
+!!$
+!!$    if (c%myid == 0) then
+!!$       write(*,*) trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat'
+!!$       open(58, file=trim(outdir)//'/adc_F_dpc_'//trim(label)//'.dat', recl=1024)
+!!$       do i = c%min_coadd, c%max_coadd
+!!$          write(58,*) i, c%invF_dpc(i,1), c%invF_dpc(i,2)
+!!$       end do
+!!$       close(58)
+!!$    end if
 
     
   end function constructor_adc_binfit

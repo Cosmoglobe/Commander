@@ -96,6 +96,7 @@ contains
     if (btest(oper,SD_SPIKE))   allocate(sd%s_spike (ntod, ndet))
     if (btest(oper,SD_DARK))    allocate(sd%dark    (ntod, tod%ndark))
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
+    if (btest(oper,SD_CRAY))    allocate(sd%s_cray  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
 
 
@@ -300,7 +301,14 @@ contains
        call tod%construct_spike_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
-    
+
+    ! Construct spike correction template
+    if (btest(oper,SD_CRAY)) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_cray_corr(sd, det)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+
     ! Coadd optical components of total sky signal
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
