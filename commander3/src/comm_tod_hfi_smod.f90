@@ -2512,14 +2512,14 @@ contains
       real(dp), dimension(:), intent(in),  optional :: x
       real(dp)                                      :: powell_chisq_adc_hfi
 
-      powell_chisq_adc_hfi = chisq_adc_hfi(real(x,sp))
+      powell_chisq_adc_hfi = chisq_adc_hfi(x)
 
     end function powell_chisq_adc_hfi
 
 
     function chisq_adc_hfi(x, ndof) result (chisq)
       implicit none
-      real(sp), dimension(:), intent(in),  optional :: x
+      real(dp), dimension(:), intent(in),  optional :: x
       integer(i8b),           intent(out), optional :: ndof
       real(dp)                                      :: chisq
 

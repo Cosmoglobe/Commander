@@ -212,7 +212,7 @@ interface
        function chisq_adc(p, ndof)
          use healpix_types
          implicit none
-         real(sp), dimension(:), intent(in),  optional :: p
+         real(dp), dimension(:), intent(in),  optional :: p
          integer(i8b),           intent(out), optional :: ndof
          real(dp)                                      :: chisq_adc
        end function chisq_adc

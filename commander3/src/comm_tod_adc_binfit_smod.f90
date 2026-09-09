@@ -587,7 +587,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
        function chisq_adc(p, ndof)
          use healpix_types
          implicit none
-         real(sp), dimension(:), intent(in),  optional :: p
+         real(dp), dimension(:), intent(in),  optional :: p
          integer(i8b),           intent(out), optional :: ndof
          real(dp)                                      :: chisq_adc
        end function chisq_adc
@@ -610,7 +610,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
     n_accept = 0
 
     x(0,:)    = self%p
-    chisq_old = chisq_adc(real(x(0,:),sp), ndof)
+    chisq_old = chisq_adc(x(0,:), ndof)
     chisq0    = chisq_old
     open(58,file='adc_mcmc.dat', recl=8192)
     do i = 1, n_gibbs
@@ -631,7 +631,7 @@ submodule (comm_tod_adc_binfit_mod) comm_tod_adc_binfit_smod
           end if
           
           ! Compute chisq, and apply Metropolis rule
-          chisq_prop = chisq_adc(real(x_prop,sp))
+          chisq_prop = chisq_adc(x_prop)
           if (chisq_prop < chisq_old) then
              accept = .true.
           else
