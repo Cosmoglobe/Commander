@@ -69,8 +69,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    c%noise_psd_model = 'spline'
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -380,13 +380,13 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    if (.false.) then ! Debug
+    if (.true.) then ! Debug
        ! Do data selection, then start sampling
        sample_gain           = .false. !iter  > 0 !.true.                 
-       make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
-       sample_xi_n      = .false.
-       select_data           = iter == 1
+       make_dyn_mask         = .false. ! iter == 1
+       sample_ncorr          = .false. ! iter  > 0 !.true.
+       sample_xi_n           = .false.
+       select_data           = .false. !iter == 1
        sample_adc            = .false. !.false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
@@ -411,7 +411,7 @@ contains
     sample_zodi           = .false.! Sample zodi parameters
     output_zodi_comps     = .false. ! Output zodi components
     output_scanlist       = .false.    ! only output scanlist every 10th iteration
-    dec_wn                = .false. ! Decimation factor for sigma0; 2 corresponds to 45Hz
+    dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
     skip_nonlin_ = 100
 
     if (sample_ncorr) then
@@ -736,7 +736,8 @@ contains
 
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-       if (self%scanid(i) == 6528 .or. self%scanid(i) == 6605) then
+       !if (self%scanid(i) == 6528 .or. self%scanid(i) == 6605) then
+       if (mod(self%scanid(i),6000) == 0) then
           call int2string(self%scanid(i), scantext)
 
           write(*,*) '| Writing tod to hdf'
@@ -1471,7 +1472,7 @@ contains
     end if
 
     ! In-paint flagged samples with s_tot + white noise
-    if (nonlin_lvl > 2) then
+    if (.false. .and.  nonlin_lvl > 2) then
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
           if (.not. self%scans(scan)%d(d)%accept) cycle
@@ -1632,7 +1633,7 @@ contains
     d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
 
     ! Output starting res tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
+    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
        open(58,file='res_tod_4k_' // ps_output // '_before.dat', recl=1024)
        do l = 1, n-1
           write(58,*) l, d_prime(l), sd%mask(l,i_det)
@@ -1656,7 +1657,7 @@ contains
     if (present(ps_output)) dv_4K = dv
 
     ! Output starting noise power spectrum
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
+    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
        open(58,file='res_ps_4k_' // ps_output // '_before.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), ps(l,2)
@@ -1765,7 +1766,7 @@ contains
     deallocate(W)
 
     ! Output 4K_lines tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
+    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
        dv_4K = dv_4K - dv
        do l = 1, n-1
           ps_spikes(l) = abs(dv_4K(l))** 2 / ntod
@@ -1808,7 +1809,7 @@ contains
     end do
 
     ! Output corrected res tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
+    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
        open(58,file='res_tod_4k_' // ps_output // '_after.dat', recl=1024)
        do l = 1, ntod
           write(58,*) l, sd%tod(l,i_det)
