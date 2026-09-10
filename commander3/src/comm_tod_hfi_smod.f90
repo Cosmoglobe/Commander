@@ -382,29 +382,31 @@ contains
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     if (.false.) then ! Debug
        ! Do data selection, then start sampling
-       sample_gain           = .false. !iter  > 0 !.true.
-       make_dyn_mask         = .false.
-       sample_ncorr          = .false. !.true.
+       sample_gain           = .false. !iter  > 0 !.true.                 
+       make_dyn_mask         = iter == 1
+       sample_ncorr          = iter  > 0 !.true.
        sample_xi_n      = .false.
-       select_data           = .false.
-       sample_adc            = .false. !iter  > 1 !.true.
+       select_data           = iter == 1
+       sample_adc            = .false. !.false. !iter  > 1 !.true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = .false. !.true.
-       make_dyn_mask         = .false.
-       sample_ncorr          = .false. !iter  > 1 !.true.
-       sample_xi_n           = .false. ! iter > 5
-       select_data           = .false. !iter == 3 ! self%first_call
-       sample_adc            = .false. !iter  > 6 ! 3 !.true.
+       sample_gain           = iter  > 2 !.true.                 
+       make_dyn_mask         = iter == 20
+       sample_ncorr          = iter > 10 !.true.
+       sample_xi_n           = iter > 15 
+       select_data           = iter == 25 ! self%first_call  
+       sample_adc            = .false. !iter  > 0 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = .false.
-       make_dyn_mask         = .false.
-       sample_ncorr          = .false. !.true.
-       sample_xi_n           = .false. !.false.
-       select_data           = .false. !iter == 1 ! self%first_call
-       sample_adc            = .false. !iter  > 1 !.true.
+       sample_gain           = iter > 1
+       make_dyn_mask         = iter == 1
+       sample_ncorr          = iter > 1 !.true.
+       sample_xi_n           = iter > 1 !.false.
+       select_data           = .false. !iter == 1 ! self%first_call  
+       sample_adc            = .false. !iter  > 0 !.true.
     end if
+    if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
+
     fit_4k_lines          = .false. !iter > 2
     sample_zodi           = .false.! Sample zodi parameters
     output_zodi_comps     = .false. ! Output zodi components
@@ -413,11 +415,25 @@ contains
     skip_nonlin_ = 100
 
     if (sample_ncorr) then
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+       if (self%correct_sl) then
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR,SD_SL])
+       else
+          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+       end if
+       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
     else
-       oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+       if (self%correct_sl) then
+           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
+       else
+           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+       end if
+       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
     end if
 
     ! Initialize local variables
