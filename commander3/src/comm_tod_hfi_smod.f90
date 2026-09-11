@@ -1470,7 +1470,7 @@ contains
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
-
+    
     ! In-paint flagged samples with s_tot + white noise
     if (.false. .and.  nonlin_lvl > 2) then
        do i = 1, self%ndet
@@ -1491,7 +1491,7 @@ contains
           call deconvolve_rolloff(self, sd, i)
        end do
     end if
-
+    
     ! Correct 4k lines
     if (.true. .and. nonlin_lvl > 3) then
        do i = 1, self%ndet
@@ -2079,11 +2079,12 @@ contains
     deallocate(bin_spec)
 
     ! Gap fill tod with respect to flag array
-    do i = 1, ntod
-       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then
-          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
-       end if
-    end do
+    ! HKE: Shouldn't be done here, but rather in the main routine
+!!$    do i = 1, ntod
+!!$       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then
+!!$          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
+!!$       end if
+!!$    end do
 
     ! Deconvolve high-frequency rolloff
     allocate(ps(1:n-1,2))
