@@ -125,7 +125,7 @@ class lfi(object):
 
     @staticmethod
     def complex2realAlms(data, mmax):
-        lmax = lfi.getLmax(len(data), mmax)
+        lmax = hp.Alm.getlmax(len(data), mmax)
         outData = np.zeros((lmax+1)**2)
 
         for l in range(0, lmax):
@@ -145,9 +145,6 @@ class lfi(object):
 
         return outData
 
-    @staticmethod
-    def getLmax(N, mmax):
-        return int((2.0*(N - 1.0)/mmax + mmax -1)/(2.0*(1.0 + 1.0/mmax)))
 
     @staticmethod
     def getOutidx(l, m):

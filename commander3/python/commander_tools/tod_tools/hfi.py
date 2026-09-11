@@ -209,6 +209,9 @@ class hfi(object):
                     print('HFI instrument file has wrong polarization efficiencies')
             except (IOError):
                 print('HFI instrument file is missing polarization efficiencies')
+        if version == 5:
+            if f.h5file['857-1/sllmax'] == 0:
+                print('HFI instrument file has null sidelobes for 545 and 858')
 
-        if version > 4:
+        if version > 5:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")
