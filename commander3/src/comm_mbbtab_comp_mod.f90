@@ -385,7 +385,7 @@ contains
       
       ! Checks if the table is negative dust or not, only checks the first column, spline cannot cross the zero line
       ! so if the first line is negative they all should be
-      self%posneg=INT(SIGN(1.0,self%SEDtab(3,1)))
+      self%posneg=INT(SIGN(1.0_dp,self%SEDtab(3,1)))
 
       ! check if there are enough rows in the table, of there are only 1 or 2 we add extra bins of equal height 
       ! to help stabilize the spline, this is probably not optimal

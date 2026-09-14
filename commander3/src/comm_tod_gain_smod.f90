@@ -335,7 +335,7 @@ contains
        end do
     end do
 
-    if (.not. smooth) then
+    if (.not. smooth_) then
        ! If the time-dependent gain has high signal-to-noise per scan, then we
        ! don't need to Wiener filter, and instead implement equation (28) of
        ! Gjerlow et al. 2020.
@@ -388,7 +388,7 @@ contains
             & tod%comm, ierr)
 
        do j = 1+tod%myid, ndet, tod%numprocs
-         if (all(g(:, j, 1) == 0)) continue
+         if (all(g(:, j, 1) == 0)) cycle
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
           if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
@@ -502,7 +502,7 @@ contains
        invvar = 0.d0
        do l = -window, window
           if (g2(k+l) > 0) then
-             invvar = invvar + g2(k+1)
+             invvar = invvar + g2(k+l)
           end if
        end do
        if (count(g2(k-window:k+window) > 0) > 0) then
@@ -582,8 +582,8 @@ contains
           db = sum(s_invsqrtN(:,j) * residual(:,j))
        end if
 
-       !if (.false.) then
-       if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
+       if (.false.) then
+       !if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
           call int2string(tod%scanid(scan), itext)
           open(58,file='gain_delta_'//itext//'.dat', recl=1024)
           write(58,*) "#", tod%scans(scan)%ntod, size(tod_arr), db/dA
@@ -943,6 +943,7 @@ contains
      inv_N_wn2(2*nscan:nscan+1:-1) = inv_N_wn
 
      nomp = OMP_GET_THREAD_NUM()
+     if(nomp == 0) nomp = 1
      call dfftw_init_threads(err)
      call dfftw_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
@@ -1744,7 +1745,7 @@ contains
      real(dp), dimension(0:)  :: gain_ps, freqs
 
      real(dp) :: lambda
-     real(dp), dimension(size(gain_ps))  :: inv_N_corr
+     real(dp), dimension(0:size(gain_ps)-1)  :: inv_N_corr
 
      integer(i4b) :: minfreq, maxfreq
      minfreq = 2

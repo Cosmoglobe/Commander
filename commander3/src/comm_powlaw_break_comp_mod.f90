@@ -99,7 +99,7 @@ contains
        end if
     end do
     c%theta_steplen = 0d0
-    c%indlabel = ['beta','dbeta']
+    c%indlabel = ['beta ','dbeta']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &

@@ -1128,7 +1128,7 @@ contains
       eta = rand_uni(handle)
       w   = 0.d0
       i   = 0
-      do while (w < eta)
+      do while (w < eta .and. i<n)
          w = w + lnL(i+1)  ! lnL is now probability
          i = i + 1
       end do

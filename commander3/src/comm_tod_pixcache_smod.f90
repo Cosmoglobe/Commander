@@ -35,7 +35,7 @@ contains
     c%nmax         = 1
     c%nobs         = 0
     allocate(c%ind2pix(c%nmax))
-    
+
   end function constructor_tod_pixcache
 
   module function pix2ind(self, pix, flag_missing) result(ind)
