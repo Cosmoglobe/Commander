@@ -1,13 +1,13 @@
 BAND_LABEL&&&                  = 044
 BAND_INSTRUMENT_LABEL&&&       = 044
 BAND_OBS_PERIOD&&&             = 1
-BAND_POLARIZATION&&&           = .false.
+BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512
 BAND_LMAX&&&                   = 1500
 BAND_UNIT&&&                   = uK_cmb
 BAND_NOISE_FORMAT&&&           = rms
-BAND_MAPFILE&&&                = planck/maps/map_planck_044_cg_00512_fullres_full_T.fits
-BAND_NOISEFILE&&&              = planck/rms/rms_planck_044_cg_00512_fullres_full_T.fits
+BAND_MAPFILE&&&                = planck/maps/map_planck_044_cg_00512_fullres_full_TQU.fits
+BAND_NOISEFILE&&&              = planck/rms/rms_planck_044_cg_00512_fullres_full_TQU.fits
 BAND_REG_NOISEFILE&&&          = none   
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none

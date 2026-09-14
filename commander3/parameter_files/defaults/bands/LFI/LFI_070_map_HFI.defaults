@@ -2,13 +2,13 @@
 BAND_LABEL&&&                  = 070
 BAND_INSTRUMENT_LABEL&&&       = 070
 BAND_OBS_PERIOD&&&             = 1
-BAND_POLARIZATION&&&           = .false.
+BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 1024
 BAND_LMAX&&&                   = 2500
 BAND_UNIT&&&                   = uK_cmb
 BAND_NOISE_FORMAT&&&           = rms
-BAND_MAPFILE&&&                = planck/maps/map_planck_070_cg_01024_fullres_full_T.fits
-BAND_NOISEFILE&&&              = planck/rms/rms_planck_070_cg_01024_fullres_full_T.fits
+BAND_MAPFILE&&&                = planck/maps/map_planck_070_cg_01024_fullres_full_TQU.fits
+BAND_NOISEFILE&&&              = planck/rms/rms_planck_070_cg_01024_fullres_full_TQU.fits
 BAND_REG_NOISEFILE&&&          = none   
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
