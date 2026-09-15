@@ -12,11 +12,11 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN             = 1       # Number of independent chains
-NUM_GIBBS_ITER       = 1000    # Length of each Markov chain
+NUM_GIBBS_ITER       = 30     # Length of each Markov chain
 FIRST_COMPSEP_SAMPLE = 1      # Start compsep on this sample
 CHAIN_STATUS         = new
 NUM_INIT_CHAINS      = 1
-INIT_CHAIN01 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/chain_c0001.h5:12
+INIT_CHAIN01 = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/chain_c0001.h5:30
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -42,6 +42,7 @@ PROCESSING_MASKFILE            = none mask_haslam_diff2deg_10K.fits
 ##############################################################
 
 OUTPUT_DIRECTORY               = chains_compsep
+#OUTPUT_DIRECTORY               = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_50
 OUTPUT_SIGNALS_PER_BAND        = .true.
 OUTPUT_MIXING_MATRIX           = .false.
 THINNING_FACTOR                = 1      # output only every nth sample
@@ -889,11 +890,8 @@ BAND_GAIN_PRIOR_RMS&&&          = 0.
 @START 052
 #@INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS.defaults
 @INCLUDE /mn/stornext/d16/personal/daniersp/CHIPASS_TOD.defaults
-#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_map_from_ctod_no_cal_MJy_sr.fits
-#BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/data/lambda_chipass_healpix_r10.fits
-BAND_MAPFILE&&&                = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/tod_1.4-CHIPASS_map_c0001_k000002.fits
-#BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/data/CHIPASS_rms_n1024_mK_constant.fits
-BAND_NOISEFILE&&&              = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/tod_1.4-CHIPASS_rms_c0001_k000002.fits
+BAND_MAPFILE&&&                = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/tod_1.4-CHIPASS_map_c0001_k000030.fits
+BAND_NOISEFILE&&&              = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/tod_1.4-CHIPASS_rms_c0001_k000030.fits
 BAND_MASKFILE&&&               = mask_chisq_misspix_v1.fits
 BAND_REG_NOISEFILE&&&          = none
 BAND_BANDPASSFILE&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
@@ -904,21 +902,21 @@ BAND_GAIN_CALIB_COMP&&&        = all  synch,ff
 BAND_GAIN_PRIOR_RMS&&&          = 0.
 BAND_GAIN_APOD_FWHM&&&         = 0. ! arcmin
 BAND_TOD_TYPE&&&               = CHIPASS
-BAND_TOD_MAIN_PROCMASK&&&      = bitmask_chipass_v3.fits
-BAND_TOD_SMALL_PROCMASK&&&     = bitmask_chipass_v3.fits
+BAND_TOD_MAIN_PROCMASK&&&      = bitmask_chipass_v8.fits
+BAND_TOD_SMALL_PROCMASK&&&     = bitmask_chipass_v8.fits
 BAND_TOD_BP_INIT_PROP&&&       = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/bp_init_CHIPASS.dat
 BAND_TOD_RIMO&&&               = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/CHIPASS_instrument_01.h5
 #BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_elev/filelist_1395.txt
-BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_concat/filelist_1395.txt
-BAND_TOD_START_SCANID&&&       = 1 #3
-BAND_TOD_END_SCANID&&&         = 5528 #44072
-BAND_TOD_TOT_NUMSCAN&&&        = 5528 #45860
+BAND_TOD_FILELIST&&&           = /mn/stornext/d16/personal/daniersp/data/CHIPASS_TOD/commander_hdf_feedrot/filelist_1395.txt
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 5528
+BAND_TOD_TOT_NUMSCAN&&&        = 5528
 BAND_UNIT&&&                   = mK_cmb
 #BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
-BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/chain_c0001.h5:2
+BAND_TOD_INIT_FROM_HDF&&&      = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/chain_c0001.h5:30
 BAND_TOD_LEVEL&&&              = L1
 #BAND_BEAM_B_PTSRC_FILE&&&      = /mn/stornext/d16/cmbco/bp/mathew/commander3/hfidata/febecop_AT20G_GB6_NVSS_PCCS2_v6_030.h5
-BAND_TOD_FLAG&&&               = 1
+BAND_TOD_FLAG&&&               = 5
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
 BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
@@ -990,6 +988,15 @@ CG_SAMPLING_GROUP_MINITER&&  = 3
 CG_SAMPLING_GROUP_MAXITER&&  = 7
 CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam
 @END 01
+
+#@START 01
+#CG_SAMPLING_GROUP&&          = synch #,ff
+#CG_SAMPLING_GROUP_MASK&&     = fullsky
+#CG_SAMPLING_GROUP_MINITER&&  =  300
+#CG_SAMPLING_GROUP_MAXITER&&  = 2000
+#CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,1.4-CHIPASS,002.3-SPASS,0.036-OVRO,0.041-OVRO,0.046-OVRO,0.052-OVRO,0.057-OVRO,0.062-OVRO,0.067-OVRO,0.073-OVRO,143
+##CG_SAMPLING_GROUP_BANDS&&    = 0.4-Haslam,002.3-SPASS,0.036-OVRO,0.041-OVRO,0.046-OVRO,0.052-OVRO,0.057-OVRO,0.062-OVRO,0.067-OVRO,0.073-OVRO,143
+#@END 01
 
 @START 02
 CG_SAMPLING_GROUP&&          = lcut_SPASS
@@ -1173,9 +1180,9 @@ COMP_CL_DEFAULT_BETA_T&&      = 60d0
 COMP_CL_DEFAULT_AMP_T&&       = 2e12
 # New Local sampling parameters
 @DEFAULT components/synch/synch_CHIPASS_localsampler.defaults
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/synch_c0001_k000012.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/synch_c0001_k000030.fits
 COMP_BETA_INPUT_MAP&&         = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/synch_beta_c0001_k000012.fits
-COMP_C_S_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/synch_C_s_c0001_k000012.fits
+COMP_C_S_INPUT_MAP&&          = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/synch_C_s_c0001_k000030.fits
 COMP_BETA_DEFAULT&&           = -2.90
 COMP_C_S_DEFAULT&&            = -0.008
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
@@ -1210,7 +1217,7 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @START 04
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_MONO_FROM_PRIOR&&     = none
-COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/md_c0001_k000012.dat
+COMP_MD_DEFINITION_FILE&&     = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/md_c0001_k000030.dat
 COMP_INIT_FROM_HDF&&          = default
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 04
@@ -1233,15 +1240,14 @@ COMP_BETA_PRIOR_UNI_HIGH&&     =   3.
 COMP_BETA_PRIOR_GAUSS_RMS&&    =   0.
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_APPLY_POSITIVITY_PRIOR&&  = .true.   ! Want to run CG search
-COMP_INIT_FROM_HDF&&           = default /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/chain_c0001.h5:86
+COMP_INIT_FROM_HDF&&           = default
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 05
 
 # freefree component ---------------------------------------------------------------------
 @START 06
 @DEFAULT components/freefree/freefree_LFI.defaults
-#COMP_AMP_INPUT_MAP&&          = COM_CompMap_freefree-commander_1024_R2.00_amp1.fits
-COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/ff_c0001_k000012.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/ff_c0001_k000030.fits
 COMP_AMP_LMAX&&               = 1300  #2000 2955
 COMP_APOD_LMAX&&              = 1300  #2000 2955
 COMP_T_E_DEFAULT&&            = 5000.
@@ -1311,12 +1317,12 @@ COMP_CL_DEFAULT_AMP_T&&       = 3e15
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
 COMP_BETA_PRIOR_UNI_HIGH&&    =  2
-COMP_AMP_INPUT_MAP&&          = none /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/extgal_c0001_k000012.fits 
-COMP_BETA_INPUT_MAP&&         = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/extgal_beta_c0001_k000012.fits 
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/extgal_c0001_k000030.fits 
+COMP_BETA_INPUT_MAP&&         = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/extgal_beta_c0001_k000030.fits
 COMP_BETA_DEFAULT&&           = -2.1
 COMP_BETA_ALMSAMP_INIT&&      = none
 COMP_POLARIZATION&&           = .false.
-COMP_INIT_FROM_HDF&&          = none default
+COMP_INIT_FROM_HDF&&          = default
 COMP_MONOPOLE_PRIOR&&         = none 
 COMP_APPLY_DUST_EXTINCTION&& = .false.
 @END 09
@@ -1325,8 +1331,8 @@ COMP_APPLY_DUST_EXTINCTION&& = .false.
 @START 10
 @DEFAULT components/radio/radio_LFI.defaults
 COMP_LABEL&&                   = brightrad
-COMP_CATALOG&&                 = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/brightrad_c0001_k000012.dat  comm_bright_radio_src_v1.dat
-COMP_INIT_CATALOG&&            = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/brightrad_c0001_k000012.dat  comm_bright_radio_src_v1.dat
+COMP_CATALOG&&                 = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/brightrad_c0001_k000030.dat
+COMP_INIT_CATALOG&&            = /mn/stornext/d16/personal/daniersp/runs/chains_CHIPASS_TOD_compsep_49/brightrad_c0001_k000030.dat
 COMP_PTSRC_TEMPLATE&&          = /mn/stornext/u3/hke/data_chipass/comm_bright_radio_src_v6.h5
 COMP_AMP_RMS_SCALE_FACTOR&&    = 1.         # Scale amp rms by this factor
 COMP_MIN_DIST_BETWEEN_SRC&&    = 0.       ! arcmin
@@ -1436,7 +1442,7 @@ COMP_INIT_FROM_HDF&&          = default
 
 
 
-NUM_MCMC_SAMPLING_GROUPS = 2 3 4
+NUM_MCMC_SAMPLING_GROUPS = 2
 
 @START 01
 MCMC_SAMPLING_GROUP_PARAMS&&            = synch:scale%0.02,ff:scale%0.02

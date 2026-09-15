@@ -266,8 +266,8 @@ program commander
      ! Process TOD structures
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call timer%start(TOT_TODPROC)
-        do i = 1, 3
-           !call process_all_TODs(cpar, cpar%mychain, iter, handle)
+        do i = 1, 1 !3
+           call process_all_TODs(cpar, cpar%mychain, iter, handle)
         end do
 
         call timer%stop(TOT_TODPROC)
@@ -357,7 +357,7 @@ program commander
         call timer%stop(TOT_SPECIND)
      end if
 
-        call sample_amps_by_CG(cpar, 7, handle, handle_noise)
+        !call sample_amps_by_CG(cpar, 7, handle, handle_noise)
      
         do j = 1, 1
            i = mod(iter,cpar%mcmc_num_samp_groups)+1
@@ -403,7 +403,7 @@ program commander
 
      if ((cpar%mcmc_num_samp_groups > 0 .or. cpar%sample_specind) .and. cpar%sample_signal_amplitudes) then
         ! Do CG group sampling
-        !call sample_all_amps_by_CG(cpar, handle, handle_noise)
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
      
   end if

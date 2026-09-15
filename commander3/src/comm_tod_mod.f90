@@ -102,7 +102,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: pix_moon       ! Discretized pointing in Moon centric coordinates, for zodi and sidelobe mapping
      real(sp),           allocatable, dimension(:,:)   :: earth_elon     ! Earth elongation, for sidelobe mapping and masking
      real(dp),           allocatable, dimension(:)     :: elev           ! Elevation
-     real(dp),           allocatable, dimension(:)     :: az           ! Azimuth
+     real(dp),           allocatable, dimension(:)     :: az             ! Azimuth
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:,:) :: zodi_sampgroup_mask
@@ -157,6 +157,7 @@ module comm_tod_mod
 
      integer(i4b)   :: nslew                                       ! Number of concatenated slews
      integer(i4b), allocatable, dimension(:,:) :: slew_inds        ! Slew start and end indices
+     real(dp), allocatable, dimension(:) ::       feed_rot         ! Rotation of the feed assembly
   end type comm_scan
 
 
@@ -330,6 +331,7 @@ module comm_tod_mod
      integer(i4b), allocatable, dimension(:) :: split
      logical(lgt)                            :: read_elev
      logical(lgt)                            :: read_az
+     logical(lgt)                            :: read_feedrot
      logical(lgt)                            :: per_slew_baseline
 
      ! Bandpass, pointer to comm_data%bp
@@ -604,6 +606,7 @@ contains
     self%sigma0_threshold = 1d30
     self%read_elev       = .false.
     self%read_az         = .false.
+    self%read_feedrot    = .false.
     self%per_slew_baseline = .false.
  
     if (cpar%include_tod_zodi) then
