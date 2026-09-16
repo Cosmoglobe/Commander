@@ -70,6 +70,7 @@ contains
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    c%active_cr_types = [1,2,3]     ! Activate three classes of cosmic rays (short, long, slow)
     !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
@@ -89,7 +90,6 @@ contains
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
-    c%active_cr_types = [1,2,3]
     c%ndiode          = 1
     nmaps_beam        = 3
     pol_beam          = .true.
@@ -344,10 +344,10 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
+    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, oper_minimal, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
-    logical(lgt)        :: fit_4k_lines
+    logical(lgt)        :: fit_4k_lines, sample_cray
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
@@ -388,6 +388,7 @@ contains
        sample_xi_n           = .false.
        select_data           = .false. !iter == 1
        sample_adc            = .false. !.false. !iter  > 1 !.true.
+       sample_cray           = iter  > 0
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 2 !.true.                 
@@ -396,6 +397,7 @@ contains
        sample_xi_n           = iter > 15 
        select_data           = iter == 25 ! self%first_call  
        sample_adc            = .false. !iter  > 0 ! 3 !.true.
+       sample_cray           = .false. ! iter  > 0
     else
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
@@ -403,7 +405,8 @@ contains
        sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 1 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
-       sample_adc            = .false. !iter  > 0 !.true.
+       sample_adc            = .false. !iter  > 0 !.true
+       sample_cray           = .false. ! iter  > 0.
     end if
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
@@ -414,27 +417,12 @@ contains
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
     skip_nonlin_ = 100
 
-    if (sample_ncorr) then
-       if (self%correct_sl) then
-          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR,SD_SL])
-       else
-          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-       end if
-       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-    else
-       if (self%correct_sl) then
-           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
-       else
-           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-       end if
-       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-    end if
+    oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+    oper_minimal = oper_default
+    if (sample_ncorr)    oper_default = add_sd_operation_code(oper_default, SD_NCORR)
+    if (self%correct_sl) oper_default = add_sd_operation_code(oper_default, SD_SL)
+    if (sample_cray)     oper_default = add_sd_operation_code(oper_default, SD_CRAY)
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -516,11 +504,23 @@ contains
 !        end do
 !        close(58)
 
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=0)
+       call init_scan_data(self, i, oper_minimal, TODMASK_NCORR, sd, nonlin_level=0)
 
        ! Subtract A/B detector crosstalk
         ! Not implemented yet
 
+       ! Detect bright CRs that affect the baseline
+       if (sample_cray) then
+          do j = 1, 1 !self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             if (self%scans(i)%d(j)%cray%first_call) then
+                call self%scans(i)%d(j)%cray%detect_bright_events(sd%tod(:,j), &
+                     & real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j,0,1), &
+                     & self%scans(i)%d(j)%N_psd%sigma0)
+             end if
+          end do
+       end if
+          
        call timer%start(TOD_NONLIN, self%band)
        if (self%correct_N_crosstalk) then
           ! estimate A/B detector crosstalk coeficients
@@ -1084,8 +1084,12 @@ contains
        if (mu1 < 0.) then
           tod%mod_phase(i,scan) = -1
        end if
-    end do
 
+       if (associated(tod%scans(scan)%d(i)%cray)) then
+          call tod%scans(scan)%d(i)%cray%set_mod_phase(nint(tod%mod_phase(i,scan)))
+       end if
+    end do
+    
   end subroutine set_modulation_phase
 
   module subroutine demodulate_tod(self, tod, scan)
@@ -1109,7 +1113,7 @@ contains
     class(comm_hfi_tod),                          intent(in)    :: tod
     integer(i4b),                                 intent(in)    :: scan
 
-    integer(i4b) :: i, j, d
+    integer(i4b) :: i, j, k1, k2, d
     real(sp)     :: sgn
 
 !!$    open(58,file='tod_adc.dat')
@@ -1123,6 +1127,35 @@ contains
        if (.not. tod%scans(scan)%d(d)%accept) cycle
        sgn = tod%mod_phase(d,scan)
 
+       if (i == 1) then
+          open(58,file='glitch1.dat')
+          do j = 1, self%ntod
+             write(58,*) j, self%tod(j,1)
+          end do
+          close(58)
+       end if
+
+       
+       ! Apply CR baseline corrections
+       if (associated(tod%scans(scan)%d(d)%cray)) then
+          do j = 1, tod%scans(scan)%d(d)%cray%n
+             if (tod%scans(scan)%d(d)%cray%event_list(j)%p%type == -1) then
+                k1 =    tod%scans(scan)%d(d)%cray%event_start(j)
+                k2 = k1+tod%scans(scan)%d(d)%cray%event_length(j)-1
+                self%tod(k1:k2,i) =  self%tod(k1:k2,i) - &
+                     & tod%scans(scan)%d(d)%cray%event_list(j)%p%T_base
+             end if
+          end do
+       end if
+
+       if (i == 1) then
+          open(58,file='glitch2.dat')
+          do j = 1, self%ntod
+             write(58,*) j, self%tod(j,1)
+          end do
+          close(58)
+       end if
+       
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
@@ -1135,6 +1168,14 @@ contains
        end do
        !if (sgn < 0.) self%tod(:,i) = -self%tod(:,i)
 
+       if (i == 1) then
+          open(58,file='glitch3.dat')
+          do j = 1, self%ntod
+             write(58,*) j, self%tod(j,1)
+          end do
+          close(58)
+       end if
+       
     end do
 
 !!$    open(58,file='tod.dat')
@@ -1307,6 +1348,10 @@ contains
           self%scans(i)%d(j)%baseline1 = base(k,j,1)
           self%scans(i)%d(j)%baseline2 = base(k,j,2)
           self%mod_phase(j,i)          = phase(k,j)
+
+          if (associated(self%scans(i)%d(j)%cray)) then
+             call self%scans(i)%d(j)%cray%set_mod_phase(nint(self%mod_phase(j,i)))
+          end if
        end do
     end do
 
@@ -1464,12 +1509,30 @@ contains
 !               & mask=iand(sd%flag(:,i), self%flag0) .eq.0)
        end do
     end if
-
+    
     ! Demodulate TOD
     if (nonlin_lvl > 1) then
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
+
+    open(58,file="raw.dat")
+!!$    do i = 1, sd%ntod
+!!$       if (mod(i,2) == 1) then
+!!$          sd%tod(i,2) = sd%tod(i,2) - self%scans(scan)%d(2)%gain * sd%s_tot(i,2,0,1)
+!!$       else
+!!$          sd%tod(i,2) = sd%tod(i,2) + self%scans(scan)%d(2)%gain * sd%s_tot(i,2,0,1)
+!!$       end if
+!!$    end do
+!!$    sd%tod(1::2,2) = sd%tod(1::2,2) - sum(sd%tod(1:100:2,2))/50.
+!!$    sd%tod(2::2,2) = sd%tod(2::2,2) - sum(sd%tod(2:100:2,2))/50.
+    do i = 1, sd%ntod
+       write(58,*) i, sd%tod(i,1),  iand(sd%flag(i,1), self%flag0)
+    end do
+    close(58)
+    stop
+    return
+
     
     ! In-paint flagged samples with s_tot + white noise
     if (.false. .and.  nonlin_lvl > 2) then

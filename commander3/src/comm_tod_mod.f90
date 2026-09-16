@@ -35,7 +35,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code, add_sd_operation_code
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
@@ -754,15 +754,6 @@ contains
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
 
-    ! Init cosmic ray template removal
-    if (allocated(self%active_cr_types)) then
-       do i = 1, self%nscan
-          do j = 1, self%ndet
-             self%scans(i)%d(j)%cray => comm_tod_cray(self%freq, j, self%scanid(i), self%active_cr_types)
-          end do
-       end do
-    end if
-
   end subroutine tod_constructor
 
   
@@ -1415,6 +1406,12 @@ contains
 !!$             self%d(i)%tod = buffer_sp(1:m)
 !!$          end if
 !!$       end if
+
+       ! Init cosmic ray template removal
+       if (allocated(tod%active_cr_types)) then
+          self%d(i)%cray => comm_tod_cray(tod%freq, i, scan, tod%active_cr_types, tod%samprate)
+       end if
+       
     end do
     deallocate(buffer_sp)
 
@@ -3728,5 +3725,12 @@ contains
     integer(i4b)             :: oper
     oper = sum(2**op_list)
   end function get_sd_operation_code  
-   
+
+  function add_sd_operation_code(old_oper, new_oper) result(oper)
+    implicit none
+    integer(i4b), intent(in) :: old_oper, new_oper
+    integer(i4b)             :: oper
+    oper = old_oper + 2**new_oper
+  end function add_sd_operation_code
+
 end module comm_tod_mod
