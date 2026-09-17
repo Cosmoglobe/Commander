@@ -1169,6 +1169,14 @@ contains
        !if (sgn < 0.) self%tod(:,i) = -self%tod(:,i)
 
        if (i == 1) then
+          do j = 1, tod%scans(scan)%d(i)%cray%n
+             if (tod%scans(scan)%d(i)%cray%event_list(j)%p%type == -1) then
+                k1 = tod%scans(scan)%d(i)%cray%event_list(j)%p%mask(1)
+                k2 = tod%scans(scan)%d(i)%cray%event_list(j)%p%mask(2)
+                self%tod(k1:k2,i) = 0.
+             end if
+          end do
+          
           open(58,file='glitch3.dat')
           do j = 1, self%ntod
              write(58,*) j, self%tod(j,1)
@@ -1494,7 +1502,7 @@ contains
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
 
-    integer(i4b) :: i, j, d, scan
+    integer(i4b) :: i, j, k1, k2, d, scan
 
     scan = sd%scan
 
@@ -1526,6 +1534,16 @@ contains
 !!$    end do
 !!$    sd%tod(1::2,2) = sd%tod(1::2,2) - sum(sd%tod(1:100:2,2))/50.
 !!$    sd%tod(2::2,2) = sd%tod(2::2,2) - sum(sd%tod(2:100:2,2))/50.
+    do i = 1, self%ndet
+       do j = 1, self%scans(scan)%d(i)%cray%n
+          if (self%scans(scan)%d(i)%cray%event_list(j)%p%type == -1) then
+             k1 = self%scans(scan)%d(i)%cray%event_list(j)%p%mask(1)
+             k2 = self%scans(scan)%d(i)%cray%event_list(j)%p%mask(2)
+             sd%tod(k1:k2,i) = 0.
+          end if
+       end do
+    end do
+
     do i = 1, sd%ntod
        write(58,*) i, sd%tod(i,1),  iand(sd%flag(i,1), self%flag0)
     end do

@@ -138,6 +138,7 @@ contains
     c%type       = type
     c%nsamp      = nsamp
     c%fsamp      = fsamp
+    c%mask       = -1     ! Initalize without mask
     
     ! Initialize CR template
     allocate(c%p_cr(size(p_cr)), c%T_cr(nsamp))
@@ -291,7 +292,7 @@ contains
        stop
     end if
     
-    threshold = 100.*sigma  ! Detection trigger 
+    threshold = 30.*sigma  ! Detection trigger 
     min_len   = 10   ! Minimum number of samples for a bright event
     n_base    = 10000 ! Length for median-based baseline
     ntod      = size(tod)
@@ -318,7 +319,7 @@ contains
        i = i+1
        if (abs(res(i)) < threshold) cycle
        ! Sample i is a candidate starting sample
-
+       
        ! 1) Find distance to local rms has returned to normal levels
        j   = i+min_len-1
        rms = sqrt(variance(res(j-min_len+1:j)))
@@ -350,11 +351,11 @@ contains
        p(nspline+4) = 0.020        ! tau4 CR
        p(nspline+5) = 3/self%fsamp ! t_dep CR
        event => cray_event(-1, j-i+4, self%fsamp, p(nspline+1:), p(1:nspline))
-       
+
        ! 5) Fit CR + baseline model; measure chisq improvement
        call event%fit_bright_event_with_baseline(res(i-3:j), sigma, i-3, &
             & self%mod_phase, chisq_corr, chisq_uncorr)
-       
+
        ! 6) Accept if the chisq improvement is large (10 times Akaike IC measure)
        !    Start of current event is at i-3; end is at j
        if (chisq_corr < chisq_uncorr) then
@@ -367,7 +368,6 @@ contains
        !stop
        
        deallocate(p)
-       
     end do
 
     write(*,*) 'Bright cray -- ', trim(self%freq), self%det, self%scanid, ', n = ', self%n
@@ -384,46 +384,64 @@ contains
     integer(i4b),                        intent(in)    :: mod_phase
     real(dp),                            intent(out)   :: chisq_corr, chisq_uncorr
     
-    integer(i4b) :: i, j, k, m, err, npar
-    real(dp)     :: fsamp, dt
-    real(dp), allocatable, dimension(:) :: mask, corr, uncorr, p, p0
-    
+    integer(i4b) :: i, j, k, m, err, npar, ind(1)
+    real(dp)     :: fsamp, dt, threshold
+    logical(lgt) :: incr_low, incr_high
+    real(dp), allocatable, dimension(:) :: p, p0, corr
+
+    threshold = 5.d0  ! mask threshold in sigma 
     m = size(res) ! Number of slow samples in template
-    
-    ! Define mask and ancillary data structures
-    allocate(mask(m), corr(m), uncorr(m))
-    mask = 1
-    mask(3:7) = 0
-        
-    ! Initialize parameters
+        ! Initialize parameters
     npar    = 5 + self%nspline
-    allocate(p(npar), p0(npar))
+    allocate(p(npar), p0(npar), corr(m))
     p(self%nspline+1:) = self%p_cr
     p(1:self%nspline)  = self%p_base
     
     ! Perform fit
     call powell(p, chisq_cr, err)
-    call powell(p, chisq_cr, err)
 
+    ! Check residual; increase mask if necessary
+    call correct_cr(res, p, corr)
+    ind        = maxloc(corr**2)
+    chisq_corr = 0.d0
+    !write(*,*) 'a', corr(ind(1)), sigma, corr(ind(1))**2 / sigma**2
+    if (corr(ind(1))**2 / sigma**2 > threshold) then
+       j = 3; k = ind(1)
+       do while (corr(j)**2 / sigma**2 > threshold .or. &
+               & corr(k)**2 / sigma**2 > threshold .or. &
+               & chisq_corr > 2)
+          incr_low  = corr(j)**2 / sigma**2 > threshold .or. chisq_corr > 2
+          incr_high = corr(k)**2 / sigma**2 > threshold .or. chisq_corr > 2
+          if (incr_low)       j = j-2
+          if (incr_high)      k = k+2
+          if (j <= 0)         j = 1
+          if (k > self%nsamp) k = self%nsamp
+          if ((.not. incr_low .or. j == 1) .and. (.not. incr_high .or. k == self%nsamp)) then
+             self%mask = i0 + [j-1,k-1]
+             exit
+          else
+             self%mask = i0 + [j+1,k-1] - 1
+             call powell(p, chisq_cr, err)
+             chisq_corr = chisq_cr(p)
+             call correct_cr(res, p, corr)
+             !write(*,*) 'b0', corr
+             !write(*,*) 'b', corr(j), corr(k), chisq_corr, self%mask
+          end if
+       end do
+       ! Increase mask by two samples in each direction for good measure
+       self%mask(1) = max(self%mask(1)-2,1)
+       self%mask(2) = min(self%mask(2)+2,i0+self%nsamp)
+    end if
+    
     ! Chisq without any correction
     p0 = p
     p0(1:self%nspline+2)  = 0.d0
     chisq_uncorr = chisq_cr(p0)
-    !call correct_cr(res, p, uncorr)    
 
-    ! Best-fit residual
+    ! Chisq for best-fit model
     chisq_corr = chisq_cr(p)
-    !call correct_cr(res, p, corr)
         
-!!$    ! Output to file
-!!$    open(58,file='cr_bright.dat',recl=1000)
-!!$    do i = 1, m
-!!$       if (mask(i) == 0.d0) cycle
-!!$       write(58,*) i, corr(i), uncorr(i), self%T_cr(i), self%T_base(i)
-!!$    end do
-!!$    close(58)
-    
-    deallocate(mask, corr, uncorr, p, p0)
+    deallocate(p, p0)
     
   contains
     
@@ -451,10 +469,15 @@ contains
       
       ! Subtract modulated CR model
       do i = 1, m
-         if (mod(i0+i-1,2) == 1) then
-            corr(i) = corr(i) - mod_phase*self%T_cr(i)
+         if (i0+i-1 >= self%mask(1) .and. i0+i-1 <= self%mask(2)) then
+            ! Masked sample
+            corr(i) = 0.d0
          else
-            corr(i) = corr(i) + mod_phase*self%T_cr(i)
+            if (mod(i0+i-1,2) == 1) then
+               corr(i) = corr(i) - mod_phase*self%T_cr(i)
+            else
+               corr(i) = corr(i) + mod_phase*self%T_cr(i)
+            end if
          end if
       end do
       
@@ -465,7 +488,7 @@ contains
       real(dp), dimension(:), intent(in), optional :: p
       real(dp)     :: chisq
       
-      integer(i4b) :: i
+      integer(i4b) :: i, ndof
       integer(i4b), save :: counter = 0
       real(dp), allocatable, dimension(:) :: r
       
@@ -477,8 +500,21 @@ contains
       
       allocate(r(m))
       call correct_cr(res, p, r)
-      
-      chisq = sum(r**2*mask) / sigma**2 / sum(mask)
+
+      ! Compute chisq
+      chisq = 0.d0
+      do i = 1, self%nsamp
+         if (self%mask(1) == -1 .or. i0+i-1 < self%mask(1) .or. i0+i-1 > self%mask(2)) then
+            chisq = chisq + r(i)**2 / sigma**2
+         end if
+         !write(*,*) i, i0, self%mask(1), i0+i-1, self%mask(2), chisq, r(i), sigma
+      end do
+      !stop
+
+      ! Compute reduced chisq
+      ndof = self%nsamp
+      if (self%mask(1) /= -1) ndof = ndof - (self%mask(2)-self%mask(1)+1)
+      chisq = chisq / ndof
       
       !counter = counter+1
       !if (mod(counter,10) == 0) write(*,*) counter, chisq, p
