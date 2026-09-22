@@ -45,7 +45,7 @@ contains
     integer(i4b),                     intent(in), optional :: verbosity
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr, verbosity_
-    integer(i4b), save :: samp_group_prev
+    integer(i4b), save :: samp_group_prev = -1
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
     real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff, dq
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
@@ -53,6 +53,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
+    stat    = 0
     maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)

@@ -46,24 +46,27 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--planck_dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d16/cmbco/bp/HFI/hfi_miss03_adc')
+    parser.add_argument('--planck-dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03_adc')
 
-    parser.add_argument('--warm_dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d16/cmbco/bp/HFI/hfi_miss03')
+    parser.add_argument('--extra-dir', type=str, action='store', help='path to the extra flag files in hdf5 format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03_adc')
 
-    parser.add_argument('--raw_dir', type=str, action='store', help='path to the raw legacy planck data in fits format', default='/mn/stornext/d16/cmbco/bp/HFI/hfi_miss03')
 
-    parser.add_argument('--npipe-dir', type=str, action='store', help='path to the preprocessed npipe data in fits format', default='/mn/stornext/d16/cmbco/bp/HFI/hfi_toi_preprocessed')
+    parser.add_argument('--warm-dir', type=str, action='store', help='path to the legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03')
 
-    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/HFI/aux/gains')
+    parser.add_argument('--raw-dir', type=str, action='store', help='path to the raw legacy planck data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_miss03')
 
-    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/RIMO_npipe2.fits')
+    parser.add_argument('--npipe-dir', type=str, action='store', help='path to the preprocessed npipe data in fits format', default='/mn/stornext/d23/cmbco/globe/orig/planck/tod/hfi_toi_preprocessed')
 
-    parser.add_argument('--pid-database', type=str, action='store', help='path to the sql database storing the PID info', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_raw_rings_v3.db')
+    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/gains')
 
-    parser.add_argument('--extra-flags', type=str, action='store', help='path to extra flagging in txt file', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hfi_bad_intervals_15s_elephants.txt')
+    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/RIMO_npipe2.fits')
+
+    parser.add_argument('--pid-database', type=str, action='store', help='path to the sql database storing the PID info', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hfi_raw_rings_v3.db')
+
+    parser.add_argument('--extra-flags', type=str, action='store', help='path to extra flagging in txt file', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hfi_bad_intervals_15s_elephants.txt')
 
     #https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
-    parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hficalibparams.dat')
+    parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/hficalibparams.dat')
 
     parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
 
@@ -136,7 +139,7 @@ def make_warm_od(comm_tod, freq, od, args):
     
         comm_tod.init_file(freq, od, mode='w')
 
-        dataFileName = glob.glob(os.path.join(args.warm_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201508??.fits'))[0]
+        dataFileName = glob.glob(os.path.join(args.warm_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
 
         try:
             exFile = fits.open(dataFileName)
@@ -358,12 +361,12 @@ def make_od(comm_tod, freq, od, args):
         comm_tod.add_field(prefix + '/mbang', mainbeamangs)
         comm_tod.add_attribute(prefix + '/mbang', 'index', detNames[0:-2])
 
-        dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201505??.fits'))[0]
+        dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
 
         npipeFileName = ''
 
         try:
-            npipeFileName = glob.glob(os.path.join(args.npipe_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201505??.fits'))[0]
+            npipeFileName = glob.glob(os.path.join(args.npipe_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
         except (IndexError):
             print("No matching files found for od " + str(od) + ", " + str(freq) + " GHz")
             return
@@ -383,9 +386,9 @@ def make_od(comm_tod, freq, od, args):
             return
 
         try:
-            extraFlagsFile = h5py.File(os.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
+            extraFlagsFile = h5py.File(os.path.join(args.extra_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
         except (OSError):
-            print("Failed to open file " + s.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
+            print("Failed to open file " + s.path.join(args.extra_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
             return
             
 

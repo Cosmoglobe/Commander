@@ -34,7 +34,6 @@ contains
     c%fullsky      = fullsky
     c%nmax         = 1
     c%nobs         = 0
-    
   end function constructor_tod_pixcache
 
   module function pix2ind(self, pix, flag_missing) result(ind)

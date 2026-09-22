@@ -20,7 +20,7 @@
 !================================================================================
 module comm_shared_arr_mod
   use comm_utils
-  use iso_c_binding
+  !use iso_c_binding
   implicit none
 
   type shared_2d_dp
