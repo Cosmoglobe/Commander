@@ -295,7 +295,7 @@ contains
        else
           self%alpha_nu(2:3) = 0.d0
        end if
-       call invW_tau%dealloc(); deallocate(invW_tau)
+       call deallocate_comm_map(invW_tau)
     end if
 
   end subroutine update_N_QUcov

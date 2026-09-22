@@ -148,7 +148,7 @@ contains
     call map%alm_equal(map_hires)
     call map_hires%Y()
     call map_hires%bcast_fullsky_map(map_full)
-    call map_hires%dealloc(); deallocate(map_hires)
+    call deallocate_comm_map(map_hires)
 
     map%map = 0.d0
     do i = 1, self%info%np

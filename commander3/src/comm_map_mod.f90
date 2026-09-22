@@ -36,7 +36,7 @@ module comm_map_mod
 
 !  include "mpif.h"
       
-  public comm_map, comm_mapinfo, map_ptr, write_map
+  public comm_map, comm_mapinfo, map_ptr, write_map, deallocate_comm_map
 
 
   type :: comm_mapinfo
@@ -90,7 +90,7 @@ module comm_map_mod
      procedure     :: readFITS
      procedure     :: readHDF
      procedure     :: readHDF_mmax
-     procedure     :: dealloc => deallocate_comm_map
+     !procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
      procedure     :: add_alm
      procedure     :: set_alm
@@ -434,7 +434,7 @@ subroutine tod2file_dp3(filename,d)
   subroutine deallocate_comm_map(self)
     implicit none
 
-    class(comm_map), intent(inout)          :: self
+    class(comm_map), pointer, intent(inout)          :: self
     class(comm_map), pointer :: link => null()
 
     if (allocated(self%map)) deallocate(self%map)
@@ -453,6 +453,8 @@ subroutine tod2file_dp3(filename,d)
        end do
        nullify(self%nextLink)
     end if
+    deallocate(self)
+    self => null()
 
   end subroutine deallocate_comm_map
 
@@ -2009,7 +2011,7 @@ subroutine tod2file_dp3(filename,d)
 
     ! Clean up
     deallocate(Ylm)
-    call map%dealloc()
+    call deallocate_comm_map(map)
     
   end subroutine remove_EE_l2_alm
 

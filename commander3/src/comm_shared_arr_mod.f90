@@ -20,11 +20,13 @@
 !================================================================================
 module comm_shared_arr_mod
   use comm_utils
+  use iso_c_binding
   implicit none
 
   type shared_2d_dp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -35,7 +37,8 @@ module comm_shared_arr_mod
 
   type shared_3d_dp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -45,7 +48,8 @@ module comm_shared_arr_mod
 
   type shared_2d_sp
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -55,7 +59,8 @@ module comm_shared_arr_mod
 
   type shared_2d_spc
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -66,7 +71,8 @@ module comm_shared_arr_mod
 
   type shared_1d_int
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -76,7 +82,8 @@ module comm_shared_arr_mod
 
   type shared_2d_int
      logical(lgt) :: init = .false.
-     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter, comm_internal
+     !type(MPI_Comm) :: comm_internal
      !integer(i4b) :: win, wsize, disp_unit
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
@@ -84,6 +91,14 @@ module comm_shared_arr_mod
      integer(i4b), pointer,     dimension(:,:)  :: a => null()
   end type shared_2d_int
 
+  interface
+     function malloc_trim(pad) bind(c, name="malloc_trim")
+       use iso_c_binding
+       implicit none
+       integer(c_int) :: malloc_trim
+       integer(c_size_t), value :: pad
+     end function malloc_trim
+  end interface
 
 contains
 
@@ -102,6 +117,9 @@ contains
     arr%myid_inter  = myid_inter
     arr%comm_inter  = comm_inter
     arr%init        = .true.
+
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+                                  MPI_INFO_NULL, arr%comm_internal, ierr)
     
     if (arr%myid_shared == 0) then
        arr%wsize = 8
@@ -115,7 +133,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -129,13 +147,16 @@ contains
     type(shared_2d_dp), intent(inout) :: arr
 
     integer(i4b) :: ierr
-  
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    integer(c_int) :: res
+    
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)
-!    call mpi_free_mem(arr%baseptr,ierr)
+    !res = malloc_trim(0_c_size_t)
+    !call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
+    call MPI_Comm_free(arr%comm_internal, ierr)
 
   end subroutine dealloc_shared_2d_dp
 
@@ -174,6 +195,9 @@ contains
     arr%comm_inter  = comm_inter
     arr%init        = .true.
 
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+         MPI_INFO_NULL, arr%comm_internal, ierr)
+
     if (arr%myid_shared == 0) then
        arr%wsize = 8
        do i = 1, size(n)
@@ -186,7 +210,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -200,14 +224,16 @@ contains
     type(shared_3d_dp), intent(inout) :: arr
 
     integer(i4b) :: ierr
-  
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    integer(c_int) :: res
+    
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)
-!    call mpi_free_mem(arr%baseptr,ierr)
+    res = malloc_trim(0_c_size_t)    
+    !call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
-
+    call MPI_Comm_free(arr%comm_internal, ierr)
   end subroutine dealloc_shared_3d_dp
 
 
@@ -225,7 +251,10 @@ contains
     arr%myid_inter  = myid_inter
     arr%comm_inter  = comm_inter
     arr%init        = .true.
-    
+
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+         MPI_INFO_NULL, arr%comm_internal, ierr)
+
     if (arr%myid_shared == 0) then
        arr%wsize = 4
        do i = 1, size(n)
@@ -238,7 +267,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -253,13 +282,13 @@ contains
 
     integer(i4b) :: ierr
   
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
-
+    call MPI_Comm_free(arr%comm_internal, ierr)
   end subroutine dealloc_shared_2d_sp
 
   subroutine sync_shared_2d_sp_map(arr, ind, val)
@@ -298,6 +327,9 @@ contains
     arr%myid_inter  = myid_inter
     arr%comm_inter  = comm_inter
     arr%init        = .true.
+
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+                                  MPI_INFO_NULL, arr%comm_internal, ierr)
     
     if (arr%myid_shared == 0) then
        arr%wsize = 8
@@ -311,7 +343,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -326,14 +358,14 @@ contains
 
     integer(i4b) :: ierr
 
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)    
 
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
-
+    call MPI_Comm_free(arr%comm_internal, ierr)
   end subroutine dealloc_shared_2d_spc
 
   subroutine sync_shared_2d_spc_alm(arr, ind, val)
@@ -372,6 +404,9 @@ contains
     arr%myid_inter  = myid_inter
     arr%comm_inter  = comm_inter
     arr%init        = .true.
+
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+         MPI_INFO_NULL, arr%comm_internal, ierr)
     
     if (arr%myid_shared == 0) then
        arr%wsize = 4
@@ -383,7 +418,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -398,13 +433,13 @@ contains
 
     integer(i4b) :: ierr
   
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
-
+    call MPI_Comm_free(arr%comm_internal, ierr)
   end subroutine dealloc_shared_1d_int
 
   subroutine sync_shared_1d_int_map(arr, ind, val)
@@ -443,7 +478,10 @@ contains
     arr%myid_inter  = myid_inter
     arr%comm_inter  = comm_inter
     arr%init        = .true.
-    
+
+    call MPI_Comm_split_type(comm_shared, MPI_COMM_TYPE_SHARED, 0, &
+         MPI_INFO_NULL, arr%comm_internal, ierr)
+
     if (arr%myid_shared == 0) then
        arr%wsize = 4
        do i = 1, size(n)
@@ -456,7 +494,7 @@ contains
     arr%arrshape  = n
     arr%disp_unit = 1
     call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
-         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+         & arr%comm_internal, arr%baseptr, arr%win, ierr)
     if (arr%myid_shared /= 0) then
        call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
             & arr%baseptr, ierr)
@@ -475,12 +513,12 @@ contains
 
     integer(i4b) :: ierr
   
-    call mpi_win_fence(0, arr%win, ierr)
-    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    !call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(arr%comm_internal, ierr)
     call mpi_win_free(arr%win, ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
-
+    call MPI_Comm_free(arr%comm_internal, ierr)
   end subroutine dealloc_shared_2d_int
 
 

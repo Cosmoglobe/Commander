@@ -34,7 +34,6 @@ contains
     c%fullsky      = fullsky
     c%nmax         = 1
     c%nobs         = 0
-    allocate(c%ind2pix(c%nmax))
     
   end function constructor_tod_pixcache
 
@@ -78,7 +77,9 @@ contains
 !!$    call wall_time(t1)
 
     !if (any(pix == 46051400)) write(*,*) 'hit'
-    
+
+    if (.not. allocated(self%ind2pix)) allocate(self%ind2pix(self%nmax))
+
     allocate(newpix(size(pix)), oldpix(self%nobs))
     newpix = pix
     oldpix = self%ind2pix(1:self%nobs)
@@ -152,6 +153,8 @@ contains
 !!$       write(*,*) 'merge', any(pix == 46051400), any(self%ind2pix(1:self%nobs) == 46051400)
 !!$       write(*,*) 'merge2', self%nobs
 !!$    end if
+
+    deallocate(newpix, oldpix)
     
   end subroutine add_pixels
 
@@ -309,5 +312,27 @@ contains
 !    deallocate(buffer)
     
   end subroutine init_map_mask
+
+  module subroutine deallocate_pixcache(self)
+    implicit none
+    class(comm_tod_pixcache), intent(inout)          :: self
+    self%nmax = 1
+    self%nobs = 0
+    if (allocated(self%ind2pix))      deallocate(self%ind2pix)
+    if (allocated(self%ind2pix_nest)) deallocate(self%ind2pix_nest)
+    if (allocated(self%ind2sl))       deallocate(self%ind2sl)
+    if (allocated(self%ind2ang))      deallocate(self%ind2ang)
+    if (allocated(self%ind2vec))      deallocate(self%ind2vec)
+    if (allocated(self%ind2vec_ecl))  deallocate(self%ind2vec_ecl)
+    !if (allocated(self%ind2vec_ecl_lowres)) deallocate(self%ind2vec_ecl_lowres)
+    !if (allocated(self%udgrade_pix_zodi))   deallocate(self%udgrade_pix_zodi)
+    !if (allocated(self%pix2ind_lowres))     deallocate(self%pix2ind_lowres)
+    if (allocated(self%sin2psi))      deallocate(self%sin2psi)
+    if (allocated(self%cos2psi))      deallocate(self%cos2psi)
+    if (allocated(self%psi))          deallocate(self%psi)
+    if (allocated(self%map_sky))      deallocate(self%map_sky)
+    if (allocated(self%map_gain))     deallocate(self%map_gain)
+    if (allocated(self%bitmask))      deallocate(self%bitmask)
+  end subroutine deallocate_pixcache
   
 end submodule comm_tod_pixcache_smod

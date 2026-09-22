@@ -35,7 +35,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code, read_hdf_scan_data
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
@@ -64,6 +64,7 @@ module comm_tod_mod
      procedure :: get_ind_range
      procedure :: precomp_aux
      procedure :: init_map_mask
+     procedure :: dealloc => deallocate_pixcache
   end type comm_tod_pixcache
 
   interface comm_tod_pixcache
@@ -169,6 +170,7 @@ module comm_tod_mod
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
      logical(lgt) :: on_the_fly_tod_sim !< if you want to make simulated tods in memory during first sample
+     logical(lgt) :: reload_tod !< deallocate and re-read TOD and pointing each iteration
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: L2_exist
@@ -488,6 +490,12 @@ interface
     type(map_ptr),       dimension(1:),       intent(in), optional :: map_gain
     real(sp),                                 intent(in), optional :: scale
   end subroutine init_map_mask
+
+  module subroutine deallocate_pixcache(self)
+    implicit none
+    class(comm_tod_pixcache), intent(inout) :: self
+  end subroutine deallocate_pixcache
+
 end interface
 
   
@@ -581,6 +589,7 @@ contains
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
     self%max_npole_Tbol      = 0
+    self%reload_TOD          = .false. ! Store in memory by default
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%rawtod_dp       = .false.
@@ -979,7 +988,7 @@ contains
    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
    character(len=100000)                         :: det_buf
    character(len=128), dimension(:), allocatable :: dets
-   
+
     ! Read common fields
     allocate(self%polang(self%ndet))
     allocate(self%mbang(self%ndet))
@@ -1010,7 +1019,6 @@ contains
        else
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
-      
 
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
@@ -1079,14 +1087,18 @@ contains
 !!$    end if
 
     if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
-       do i = 1, self%nscan
-          call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-               & detlabels, self%nhorn, self%ndiode, self%diode_names)
+       if (.not. self%reload_TOD) then
+          do i = 1, self%nscan
+             call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
+                  & detlabels, self%nhorn, self%ndiode, self%diode_names)
+          end do
+       end if
 
 !!$       do j = 1, self%ndet
 !!$          deallocate(self%scans(i)%d(j)%zdiode1,self%scans(i)%d(j)%zdiode2,self%scans(i)%d(j)%zdiode3,self%scans(i)%d(j)%zdiode4)
 !!$       end do
 
+       do i = 1, self%nscan
           do det = 1, self%ndet
              if (allocated(self%scans(i)%d(det)%tod)) then
                 self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
@@ -1134,7 +1146,6 @@ contains
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
          & ' |  Myid = ', self%myid, ' -- nscan = ', self%nscan, &
          & ', TOD IO time = ', t2-t1, ' sec'
-
 
   end subroutine read_tod
 
@@ -1251,7 +1262,6 @@ contains
 
     ! HKE: Hack to make HFI zodi run. Must be removed after HFI files are fixed:
     !write(*,*) "scan", scan, self%t0(1), self%t1(1)
-
     
     if (hdf_group_exists(file, slabel // "/common/time_len")) then
         ! This specifically creates an array of length n_interp for the use of calculating accurate positions for avoiding the moon.
@@ -1269,9 +1279,9 @@ contains
     allocate(self%d(ndet), buffer_sp(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
-       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
-       end if
+!!$       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+!!$         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+!!$       end if
        allocate(xi_n(tod%n_xi))
 
        field                = detlabels(i)
@@ -1328,24 +1338,24 @@ contains
 !!$          stop
        end if
        deallocate(xi_n)
-
-       ! Read Huffman coded data arrays
-       if (nhorn == 2 .and. i == 1) then
-         ! For a single DA, this is redundant, so we are loading 4 times the
-         ! necessary pointing (and flags) information. Strictly speaking, this
-         ! would involve needing to have a self%pixA and self%pixB attribute for
-         ! WMAP only and not allocate self%d(i)%pix(j)
-         do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
-         end do
-       else if (nhorn .ne. 2) then
-         do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-         end do
-       end if
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       
+!!$       ! Read Huffman coded data arrays
+!!$       if (nhorn == 2 .and. i == 1) then
+!!$         ! For a single DA, this is redundant, so we are loading 4 times the
+!!$         ! necessary pointing (and flags) information. Strictly speaking, this
+!!$         ! would involve needing to have a self%pixA and self%pixB attribute for
+!!$         ! WMAP only and not allocate self%d(i)%pix(j)
+!!$         do j = 1, nhorn 
+!!$           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+!!$           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+!!$         end do
+!!$       else if (nhorn .ne. 2) then
+!!$         do j = 1, nhorn
+!!$           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+!!$           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+!!$         end do
+!!$       end if
+!!$       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        ! Get compressed diode array sizes
 !!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
@@ -1425,7 +1435,7 @@ contains
 
     ! Clean up
     call close_hdf_file(file)
-
+    
   end subroutine read_hdf_scan
 
   subroutine read_hdf_scan_data(self, tod, filename, scan, ndet, detlabels, nhorn, ndiode, diode_names)
@@ -1532,6 +1542,28 @@ contains
              end do
           end if
        end if
+
+       ! Read Huffman coded data arrays
+       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       end if
+       if (nhorn == 2 .and. i == 1) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
+         do j = 1, nhorn 
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+         end do
+       else if (nhorn .ne. 2) then
+         do j = 1, nhorn
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+         end do
+       end if
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+
     end do
     if (allocated(buffer_sp)) deallocate(buffer_sp)
 

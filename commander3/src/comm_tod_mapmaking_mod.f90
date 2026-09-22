@@ -33,92 +33,97 @@ module comm_tod_mapmaking_mod
       real(dp),       allocatable, dimension(:,:)   :: A_map
       real(dp),       allocatable, dimension(:,:,:) :: b_map
     contains
-      procedure :: init    => init_binmap
-      procedure :: dealloc => dealloc_binmap
+      !procedure :: dealloc => dealloc_binmap
       procedure :: synchronize => synchronize_binmap
    end type comm_binmap
 
+   interface comm_binmap
+      procedure constructor_binmap
+   end interface comm_binmap
+   
 contains
 
-  subroutine init_binmap(self, tod, shared, solve_S, nplus2)
+  function constructor_binmap(tod, shared, solve_S, nplus2) result(c)
     implicit none
-    class(comm_binmap),     intent(inout) :: self
     class(comm_tod),        intent(in)    :: tod
     logical(lgt),           intent(in)    :: shared, solve_S
     logical(lgt), optional, intent(in)    :: nplus2
+    class(comm_binmap), pointer           :: c
 
     integer(i4b) :: i, ierr
     class(comm_mapinfo), pointer:: mapinfo_nplus2 => null()
 
+    allocate(c)
+    
     call timer%start(TOD_ALLOC, tod%band)
-    self%nobs            = tod%pixcache%nobs
-    self%shared          = shared
-    self%solve_S         = solve_S
-    self%npix            = tod%info%npix
-    self%numprocs_shared = tod%numprocs_shared
-    self%chunk_size      = self%npix/self%numprocs_shared
-    self%solve_nplus2    = .false.
-    if(present(nplus2))  self%solve_nplus2 = nplus2
+    c%nobs            = tod%pixcache%nobs
+    c%shared          = shared
+    c%solve_S         = solve_S
+    c%npix            = tod%info%npix
+    c%numprocs_shared = tod%numprocs_shared
+    c%chunk_size      = c%npix/c%numprocs_shared
+    c%solve_nplus2    = .false.
+    if(present(nplus2))  c%solve_nplus2 = nplus2
 
     if (solve_S) then
-       if(self%solve_nplus2) then
+       if(c%solve_nplus2) then
          write(*,*) "Cannot solve for spurious maps and n+2 mapmaking"
          stop
        end if
-       self%ncol = tod%nmaps + tod%ndet - 1
-       self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
-       self%nout = tod%output_n_maps + tod%n_bp_prop
+       c%ncol = tod%nmaps + tod%ndet - 1
+       c%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
+       c%nout = tod%output_n_maps + tod%n_bp_prop
        !write(*,*) 'hei!', size(tod%bp_delta,2)
-    else if(self%solve_nplus2) then
+    else if(c%solve_nplus2) then
        if(tod%nmaps /= tod%ndet + 3) then
          write(*,*) "Cannot use n+2 mapmaking for nmaps=", tod%nmaps
          stop
        end if
-       self%ncol = tod%nmaps - 1
-       self%n_A  = 3*tod%ndet + 3
-       self%nout = tod%output_n_maps *tod%ndet
+       c%ncol = tod%nmaps - 1
+       c%n_A  = 3*tod%ndet + 3
+       c%nout = tod%output_n_maps *tod%ndet
 
        mapinfo_nplus2 => comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
 
     else
-       self%ncol = tod%nmaps
-       self%n_A  = tod%nmaps*(tod%nmaps+1)/2
-       self%nout = tod%output_n_maps
+       c%ncol = tod%nmaps
+       c%n_A  = tod%nmaps*(tod%nmaps+1)/2
+       c%nout = tod%output_n_maps
     end if
-    !write(*,*) 'nout = ', tod%output_n_maps, self%nout
-    allocate(self%outmaps(self%nout))
-    do i = 1, self%nout
-       if(self%solve_nplus2)then
-         self%outmaps(i)%p => comm_map(mapinfo_nplus2)
+    !write(*,*) 'nout = ', tod%output_n_maps, c%nout
+    allocate(c%outmaps(c%nout))
+    do i = 1, c%nout
+       if(c%solve_nplus2)then
+         c%outmaps(i)%p => comm_map(mapinfo_nplus2)
        else  
-         self%outmaps(i)%p => comm_map(tod%info)
+         c%outmaps(i)%p => comm_map(tod%info)
        end if
     end do
 
-    allocate(self%A_map(self%n_A,self%nobs), self%b_map(self%nout,self%ncol,self%nobs))
-    self%A_map = 0.d0; self%b_map = 0.d0
-    if (self%shared) then
+    allocate(c%A_map(c%n_A,c%nobs), c%b_map(c%nout,c%ncol,c%nobs))
+    c%A_map = 0.d0; c%b_map = 0.d0
+    if (c%shared) then
        call init_shared_2d_dp(tod%myid_shared, tod%comm_shared, &
-            & tod%myid_inter, tod%comm_inter, [self%n_A,self%npix], self%sA_map)
-       call mpi_win_fence(0, self%sA_map%win, ierr)
-       if (self%sA_map%myid_shared == 0) self%sA_map%a = 0.d0
-       call mpi_win_fence(0, self%sA_map%win, ierr)
+            & tod%myid_inter, tod%comm_inter, [c%n_A,c%npix], c%sA_map)
+       call mpi_win_fence(0, c%sA_map%win, ierr)
+       if (c%sA_map%myid_shared == 0) c%sA_map%a = 0.d0
+       call mpi_win_fence(0, c%sA_map%win, ierr)
        call init_shared_3d_dp(tod%myid_shared, tod%comm_shared, &
-               & tod%myid_inter, tod%comm_inter, [self%nout,self%ncol,self%npix], self%sb_map)
-       call mpi_win_fence(0, self%sb_map%win, ierr)
-       if (self%sb_map%myid_shared == 0) self%sb_map%a = 0.d0
-       call mpi_win_fence(0, self%sb_map%win, ierr)
+               & tod%myid_inter, tod%comm_inter, [c%nout,c%ncol,c%npix], c%sb_map)
+       call mpi_win_fence(0, c%sb_map%win, ierr)
+       if (c%sb_map%myid_shared == 0) c%sb_map%a = 0.d0
+       call mpi_win_fence(0, c%sb_map%win, ierr)
     else
 
     end if
     call timer%stop(TOD_ALLOC, tod%band)
 
-  end subroutine init_binmap
+  end function constructor_binmap
 
 
-  subroutine dealloc_binmap(self)
+  subroutine deallocate_binmap(self)
     implicit none
-    class(comm_binmap), intent(inout) :: self
+    class(comm_binmap), pointer, intent(inout) :: self
 
     integer(i4b) ::  i
 
@@ -127,12 +132,14 @@ contains
     if (self%sb_map%init)  call dealloc_shared_3d_dp(self%sb_map)
     if (allocated(self%outmaps)) then
        do i = 1, self%nout
-          call self%outmaps(i)%p%dealloc
+          call deallocate_comm_map(self%outmaps(i)%p)
        end do
        deallocate(self%outmaps)
     end if
+    deallocate(self)
+    nullify(self)
 
-  end subroutine dealloc_binmap
+  end subroutine deallocate_binmap
 
   subroutine synchronize_binmap(self, tod)
     implicit none
@@ -1179,7 +1186,7 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
          end if
          if (present(Sfilename)) then
             call smap%writeFITS(Sfilename)
-            call smap%dealloc
+            call deallocate_comm_map(smap)
          end if
       end if
 

@@ -192,10 +192,10 @@ contains
              elsewhere
                 self%indmask(i)%p%map = 0.d0
              end where
-             call mask_ud%dealloc(); deallocate(mask_ud)
+             call deallocate_comm_map(mask_ud)
           end if
        end do
-       call indmask%dealloc(); deallocate(indmask)
+       call deallocate_comm_map(indmask)
     end if
 
     ! Read deflation mask
@@ -935,8 +935,7 @@ contains
 
                    self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
                    deallocate(m_in, m_out, buffer)
-                   call tp%dealloc(); deallocate(tp)
-                   tp => null()
+                   call deallocate_comm_map(tp)
                 else
                    self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
                 end if
@@ -1045,7 +1044,7 @@ contains
 
           end do !poltype
           
-          call tp%dealloc(); deallocate(tp)
+          call deallocate_comm_map(tp)
 
           call update_status(status, "initPixreg_specind_precalc_sampled_theta")
 
@@ -1092,7 +1091,7 @@ contains
                            & self%B_pp_fr(i)%p%b_l, tp_smooth)
 
                       tp%map=tp_smooth%map
-                      call tp_smooth%dealloc(); deallocate(tp_smooth)
+                      call deallocate_comm_map(tp_smooth)
                    end if
 
 !                   if (self%myid == 0) write(*,*) 'd2', self%theta(i)%p%map(0,1:self%nmaps)
@@ -1118,9 +1117,9 @@ contains
                       do k = p_min,p_max
                          self%theta(i)%p%alm(0:info3%nalm-1,k) = tp_smooth%alm(0:info3%nalm-1,1)
                       end do
-                      call tp_smooth%dealloc(); deallocate(tp_smooth)
+                      call deallocate_comm_map(tp_smooth)
                    end if
-                   call tp%dealloc(); deallocate(tp)
+                   call deallocate_comm_map(tp)
                 else
                    if (cpar%num_smooth_scales <= 0) then
                       write(*,*) 'need to define smoothing scales'
@@ -1885,7 +1884,7 @@ contains
                       td%map(:,k) = t%map(:,k)
                    end do
                 end do
-                if(associated(t)) call t%dealloc(); deallocate(t)
+                if(associated(t)) call deallocate_comm_map(t)
              end if
 
              ! if any polarization is local sampled. Only set theta using polarizations with local sampling
@@ -1906,7 +1905,7 @@ contains
                 where (t%map > self%p_uni(2,j))
                    t%map = self%p_uni(2,j)
                 end where
-                call tp%dealloc(); deallocate(tp)
+                call deallocate_comm_map(tp)
 
                 
                 call wall_time(t2)
@@ -1937,12 +1936,12 @@ contains
                    end do
                 end do
 
-                call t%dealloc(); deallocate(t)
+                call deallocate_comm_map(t)
 
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             call td%dealloc(); deallocate(td)
+             call deallocate_comm_map(td)
           end do
        end if
 
@@ -2161,7 +2160,7 @@ contains
     end if
 
     ! Clean up
-    call m%dealloc(); deallocate(m)
+    call deallocate_comm_map(m)
     nullify(info)
 
   end function evalDiffuseBand
@@ -2219,8 +2218,8 @@ contains
     if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
     res = m_out%alm
 
-    call m%dealloc(); deallocate(m)
-    call m_out%dealloc(); deallocate(m_out)
+    call deallocate_comm_map(m)
+    call deallocate_comm_map(m_out)
 
   end function projectDiffuseBand
 
@@ -2385,7 +2384,7 @@ contains
        !!$OMP END PARALLEL
 !       call update_status(status, "pseudo7")
 
-       call invN_x%dealloc(); deallocate(invN_x)
+       call deallocate_comm_map(invN_x)
     end do
 
     ! Prior terms
@@ -2584,7 +2583,7 @@ contains
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
-       call map%dealloc(); deallocate(map)
+       call deallocate_comm_map(map)
        call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
@@ -2599,7 +2598,7 @@ contains
           call map%Y_EB
           !call self%apply_proc_mask(map)
           call map%writeFITS(trim(dir)//'/'//trim(filename))
-          call map%dealloc(); deallocate(map)
+          call deallocate_comm_map(map)
        end if
        !call update_status(status, "writeFITS_6")
        
@@ -2663,7 +2662,7 @@ contains
                       self%theta(i)%p%map(:,k) = tp%map(:,k)
                    end do
                 end do
-                call tp%dealloc(); deallocate(tp)
+                call deallocate_comm_map(tp)
              end if
           end if
 
@@ -2724,7 +2723,7 @@ contains
                 filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                      & '_noSmooth_'  // trim(postfix) // '.fits'
                 call tp%writeFITS(trim(dir)//'/'//trim(filename))
-                call tp%dealloc(); deallocate(tp)
+                call deallocate_comm_map(tp)
              end if
 
           end if
@@ -2902,7 +2901,7 @@ contains
                       self%theta(i)%p%map(:,j) = tp%map(:,j)
                    end do
                 end do
-                call tp%dealloc(); deallocate(tp)
+                call deallocate_comm_map(tp)
              end if
           end if
 
@@ -3146,7 +3145,7 @@ contains
              ! Add up alms
              tot%alm(:,1) = tot%alm(:,1) + map2%alm(:,1)
 
-             call map2%dealloc(); deallocate(map2)
+             call deallocate_comm_map(map2)
           end do
 
              if (any(tot%alm /= tot%alm)) then
@@ -3210,8 +3209,8 @@ contains
     end do
 
     deallocate(invM, buffer)
-    call map%dealloc(); deallocate(map)
-    call tot%dealloc(); deallocate(tot)
+    call deallocate_comm_map(map)
+    call deallocate_comm_map(tot)
 
     call wall_time(t2)
     if (info%myid == 0) write(*,*) '  Low-ell init = ', t2-t1
@@ -3308,7 +3307,7 @@ contains
 
        if (self%myid == 0) allocate(self%invM_def(self%ndef,self%ndef))
 
-       call map%dealloc(); deallocate(map)
+       call deallocate_comm_map(map)
        deallocate(Z)
     end if
 
@@ -3354,7 +3353,7 @@ contains
              tot%alm(:,k) = tot%alm(:,k) + map2%alm(:,k)
           end do
 
-          call map2%dealloc(); deallocate(map2)
+          call deallocate_comm_map(map2)
        end do
 
        ! Add prior term and multiply with sqrt(S) for relevant components
@@ -3386,8 +3385,8 @@ contains
     end if
 
     deallocate(invM, buffer)
-    call map%dealloc(); deallocate(map)
-    call tot%dealloc(); deallocate(tot)
+    call deallocate_comm_map(map)
+    call deallocate_comm_map(tot)
 
     call wall_time(t2)
     if (info%myid == 0) write(*,*) '  Deflate init = ', t2-t1
@@ -3446,7 +3445,7 @@ contains
        if (j > -1) Qalm(j,1) = map%alm(i,1)
     end do
     
-    call map%dealloc(); deallocate(map)
+    call deallocate_comm_map(map)
     deallocate(y, ytot)
 
   end subroutine applyDeflatePrecond
@@ -3563,7 +3562,7 @@ contains
     call free_spline(sb)
     call free_spline(spsi)
     call free_spline(sphi)
-    call map%dealloc(); deallocate(map)
+    call deallocate_comm_map(map)
     deallocate(x, t, f, psi, phi, b0)
 
   end subroutine setup_needlets
@@ -3800,7 +3799,7 @@ contains
        deallocate(mask_list)
        deallocate(amp_list)
        deallocate(corr_list)
-       call lr_map%dealloc(); deallocate(lr_map)
+       call deallocate_comm_map(lr_map)
 
     else if (trim(self%mono_prior_type) == 'lower_value_prior') then
        
@@ -4009,7 +4008,7 @@ contains
        end do
     end if
 
-    call map%dealloc(); deallocate(map)
+    call deallocate_comm_map(map)
     
   end subroutine applyMonoDipolePrior
 
