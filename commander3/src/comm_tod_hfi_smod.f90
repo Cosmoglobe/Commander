@@ -69,8 +69,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    c%noise_psd_model = 'spline'
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -609,7 +609,7 @@ contains
           do j = 1, self%ndet
              if (self%scans(i)%d(j)%accept) call update_spline_noise_psd(self,sd,i,j)
           end do
-          if (self%myid==0) write(*,*) '|  Number of spline noise model parameters:', self%scans(i)%d(1)%N_psd%npar
+          !if (self%myid==0) write(*,*) '|  Number of spline noise model parameters:', self%scans(i)%d(1)%N_psd%npar
        end if
 
        ! Clean up
