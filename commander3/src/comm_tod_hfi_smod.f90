@@ -192,8 +192,6 @@ contains
        call mpi_finalize(ierr)
        stop
     end if
-    write(*,*) 'Disabling sidelobes for memory test'
-    c%correct_sl       = .false.
     
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
