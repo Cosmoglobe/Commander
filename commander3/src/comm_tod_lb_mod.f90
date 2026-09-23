@@ -229,7 +229,7 @@ contains
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, h, ierr, ndelta, nside, npix, nmaps, oper_default
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_ncorr, sample_xi_n
-    type(comm_binmap)   :: binmap
+    class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
@@ -322,7 +322,7 @@ contains
     end if
 
     ! Prepare intermediate data structures
-    call binmap%init(self, .true., sample_rel_bandpass)
+    binmap => comm_binmap(self, .true., sample_rel_bandpass)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -468,7 +468,7 @@ contains
        buffer%map = hpx_dbadval
     end where
     call buffer%writeFITS(trim(prefix)//'rms'//trim(postfix))
-    call buffer%dealloc
+    call deallocate_comm_map(buffer)
     ! obs: not marking missing pixels in the remaining components
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
@@ -479,7 +479,7 @@ contains
     if (self%output_n_maps > 7) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
 
     ! Clean up
-    call binmap%dealloc()
+    call deallocate_binmap(binmap)
     if (allocated(slist)) deallocate(slist)
     if (self%correct_sl) then
        do i = 1, self%ndet

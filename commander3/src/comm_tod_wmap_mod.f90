@@ -927,7 +927,7 @@ contains
       if (allocated(b_map_1)) deallocate(b_map_1,M_diag_1,bicg_sol_1)
 
       if (allocated(outmaps)) then
-         call outmaps(1)%p%dealloc
+         call deallocate_comm_map(outmaps(1)%p)
          deallocate (outmaps)
       end if
 

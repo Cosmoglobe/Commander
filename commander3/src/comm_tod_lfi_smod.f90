@@ -295,7 +295,7 @@ contains
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, h, l, ierr, nbp, nside, npix, nmaps, oper_default
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_ncorr, output_scanlist, sample_polang, sample_gain
-    type(comm_binmap)   :: binmap
+    class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
@@ -434,9 +434,9 @@ contains
 
     ! Prepare intermediate data structures
     if(self%map_type == 'nplus2') then
-      call binmap%init(self, .true., .false., nplus2=.true.)
+      binmap => comm_binmap(self, .true., .false., nplus2=.true.)
     else if (self%map_type == 'binned') then 
-      call binmap%init(self, .true., sample_rel_bandpass)
+      binmap => comm_binmap(self, .true., sample_rel_bandpass)
     end if
 
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -590,7 +590,7 @@ contains
 
     ! Clean up
     call timer%start(TOD_ALLOC, self%band)
-    call binmap%dealloc()
+    call deallocate_binmap(binmap)
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)

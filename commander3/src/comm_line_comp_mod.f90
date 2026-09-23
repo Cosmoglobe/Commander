@@ -424,7 +424,7 @@ contains
     else
        call map%writeFITS(trim(dir)//'/'//trim(filename))
     end if
-    call map%dealloc(); deallocate(map)
+    call deallocate_comm_map(map)
     call update_status(status, "writeLine_5")
 
 

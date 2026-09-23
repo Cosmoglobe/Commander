@@ -385,7 +385,7 @@ contains
     class(comm_scandata), intent(inout) :: sd    
 
     sd%ntod = -1; sd%ndet = -1; sd%nhorn = -1; sd%nbp = -1
-
+    
     ! Deallocate data structures
     if (allocated(sd%det))           deallocate(sd%det)
     if (allocated(sd%ind))           deallocate(sd%ind)
@@ -398,6 +398,7 @@ contains
     if (allocated(sd%s_tot))         deallocate(sd%s_tot)
     if (allocated(sd%s_spur))        deallocate(sd%s_spur)
     if (allocated(sd%mask))          deallocate(sd%mask)
+    if (allocated(sd%mask2))         deallocate(sd%mask2)
     if (allocated(sd%pix))           deallocate(sd%pix)
     if (allocated(sd%psi))           deallocate(sd%psi)
     if (allocated(sd%flag))          deallocate(sd%flag)

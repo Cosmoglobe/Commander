@@ -262,8 +262,7 @@ contains
              do l = 1, numband
                 res             => compute_residual(l)
                 data(l)%res%map =  res%map
-                call res%dealloc(); deallocate(res)
-                nullify(res)
+                call deallocate_comm_map(res)
              end do
              ! Perform sampling
              call c%samplePtsrcAmp(cpar, handle, samp_group)
@@ -487,13 +486,13 @@ contains
                   & data(i)%gain)
   
                 call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
-                     & trim(adjustl(data(i)%instlabel)), ext)
+                     & trim(adjustl(data(i)%label)), ext)
                 if (data(i)%ndet > ext(1)-1) then
                    write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                    stop
                 end if
                 allocate(bp_delta(0:ext(1)-1,ext(2)))
-                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%instlabel)), &
+                call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                      & bp_delta)
                 do j = 0, data(i)%ndet
                    data(i)%bp(j)%p%delta = bp_delta(j,:)
@@ -596,7 +595,7 @@ contains
           data(i)%map0%map = data(i)%map%map
           data(i)%map%map = data(i)%map%map + regnoise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
-          call rms%dealloc
+          call deallocate_comm_map(rms)
           deallocate(regnoise)
        end do
 
@@ -630,7 +629,7 @@ contains
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
-          call rms%dealloc
+          call deallocate_comm_map(rms)
           deallocate(regnoise)
        end do
     end if
@@ -787,8 +786,7 @@ contains
 !!$       write(*,*) chisq_old
 !!$       call mpi_finalize(ierr)
 !!$       stop
-       call res%dealloc(); deallocate(res)
-       nullify(res)
+       call deallocate_comm_map(res)
     end do
 
     c => compList
@@ -880,8 +878,8 @@ contains
           deallocate(alm_prop, alm_old)
 
           do i = 1, numband
-             call data(i)%c_old%dealloc(); deallocate(data(i)%c_old)
-             call data(i)%c_prop%dealloc(); deallocate(data(i)%c_prop)
+             call deallocate_comm_map(data(i)%c_old)
+             call deallocate_comm_map(data(i)%c_prop)
           end do
 
        end select

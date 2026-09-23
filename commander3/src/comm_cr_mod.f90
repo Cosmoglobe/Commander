@@ -622,7 +622,7 @@ contains
              end do
 
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
-             call Tm%dealloc(); deallocate(Tm)
+             call deallocate_comm_map(Tm)
              nullify(info)
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
@@ -650,7 +650,7 @@ contains
           c => c%nextComp()
        end do
 
-       call map%dealloc(); deallocate(map)
+       call deallocate_comm_map(map)
     end do
 
     ! Add prior terms
@@ -688,7 +688,7 @@ contains
                    end do
                 end do
                 !eta = eta + mu%alm
-                call mu%dealloc(); deallocate(mu)
+                call deallocate_comm_map(mu)
              end if
              call cr_insert_comp(c%id, .true., eta, rhs)
              deallocate(eta)
@@ -897,7 +897,7 @@ contains
           map_buff%map = map%map
           call map_buff%Yt()             ! Prepare for diffuse components
           call map_buff%alm_equal(map)
-          call map_buff%dealloc(); deallocate(map_buff)
+          call deallocate_comm_map(map_buff)
        end if
        !call update_status(status, "A13")
        do while (associated(c))
@@ -932,8 +932,8 @@ contains
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
 
-       call map%dealloc(); deallocate(map)
-       call pmap%dealloc(); deallocate(pmap)
+       call deallocate_comm_map(map)
+       call deallocate_comm_map(pmap)
     end do
     !call update_status(status, "A16")
     !write(*,*) 'df6'
