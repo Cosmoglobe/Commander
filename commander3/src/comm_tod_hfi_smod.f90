@@ -358,7 +358,7 @@ contains
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
-    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
+    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n, sample_co
     logical(lgt)        :: fit_4k_lines
     class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
@@ -413,6 +413,7 @@ contains
        sample_xi_n      = .false.
        select_data           = iter == 1
        sample_adc            = .false. !.false. !iter  > 1 !.true.
+       sample_co             = .true.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
        sample_gain           = iter  > 2 !.true.                 
@@ -421,6 +422,7 @@ contains
        sample_xi_n           = iter > 15 
        select_data           = iter == 25 ! self%first_call  
        sample_adc            = .false. !iter  > 0 ! 3 !.true.
+       sample_co             = .true.
     else
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
@@ -429,8 +431,9 @@ contains
        sample_xi_n           = iter > 1 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
+       sample_co             = .true.
     end if
-    fit_4k_lines          = .true. !iter > 2
+    fit_4k_lines          = .false. !iter > 2
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -581,7 +584,7 @@ contains
 !!$          call int2string(iter, itertext)
 !!$          call int2string(self%scanid(i), scantext)
 !!$=======
-       if (.true.) then
+       if (.false.) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call deconvolve_rolloff(self, sd, j)!,&
@@ -658,6 +661,46 @@ contains
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
        !call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
+    end if
+
+
+
+    ! Sample CO line emission
+    if (sample_co) then
+       
+       !call binmap%init(self, .true., .false., nplus2=.false.)
+       binmap => comm_binmap(self, .true., .false, nplus2=.false.)
+
+       ! Fit higher-level corrections
+       if (self%myid == 0) write(*,*) '   --> Sampling CO line emission'
+       call update_status(status, "tod_co1"//ctext)
+       do i = 1, self%nscan
+
+          ! Skip scan if no accepted data
+          if (.not. any(self%scans(i)%d%accept)) cycle
+          call wall_time(t1)
+
+          ! Prepare data
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
+       
+          ! Compute calibrated TOD for mapmaking
+          allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
+          d_calib = 0.d0
+          call compute_calibrated_data(self, i, sd, d_calib)
+
+          ! Bin TOD
+          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+          ! Clean up
+          call dealloc_scan_data(sd)
+          deallocate(d_calib)
+       end do
+    
+       ! Solve for maps
+       call synchronize_binmap(binmap, self)
+       call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
+       map_out%map = binmap%outmaps(1)%p%map
+       call update_status(status, "tod_co2")
     end if
     
     ! Create pixel histograms
@@ -1527,7 +1570,7 @@ contains
     end if
     
     ! In-paint flagged samples with s_tot + white noise
-    if (nonlin_lvl > 2) then
+    if (.false. .and. nonlin_lvl > 2) then
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
           if (.not. self%scans(scan)%d(d)%accept) cycle
@@ -1540,7 +1583,7 @@ contains
     end if
         
     ! Deconvolve high-frequency roll-off
-    if (nonlin_lvl > 2) then
+    if (.false. .and. nonlin_lvl > 2) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           call deconvolve_rolloff(self, sd, i)
@@ -1548,7 +1591,7 @@ contains
     end if
     
     ! Correct 4k lines (re-estimate after gain sampling)
-    if (nonlin_lvl > 3) then
+    if (.false. .and. nonlin_lvl > 3) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           call remove_hfi_4k_lines(self, sd, i)
