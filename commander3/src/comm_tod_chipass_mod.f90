@@ -42,8 +42,8 @@ module comm_tod_chipass_mod
    type, extends(comm_tod) :: comm_chipass_tod
       integer(i4b)  :: tsys_order
       real(dp)      :: tsys_eta0
-      real(dp)      :: fr_min, fr_max, del_el, del_fr
-      real(dp), allocatable, dimension(:)          :: el_min, el_max, el_bins, fr_bins
+      real(dp)      :: fr_min, fr_max, az_min, az_max, del_el, del_fr, del_az
+      real(dp), allocatable, dimension(:)          :: el_min, el_max, el_bins, fr_bins, az_bins
       real(dp), allocatable, dimension(:,:)        :: tsys_fit ! ndet, tsys_order+1
       real(dp), allocatable, dimension(:,:,:,:,:)  :: tsys_coeffs
       type(spline_type), allocatable, dimension(:) :: tsys_spline
@@ -117,7 +117,6 @@ contains
       !c%xi_n_P_uni(2,:)  = [0.00001d0, 0.1d0]  ! fknee
       !c%xi_n_P_uni(3,:)  = [-3.0d0,   -0.4d0]  ! alpha
       c%xi_n_P_uni(2,:)  = [0.002d0, 0.0021d0]  ! fknee
-      !
       c%xi_n_P_uni(3,:)  = [-1.801d0, -1.799d0]  ! alpha
 
       ! Initialize common parameters
@@ -138,12 +137,12 @@ contains
       c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
       c%symm_flags      = .false.
       c%read_elev       = .true.
-      c%read_az         = .false.
+      c%read_az         = .true. !.false. ! NOTE: currently overrides use of feedrot for 2D Tsys model
       c%read_feedrot    = .true. ! used for 2D spline Tsys model
       c%per_slew_baseline = .true.
-      c%max_nslew       = 10
+      c%max_nslew       = 10 !100 !10
       ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      c%chisq_threshold = 10 !30 !10
+      c%chisq_threshold = 30 !10
       c%sigma0_threshold = 3
       c%nmaps           = info%nmaps
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
@@ -196,7 +195,7 @@ contains
 
       ! Initialize dynamic mask
       c%dynmask => comm_dynmask(c, cpar)
-      c%dynmask%output_scan             = 3699 !500
+      c%dynmask%output_scan             = 369 !3699 !500
       c%dynmask%output_det              = 1
       c%dynmask%threshold_minmax(1)     = 0.  ! Absolute TOD minimum
       c%dynmask%threshold_singlesamp    = 20  ! Exclude single sample outliers
@@ -245,7 +244,49 @@ contains
          if (c%myid == 0) write(*,fmt='(a,2f8.3)') '  Elevation range, det 1 = ', c%el_min(1), c%el_max(1)
       end if
 
-      if (c%read_feedrot) then
+      if (c%read_az) then
+         
+         ! Compute azimuth range
+         c%az_min =  360.d0
+         c%az_max = -360.d0
+         do j = 1, c%ndet
+            do i = 1, c%nscan
+            !if (any(c%scans(i)%d%accept)) then
+               c%az_min = min(c%az_min, minval(c%scans(i)%d(j)%az,c%scans(i)%d(j)%elev>0.d0))
+               c%az_max = max(c%az_max, maxval(c%scans(i)%d(j)%az,c%scans(i)%d(j)%elev>0.d0))
+            !end if
+            end do
+         end do
+         call mpi_allreduce(mpi_in_place, c%az_min, 1, &
+              & MPI_DOUBLE_PRECISION, MPI_MIN,  c%comm, ierr)
+         call mpi_allreduce(mpi_in_place, c%az_max, 1, &
+              & MPI_DOUBLE_PRECISION, MPI_MAX,  c%comm, ierr)
+         if (c%myid == 0) write(*,fmt='(a,2f8.3)') '  Azimuth range = ', c%az_min, c%az_max
+
+         ! Set up Tsys 2D spline
+         c%del_el = 0.5d0 !0.25d0 !1.d0 !2.d0 !0.5d0 !1.d0
+         c%del_el = (c%el_max(1)-c%el_min(1))/real(int((c%el_max(1)-c%el_min(1))/c%del_el),dp)
+         c%del_az = 10.d0
+         c%del_az = (c%az_max-c%az_min)/real(int((c%az_max-c%az_min)/c%del_az),dp)
+         allocate(c%el_bins(int((c%el_max(1)-c%el_min(1))/c%del_el)+1))
+         allocate(c%az_bins(int((c%az_max-c%az_min)/c%del_az)+1))
+         do i = 1, size(c%el_bins)
+            c%el_bins(i) = c%el_min(1) + real(i-1,dp)*c%del_el
+         end do
+         do i = 1, size(c%az_bins)
+            c%az_bins(i) = c%az_min + real(i-1,dp)*c%del_az
+         end do
+         allocate(c%tsys_coeffs(4,4,size(c%el_bins),size(c%az_bins),c%ndet))
+         c%tsys_coeffs = 0.d0
+         if (c%myid == 0) then
+            write(*,fmt='(a,f8.3)') 'del_el:', c%del_el
+            write(*,*) 'el_bins 1, n:', c%el_bins(1), c%el_bins(size(c%el_bins))
+            write(*,fmt='(a,f8.3)') 'del_az:', c%del_az
+            write(*,*) 'az_bins 1, n:', c%az_bins(1), c%az_bins(size(c%az_bins))
+         end if
+
+      else if (c%read_feedrot) then
+
          ! Compute feed rot range
          c%fr_min =  180.d0
          c%fr_max = -180.d0
@@ -286,6 +327,7 @@ contains
             write(*,fmt='(a,f8.3)') 'del_fr:', c%del_fr
             write(*,*) 'fr_bins 1, n:', c%fr_bins(1), c%fr_bins(size(c%fr_bins))
          end if
+
       end if
 
       call timer%stop(TOD_INIT, id_abs)
@@ -390,10 +432,10 @@ contains
          sample_ncorr    = iter > 4 !.true. !iter > 2
       else if (trim(self%init_from_HDF) == 'none') then ! OBS FIXME bug when BAND_TOD_INI_:FROM_HDF=default and INIT_CHAIN=none
          select_data     = iter == 8 !.false. !iter == 10                   ! in param file. Takes you to 'else' below
-         sample_baseline = iter > 7 !iter > 1
-         sample_tsys     = iter > 0 !iter > 1
-         sample_gain     = iter > 0 !iter > 2                        ! Gain sampling
-         sample_ncorr    = iter > 1 !.false. !iter > 3
+         sample_baseline = iter > 1 !iter > 1
+         sample_tsys     = iter > 1 !iter > 1
+         sample_gain     = iter > 1 !iter > 2                        ! Gain sampling
+         sample_ncorr    = iter > 0 !.false. !iter > 3
       else
          select_data     = self%first_call  !iter == 1                    
          sample_baseline = iter > 1
@@ -477,7 +519,7 @@ contains
             write(*,*) '|    --> Sampling Tsys'
          end if
          call update_status(status, "Tsys")
-         if (self%read_feedrot) then
+         if (self%read_az .or. self%read_feedrot) then
             call sample_chipass_Tsys2D(self, oper_default, handle)
          else
             call sample_chipass_Tsys(self, oper_default, handle)
@@ -519,7 +561,10 @@ contains
                         !debug(k,j) = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) &
                         !        & - splint(self%tsys_spline(j),self%scans(i)%d(j)%elev(k))
                         debug(k,j) = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
-                        if (self%read_feedrot) then
+                        if (self%read_az) then
+                           debug(k,j) = debug(k,j) - splin2_full_precomp(self%el_bins, self%az_bins, self%tsys_coeffs(:,:,:,:,j), &
+                                                           & self%scans(i)%d(j)%elev(k), self%scans(i)%d(j)%az(k))
+                        else if (self%read_feedrot) then
                            debug(k,j) = debug(k,j) - splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
                                                            & self%scans(i)%d(j)%elev(k), self%scans(i)%feed_rot(k))
                         else
@@ -552,7 +597,10 @@ contains
                   debug = 0.d0
                   do j = 1, sd%ndet
                      do k = 1, sd%ntod
-                        if (self%read_feedrot) then
+                        if (self%read_az) then
+                           debug(k,j) = splin2_full_precomp(self%el_bins, self%az_bins, self%tsys_coeffs(:,:,:,:,j), &
+                                   & self%scans(i)%d(j)%elev(k), self%scans(i)%d(j)%az(k))
+                        else if (self%read_feedrot) then
                            debug(k,j) = splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
                                    & self%scans(i)%d(j)%elev(k), self%scans(i)%feed_rot(k))
                         else
@@ -659,7 +707,12 @@ contains
             !      d_calib2(2, :, j) = d_calib2(2, :, j) + self%tsys_fit(j,l) * (self%scans(i)%d(j)%elev(k) - self%tsys_eta0)**l
             !   end do
             !end do
-            if (self%read_feedrot) then
+            if (self%read_az) then
+               do k = 1, self%scans(i)%ntod
+                  d_calib2(2, k, j) = d_calib2(2, k, j) + splin2_full_precomp(self%el_bins, self%az_bins, &
+                          & self%tsys_coeffs(:,:,:,:,j), self%scans(i)%d(j)%elev(k), self%scans(i)%d(j)%az(k))
+               end do
+            else if (self%read_feedrot) then
                do k = 1, self%scans(i)%ntod
                   d_calib2(2, k, j) = d_calib2(2, k, j) + splin2_full_precomp(self%el_bins, self%fr_bins, &
                           & self%tsys_coeffs(:,:,:,:,j), self%scans(i)%d(j)%elev(k), self%scans(i)%feed_rot(k))
@@ -799,7 +852,10 @@ contains
              n    = n + 1
              x(n) = t
              y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
-             if (tod%read_feedrot) then
+             if (tod%read_az) then
+                y(n) = y(n) - splin2_full_precomp(tod%el_bins, tod%az_bins, tod%tsys_coeffs(:,:,:,:,j), &
+                        & tod%scans(scan)%d(j)%elev(k), tod%scans(scan)%d(j)%az(k))
+             else if (tod%read_feedrot) then
                 y(n) = y(n) - splin2_full_precomp(tod%el_bins, tod%fr_bins, tod%tsys_coeffs(:,:,:,:,j), &
                         & tod%scans(scan)%d(j)%elev(k), tod%scans(scan)%feed_rot(k))
              else if (allocated(tod%tsys_spline)) then
@@ -860,7 +916,10 @@ contains
                 n    = n + 1
                 x(n) = t
                 y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
-                if (tod%read_feedrot) then
+                if (tod%read_az) then
+                   y(n) = y(n) - splin2_full_precomp(tod%el_bins, tod%az_bins, tod%tsys_coeffs(:,:,:,:,j), &
+                           & tod%scans(scan)%d(j)%elev(k), tod%scans(scan)%d(j)%az(k))
+                else if (tod%read_feedrot) then
                    y(n) = y(n) - splin2_full_precomp(tod%el_bins, tod%fr_bins, tod%tsys_coeffs(:,:,:,:,j), &
                            & tod%scans(scan)%d(j)%elev(k), tod%scans(scan)%feed_rot(k))
                 else if (allocated(tod%tsys_spline)) then
@@ -1160,7 +1219,7 @@ contains
     type(comm_scandata) :: sd
     integer(i4b)        :: i, j, k, ierr, binx, biny, nbinx, nbiny
     real(dp)            :: x, y, f
-    real(dp), allocatable, dimension(:)       :: el, fr
+    real(dp), allocatable, dimension(:)       :: el, fr, az
     real(dp), allocatable, dimension(:,:)     :: mu, sigma, tsys
     real(dp), allocatable, dimension(:,:,:,:) :: coeff
     integer(i4b), allocatable, dimension(:,:) :: n
@@ -1168,6 +1227,7 @@ contains
 
     nbiny  = size(self%el_bins)
     nbinx  = size(self%fr_bins)
+    if (self%read_az) nbinx = size(self%az_bins)
     allocate(mu(nbiny, nbinx), sigma(nbiny, nbinx), n(nbiny, nbinx))
 
     do j = 1, self%ndet
@@ -1182,13 +1242,23 @@ contains
           call init_scan_data(self, i, oper_default, 5, sd, spur_level=0)
           do k = 1, self%scans(i)%ntod
              if (sd%mask(k,j) == 1) then
-                ! Prepare data 
-                x    = self%scans(i)%feed_rot(k)
+                ! Prepare data
+                !x    = self%scans(i)%feed_rot(k)
+                if (self%read_az) then
+                   x    = self%scans(i)%d(j)%az(k)
+                else
+                   x    = self%scans(i)%feed_rot(k)
+                end if
                 y    = self%scans(i)%d(j)%elev(k)
                 f    = sd%tod(k,j) - self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1)
                 !binx = min(max(int((x-self%fr_min)/self%del_fr),1),nbinx)
                 !biny = min(max(int((y-self%el_min(1))/self%del_el),1),nbiny)
-                binx = min(max(int((x-(self%fr_bins(1)-self%del_fr/2.d0))/self%del_fr)+1,1),nbinx)
+                !binx = min(max(int((x-(self%fr_bins(1)-self%del_fr/2.d0))/self%del_fr)+1,1),nbinx)
+                if (self%read_az) then
+                   binx = min(max(int((x-(self%az_bins(1)-self%del_az/2.d0))/self%del_az)+1,1),nbinx)
+                else
+                   binx = min(max(int((x-(self%fr_bins(1)-self%del_fr/2.d0))/self%del_fr)+1,1),nbinx)
+                end if
                 biny = min(max(int((y-(self%el_bins(1)-self%del_el/2.d0))/self%del_el)+1,1),nbiny)
                 mu(biny, binx)    = mu(biny, binx)    +    f/self%scans(i)%d(j)%N_psd%sigma0**2
                 !mu(biny, binx)    = mu(biny, binx)    +    f
@@ -1235,7 +1305,12 @@ contains
           !end do
 
           ! pre-compute spline coefficients
-          call splie2_full_precomp(self%el_bins, self%fr_bins, mu, self%tsys_coeffs(:,:,:,:,j))
+          !call splie2_full_precomp(self%el_bins, self%fr_bins, mu, self%tsys_coeffs(:,:,:,:,j))
+          if (self%read_az) then
+             call splie2_full_precomp(self%el_bins, self%az_bins, mu, self%tsys_coeffs(:,:,:,:,j))
+          else
+             call splie2_full_precomp(self%el_bins, self%fr_bins, mu, self%tsys_coeffs(:,:,:,:,j))
+          end if
           
           ! Output to HDF
           call int2string(j, dtext)
@@ -1245,39 +1320,68 @@ contains
           tsys = 0.d0
           do i = 1, nbiny
              do k = 1, nbinx
-                tsys(i, k) = splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
+                if (self%read_az) then
+                   tsys(i, k) = splin2_full_precomp(self%el_bins, self%az_bins, self%tsys_coeffs(:,:,:,:,j), &
+                        & self%el_bins(i), self%az_bins(k))
+                else
+                   tsys(i, k) = splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
                         & self%el_bins(i), self%fr_bins(k))
+                end if
              end do
           end do
           call write_hdf(tsys_file, '/el_bins', self%el_bins)
-          call write_hdf(tsys_file, '/fr_bins', self%fr_bins)
+          if (self%read_az) then
+             call write_hdf(tsys_file, '/az_bins', self%az_bins)
+          else
+             call write_hdf(tsys_file, '/fr_bins', self%fr_bins)
+          end if
           call write_hdf(tsys_file, '/count', n)
           call write_hdf(tsys_file, '/sigma', sigma)
           call write_hdf(tsys_file, '/mu', mu)
           call write_hdf(tsys_file, '/tsys', tsys)
           deallocate(tsys)
-          ! Evaluate spline between bins to check stiffness
+          ! Evaluate spline model between bins and along periphery
           allocate(el(int((self%el_max(1)-self%el_min(1))/(self%del_el/10.d0))+1+int(4*10)))
-          allocate(fr(int((self%fr_max-self%fr_min)/(self%del_fr/10.d0))+1+int(4*10)))
-          allocate(tsys(size(el), size(fr)))
           do i = 1, size(el)
              !el(i) = self%el_min(1) + real(i-0.5,dp)*self%del_el/10.d0 - 2.d0*self%del_el ! Elevation in degrees
              el(i) = self%el_min(1) - 2.d0*self%del_el + real(i-1,dp)*self%del_el/10.d0 ! Elevation in degrees
           end do
-          do i = 1, size(fr)
-             !fr(i) = self%fr_min + real(i-0.5,dp)*self%del_fr/10.d0 - 2.d0*self%del_fr
-             fr(i) = self%fr_min - 2.d0*self%del_fr + real(i-1,dp)*self%del_fr/10.d0
-          end do
-          do i = 1, size(el)
-             do k = 1, size(fr)
-                tsys(i, k) = splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
-                        & el(i), fr(k))
-             end do
-          end do
           call write_hdf(tsys_file, '/el_dense', el)
-          call write_hdf(tsys_file, '/fr_dense', fr)
+          if (self%read_az) then
+             allocate(az(int((self%az_max-self%az_min)/(self%del_az/10.d0))+1+int(4*10)))
+             allocate(tsys(size(el), size(az)))
+             do i = 1, size(az)
+                az(i) = self%az_min - 2.d0*self%del_az + real(i-1,dp)*self%del_az/10.d0
+             end do
+             do i = 1, size(el)
+                do k = 1, size(az)
+                   tsys(i, k) = splin2_full_precomp(self%el_bins, self%az_bins, self%tsys_coeffs(:,:,:,:,j), &
+                           & el(i), az(k))
+                end do
+             end do
+             call write_hdf(tsys_file, '/az_dense', az)
+          else
+             allocate(fr(int((self%fr_max-self%fr_min)/(self%del_fr/10.d0))+1+int(4*10)))
+             allocate(tsys(size(el), size(fr)))
+             do i = 1, size(fr)
+                !fr(i) = self%fr_min + real(i-0.5,dp)*self%del_fr/10.d0 - 2.d0*self%del_fr
+                fr(i) = self%fr_min - 2.d0*self%del_fr + real(i-1,dp)*self%del_fr/10.d0
+             end do
+             do i = 1, size(el)
+                do k = 1, size(fr)
+                   tsys(i, k) = splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
+                           & el(i), fr(k))
+                end do
+             end do
+             call write_hdf(tsys_file, '/fr_dense', fr)
+          end if
           call write_hdf(tsys_file, '/tsys_dense', tsys)
-          deallocate(el, fr, tsys)
+          deallocate(el, tsys)
+          if (self%read_az) then
+             deallocate(az)
+          else
+             deallocate(fr)
+          end if
           ! Clean up
           call close_hdf_file(tsys_file)
 
@@ -1350,7 +1454,10 @@ contains
                 sd%s_inst(k,j) = sd%s_inst(k,j) + self%scans(scan)%d(d)%baseline(i) * t**i
              end do
           end if
-          if (self%read_feedrot) then
+          if (self%read_az) then
+             sd%s_inst(k,j) = sd%s_inst(k,j) + splin2_full_precomp(self%el_bins, self%az_bins, self%tsys_coeffs(:,:,:,:,j), &
+                     & self%scans(scan)%d(j)%elev(k), self%scans(scan)%d(j)%az(k))
+          else if (self%read_feedrot) then
              sd%s_inst(k,j) = sd%s_inst(k,j) + splin2_full_precomp(self%el_bins, self%fr_bins, self%tsys_coeffs(:,:,:,:,j), &
                      & self%scans(scan)%d(j)%elev(k), self%scans(scan)%feed_rot(k))
           else if (allocated(self%tsys_spline)) then
@@ -1396,7 +1503,11 @@ contains
     allocate(baseline(self%nscan_tot, self%ndet, 0:self%baseline_order))
     allocate(baseline_slew(self%nscan_tot, self%ndet, self%max_nslew, 0:self%baseline_order))
     allocate(tsys_fit(self%ndet, 0:self%tsys_order))
-    if (self%read_feedrot) allocate(tsys_coeffs(4,4,size(self%el_bins),size(self%fr_bins),self%ndet))
+    if (self%read_az) then
+       allocate(tsys_coeffs(4,4,size(self%el_bins),size(self%az_bins),self%ndet))
+    else if (self%read_feedrot) then
+       allocate(tsys_coeffs(4,4,size(self%el_bins),size(self%fr_bins),self%ndet))
+    end if
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'baseline', baseline)
@@ -1411,7 +1522,7 @@ contains
        !call get_size_hdf(chainfile, trim(adjustl(path))//'tsys_spline', ext)
        !allocate(buffer(ext(1), ext(2), ext(3)))
        !call read_hdf(chainfile, trim(adjustl(path))//'tsys_spline', buffer)
-       if (self%read_feedrot) then
+       if (self%read_az .or. self%read_feedrot) then
           if (hdf_group_exists(chainfile, trim(adjustl(path))//'tsys_coeffs')) then
              call read_hdf(chainfile, trim(adjustl(path))//'tsys_coeffs', tsys_coeffs)
           else
@@ -1425,8 +1536,8 @@ contains
     end if
 
     call mpi_bcast(ext, 3, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-    if (self%myid /= 0 .and. .not. self%read_feedrot) allocate(buffer(ext(1), ext(2), ext(3)))
-    if (.not. self%read_feedrot) call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    if (self%myid /= 0 .and. .not. (self%read_az .or. self%read_feedrot)) allocate(buffer(ext(1), ext(2), ext(3)))
+    if (.not. (self%read_az .or. self%read_feedrot)) call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     
     call mpi_bcast(baseline, size(baseline), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(baseline_slew, size(baseline_slew), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -1446,7 +1557,7 @@ contains
     end do
     self%tsys_coeffs = tsys_coeffs
 
-    if (.not. self%read_feedrot) then
+    if (.not. (self%read_az .or. self%read_feedrot)) then
        if (.not. allocated(self%tsys_spline)) allocate(self%tsys_spline(self%ndet))
        do j = 1, self%ndet
           nbin = count(buffer(:,1,j) /= -1.d30)
@@ -1532,7 +1643,7 @@ contains
           deallocate(buffer)
        end if
 
-       if (self%read_feedrot) call write_hdf(chainfile, trim(adjustl(path))//'tsys_coeffs', self%tsys_coeffs)
+       if (self%read_az .or. self%read_feedrot) call write_hdf(chainfile, trim(adjustl(path))//'tsys_coeffs', self%tsys_coeffs)
 
 
        if (self%per_slew_baseline) then
