@@ -290,7 +290,7 @@ contains
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
-       !call tod%construct_jump_corr(sd, det)
+       call tod%construct_jump_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
 
