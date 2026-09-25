@@ -27,6 +27,7 @@ module comm_tod_mod
   use comm_tod_noise_psd_mod
   use comm_tod_Tbol_mod
   use comm_tod_spike_mod
+  use comm_tod_jump_mod
   use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
@@ -85,6 +86,7 @@ module comm_tod_mod
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
      class(comm_tod_spike), pointer :: spike                             ! Spike object
+     class(comm_tod_jump),  pointer :: jump                             ! Spike object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -247,6 +249,7 @@ module comm_tod_mod
      logical(lgt) :: correct_S_crosstalk                          ! Correct for signal cross-talk during mapmaking; requires CG mapmaker
      logical(lgt) :: correct_N_crosstalk                          ! Correct for noise cross-talk during mapmaking; requires CG mapmaker
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
+     logical(lgt) :: correct_jumps                                 ! Sample jumps
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -354,6 +357,7 @@ module comm_tod_mod
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: construct_spike_corr
+     procedure                           :: construct_jump_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -589,6 +593,7 @@ contains
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%correct_jumps       = .false.
     self%max_npole_Tbol      = 0
     self%reload_TOD          = .false. ! Store in memory by default
     
@@ -1349,6 +1354,10 @@ contains
 !!$          stop
        end if
        deallocate(xi_n)
+
+       if (tod%correct_jumps) then
+          self%d(i)%jump => comm_tod_jump()
+       end if
        
 !!$       ! Read Huffman coded data arrays
 !!$       if (nhorn == 2 .and. i == 1) then
@@ -2470,7 +2479,39 @@ contains
     end do
 
   end subroutine construct_spike_corr
-  
+
+  subroutine construct_jump_corr(self, sd, det)
+    ! construct jump correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output spike template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ntod, ndet, scan
+
+    scan         = sd%scan
+    ntod         = sd%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%jump%get_jump_tod(sd%s_jump(:,j))
+    end do
+
+  end subroutine construct_jump_corr
+
   
   subroutine output_scan_list(self, slist)
     implicit none
