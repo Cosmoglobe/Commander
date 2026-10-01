@@ -84,11 +84,16 @@ def main():
 
     parser.add_argument('--produce-filelist', action='store_true', default=False, help='force the production of a filelist even if only some files are present')
 
+    parser.add_argument('--ring-map', action='store', type=str, default='/mn/stornext/d23/cmbco/globe/orig/planck/aux/ring_mapping_hfi.txt', help='list of science scans to make PID mapping')
+
     in_args = parser.parse_args()
 
     in_args.version = 2
     
     random.seed()
+
+    #construct ring mapping array
+    in_args.map_array = np.loadtxt(in_args.ring_map, dtype=str)
 
     os.environ['OMP_NUM_THREADS'] = '1'
 
@@ -97,7 +102,6 @@ def main():
 
     ods = range(in_args.ods[0], in_args.ods[1]+1, 1)
     warm_ods = range(in_args.warm_ods[0], in_args.warm_ods[1]+1, 1)
-
 
     manager = mp.Manager()
     dicts = {}
@@ -155,7 +159,7 @@ def make_warm_od(comm_tod, freq, od, args):
         chunks = []
         chunksize = int((endtime-starttime)/24)
         for i in np.arange(24): #make 24 chunks per day
-            chunks.append([268163+(od-975)*24 +i,starttime+i*chunksize, 0, 0,starttime-1+(i+1)*chunksize])
+            chunks.append([27820+(od-975)*24 +i,starttime+i*chunksize, 0, 0,starttime-1+(i+1)*chunksize])
 
         if(args.restart and comm_tod.exists):
             print('Skipping existing file ' + comm_tod.outName)
@@ -203,7 +207,7 @@ def make_warm_od(comm_tod, freq, od, args):
             if len(endIndex[0]) != 0:
                 pid_end = endIndex[0][0]
             else:#catch final pid per od
-                pid_end = len(exFile[1].data['obt'])
+                pid_end = len(exFile[1].data['obt']) -1
             if pid_start == pid_end:#catch chunks with no data like od 1007
                 continue
 
@@ -244,7 +248,7 @@ def make_warm_od(comm_tod, freq, od, args):
                 else:
                     comm_tod.add_field(prefix + '/ztod', tod, compArray)
 
-            print(freq, od, pid)
+            #print(freq, od, pid)
             comm_tod.finalize_chunk(pid)
         comm_tod.finalize_file()
 
@@ -282,43 +286,48 @@ def make_od(comm_tod, freq, od, args):
         starttime = pointingFile[1].data['obt'][0]/1e9
         endtime = pointingFile[1].data['obt'][-1]/1e9
 
-        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime))
+        dbs = c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime)).fetchall()
 
         #Make a new list where the each short chunk is prepended to a long chunk
         chunks = []
+        curr_chunk = []
 
         start = True
-        for dbentry in dbs:
-            pid = dbentry[0]
+        for i, dbentry in enumerate(dbs):
+            if('O' in dbentry[1]):
+                continue
+            if('H' in dbentry[1]):
+                scantype='H'
+            else:
+                scantype='S'
             start_time = dbentry[2]
             end_time = dbentry[3]
 
-            if(pid%2 == 0 and start):
-                #file starts on an even chunk
-                continue
-
-            if(start):
+            if(scantype == 'S'):
+                pid = np.where(args.map_array == dbentry[1])[0][0]
+                if(len(curr_chunk) > 0):
+                    chunks.append(curr_chunk)
                 curr_chunk = []
                 curr_chunk.append(pid)
+                curr_chunk.append(dbentry[0])
+                if(len(chunks) == 0 and i == 1 and 'H' in dbs[0][1]): # if this is the first chunk and there is a repointing chunk first
+                    curr_chunk.append(dbs[0][2])
+                    curr_chunk.append(dbs[0][3])
                 curr_chunk.append(start_time)
                 curr_chunk.append(end_time)
-                start = False
-            else:
+
+            elif len(curr_chunk) > 0:
                 curr_chunk.append(start_time)
                 curr_chunk.append(end_time)
-                chunks.append(curr_chunk)
-                start = True
 
-        if(start): #we ended with an odd number of chunks
-            chunks.append(curr_chunk)
 
+        chunks.append(curr_chunk)
 
         if(args.restart and comm_tod.exists):
             print('Skipping existing file ' + comm_tod.outName)
             #add each chunk to filelist
             for chunk in chunks:
-                pid = int(chunk[0]/2)
-                comm_tod.finalize_chunk(pid)
+                comm_tod.finalize_chunk(chunk[0])
             comm_tod.finalize_file()
             return
 
@@ -361,12 +370,16 @@ def make_od(comm_tod, freq, od, args):
         comm_tod.add_field(prefix + '/mbang', mainbeamangs)
         comm_tod.add_attribute(prefix + '/mbang', 'index', detNames[0:-2])
 
-        dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
+        try:
+            dataFileName = glob.glob(os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201?????.fits'))[0]
+        except IndexError:
+            print("Missing data file:", os.path.join(args.planck_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201?????.fits'))
+            return
 
         npipeFileName = ''
 
         try:
-            npipeFileName = glob.glob(os.path.join(args.npipe_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_2015????.fits'))[0]
+            npipeFileName = glob.glob(os.path.join(args.npipe_dir, str(od).zfill(4), 'H' + str(freq) + '_' + str(od).zfill(4) + '_R_201?????.fits'))[0]
         except (IndexError):
             print("No matching files found for od " + str(od) + ", " + str(freq) + " GHz")
             return
@@ -394,14 +407,10 @@ def make_od(comm_tod, freq, od, args):
 
         #per pid
         for chunk in chunks:
-            pid = int(chunk[0]/2)
+            pid = chunk[0]
 
-            if(len(chunk) == 5):
-                start_time = chunk[1]
-                end_time = chunk[4]
-            else: #single chunk chunk
-                start_time = chunk[1]
-                end_time = chunk[2]
+            start_time = chunk[2]
+            end_time = chunk[-1]
 
             startIndex = np.where(exFile[1].data['obt']/1e9 > start_time)
             endIndex = np.where(exFile[1].data['obt']/1e9 > end_time)
@@ -413,19 +422,28 @@ def make_od(comm_tod, freq, od, args):
             if len(endIndex[0]) != 0:
                 pid_end = endIndex[0][0] 
             else:#catch final pid per od
-                pid_end = len(exFile[1].data['obt'])
+                pid_end = len(exFile[1].data['obt']) -1
             if pid_start == pid_end:#catch chunks with no data like od 1007
                 continue
 
-            if(len(chunk) == 5):
+            if(len(chunk) >= 6):
                 #There are some samples that are not included in either chunk...
-                garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[2])[0][0]
-                garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[3])[0][0]
+                garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[3])[0][0]
+                garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[4])[0][0]
                 ngarbage = garbageEnd - garbageStart
+                ngarbage2 = 0
+
+                if(len(chunk) == 8):
+                    # Chunk with three segments
+                    garbageStart = np.where(exFile[1].data['obt']/1e9 > chunk[5])[0][0]
+                    garbageEnd = np.where(exFile[1].data['obt']/1e9 > chunk[6])[0][0]
+                    ngarbage2 = ngarbage
+                    ngarbage = garbageEnd - garbageStart
+
             else:
                 ngarbage = 0
-                garbageStart = -1
-                garbageEnd = -1
+                ngarbage2 = 0
+
 
             #common fields per pid
             prefix = str(pid).zfill(6) + '/common'
@@ -435,9 +453,12 @@ def make_od(comm_tod, freq, od, args):
 
             mjds = t.mjd
 
-            #time field
-            comm_tod.add_field(prefix + '/time', [mjds[0], exFile[1].data['obt'][pid_start], 0])
-            comm_tod.add_attribute(prefix + '/time','index','[MJD, obt in sec, 0]')
+            try:
+                #time field
+                comm_tod.add_field(prefix + '/time', [mjds[0], exFile[1].data['obt'][pid_start], 0])
+                comm_tod.add_attribute(prefix + '/time','index','[MJD, obt in sec, 0]')
+            except ValueError:
+                print("data set ", prefix+'/time', 'already exists in', od, freq, chunk)
 
             comm_tod.add_field(prefix + '/time_end', [mjds[1], exFile[1].data['obt'][pid_end], 0])
             comm_tod.add_attribute(prefix + '/time_end','index','[MJD, obt in s, 0]')
@@ -445,10 +466,12 @@ def make_od(comm_tod, freq, od, args):
             #length of the tod
             comm_tod.add_field(prefix + '/ntod', [pid_end - pid_start])
 
+
             #velocity field
             #rotate from ecliptic to galactic
             #might be required, I'm not sure what coordinate system these are in 
             r = hp.Rotator(coord=['E', 'G'])
+
             comm_tod.add_field(prefix + '/vsun', r([pointingFile[4].data['x_vel'][pid_start], pointingFile[4].data['y_vel'][pid_start], pointingFile[4].data['z_vel'][pid_start]])*1000)
             #convert from km/s to m/s 
           
@@ -474,14 +497,20 @@ def make_od(comm_tod, freq, od, args):
             r_boresight = rot.from_quat(quat_arr)
 
             try:
+                extra_flags = np.empty(0, dtype='uint16')
+                if(len(chunk) == 8):
+                    extra_flags = np.append(extra_flags, extraFlagsFile[str(chunk[1]-1).zfill(6) + '/flag_extra'][()] + 256)
+                    extra_flags = np.append(extra_flags, np.ones(ngarbage2, dtype='uint16'))
                 #256 is a bit that indicates the repointing period
-                extra_flags = extraFlagsFile[str(2*pid+1).zfill(6) + '/flag_extra'][()] + 256
-                extra_flags = np.append(extra_flags, np.ones(ngarbage, dtype='uint16'))
-                extra_flags = np.append(extra_flags, np.array(extraFlagsFile[str(2*pid+2).zfill(6) + '/flag_extra'][()], dtype='uint16'))
+                extra_flags = np.append(extra_flags, extraFlagsFile[str(chunk[1]).zfill(6) + '/flag_extra'][()])
+                if(len(chunk) > 4):
+                    extra_flags = np.append(extra_flags, np.ones(ngarbage, dtype='uint16'))
+                    extra_flags = np.append(extra_flags, np.array(extraFlagsFile[str(chunk[1]+1).zfill(6) + '/flag_extra'][()] + 256, dtype='uint16'))
 
             except(KeyError):
-                print("Missing extra flags in", od, chunk)
-                extra_flags = np.zeros(pid_end - pid_start, dtype='uint16')
+                print("Missing extra flags in", od, chunk, pid_start, pid_end)
+                return
+                #extra_flags = np.zeros(pid_end - pid_start, dtype='uint16')
 
             #per detector fields
             for det in hfi.dets[freq]:
@@ -491,23 +520,41 @@ def make_od(comm_tod, freq, od, args):
                 #get RIMO index
                 #print(rimo[1].data.field('detector').flatten().shape, rimo[1].data.field('detector').flatten(), 'LFI' +str(horn) + hornType)
                 rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)
-                data_i = exFile.index_of(str(freq) + '-' + det)        
+                try:
+                    data_i = exFile.index_of(str(freq) + '-' + det)
+                except KeyError:
+                    print("Missing detector " + str(freq)+'-'+det + " in ", od, chunk) 
+                    continue
             
                 #make flag data
-                flagArray = np.array(exFile[data_i].data.field('flag')[pid_start:pid_end], dtype='uint16')
+                try:
+                    flagArray = np.array(exFile[data_i].data.field('flag')[pid_start:pid_end], dtype='uint16')
+                except (TypeError, ValueError):
+                    print("Error in flags:", od, freq, det, chunk, pid_start, pid_end)
+                    continue
 
-                flagArray = np.bitwise_or(flagArray, extra_flags)
+                try:
+                    flagArray = np.bitwise_or(flagArray, extra_flags[0:len(flagArray)])
+                except ValueError: # catch chunk in OD 882 which is the wrong length
+                    print('omitting extra flags because size is wrong for chunk', od, freq, chunk, len(flagArray), len(extra_flags))
+                    continue
 
                 #add extra flagging from txt files
                 if(det == '353-1'):
-                    #add extra flags and a bit for the repointing period
-                    ex_flags = extraFlagsFile[str(2*pid+1).zfill(6) + '/flags_extra_353-1']
-                    #add flags for garbage data
-                    ex_flags = np.append(ex_flags, np.zeros(ngarbage, dtype=uint16))
+                    ex_flags = np.empty(0, dtype='uint16')
+                    if(len(chunk) == 8):
+                        extra_flags = np.append(ex_flags, extraFlagsFile[str(chunk[1]-1).zfill(6) + '/flags_extra_353-1'][()])
+                        extra_flags = np.append(ex_flags, np.ones(ngarbage2, dtype='uint16'))
 
-                    #add flags from scanning chunk
-                    ex_flags = np.append(extraFlagsFile[str(2*pid+2).zfill(6) + '/flags_extra_353-1'])
-                    flagArray = np.bitwise_or(flagArray, ex_flags)
+                    #add extra flags and a bit for the data
+                    ex_flags = np.append(ex_flags, extraFlagsFile[str(chunk[1]).zfill(6) + '/flags_extra_353-1'])
+                    if(len(chunk) > 4):
+                        #add flags for garbage data
+                        ex_flags = np.append(ex_flags, np.zeros(ngarbage, dtype=uint16))
+
+                        #add flags from pointing period
+                        ex_flags = np.append(extraFlagsFile[str(chunk[1] + 1).zfill(6) + '/flags_extra_353-1'])
+                    flagArray = np.bitwise_or(flagArray, ex_flags[0:len(flagArray)])
 
                 #with np.printoptions(threshold=np.inf):
                 #    print(flagArray)
@@ -664,7 +711,7 @@ def make_od(comm_tod, freq, od, args):
                     comm_tod.add_field(prefix + '/ztod', tod, compArray)
 
 
-            print('Done: ',freq, od, pid)                 
+            #print('Done: ',freq, od, pid)                 
             comm_tod.finalize_chunk(pid, loadBalance=outAng)
         comm_tod.finalize_file()
     except:
@@ -674,3 +721,4 @@ def make_od(comm_tod, freq, od, args):
 
 if __name__ == '__main__':
     main()
+

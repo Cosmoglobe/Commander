@@ -64,23 +64,24 @@ class commander_tod:
 
         if os.path.exists(self.outName):
             self.exists = True
+            
         if mode == 'w':
-            #if self.exists and self.overwrite:
-            #    os.remove(self.outName)
-            try:
+            if self.exists:
+                try:
+                    self.outFile = h5py.File(self.outName, 'a')
+                    v = self.outFile['/common/version']
+
+                except (KeyError, OSError):
+                    print("Deleting malformed file " + self.outName)
+                    if(hasattr(self, 'outFile')):
+                        self.outFile.close()
+                    os.remove(self.outName)
+                    self.exists = False
+                    self.outFile = h5py.File(self.outName, 'a')
+            else:
                 self.outFile = h5py.File(self.outName, 'a')
 
-                #if self.exists and not self.overwrite:
-                #    for pid in self.load_field('/common/pids'):
-                #        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                #        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
-            except (KeyError, OSError):
-                if(hasattr(self, 'outFile')):
-                    self.outFile.close()
-                os.remove(self.outName)
-                self.exists = False
-                self.outFile = h5py.File(self.outName, 'a')
-        
+
         if mode == 'r':
             if not self.exists:
                 raise OSError('Cannot find file ' + self.outName)
@@ -229,30 +230,19 @@ class commander_tod:
 
     def finalize_file(self):
 
+        if self.filelists is not None:
+            for pid in self.pids.keys():
+                self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'
+
         if(not self.exists or self.overwrite):
             for encoding in self.encodings.keys():
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            self.add_field('/common/version', np.string_(self.version))
-            # [Maksym]: was getting the error:
-            # ...
-            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
-            # self.add_field('/common/pids', list(self.pids.keys()))
-            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 179, in add_fie    ld
-            # self.outFile.create_dataset(fieldName, data=data)
-            # ...
-            # File "h5py/h5t.pyx", line 1629, in h5py.h5t.py_create
-            # File "h5py/h5t.pyx", line 1653, in h5py.h5t.py_create
-            # File "h5py/h5t.pyx", line 1719, in h5py.h5t.py_create
-            # TypeError: No conversion path for dtype: dtype('<U6')
-            # So needed to add `np.string_()`
             self.add_field('/common/pids', np.string_(list(self.pids.keys())))
+            self.add_field('/common/version', np.string_(self.version))
 
-        if self.filelists is not None:
-            for pid in self.pids.keys():
-                self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
- 
+
         return
 
     def finalize_chunk(self, pid, loadBalance=[0,0]):
@@ -260,7 +250,11 @@ class commander_tod:
             raise ValueError('Load Balancing numbers must be length 2')
         for key in self.huffDict.keys():
             h = huffman.Huffman()
-            h.GenerateCode(list(self.huffDict[key].values()))
+            try:
+                h.GenerateCode(list(self.huffDict[key].values()))
+            except ValueError as e:
+                print("Crashed on ", pid, self.outPath)
+                raise e
             huffArray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
             numStr = str(key)
             if(key == 1):
