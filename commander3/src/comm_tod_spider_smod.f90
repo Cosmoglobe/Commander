@@ -195,6 +195,9 @@ contains
  
      ! Load the instrument file
      call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+
+     ! Override default gains with per-detector calibrations from the instrument file
+     call c%load_default_gains()
  
      ! Allocate sidelobe convolution data structures
      allocate(c%slconv(c%ndet), c%orb_dp)
@@ -515,7 +518,7 @@ contains
            end do
         end if
         do j=1, sd%ndet
-           self%scans(i)%d(j)%gain = 1.d0
+           self%scans(i)%d(j)%gain = self%scans(i)%d(j)%gain_def
         end do
 
       !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
@@ -831,6 +834,84 @@ contains
      type(hdf_file),                      intent(in)     :: chainfile
      character(len=*),                    intent(in)     :: path
    end subroutine dumpToHDF_SPIDER
+
+   module subroutine load_default_gains_SPIDER(self)
+     !
+     ! Reads per-detector initial gains (raw TOD units per K_CMB) from the
+     ! instrument file and sets them as gain_def and gain for all scans.
+     ! Detectors without a gain field keep gain_def from the TOD scalars.
+     !
+     ! Arguments:
+     ! ----------
+     ! self:     derived class (comm_SPIDER_tod)
+     !           SPIDER-specific TOD object
+     !
+     ! Returns
+     ! ----------
+     ! None, but updates self
+     !
+     implicit none
+     class(comm_SPIDER_tod),              intent(inout)  :: self
+
+     type(hdf_file) :: h5_file
+     integer(i4b)   :: i, j, ierr, nmissing
+     real(dp)       :: g(self%ndet)
+     logical(lgt)   :: found(self%ndet)
+     integer(i4b), allocatable, dimension(:) :: ns
+
+     call open_hdf_file(self%instfile, h5_file, 'r')
+     do j = 1, self%ndet
+        found(j) = hdf_group_exists(h5_file, trim(adjustl(self%label(j)))//'/gain')
+        if (found(j)) call read_hdf(h5_file, trim(adjustl(self%label(j)))//'/gain', g(j))
+     end do
+     call close_hdf_file(h5_file)
+
+     nmissing = count(.not. found)
+     if (self%myid == 0) then
+        if (nmissing == self%ndet) then
+           write(*,*) '|  No gains in ', trim(self%instfile), '; keeping TOD defaults for ', trim(self%freq)
+        else if (nmissing > 0) then
+           write(*,*) '|  ', nmissing, ' detectors have no gain in instrument file; keeping TOD defaults for those'
+        end if
+     end if
+     if (nmissing == self%ndet) return
+
+     do i = 1, self%nscan
+        do j = 1, self%ndet
+           if (.not. found(j)) cycle
+           self%scans(i)%d(j)%gain_def = g(j)
+           self%scans(i)%d(j)%gain     = g(j)
+        end do
+     end do
+
+     ! Recompute mean gains; read_tod computed them from the TOD default gains
+     allocate(ns(0:self%ndet))
+     self%gain0 = 0.d0
+     ns         = 0
+     do i = 1, self%nscan
+        do j = 1, self%ndet
+           if (.not. self%scans(i)%d(j)%accept) cycle
+           self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
+           ns(j)         = ns(j) + 1
+        end do
+     end do
+     call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
+          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
+          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+     self%gain0(0) = sum(self%gain0)/sum(ns)
+     where (ns > 0)
+        self%gain0 = self%gain0 / ns - self%gain0(0)
+     end where
+
+     do i = 1, self%nscan
+        do j = 1, self%ndet
+           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
+        end do
+     end do
+     deallocate(ns)
+
+   end subroutine load_default_gains_SPIDER
 
    module subroutine write2file(filename, iter, param)
       implicit none

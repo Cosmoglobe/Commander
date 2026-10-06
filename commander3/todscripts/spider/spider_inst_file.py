@@ -32,23 +32,60 @@ from commander_tools.tod_tools import commander_instrument as inst
 def main():
 
     parser = argparse.ArgumentParser()
+    #/mn/stornext/d16/cmbco/bp/mathew/spider_data
+    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d5/data/sureng/spider_commander/inst_files')
 
-    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d16/cmbco/bp/mathew/spider_data')
-
-    parser.add_argument('--det-lists', type=str, action='store', help='directory containing the detector list files', default='/mn/stornext/d16/cmbco/bp/mathew/spider_data')
-
+    parser.add_argument('--det-lists', type=str, action='store', help='directory containing the detector list files', default='/mn/stornext/d5/data/hke/commander3/BP9/data')
+    #/mn/stornext/d16/cmbco/bp/mathew/spider_data
     parser.add_argument('--bandpass-dir', type=str, action='store', help='directory with the bandpass files', default='/mn/stornext/d16/cmbco/spider/bandpass')
+
+    parser.add_argument('--version', type=int, action='store', help='instrument file version to write', default=5)
+
+    parser.add_argument('--gain-file', type=str, action='store', help='text file with two columns, a detector label (called channel) and initial gain (called cal, uK_CMB per ADU, raw TOD units)', default='/mn/stornext/u3/sureng/spider_tools/analysis/config/bolotables/cal_fwhm_29.txt')
 
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 4
+    version = args.version
+
+    gains = {}
+    default_gain = {}
+    if args.gain_file is not None:
+        # Written to parse SPIDER style bolotables
+        #bolotable header: "# Columns: channel, cal, beam, ..."
+        with open(args.gain_file) as f:
+            header = f.readline()
+        if not header.startswith('# Columns:'):
+            raise ValueError(args.gain_file + ' has no "# Columns:" header line')
+        columns = [c.strip() for c in header.split(':', 1)[1].split(',')]
+        cal_col = columns.index('cal')
+        for det, cal in np.genfromtxt(args.gain_file, dtype=str, usecols=(0, cal_col), comments='#', ndmin=2):
+            # Nan (and zero) entries are left out so those detectors get the median
+            cal = float(cal)
+            if np.isfinite(cal) and cal != 0:
+                # cal is uK_CMB per TOD unit; Commander's gain is TOD units per K_CMB
+                gains[det] = 1e6 / cal
+
+    detlists = {freq: np.genfromtxt(os.path.join(args.det_lists, spider.detlist_name(freq)), dtype=str) for freq in spider.freqs}
+
+    # Check every detector has a gain before writing anything
+    if version >= 5:
+        for freq in spider.freqs:
+            missing = [det for det in detlists[freq] if det not in gains]
+            if not missing:
+                continue
+            #fall back to the median of the given gains at this frequency
+            given = [gains[det] for det in detlists[freq] if det in gains]
+            if not given:
+                raise ValueError('No gains at ' + str(freq) + ' GHz in --gain-file to take a median of')
+            default_gain[freq] = float(np.median(given))
+            print(str(len(missing)) + ' detectors at ' + str(freq) + ' GHz have no gain; using the median of the other ' + str(len(given)) + ', ' + str(default_gain[freq]))
 
     inst_file = inst.commander_instrument(outDir, spider.instrument_filename(version), version, 'w')
 
     for freq in spider.freqs:
 
-        detlist = np.genfromtxt(os.path.join(args.det_lists, spider.detlist_name(freq)), dtype=str)
+        detlist = detlists[freq]
 
         bandpass = np.loadtxt(os.path.join(args.bandpass_dir, 'bandpass_spider_'+str(freq).zfill(3)+'GHz_transpose_threshold.txt'))
 
@@ -69,6 +106,10 @@ def main():
             inst_file.add_field(det +'/elip', data=0)
             inst_file.add_field(det + '/mbeam_eff', data=1)
             inst_file.add_field(det + '/psi_ell', data=0)
+
+            #initial gain, raw TOD units per K_CMB
+            if version >= 5:
+                inst_file.add_field(det + '/gain', data=np.float64(gains[det] if det in gains else default_gain[freq]))
 
 
     inst_file.finalize()

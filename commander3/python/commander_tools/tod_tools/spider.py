@@ -55,5 +55,11 @@ class spider(object):
             #do something here
             pass
 
-        if version > 4:
+        if version == 5:
+            #v4 plus a per-detector initial gain
+            for det in f.h5file.keys():
+                if det.startswith('x') and 'gain' not in f.h5file[det]:
+                    raise ValueError('Detector ' + det + ' is missing its gain in ' + spider.instrument_filename(version))
+
+        if version > 5:
             raise ValueError('Version ' + str(version) + ' of the spider instrument file has yet to be defined') 
