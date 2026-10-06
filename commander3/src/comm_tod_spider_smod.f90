@@ -839,7 +839,7 @@ contains
      !
      ! Reads per-detector initial gains (raw TOD units per K_CMB) from the
      ! instrument file and sets them as gain_def and gain for all scans.
-     ! Detectors without a gain field keep gain_def from the TOD scalars.
+     ! Detectors without a gain field keep gain_def from the TOD scalars (1).
      !
      ! Arguments:
      ! ----------
