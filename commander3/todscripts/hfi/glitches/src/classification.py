@@ -17,6 +17,16 @@ def classify_glitches(glitch_idx, res, seconds):
     total_samples = int(g.NSECS * g.SAMPRATE)
     slowpart = np.arange(first_samples, total_samples) / g.SAMPRATE
 
+    # Drop glitches that are too close to the end of the TOD to provide a full
+    # window of data. This must happen before any fitting so that glitch_idx
+    # stays aligned, index-for-index, with glitch_labels/glitch_amps below.
+    valid_mask = (glitch_idx + total_samples) <= len(res)
+    n_dropped = int(np.size(glitch_idx) - np.count_nonzero(valid_mask))
+    if n_dropped:
+        print(f"Dropping {n_dropped} glitch(es) too close to the end of the TOD "
+              "to fit a full template window.")
+    glitch_idx = np.asarray(glitch_idx)[valid_mask]
+
     if g.PLOTS:
         _, ax = plt.subplots(2, 1, figsize=(10, 15), sharex=True)
         ax[0].plot(seconds[:1000], res[:1000], label='Original')
@@ -31,8 +41,6 @@ def classify_glitches(glitch_idx, res, seconds):
 
     for glitch_i in glitch_idx:
         data = res[glitch_i + first_samples:glitch_i + total_samples]
-        if len(data) != len(slowpart):
-            continue
         # seconds_cut = seconds[glitch_i + first_samples:glitch_i + 2 * 180]
         popt = {}
         popt["short"], _ = curve_fit(templates.short_glitch, slowpart, data,
@@ -75,7 +83,7 @@ def classify_glitches(glitch_idx, res, seconds):
         plt.savefig(f"{g.FIGURES_PATH}classification/classified_glitches.png")
         plt.close()
 
-    return glitch_labels, glitch_amps
+    return glitch_idx, glitch_labels, glitch_amps
         
         
         
