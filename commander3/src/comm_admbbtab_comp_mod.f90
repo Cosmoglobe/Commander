@@ -33,7 +33,7 @@ module comm_adMBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_adMBBtab_comp
    !   character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join,adScale,adscale_buff
+     real(dp)          :: nu_join ! adScale,adscale_buff
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
 
@@ -220,7 +220,7 @@ contains
   !    beta = theta(1)
   !    T    = theta(2)
   ! Above nu_join the spline and the astrodust table are used
-  ! The spline is NOT rebuilt here: it uses the beta, T and adScale of the last call to
+  ! it uses the beta, T and adScale of the last call to
   ! update_spline_astrodust, while the astrodust part uses self%adscale.
   function evalSED_admbbtab(self, nu, band, pol, theta)
     implicit none

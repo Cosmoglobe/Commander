@@ -2772,8 +2772,12 @@ contains
 
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
-         call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
-         
+         if (trim(self%type) == 'adMBBtab') then
+            call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+            if (self%ntab > 0) call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         else
+            call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         end if
 
          !!write the mbbTab SED for a range of frequencies from nu1 to nu2
          ! this could maybe be updated for a more custom 'range' of frequencies in the future,
@@ -2785,29 +2789,35 @@ contains
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
 
-         if (allocated(self%astrotab)) then
-            !!!go start of ASTROTAB if it exists 
-            nu2=self%astrotab(1,2)
+         if (trim(self%type) == 'adMBBtab') then
+            if (self%nastrotab > 0) then
+               call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+               !!!go start of ASTROTAB if it exists 
+               nu2=self%astrotab(1,2)
+            else if (self%ntab > 0) then
+               nu2 = self%SEDtab(1,self%ntab)
+               ! theta(3)=self%theta(3)%p%map(1,1)
+            else
+               nu2 = 1000.d0
+            end if
+
+
             theta(1)=self%theta(1)%p%map(1,1)
             theta(2)=self%theta(2)%p%map(1,1)
-            ! theta(3)=self%theta(3)%p%map(1,1)
-         else 
-            nu2=self%SEDtab(2,self%ntab)
-            theta(1)=self%theta(1)%p%map(1,1)
-            theta(2)=self%theta(2)%p%map(1,1)
-         end if 
+
+
+            dlognu = (log(nu2) - log(nu1)) / 500d0
          
-         dlognu = (log(nu2) - log(nu1)) / 500d0
-         
-         do nuc = 0, 500
-            nu  = exp(log(nu1) + dlognu*nuc)
-            sed = self%S(nu=nu, pol=1, theta=theta)
-            write(unit,'(2E20.10)') nu, sed
-         end do
-         if (allocated(self%astrotab)) then
-            do i =3,self%nastrotab
-               write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
-            end do 
+            do nuc = 0, 500
+               nu  = exp(log(nu1) + dlognu*nuc)
+               sed = self%S(nu=nu, pol=1, theta=theta)
+               write(unit,'(2E20.10)') nu, sed
+            end do
+            if (allocated(self%astrotab)) then
+               do i =3,self%nastrotab
+                  write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
+               end do 
+            end if 
          end if 
          close(unit)
        end if
@@ -2872,8 +2882,11 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
-       if (trim(self%type) == 'MBBtab' .or. trim(self%type) == 'adMBBtab') then
+       if (trim(self%type) == 'MBBtab') then 
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+       else if (trim(self%type) == 'adMBBtab') then
+         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+         call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
        end if
 
        do i = 1, self%npar
