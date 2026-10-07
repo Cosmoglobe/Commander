@@ -26,19 +26,22 @@ def glitch_model_samples(sample_count, sample_rate, band, glitch_type, glitch_pa
     return model / np.max(model)
 
 
-def short_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "short")
+# def short_glitch(t, A, glitch_params=None):
+#     return glitch_model_func(t, A, "143-2a", "short", glitch_params)
 
-def long_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "long")
+# def long_glitch(t, A, glitch_params=None):
+#     return glitch_model_func(t, A, "143-2a", "long", glitch_params)
 
-def slow_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "slow")
+# def slow_glitch(t, A, glitch_params=None):
+#     return glitch_model_func(t, A, "143-2a", "slow", glitch_params)
 
 def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short", glitch_params=None):
     t = np.asarray(t)
     if glitch_params is None:
         glitch_params = _load_glitch_params()[band][glitch_type]
+        # print(f"Using default glitch parameters for band {band} and type {glitch_type}.")
+    # else:
+        # print(f"Using glitch parameters fit in the last iteration for glitch type {glitch_type}.")
 
     amp = []
     tau = []

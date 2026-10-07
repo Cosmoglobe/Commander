@@ -85,6 +85,19 @@ def matched_filter(res, glitch_params=None):
     glitch_idx = peak_indices
     # print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
 
+    # plot result so that I can tune the cut-off
+    if g.PLOTS:
+        plt.figure(figsize=(10, 5))
+        plt.plot(np.arange(len(score)) / g.SAMPRATE, score, label='Matched Filter Score')
+        plt.scatter(glitch_idx / g.SAMPRATE, score[glitch_idx], color='red', label='Detected Glitches')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Matched Filter Score')
+        plt.title('Matched Filter Result')
+        plt.legend()
+        plt.xlim(0, 10)
+        plt.savefig(f"{g.FIGURES_PATH}detection/matched_filter_result.png")
+        plt.close()
+
     return glitch_idx, score
 
 if __name__ == "__main__":

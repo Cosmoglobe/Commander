@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import subtraction
 import templates
+import utils
 
 
 def main():
@@ -19,29 +20,27 @@ def main():
 
     print("Iteration 0")
 
-    print("Starting glitch detection...")
+    # print("Starting glitch detection...")
     glitch_idx, _ = detection.matched_filter(res)
-    print(f"Detected {len(glitch_idx)} glitches at indices: {glitch_idx}")
+    # print(f"Detected {len(glitch_idx)} glitches at indices: {glitch_idx}")
     # match the detected glitches with the simulated ones
     matched_indices = np.intersect1d(glitch_idx, sim_indices)
     print(f"[Iteration 0] Detection accuracy: {(len(matched_indices)) * 100 / len(sim_indices):.2f}%")
 
-    print("Starting glitch classification...")
+    # print("Starting glitch classification...")
     glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res, seconds)
 
     # count how many wrong classifications
-    glitch_labels = np.asarray(glitch_labels)
-    glitch_idx = np.asarray(glitch_idx)
     wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
     print(f"[Iteration 0] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")
 
-    print("Starting glitch subtraction...")
+    # print("Starting glitch subtraction...")
     result, fitted_amps = subtraction.subtract_glitches_from_data(glitch_idx, seconds,
                                                                   glitch_labels, glitch_amps, res)
 
     # calculate normalized chi2
-    evaluation = np.sum(result)
-    print(f"[Iteration 0] Residual: {evaluation:.2f}")
+    chi2_value = utils.chi2(result)
+    print(f"[Iteration 0] Chi2: {int(chi2_value)}")
 
     if g.PLOTS:
         plt.plot(seconds[:1000], res[:1000], label='Original Data')
@@ -81,7 +80,7 @@ def main():
     maxiter = 1
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
-        print("Starting glitch detection...")
+        # print("Starting glitch detection...")
         glitch_idx, score = detection.matched_filter(res, glitch_params['short'])
 
         matched_indices = np.intersect1d(glitch_idx, sim_indices)
@@ -97,6 +96,16 @@ def main():
             plt.xlabel("Time (s)")
             plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i) + ".png")
             plt.close()
+
+        glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res,
+                                                                                  seconds,
+                                                                                  glitch_params,
+                                                                                  iter=i+1)
+
+        # print(f"DEBUG: matched_indices: {matched_indices}, glitch_idx: {glitch_idx}, sim_types: {sim_types}, sim_indices: {sim_indices}")
+
+        wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
+        print(f"[Iteration {i+1}] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")
 
 if __name__ == "__main__":
     main()

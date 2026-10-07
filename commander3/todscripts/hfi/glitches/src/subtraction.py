@@ -33,9 +33,9 @@ def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps):
 
     oneminute = np.arange(0, g.NSECS, 1 / g.SAMPRATE) 
 
-    print(f"Building template matrix with {nglitch} glitches and {ntod} samples. Shape of "
-          f"glitch_idx: {glitch_idx.shape}, glitch_labels: {len(glitch_labels)}, glitch_amps: "
-          f"{len(glitch_amps)}")
+    # print(f"Building template matrix with {nglitch} glitches and {ntod} samples. Shape of "
+    #       f"glitch_idx: {glitch_idx.shape}, glitch_labels: {len(glitch_labels)}, glitch_amps: "
+    #       f"{len(glitch_amps)}")
     tasks = [
         (index, glitch_i, glitch_labels[index], glitch_amps[index], ntod, oneminute)
         for index, glitch_i in enumerate(glitch_idx)
@@ -77,13 +77,15 @@ def subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps,
 
     # brute-force
     x = np.linalg.solve(A, b)
+    # T was built with the classification amplitudes, so x is a correction factor
+    amps = np.asarray(glitch_amps) * x
 
     result = res.copy()
-    for (glitch_i, glitch_id), glitch_amp in zip(enumerate(glitch_idx), x):
+    for (glitch_i, glitch_id), glitch_amp in zip(enumerate(glitch_idx), amps):
         glitch_model = templates.glitch_model_func(np.arange(0, g.NSECS, 1 / g.SAMPRATE),
                                                    glitch_amp, glitch_type=glitch_labels[glitch_i])
         if glitch_id + len(glitch_model) < len(res):
             result[glitch_id:glitch_id + len(glitch_model)] -= glitch_model
         else:
             result[glitch_id:] -= glitch_model[:len(res) - glitch_id]
-    return result, x
+    return result, amps
