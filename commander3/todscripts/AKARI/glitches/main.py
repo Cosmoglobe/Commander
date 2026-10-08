@@ -15,7 +15,7 @@ detector = "AKARI_090-27"
 save_path = "/mn/stornext/d23/cmbco/akari/aimartin/figures/"
 
 nsamples = 2000
-samprate = 25.28 # Hz
+samprate = 25.28 # Hz 
 
 with h5py.File(path + file, "r") as f:
     # print the keys in the file
