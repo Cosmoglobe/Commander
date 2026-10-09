@@ -68,19 +68,28 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
 
         if g.PLOTS:
             fig_sub, ax_sub = plt.subplots(1, 1)
-            ax_sub.plot(seconds, residual, label="Residual after subtracting all detected glitches")
+            ax_sub.plot(seconds, res, label="Residual after subtracting all detected glitches")
             ax_sub.legend()
             ax_sub.set_ylabel("Residual")
             ax_sub.set_xlabel("Time (s)")
             plt.xlim(seconds[0], seconds[1000])
             fig_sub.savefig(f"{g.FIGURES_PATH}classification/residual_after_subtraction_{iter}.png")
             plt.close(fig_sub)
-            quit()
 
-    for glitch_i in glitch_idx:
+    for  glitch_n, glitch_i in enumerate(glitch_idx):
         if iter > 0 and prev_amps is not None and prev_labels is not None:
             # add back the current glitch so that we can look at the residual timestream with only the current glitch
-            res[glitch_i:glitch_i + len(oneminute)] += models[prev_labels[glitch_idx.index(glitch_i)]](oneminute, prev_amps[glitch_idx.index(glitch_i)])
+            res[glitch_i:glitch_i + len(oneminute)] += models[prev_labels[np.where(glitch_idx == glitch_i)[0][0]]](oneminute, prev_amps[np.where(glitch_idx == glitch_i)[0][0]])
+
+            if g.PLOTS and glitch_n == 0:
+                fig_addback, ax_addback = plt.subplots(1, 1)
+                ax_addback.plot(seconds, res, label="Residual after adding back the current glitch")
+                ax_addback.legend()
+                ax_addback.set_ylabel("Residual")
+                ax_addback.set_xlabel("Time (s)")
+                plt.xlim(seconds[0], seconds[1000])
+                fig_addback.savefig(f"{g.FIGURES_PATH}classification/residual_after_adding_back_glitch_{iter}.png")
+                plt.close(fig_addback)
 
         data = res[glitch_i + first_samples:glitch_i + total_samples]
         popt = {}
@@ -100,6 +109,9 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
                     models[glitch_label](oneminute, *popt[glitch_label]), color='green', alpha=0.5)
             ax[0].text(seconds[glitch_i], res[glitch_i], glitch_label, fontsize=8, color='red',
                     rotation=45)
+
+        if iter > 0 and prev_amps is not None and prev_labels is not None:
+            res[glitch_i:glitch_i + len(oneminute)] -= models[prev_labels[np.where(glitch_idx == glitch_i)[0][0]]](oneminute, prev_amps[np.where(glitch_idx == glitch_i)[0][0]])
         
         residual[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, *popt[glitch_label])
 
