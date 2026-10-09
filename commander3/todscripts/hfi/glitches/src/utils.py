@@ -2,8 +2,7 @@ import numpy as np
 
 
 def chi2(res):
-    sigma0 = np.std(res)
-    chi2 = np.sum((res / sigma0) ** 2)
+    chi2 = np.sum((res) ** 2)
     return chi2
 
 def normalized_chi2(res):

@@ -20,22 +20,21 @@ def main():
 
     print("Iteration 0")
 
-    # print("Starting glitch detection...")
     glitch_idx, _ = detection.matched_filter(res)
-    # print(f"Detected {len(glitch_idx)} glitches at indices: {glitch_idx}")
     # match the detected glitches with the simulated ones
     matched_indices = np.intersect1d(glitch_idx, sim_indices)
     print(f"[Iteration 0] Detection accuracy: {(len(matched_indices)) * 100 / len(sim_indices):.2f}%")
 
-    # print("Starting glitch classification...")
     glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res, seconds)
 
     # count how many wrong classifications
     wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
     print(f"[Iteration 0] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")
+    print(f"Percentage of glitches classified as 'short': {100 * np.sum(glitch_labels == 'short') / len(glitch_labels):.2f}%")
+    print(f"Percentage of glitches classified as 'long': {100 * np.sum(glitch_labels == 'long') / len(glitch_labels):.2f}%")
+    print(f"Percentage of glitches classified as 'slow': {100 * np.sum(glitch_labels == 'slow') / len(glitch_labels):.2f}%")
 
-    # print("Starting glitch subtraction...")
-    result, fitted_amps = subtraction.subtract_glitches_from_data(glitch_idx, seconds,
+    result, fit_amps = subtraction.subtract_glitches_from_data(glitch_idx, seconds,
                                                                   glitch_labels, glitch_amps, res)
 
     # calculate normalized chi2
@@ -54,21 +53,26 @@ def main():
         plt.savefig(f"{g.FIGURES_PATH}debug/glitch_subtraction_result_0.png")
         plt.close()
 
-    final_stack = templates.stacking(result, glitch_idx, glitch_labels, fitted_amps, seconds)
+    final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
 
     glitch_params = {}
     for glitch_type in ['short', 'long', 'slow']:
+        if final_stack[glitch_type] is None:
+            print(f"No {glitch_type} glitches found, keeping default template")
+            continue
         glitch_params[glitch_type] = templates.glitch_estimation(seconds[:int(g.NSECS * g.SAMPRATE)],
                                            final_stack[glitch_type])
-        # print(f"Estimated parameters for {glitch_type} glitch: amplitudes={amps}, taus={taus}")
+
         if g.PLOTS:
             plt.plot(seconds[:int(2*g.SAMPRATE)], final_stack[glitch_type][:int(2*g.SAMPRATE)],
                     label="Stacked median")
+
+            p = glitch_params[glitch_type]
+            amps = [p[f'Amplitude{i}'] for i in range(1, 9)]
+            taus = [p[f'Tau{i}']       for i in range(1, 9)]
             plt.plot(seconds[:int(2*g.SAMPRATE)],
-                    templates.glitch_model(seconds[:int(g.NSECS * g.SAMPRATE)],
-                                           *glitch_params[glitch_type]['Amplitude1': 'Amplitude8'],
-                                           *glitch_params[glitch_type]['Tau1': 'Tau8'])[:int(2*g.SAMPRATE)],
-                                           label="Fitted Model")
+                    templates.glitch_model(seconds[:int(g.NSECS * g.SAMPRATE)], *amps,
+                                           *taus)[:int(2*g.SAMPRATE)], label="Fit Model")
 
             plt.title(f"Glitch Stacking and Fitting for {glitch_type} Glitches")
             plt.xlabel("Time (s)")
@@ -80,7 +84,7 @@ def main():
     maxiter = 1
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
-        # print("Starting glitch detection...")
+        prev_glitch_idx = glitch_idx.copy()
         glitch_idx, score = detection.matched_filter(res, glitch_params['short'])
 
         matched_indices = np.intersect1d(glitch_idx, sim_indices)
@@ -97,12 +101,10 @@ def main():
             plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i) + ".png")
             plt.close()
 
-        glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res,
-                                                                                  seconds,
-                                                                                  glitch_params,
-                                                                                  iter=i+1)
-
-        # print(f"DEBUG: matched_indices: {matched_indices}, glitch_idx: {glitch_idx}, sim_types: {sim_types}, sim_indices: {sim_indices}")
+        (glitch_idx, glitch_labels,
+         glitch_amps) = classification.classify_glitches(prev_glitch_idx, res, seconds,
+                                                         glitch_params, iter=i+1, prev_amps=fit_amps,
+                                                         prev_labels=glitch_labels)
 
         wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
         print(f"[Iteration {i+1}] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")

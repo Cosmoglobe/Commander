@@ -19,18 +19,21 @@ def _template(t, A, glitch_type, glitch_params=None):
 def chi2(data, model):
     return np.sum((data - model) ** 2) / g.SIGMA**2
 
-def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0):
+def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev_amps=None,
+                      prev_labels=None):
     """glitch_params: optional {glitch_type: template params} from a previous iteration.
     If None, the default templates are used."""
     first_samples = int(g.FAST_PART * g.SAMPRATE)
 
     # if iter == 0 , we use only 1 second after the glitch is detected to fit
-    if glitch_params is None:
+    if glitch_params is None and iter == 0:
         total_samples = int(0.05 * g.SAMPRATE)
-    else:
+    elif glitch_params is not None and iter > 0:
         total_samples = int(g.NSECS * g.SAMPRATE)
+    else:
+        raise ValueError("Invalid combination of glitch_params and iter")
     slowpart = np.arange(first_samples, total_samples) / g.SAMPRATE
-    plotsubtractsecs = np.arange(0, int(g.NSECS * g.SAMPRATE)) / g.SAMPRATE
+    oneminute = np.arange(0, int(g.NSECS * g.SAMPRATE)) / g.SAMPRATE
 
     # Drop glitches that are too close to the end of the TOD to provide a full
     # window of data. This must happen before any fitting so that glitch_idx
@@ -58,33 +61,47 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0):
     models = {gtype: partial(_template, glitch_type=gtype, glitch_params=glitch_params[gtype] if glitch_params else None)
               for gtype in glitch_types}
 
+    if iter > 0 and prev_amps is not None and prev_labels is not None:
+        # subtreact all of the detected glitches from the data before fitting the next iteration
+        for glitch_i, glitch_label, glitch_amp in zip(glitch_idx, prev_labels, prev_amps):
+            res[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, glitch_amp)
+
+        if g.PLOTS:
+            fig_sub, ax_sub = plt.subplots(1, 1)
+            ax_sub.plot(seconds, residual, label="Residual after subtracting all detected glitches")
+            ax_sub.legend()
+            ax_sub.set_ylabel("Residual")
+            ax_sub.set_xlabel("Time (s)")
+            plt.xlim(seconds[0], seconds[1000])
+            fig_sub.savefig(f"{g.FIGURES_PATH}classification/residual_after_subtraction_{iter}.png")
+            plt.close(fig_sub)
+            quit()
+
     for glitch_i in glitch_idx:
+        if iter > 0 and prev_amps is not None and prev_labels is not None:
+            # add back the current glitch so that we can look at the residual timestream with only the current glitch
+            res[glitch_i:glitch_i + len(oneminute)] += models[prev_labels[glitch_idx.index(glitch_i)]](oneminute, prev_amps[glitch_idx.index(glitch_i)])
+
         data = res[glitch_i + first_samples:glitch_i + total_samples]
-        # seconds_cut = seconds[glitch_i + first_samples:glitch_i + 2 * 180]
         popt = {}
         for gtype in glitch_types:
             popt[gtype], _ = curve_fit(models[gtype], slowpart, data, p0=[1],
                                        bounds=(0, np.inf))
 
-        # print(f"Glitch at index {glitch_i}: popt_short={popt['short']}, popt_long={popt['long']}, popt_slow={popt['slow']}")
-
         chi2val = {gtype: chi2(data, models[gtype](slowpart, *popt[gtype]))
                    for gtype in glitch_types}
-
-        # print(f"Glitch at index {glitch_i}: chi2_short={chi2val['short']}, chi2_long={chi2val['long']}, chi2_slow={chi2val['slow']}")
 
         glitch_label = min(chi2val, key=chi2val.get)
         glitch_labels.append(glitch_label)
         glitch_amps.append(popt[glitch_label][0])
-        # print(f"Glitch at index {glitch_i} classified as: {glitch_label}")
 
         if g.PLOTS:
-            ax[0].plot(plotsubtractsecs + seconds[glitch_i],
-                    models[glitch_label](plotsubtractsecs, *popt[glitch_label]), color='green', alpha=0.5)
+            ax[0].plot(oneminute + seconds[glitch_i],
+                    models[glitch_label](oneminute, *popt[glitch_label]), color='green', alpha=0.5)
             ax[0].text(seconds[glitch_i], res[glitch_i], glitch_label, fontsize=8, color='red',
                     rotation=45)
         
-        residual[glitch_i:glitch_i + len(plotsubtractsecs)] -= models[glitch_label](plotsubtractsecs, *popt[glitch_label])
+        residual[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, *popt[glitch_label])
 
     if g.PLOTS:
         ax[1].plot(seconds, residual)
