@@ -33,14 +33,14 @@ module comm_MBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values and astrodust scale
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
+     procedure(update_spline_interface), pointer :: update_spline => null()
 
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
-     procedure :: update_spline  !!procedure to update the spline 
+   !   procedure :: update_spline  !!procedure to update the spline 
      procedure :: write_spline !!procedure to print the spline 
   end type comm_MBBtab_comp
 
@@ -48,6 +48,15 @@ module comm_MBBtab_comp_mod
      procedure constructor_mbbtab
   end interface comm_MBBtab_comp
 
+
+  abstract interface
+   subroutine update_spline_interface(self,beta,T,pol)
+      import
+      class(comm_MBBtab_comp), intent(inout) :: self
+      real(dp), intent(in)                        :: T, beta
+      integer(i4b),            intent(in)         :: pol
+   end subroutine update_spline_interface
+  end interface
 contains
 
   !**************************************************
@@ -82,6 +91,7 @@ contains
     else if (trim(c%mbbtab_type) == 'spline_log') then
        c%npar_tab = 1  ! 3 column table, nu_min, nu_max sed, same setup as binned
        c%npar = 2 !['beta', 'T   ']
+       c%update_spline => update_spline_log
     else
        write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
        stop
@@ -108,11 +118,9 @@ contains
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
 
-    if  (trim(c%mbbtab_type) == 'spline_astrodust') then 
-      c%indlabel  = ['beta   ', 'T      ', 'adScale']
-    else
-      c%indlabel  = ['beta   ', 'T      ']
-    end if 
+
+    c%indlabel  = ['beta   ', 'T      ']
+
 
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
@@ -161,7 +169,7 @@ contains
 
 
     ! Make the initial spline if the right type
-    if (trim(c%mbbtab_type) == 'spline_log') then
+    if (trim(c%mbbtab_type) == 'spline_log') then 
       call c%update_spline(c%theta_def(1), c%theta_def(2), 1) !1 is for pol, not set up for polarization currently
       c%spl_buff=c%spl
       allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
@@ -179,6 +187,7 @@ contains
     call c%updateMixmat
 
   end function constructor_mbbtab
+
 
   ! Definition:
   !      x  = h*nu/(k_b*T)
@@ -220,14 +229,13 @@ contains
     end if 
 
     ! First check if requested frequency is in tabulated range
-    ! SED table has nu_min nu_max SED or nu_central, SED for spline_astrodust
     ! SED table should be ordered from lowest to highest 
     if (self%ntab .ne. 0) then
        !SEDtab(1,1) !! minimum frequency in the spline, less than this uses MBB
       minnu=self%SEDtab(1,1)
       maxnu=self%SEDtab(self%npar_tab+1,self%ntab)
 
-      if (trim(self%mbbtab_type) == 'spline_log') then
+      if (trim(self%mbbtab_type) == 'spline_log' ) then 
          if (nu<=minnu) then
             ! evaluates the low frequency range as a MBB
             beta    = theta(1)
@@ -352,7 +360,7 @@ contains
   end subroutine read_SED_table
 
 
-  subroutine update_spline(self,beta,T,pol)
+  subroutine update_spline_log(self,beta,T,pol)
     implicit none
     class(comm_MBBtab_comp),    intent(inout)   :: self
     real(dp), intent(in)                        :: T, beta
@@ -361,7 +369,7 @@ contains
     
     integer :: i, n_pts
     real(dp), allocatable :: x(:), y(:)
-    real(dp) :: xnu, xnu_ref,nu,nu_ref,MBBbound,y_linear,Astbound
+    real(dp) :: xnu, xnu_ref,nu,nu_ref,MBBbound,y_linear
     character(512) :: filename
 
 
@@ -474,120 +482,7 @@ contains
    !  end if 
 
 
-  end subroutine  update_spline
-
-
-  subroutine update_spline_astrodust(self,beta,T,adScale,pol)
-    implicit none
-    class(comm_MBBtab_comp),    intent(inout)   :: self
-    real(dp), intent(in)                        :: T, beta, adScale
-    integer(i4b),            intent(in)         :: pol
- 
-    
-    integer :: i, n_pts,ind
-    real(dp), allocatable :: x(:), y(:)
-    real(dp) :: xnu, xnu_ref,nu,nu_ref,MBBbound,y_linear,Astbound
-    character(512) :: filename
-
-    ind=1
-    n_pts = self%ntab + 3 ! one extra point to link the MBB and 2 points to link the astrotab
-
-    allocate(x(n_pts), y(n_pts))
-
-    nu=self%nu_join !SEDtab(1,1) - 1e9 !shift the joining MBB frequency backwards by 1GHz to add to the spline. 
-    x(ind)=log(nu)
-    nu_ref  = self%nu_ref(pol)
-    xnu       = h*nu / (k_b*T)
-    if (xnu > EXP_OVERFLOW) then
-         y(1) = 0.d0
-         if (self%x%info%myid == 0) write(*,*) 'Error: MBB overflow in exponent, mbbTab'
-         return
-    end if
-    xnu_ref   = h*nu_ref / (k_b*T)
-    ! normalize the MBB in Mj/sr by the value at the reference frequency 
-
-    y_linear=((nu)**(beta+3.d0)/(exp(xnu)-1.d0))/((nu_ref)**(beta+3.d0)/(exp(xnu_ref)-1.d0))
-    y(ind)=log(y_linear)
-      
-    ! Checks if the table is negative dust or not, only checks the first column, spline cannot cross the zero line
-    ! so if the first line is negative they all should be
-    self%posneg=INT(SIGN(1d0,self%SEDtab(2,1)))
-
-    do i = 1, self%ntab
-        ind=ind+1
-        if (abs(self%SEDtab(2,i))>1e-16) then !check for non-zero elements, don't want zeros in the spline? 
-            x(ind) = log(self%SEDtab(1,i))
-            y(ind) = log(abs(self%SEDtab(2,i)))
-        else
-            x(ind) = log(self%SEDtab(1,i))
-            y(ind) = log(1d-16)
-            if (self%x%info%myid == 0) then
-               write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
-            end if
-        end if 
-        if (x(ind) <= x(ind-1)) then 
-            if (self%x%info%myid == 0) then
-               write(*,*) "ERROR: mbbtab grid not strictly increasing, this will break the spline."
-               write(*,*) "Also make sure nu_join is less than the start of the tabulated values."
-               write(*,*) "i=", i, "x(i+1)=", x(ind), "x(i)=", x(ind-1), "nu_join=", self%nu_join
-            end if
-            stop
-        end if 
-    end do
-
-      !add 2 points of the astrodust to the spline fit, and use those for the derivative of the RHS
-    do i = 1, 2
-        ind=ind+1
-        if (abs(self%astrotab(2,i)*adScale)>1e-16) then !check for non-zero elements, don't want zeros in the spline? 
-            x(ind) = log(self%astrotab(1,i))
-            y(ind) = log(abs(self%astrotab(2,i)*adScale))
-            ! if (self%x%info%myid == 0) write(*,*) 'x', self%astrotab(1,i), 'y' , self%astrotab(2,i)*adScale
-        else
-            x(ind) = log(self%astrotab(1,i))
-            y(ind) = log(1d-16)
-            if (self%x%info%myid == 0) then
-               write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your astrodust table? Possible unstable spline behaviour.'
-            end if
-        end if 
-        if (x(ind) <= x(ind-1)) then 
-            if (self%x%info%myid == 0) then
-               write(*,*) "ERROR: Astrotab from mbbTab grid not strictly increasing, this will break the spline."
-               write(*,*) "Probably there is illegal overlap between Astrotab and mbbTab."
-               write(*,*) "i=", i, "x(i+1)=", x(ind), "x(i)=", x(ind-1)
-            end if
-            stop
-        end if 
-    end do
-
-   !  if (self%x%info%myid == 0) then
-   !    write(*,*) "Spline nodes"
-   !    write(*,*) 'x', exp(x)
-   !    write(*,*) 'y', exp(y)
-   !    write(*,*) 'T,beta,adScale', T, beta, adScale
-   !  end if
-
-    ! the left boundary should match the first derivative between the MBB and the tabulated values
-    ! the right boundary should match the slope of the line of the first two points of the astrodust table
-    ! there should not be any frequency overlap between the two tables
-    MBBbound = (beta + 3.d0) - xnu * exp(xnu) / (exp(xnu) - 1.0)
-    Astbound = (y(ind)-y(ind-1))/(x(ind)-x(ind-1))
-
-
-
-    call spline(self%spl, x, y, boundary=[MBBbound,Astbound], regular=.false., linear=.false.)
-    
-
-    
-    deallocate(x,y)
-
-    ! to debug set to true, warning! will output to the run folder
-   !  if (.false.) then 
-   !    filename = 'SEDdebug_.dat'
-   !    call self%write_spline(filename,1,beta,T)
-   !  end if 
-
-
-  end subroutine  update_spline_astrodust
+  end subroutine  update_spline_log
 
 
 
