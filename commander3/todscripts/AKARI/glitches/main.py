@@ -1,10 +1,11 @@
 import h5py
+import matplotlib
 import numpy as np
 from eirik_flags import load_flags
-import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import detection
+import matplotlib.pyplot as plt
 
 # open a random TOD
 path = "/mn/stornext/d23/cmbco/globe/akari/tod/eirik_newhdf/v7/n8192/"
@@ -15,7 +16,7 @@ detector = "AKARI_090-27"
 save_path = "/mn/stornext/d23/cmbco/akari/aimartin/figures/"
 
 nsamples = 2000
-samprate = 25.28 # Hz 
+samprate = 25.28 # Hz
 
 with h5py.File(path + file, "r") as f:
     # print the keys in the file
