@@ -37,6 +37,8 @@ program commander
 
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
+  type(comm_map),     pointer :: rms  => null()
+  type(comm_map),     pointer :: mask => null()
   class(comm_comp),   pointer :: c1   => null()
 
   !----------------------------------------------------------------------------------
@@ -90,7 +92,7 @@ program commander
   call MPI_Init(ierr)
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
-
+  
 !!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "data", "chains", "100-1a", 16, 32376, 33163, 40)
 !!$  call mpi_finalize(ierr)
 !!$  stop
@@ -114,6 +116,22 @@ program commander
   end if
   if (cpar%myid == cpar%root) call wall_time(t2)
 
+!!$  info => comm_mapinfo(mpi_comm_world, 1024, 3000, 2, .false.)
+!!$  m => comm_map(info, "map_line.fits")
+!!$  rms => comm_map(info, "rms_line.fits")
+!!$  mask => comm_map(info, "/mn/stornext/u3/hke/data_hfi/data/mask_common_dx12_n1024_TQU.fits")
+!!$
+!!$    do j = 1, 2
+!!$       call m%subtract_mono_dipole(mask=mask, col=j)
+!!$    end do
+!!$
+!!$  call m%wiener_filter(rms, spin0=.true.)
+!!$  call m%writeFITS("wiener.fits")
+!!$
+!!$  call mpi_finalize(ierr)
+!!$  stop
+
+  
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'

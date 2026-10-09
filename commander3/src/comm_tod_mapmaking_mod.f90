@@ -43,15 +43,16 @@ module comm_tod_mapmaking_mod
    
 contains
 
-  function constructor_binmap(tod, shared, solve_S, nplus2) result(c)
+  function constructor_binmap(tod, shared, solve_S, nplus2, num_line_comp) result(c)
     implicit none
     class(comm_tod),        intent(in)    :: tod
     logical(lgt),           intent(in)    :: shared, solve_S
     logical(lgt), optional, intent(in)    :: nplus2
+    integer(i4b), optional, intent(in)    :: num_line_comp
     class(comm_binmap), pointer           :: c
 
     integer(i4b) :: i, ierr
-    class(comm_mapinfo), pointer:: mapinfo_nplus2 => null()
+    class(comm_mapinfo), pointer:: info => null()
 
     allocate(c)
     
@@ -83,8 +84,13 @@ contains
        c%n_A  = 3*tod%ndet + 3
        c%nout = tod%output_n_maps *tod%ndet
 
-       mapinfo_nplus2 => comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
+       info => comm_mapinfo(tod%info%comm, tod%info%nside, tod%info%lmax, 3, tod%info%pol)
 
+    else if (present(num_line_comp)) then
+       c%ncol = num_line_comp
+       c%n_A  = num_line_comp*(num_line_comp+1)/2
+       c%nout = 1
+       info => comm_mapinfo(tod%info%comm, tod%info%nside, 0, num_line_comp, .false.)
     else
        c%ncol = tod%nmaps
        c%n_A  = tod%nmaps*(tod%nmaps+1)/2
@@ -93,8 +99,8 @@ contains
     !write(*,*) 'nout = ', tod%output_n_maps, c%nout
     allocate(c%outmaps(c%nout))
     do i = 1, c%nout
-       if(c%solve_nplus2)then
-         c%outmaps(i)%p => comm_map(mapinfo_nplus2)
+       if(associated(info))then
+         c%outmaps(i)%p => comm_map(info)
        else  
          c%outmaps(i)%p => comm_map(tod%info)
        end if
@@ -294,6 +300,73 @@ contains
     call timer%stop(TOD_MAPBIN, tod%band)
     
   end subroutine bin_TOD
+
+    ! Compute map with white noise assumption from correlated noise 
+  ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
+  subroutine bin_TOD_line_emission(tod, scan, pix, flag, res, line_ratio, binmap)
+    !        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+    ! Routine to bin time ordered data
+    ! Assumes white noise after correctiom from correlated noise and calibrated data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:    
+    !         
+    ! scan:   integer
+    !         scan number
+    ! pix:    2-dimentional array
+    !         Number of pixels from scandata
+    ! psi:    2-dimentional array
+    !         Pointing angle pr pixel
+    ! flag:   2-dimentional array
+    !         Flagged data to be excluded from the mapmaking
+    ! data:   2-dim array
+    !         Array of calibrated data
+    !
+    ! Returns:
+    ! ----------
+    ! binmap: pointer
+    !         Pointer to array of binned map?
+    ! 
+
+    implicit none
+    class(comm_tod),                             intent(in)    :: tod
+    integer(i4b),                                intent(in)    :: scan
+    integer(i4b),        dimension(1:,1:),       intent(in)    :: pix, flag
+    real(sp),            dimension(1:,1:),       intent(in)    :: res
+    real(sp),            dimension(1:,1:),       intent(in)    :: line_ratio
+    type(comm_binmap),                           intent(inout) :: binmap
+
+    integer(i4b) :: det, i, j, k, t, pix_, off, nline, psi_
+    real(dp)     :: inv_sigmasq, eff
+    nline = binmap%ncol
+ 
+    call timer%start(TOD_MAPBIN, tod%band)
+    do det = 1, size(pix,2) ! loop over all the detectors
+       if (.not. tod%scans(scan)%d(det)%accept) cycle
+       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
+
+       ! polarization efficiency
+       eff = tod%pol_eff(det)
+       do t = 1, size(pix,1)
+          
+          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
+          
+          pix_    = tod%pixcache%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
+          do i = 1, nline
+             binmap%b_map(1,i,pix_) = binmap%b_map(1,i,pix_) + &
+                  & line_ratio(i,det) * res(t,det) * inv_sigmasq
+             do j = 1, i
+                k = i*(i-1)/2 + j ! Position in A matrix
+                binmap%A_map(k,pix_) = binmap%A_map(k,pix_) + &
+                     & line_ratio(i,det) * line_ratio(j,det) * inv_sigmasq
+             end do
+          end do
+       end do
+    end do
+    call timer%stop(TOD_MAPBIN, tod%band)
+    
+  end subroutine bin_TOD_line_emission
 
 
    ! differential TOD computation, written with WMAP in mind.
@@ -594,7 +667,7 @@ end subroutine bin_differential_TOD
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
     if (binmap%sA_map%myid_shared == 0) then
        do i = 1, size(binmap%sA_map%a, 1)
-          write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
+          !write(*,*) "at point A, i=", i, binmap%sA_map%comm_inter
           call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
        end do
@@ -603,7 +676,7 @@ end subroutine bin_differential_TOD
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
       if (binmap%sb_map%myid_shared == 0) then
          do i = 1, size(binmap%sb_map%a, 1)
-            write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
+            !write(*,*) "at point B, i=", i, binmap%sb_map%comm_inter
             call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter,ierr)
          end do
@@ -1194,6 +1267,101 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
       call timer%stop(TOD_MAPSOLVE, tod%band)
       
    end subroutine finalize_binned_map
+
+   subroutine finalize_binned_map_line_emission(tod, binmap, rms)
+    !
+    ! Routine to finalize the binned maps
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:
+    ! binmap:
+    ! rms:
+    ! scale
+    ! chisq_S
+    ! mask
+    !
+    implicit none
+    class(comm_tod),                      intent(in)    :: tod
+    type(comm_binmap),                    intent(inout) :: binmap
+    class(comm_map),                      intent(inout) :: rms
+
+    integer(i4b) :: i, j, k, l, nmaps, ierr, ndet, ncol, n_A, off, ndelta
+    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    real(dp), allocatable, dimension(:,:)   :: A_inv
+    real(dp), allocatable, dimension(:,:,:) :: b_tot
+    real(dp), allocatable, dimension(:,:)   :: A_tot
+    class(comm_mapinfo), pointer :: info 
+    class(comm_map),     pointer :: smap 
+
+    call timer%start(TOD_MAPSOLVE, tod%band)
+    
+    myid  = tod%myid
+    nprocs= tod%numprocs
+    comm  = tod%comm
+    np0   = tod%info%np
+    nout  = size(binmap%sb_map%a,dim=1)
+    ndet  = tod%ndet
+    n_A   = size(binmap%sA_map%a,dim=1)
+    ncol  = size(binmap%sb_map%a,dim=2)
+    nmaps = ncol
+    
+    ! Collect contributions from all nodes
+    call mpi_win_fence(0, binmap%sA_map%win, ierr)
+    if (binmap%sA_map%myid_shared == 0) then
+       do i = 1, size(binmap%sA_map%a, 1)
+          call mpi_allreduce(MPI_IN_PLACE, binmap%sA_map%a(i, :), size(binmap%sA_map%a, 2), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sA_map%comm_inter, ierr)
+       end do
+    end if
+      call mpi_win_fence(0, binmap%sA_map%win, ierr)
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+      if (binmap%sb_map%myid_shared == 0) then
+         do i = 1, size(binmap%sb_map%a, 1)
+            call mpi_allreduce(mpi_in_place, binmap%sb_map%a(i, :, :), size(binmap%sb_map%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, binmap%sb_map%comm_inter, ierr)
+         end do
+      end if
+      call mpi_win_fence(0, binmap%sb_map%win, ierr)
+
+      allocate (A_tot(n_A, 0:np0-1), b_tot(nout, nmaps, 0:np0-1))
+      A_tot = binmap%sA_map%a(:, tod%info%pix + 1)
+      b_tot = binmap%sb_map%a(:, 1:nmaps, tod%info%pix + 1)
+
+      ! Solve for local map and rms
+      allocate (A_inv(ncol, ncol))
+      do i = 0, np0 - 1
+         if (all(b_tot(1, :, i) == 0.d0)) then
+            rms%map(i, :) = 0.d0
+            do k = 1, nout
+               binmap%outmaps(k)%p%map(i, :) = 0.d0
+            end do
+            cycle
+         end if
+
+         A_inv = 0.d0
+         do j = 1, ncol
+            do k = 1, j
+               l = j*(j-1)/2 + k ! Position in A matrix
+               A_inv(j,k) = A_tot(l,i)
+               A_inv(k,j) = A_tot(l,i)
+            end do
+         end do
+
+         ! Can I return the condition number?
+         call invert_singular_matrix(A_inv, 1d-12)
+         binmap%outmaps(1)%p%map(i,:) = matmul(A_inv, b_tot(1, 1:ncol, i))
+
+         ! Diagonal matrix; store RMS
+         do j = 1, ncol
+            rms%map(i,j) = sqrt(A_inv(j, j))
+         end do
+      end do
+
+      deallocate (A_inv, A_tot, b_tot)
+      call timer%stop(TOD_MAPSOLVE, tod%band)
+      
+    end subroutine finalize_binned_map_line_emission
 
    subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix, comp_S, split)
      !

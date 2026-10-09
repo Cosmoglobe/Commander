@@ -98,6 +98,7 @@ module comm_map_mod
      procedure     :: getSigmaL
      procedure     :: getCrossSigmaL
      procedure     :: smooth
+     procedure     :: wiener_filter
      procedure     :: map2pix
      procedure     :: bcast_fullsky_map
      procedure     :: bcast_fullsky_from_root
@@ -105,8 +106,7 @@ module comm_map_mod
      procedure     :: distribute_alms
      procedure     :: get_alm
      procedure     :: get_alm_TEB
-     procedure     :: remove_MDpoles
-     procedure     :: fit_MDpoles
+     procedure     :: subtract_mono_dipole
      procedure     :: remove_EE_l2_alm
      procedure     :: add_random_fluctuation
 
@@ -1405,6 +1405,64 @@ subroutine tod2file_dp3(filename,d)
 
   end subroutine smooth
 
+  subroutine wiener_filter(self, rms, spin0)
+    implicit none
+    class(comm_map), intent(inout)    :: self
+    class(comm_map), intent(in)       :: rms
+    logical(lgt),    intent(in), optional :: spin0
+
+    integer(i4b) :: i, j, l, m, nmaps, lmax, ierr
+    logical(lgt) :: spin0_
+    real(dp)     :: S_l, N_l, f
+    real(dp), allocatable, dimension(:) :: sigma
+    real(dp), allocatable, dimension(:,:,:) :: SigmaL
+
+    nmaps  = self%info%nmaps
+    lmax   = self%info%lmax
+    spin0_ = .false.; if (present(spin0)) spin0_ = spin0
+
+    allocate(sigma(nmaps), SigmaL(nmaps,nmaps,0:lmax))
+    do i = 1, nmaps
+       sigma(i) = sum(rms%map(:,i))
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, sigma, nmaps, MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+    sigma = sigma/self%info%npix
+    
+    if (spin0) then
+       call self%YtW_scalar
+    else
+       call self%YtW
+       if (self%info%nmaps == 3) sigma(2:3) = 0.5*sum(sigma(2:3))
+    end if
+
+    call self%getSigmaL(sigma_l_mat=SigmaL)
+    
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i,l,m)
+       do j = 1, self%info%nmaps
+!          if (j == 1) then
+             N_l = 10.d0 * sigma(j)**2 * 4.d0*pi/self%info%npix
+!          else
+!             N_l = 10.d0 * sigma(j)**2 * 4.d0*pi/self%info%npix
+!          end if
+          S_l = max(SigmaL(j,j,l) - N_l, 0.d0)
+          f   = S_l / (S_l + N_l)
+          !if (self%info%myid == 0) write(*,fmt='(i6,3f16.8)') l, N_l, S_l, f
+          self%alm(i,j) = self%alm(i,j) * f
+       end do
+    end do
+
+    if (spin0) then
+       call self%Y_scalar
+    else
+       call self%Y
+    end if
+
+    deallocate(sigma, SigmaL)
+
+  end subroutine wiener_filter
+
   !**************************************************
   !                   Utility routines
   !**************************************************
@@ -1901,64 +1959,49 @@ subroutine tod2file_dp3(filename,d)
 
   end subroutine get_alm_TEB
 
-
-
-  subroutine remove_MDpoles(self)
+  subroutine subtract_mono_dipole(self, mask, coeff, col)
     implicit none
-    class(comm_map),                    intent(inout) :: self
-    real(dp), allocatable, dimension(:,:)             :: fullmap
-    real(dp), allocatable, dimension(:)               :: multipoles, zbounds
-    integer(i4b)                                      :: i
+    class(comm_map), intent(inout)           :: self
+    class(comm_map), intent(in),    optional :: mask
+    real(dp),        intent(out),   optional :: coeff(0:3)
+    integer(i4b),    intent(in),    optional :: col
 
-    allocate(fullmap(0:self%info%npix -1, self%info%nmaps))
-    allocate(multipoles(0:3))
-    allocate(zbounds(1:2))
-    zbounds(1) = 0.d0!0.17 ! ~10 degree galaxy cut I think
-    zbounds(2) = 0.d0!-0.17
-    !broadcast fullsky map
-    call self%bcast_fullsky_map(fullmap)
+    integer(i4b) :: i, j, ierr, col_
+    logical(lgt) :: sub
+    real(dp) :: A(4,4), b(4), vec(0:3,1), A_tot(4,4), b_tot(4), c(0:3)
 
-    !subtract mono and dipoles
-    call remove_dipole(self%info%nside, fullmap(:,1), 1, 2, multipoles, zbounds)
-
+    col_ = 1; if (present(col)) col_ = col
     
-
-    !redistribute map
-    do i = 1, self%info%np
-      if(fullmap(self%info%pix(i),1) /= 0.d0) then
-        self%map(i-1, 1) = fullmap(self%info%pix(i),1)
-      end if
-    end do
-
-    deallocate(fullmap, multipoles, zbounds)
-  end subroutine remove_MDpoles
-
-  function fit_MDpoles(self, mask)
-    implicit none
-    class(comm_map), intent(in) :: self
-    class(comm_map), intent(in) :: mask
-    real(dp)                    :: fit_MDpoles(0:3)
-
-    integer(i4b) :: i, j, ierr
-    real(dp) :: A(4,4), b(4), vec(0:3,1), A_tot(4,4), b_tot(4)
-
     A = 0.d0; b = 0.d0
     do i = 0, self%info%np-1
-       if (mask%map(i,1) < 0.5d0) cycle
-       vec(0,1) = 0.d0
-       call pix2vec_ring(self%info%nside, i, vec(1:3,1))
+       if (present(mask)) then
+          if (mask%map(i,1) < 0.5d0) cycle
+       end if
+       vec(0,1) = 1.d0
+       call pix2vec_ring(self%info%nside, self%info%pix(i+1), vec(1:3,1))
        A = A + matmul(vec,transpose(vec))
-       b = b + vec(:,1) * self%map(i,1)
+       b = b + vec(:,1) * self%map(i,col_)
     end do
     call mpi_reduce(A, A_tot, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
     call mpi_reduce(b, b_tot, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
     if (self%info%myid == 0) then
-       call solve_system_real(A_tot, fit_MDpoles, b_tot)
+       call solve_system_real(A_tot, c, b_tot)
     end if
-    call mpi_bcast(fit_MDpoles, size(fit_MDpoles), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-
-  end function fit_MDpoles
+    call mpi_bcast(c, 4, MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    
+    if (present(coeff)) then
+       coeff = c ! Only return best-fit values, don't subtract
+    else
+       ! Subtract best-fit dipole
+       do i = 0, self%info%np-1
+          vec(0,1) = 1.d0
+          call pix2vec_ring(self%info%nside, self%info%pix(i+1), vec(1:3,1))
+          self%map(i,col_) = self%map(i,col_) - sum(c*vec(:,1))
+       end do
+    end if
+    
+  end subroutine subtract_mono_dipole
 
 
   subroutine remove_EE_l2_alm(self, mask)

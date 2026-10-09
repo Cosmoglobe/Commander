@@ -339,6 +339,7 @@ contains
           do j = 0, data(n)%ndet
              data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
           end do
+          if (data(n)%tod%num_emission_lines > 0) call data(n)%tod%init_tod_line_emission
        end if
 
        ! Initialize dust extinction map

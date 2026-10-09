@@ -140,7 +140,7 @@ contains
        select type (c)
        class is (comm_cmb_comp)
           call c%x%Y
-          md = c%x%fit_MDpoles(c%priormask)
+          call c%x%subtract_mono_dipole(mask=c%priormask,coeff=md)
           
           do i = 0, c%x%info%nalm-1
              call c%x%info%i2lm(i,l,m)

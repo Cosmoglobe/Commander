@@ -56,6 +56,7 @@ module comm_tod_mod
 
      real(sp),     allocatable, dimension(:,:,:,:) :: map_sky  ! Index-based sky map (nmaps,nobs,0:ndet, nbp)
      real(sp),     allocatable, dimension(:,:,:)   :: map_gain ! Index-based sky map for gain
+     real(sp),     allocatable, dimension(:,:)   :: map_line ! Index-based line emission map, summed over components (nobs,ndet)
      integer(i4b), allocatable, dimension(:)   :: bitmask  ! Index-based bitmask
    contains
      procedure :: expand_storage
@@ -64,6 +65,7 @@ module comm_tod_mod
      procedure :: get_ind_range
      procedure :: precomp_aux
      procedure :: init_map_mask
+     procedure :: init_line_emission
      procedure :: dealloc => deallocate_pixcache
   end type comm_tod_pixcache
 
@@ -207,6 +209,13 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
      character(len=16), allocatable, dimension(:) :: incl_objctr
+     integer(i4b) :: num_emission_lines
+     real(dp),          allocatable, dimension(:)   :: nu_line
+     character(len=16), allocatable, dimension(:)   :: label_line
+     real(dp),          allocatable, dimension(:,:) :: line_ratio
+     real(dp), allocatable, dimension(:,:,:) :: line_ratio_prior      
+     class(comm_map),   pointer :: map_line, rms_line, mask_line      ! Line emission maps, rms, and mono+dipole mask
+     class(map_ptr), allocatable, dimension(:) :: line_ref_map
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -354,6 +363,7 @@ module comm_tod_mod
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: construct_spike_corr
+     procedure                           :: construct_line_emission_template
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -376,6 +386,7 @@ module comm_tod_mod
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
      procedure                           :: compute_powspec
+     procedure                           :: init_tod_line_emission
   end type comm_tod
   
   abstract interface
@@ -418,6 +429,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_sl          ! Sidelobe correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_objctr      ! Object-centric signal (solar, Moon, Earth, zodi..)
      real(sp),     allocatable, dimension(:,:,:,:) :: s_sky         ! Stationary sky signal [ntod,ndet,hmax+1,nbp]
+     real(sp),     allocatable, dimension(:,:,:)   :: s_line        ! TOD line emission signal (ntod,ndet,hmax+1)
      real(sp),     allocatable, dimension(:,:,:)   :: s_orb         ! Orbital dipole
      real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
      real(sp),     allocatable, dimension(:,:,:,:) :: s_calib       ! Custom calibrator
@@ -491,6 +503,13 @@ interface
     type(map_ptr),       dimension(1:),       intent(in), optional :: map_gain
     real(sp),                                 intent(in), optional :: scale
   end subroutine init_map_mask
+
+  module subroutine init_line_emission(self, map_line, line_ratio)
+    implicit none
+    class(comm_tod_pixcache),                 intent(inout) :: self
+    class(comm_map), pointer,                 intent(in)    :: map_line
+    real(dp),        dimension(:,:),          intent(in)    :: line_ratio
+  end subroutine init_line_emission
 
   module subroutine deallocate_pixcache(self)
     implicit none
@@ -591,6 +610,7 @@ contains
     self%correct_N_crosstalk = .false.
     self%max_npole_Tbol      = 0
     self%reload_TOD          = .false. ! Store in memory by default
+    self%num_emission_lines  = 0
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%rawtod_dp       = .false.
@@ -2236,10 +2256,10 @@ contains
 
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
-       if (.not. self%scans(sd%scan)%d(d)%accept) cycle
+       if (.not. self%scans(sd%scan)%d(d)%accept) cycle 
        do h = 1, nhorn
           hp = h; if (nhorn == 1) hp = 0
-          ! Evaluate sidelobe signal on sparse grid
+         ! Evaluate sidelobe signal on sparse grid
           do i = 1, ntod/subsamp !TODO: determine a good subsampling factor. 10? 50?
              k = subsamp*(i-1) + 1
              pix_      = self%pixcache%ind2sl(self%pixcache%pix2ind(sd%pix(k,d,h)))
@@ -2267,6 +2287,36 @@ contains
     call free_spline(my_spline)
 
   end subroutine construct_sl_template
+
+  subroutine construct_line_emission_template(self, sd, det)
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
+    real(dp)     :: psi_, unwrap, x0, x1
+    real(dp), dimension(:), allocatable :: sub_sl, x_sl
+    type(spline_type) :: my_spline
+
+    ntod    = sd%ntod
+    ndet    = sd%ndet; if (present(det)) ndet = 1
+    nhorn   = self%nhorn
+
+    sd%s_line = 0.
+    do j = 1, sd%ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(sd%scan)%d(d)%accept) cycle
+       do h = 1, nhorn
+          hp = h; if (nhorn == 1) hp = 0
+          do k = 1, ntod
+             pix_              = self%pixcache%pix2ind(sd%pix(k,d,h))
+             sd%s_line(k,j,hp) = self%pixcache%map_line(pix_,d)
+          end do
+       end do
+    end do
+
+  end subroutine construct_line_emission_template
 
 
 !!$  !construct a sidelobe template in the time domain
@@ -3360,6 +3410,21 @@ contains
     integer(i4b),                        intent(in)    :: band
   end subroutine load_instrument_inst
 
+  subroutine init_tod_line_emission(self)
+    !
+    ! Initialize line emission, must be called after both tod and bandpasses 
+    ! have been initialized
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_tod),                     intent(inout) :: self
+  end subroutine init_tod_line_emission
+  
   
   subroutine dumpToHDF_inst(self, chainfile, path)
     ! 
