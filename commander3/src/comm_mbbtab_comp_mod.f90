@@ -92,10 +92,6 @@ contains
        c%npar_tab = 1  ! 3 column table, nu_min, nu_max sed, same setup as binned
        c%npar = 2 !['beta', 'T   ']
        c%update_spline => update_spline_log
-    else if (trim(c%mbbtab_type) == 'spline_asinh') then
-       c%npar_tab = 1  ! 3 column table, nu_min, nu_max sed, same setup as binned
-       c%npar = 2 !['beta', 'T   ']
-       c%update_spline => update_spline_asinh
     else
        write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
        stop
@@ -173,7 +169,7 @@ contains
 
 
     ! Make the initial spline if the right type
-    if (trim(c%mbbtab_type) == 'spline_log' .or. trim(c%mbbtab_type) == 'spline_asinh') then
+    if (trim(c%mbbtab_type) == 'spline_log') then 
       call c%update_spline(c%theta_def(1), c%theta_def(2), 1) !1 is for pol, not set up for polarization currently
       c%spl_buff=c%spl
       allocate(c%theta_steplen(c%npar+c%ntab, cpar%mcmc_num_samp_groups))
@@ -239,7 +235,7 @@ contains
       minnu=self%SEDtab(1,1)
       maxnu=self%SEDtab(self%npar_tab+1,self%ntab)
 
-      if (trim(self%mbbtab_type) == 'spline_log' .or. trim(self%mbbtab_type) == 'spline_asinh') then
+      if (trim(self%mbbtab_type) == 'spline_log' ) then 
          if (nu<=minnu) then
             ! evaluates the low frequency range as a MBB
             beta    = theta(1)
@@ -487,135 +483,6 @@ contains
 
 
   end subroutine  update_spline_log
-
-
-
-  subroutine update_spline_asinh(self,beta,T,pol)
-    implicit none
-    class(comm_MBBtab_comp),    intent(inout)   :: self
-    real(dp), intent(in)                        :: T, beta
-    integer(i4b),            intent(in)         :: pol
- 
-    
-    integer :: i, n_pts
-    real(dp), allocatable :: x(:), y(:)
-    real(dp) :: xnu, xnu_ref,nu,nu_ref,MBBbound,y_linear,sign_left,sign_right
-    character(512) :: filename
-
-
-    ! If ntab < 3, we add 1 extra point to ensure spline stability
-    if (self%ntab == 1) then
-       n_pts = 3  ! One bin -> [Left, Mid, Right]
-    else if (self%ntab == 2) then
-       n_pts = 4  ! Two bins -> [Left1, Mid1, Mid2, Right2]
-    else if (self%mbbtab_type == 'spline_asinh') then
-       n_pts = self%ntab + 1 ! one extra point to link the MBB
-    end if
-    allocate(x(n_pts), y(n_pts))
-
-   ! first match the low frequency edge of the first bin to the associated modified blackbody 
-   ! the bins should be sorted from the lowest to highest frequencies
-   ! you should not have zeros in the table, but if they are there you will get a warning and it will be set to 
-   ! a very small value instead for the spline calculation - spline will be irratic though very likely
-
-   ! computes the spline in log space
-   
-   nu=self%SEDtab(1,1)
-   x(1)=log(nu)
-   
-   ! beta    = theta(1)
-   ! T       = theta(2)
-   nu_ref  = self%nu_ref(pol)
-   xnu       = h*self%SEDtab(1,1) / (k_b*T)
-   if (xnu > EXP_OVERFLOW) then
-      y(1) = 0.d0
-      if (self%x%info%myid == 0) then
-      write(*,*) 'Error: MBB overflow in exponent, mbbTab'
-      end if
-      return
-   end if
-   xnu_ref   = h*nu_ref / (k_b*T)
-   ! normalize the MBB in Mj/sr by the value at the reference frequency 
-
-   self%posneg=1.d0 ! sign is preserved for the spline_asinh type
-   sign_left=INT(SIGN(1d0,self%SEDtab(3,1)))
-   sign_right=INT(SIGN(1d0,self%SEDtab(3,self%ntab)))
-
-   y_linear=sign_left*((nu)**(beta+3.d0)/(exp(xnu)-1.d0))/((nu_ref)**(beta+3.d0)/(exp(xnu_ref)-1.d0))
-   y(1)=asinh(y_linear)
-   
-
-
-   ! check if there are enough rows in the table, of there are only 1 or 2 we add extra bins of equal height 
-   ! to help stabilize the spline, this is probably not optimal
-   select case (self%ntab)
-   case (1)
-      ! Sample the only bin: Midpoint and Right Edge
-      x(2) = log(0.5d0*(self%SEDtab(1,1) + self%SEDtab(2,1)))
-      y(2) = asinh(max(1d-16, (self%SEDtab(3,1))))
-      x(3) = log(self%SEDtab(2,1))
-      y(3) = y(2)
-   case (2)
-      ! Sample both bins: Midpoint 1, Midpoint 2, and Right Edge 2
-      x(2) = log(0.5d0*(self%SEDtab(1,1) + self%SEDtab(2,1)))
-      y(2) = asinh(max(1d-16, (self%SEDtab(3,1))))
-      x(3) = log(0.5d0*(self%SEDtab(1,2) + self%SEDtab(2,2)))
-      y(3) = asinh(max(1d-16, (self%SEDtab(3,2))))
-      x(4) = log(self%SEDtab(2,2))
-      y(4) = y(3)
-
-   case default
-      ! choose the log of the midpoint of the bins for the spline nodes x
-      ! and the logarithm of the SED tabulated values
-      do i = 1, self%ntab-1
-         if (abs(self%SEDtab(3,i))>1e-16) then !check for non-zero elements, don't want zeros in the spline? 
-            x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
-            y(i+1) = asinh(self%SEDtab(3,i))
-         else
-            x(i+1) = log(0.5d0*(self%SEDtab(1,i) + self%SEDtab(2,i)))
-            y(i+1) = asinh(1d-16)
-            if (self%x%info%myid == 0) then
-               write(*,*) 'Warning, dust spline value is very small, did you forget a zero in your table? Possible unstable spline behaviour.'
-            end if
-         end if 
-         !uncomment to debug if necessary
-         ! if (self%x%info%myid == 0) then
-         !    write(*,*) "spline nodes ", i+1, x(i+1), y(i+1)
-         ! end if
-      end do
-      ! the last original point
-      x(self%ntab+1)=log((self%SEDtab(2,self%ntab)))
-      y(self%ntab+1) = asinh(self%SEDtab(3,self%ntab))
-   end select
-
-
-   ! the left boundary should match the first derivative between the MBB and the tabulated values
-   ! the right boundary can be left to natural, set by 1e30
-   MBBbound=((beta + 3.d0) - xnu * exp(xnu) / (exp(xnu) - 1.0)) *y_linear/sqrt(1+y_linear**2)
-   ! write(*,*) "MBBbound", MBBbound
-
-   do i = 2, size(x)
-      if (x(i) <= x(i-1)) then
-         if (self%x%info%myid == 0) then
-            write(*,*) "ERROR: mbbtab grid not strictly increasing, this will break the spline."
-            write(*,*) "i=", i, "x(i-1)=", x(i-1), "x(i)=", x(i)
-         end if
-         stop
-      end if
-   end do
-
-   call spline(self%spl, x, y, boundary=[MBBbound,1d30], regular=.false., linear=.false.)    
-   deallocate(x,y)
-
-    ! to debug set to true, warning! will output to the run folder
-   !  if (.false.) then 
-   !    filename = 'SEDdebug_.dat'
-   !    call self%write_spline(filename,1,beta,T)
-   !  end if 
-
-
-  end subroutine  update_spline_asinh
-
 
 
 
