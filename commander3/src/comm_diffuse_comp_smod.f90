@@ -2773,11 +2773,13 @@ contains
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
          if (trim(self%type) == 'adMBBtab') then
-            if (self%nastrotab > 0) call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+            if (self%nastrotab > 0) then 
+               call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+               call write_hdf(chainfile, trim(path)//'/astrotab', self%astrotab)
+            end if 
             if (self%ntab > 0) then 
                call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
                call write_hdf(chainfile, trim(path)//'/nu_join', self%nu_join)
-               call write_hdf(chainfile, trim(path)//'/astrotab', self%astrotab)
             end if 
          else
             call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
@@ -2801,7 +2803,7 @@ contains
                nu2 = self%SEDtab(1,self%ntab)
                ! theta(3)=self%theta(3)%p%map(1,1)
             else
-               nu2 = 1000.d0
+               nu2 = 1000.d0*1e9
             end if
 
 
@@ -2888,11 +2890,14 @@ contains
        if (trim(self%type) == 'MBBtab') then 
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
        else if (trim(self%type) == 'adMBBtab') then
-         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
-         call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
-         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
-         call read_hdf(hdffile, trim(adjustl(path))//'/nu_join', self%nu_join)
-         call read_hdf(hdffile, trim(adjustl(path))//'/astrotab', self%astrotab)
+         if (self%nastrotab > 0) then 
+            call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
+            call read_hdf(hdffile, trim(adjustl(path))//'/astrotab', self%astrotab)
+         end if 
+         if (self%ntab > 0) then 
+            call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+            call read_hdf(hdffile, trim(adjustl(path))//'/nu_join', self%nu_join)
+         end if 
        end if
 
        do i = 1, self%npar
