@@ -33,7 +33,6 @@ module comm_MBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
      character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join ! frequency where to join the MBB and the tabulated values 
      type(spline_type) :: spl
      type(spline_type) :: spl_buff
      procedure(update_spline_interface), pointer :: update_spline => null()

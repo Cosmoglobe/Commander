@@ -33,15 +33,15 @@ module comm_adMBBtab_comp_mod
   type, extends (comm_diffuse_comp) :: comm_adMBBtab_comp
    !   character(len=128) :: mbbtab_type
      integer(i4b) :: npar_tab, posneg  !npar_tab - how many columns in the table minus 2 
-     real(dp)          :: nu_join ! adScale,adscale_buff
-     type(spline_type) :: spl
-     type(spline_type) :: spl_buff
+   !   real(dp)          :: nu_join ! adScale,adscale_buff
+     type(spline_type) :: spl,spl_buff
 
    contains
      procedure :: S    => evalSED_admbbtab
      procedure :: read_SED_table
      procedure :: read_astrodust_table
      procedure :: update_spline_astrodust
+   !   procedure :: initHDFComp => initHDF_admbbtab
   end type comm_adMBBtab_comp
 
   interface comm_adMBBtab_comp
@@ -575,5 +575,130 @@ contains
     end if
   end subroutine check_and_sort_table
 
+! subroutine initHDF_admbbtab(self, cpar, hdffile, hdfpath)
+!   implicit none
+!   class(comm_adMBBtab_comp), intent(inout) :: self
+!   type(comm_params),         intent(in)    :: cpar
+!   type(hdf_file),            intent(in)    :: hdffile
+!   character(len=*),          intent(in)    :: hdfpath
+!     logical(lgt) :: only_pol, only_I
+
+!     integer(i4b)       :: i, j, l, m, ierr
+!     integer(i4b)       :: p, p_min, p_max, npr, npol
+!     real(dp)           :: md(4)
+!     character(len=512) :: path
+!     class(comm_mapinfo), pointer :: info => null()
+!     class(comm_map), pointer     :: tp => null()
+!     real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+!     integer(i4b), allocatable, dimension(:,:) :: int_pixreg
+
+!     only_pol            = cpar%only_pol
+!    path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
+!    call self%Cl%initHDF(hdffile, path)
+!    call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm', .false.)
+!    !call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_map', .true.)    ! Read amplitudes
+!    do i = 1, self%x%info%nmaps
+!       self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale(i))
+!    end do
+!    do i = 0, self%x%info%nalm-1
+!       call self%x%info%i2lm(i,l,m)
+!       if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
+!    end do
+
+
+!   call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+!   call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
+
+!   self%SEDtab_buff  = self%SEDtab
+!   self%adscale_buff = self%adscale
+
+!   call self%update_spline_astrodust(self%theta(1)%p%map(1,1),self%theta(2)%p%map(1,1), self%adscale, 1)
+
+!   if (self%nu_join > 0.d0 .and. (self%nastrotab > 0 .or. self%ntab > 1)) then
+!      self%spl_buff = self%spl
+!   end if
+
+!        do i = 1, self%npar
+!           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+!                & '_map', .true.)
+!           if (self%lmax_ind >= 0) then
+!              call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+!                   & '_alm', .false.)
+!              ! need to only take alms from polarizations with lmax > 0
+!              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
+!              if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+!                 call self%theta(i)%p%Y_scalar
+!              else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+!                 info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+!                      & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+!                 tp => comm_map(info)
+!                 tp%alm = self%theta(i)%p%alm
+!                 call tp%Y_scalar
+!                 do p = 1,self%poltype(i)
+!                    if (self%lmax_ind_pol(p,i) < 0) cycle
+!                    if (self%poltype(i) == 1) then
+!                       p_min=1
+!                       p_max=info%nmaps
+!                       if (only_pol) p_min = 2
+!                    else if (self%poltype(i)==2) then
+!                       if (p == 1) then
+!                          p_min = 1
+!                          p_max = 1
+!                       else
+!                          p_min = 2
+!                          p_max = info%nmaps
+!                       end if
+!                    else if (self%poltype(i)==3) then
+!                       p_min = p
+!                       p_max = p
+!                    else
+!                       write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+!                       stop
+!                    end if
+
+!                    do j = p_min,p_max
+!                       self%theta(i)%p%map(:,j) = tp%map(:,j)
+!                    end do
+!                 end do
+!                 call tp%dealloc(); deallocate(tp)
+!              end if
+!           end if
+
+!           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
+!           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+!           if (any(self%pol_pixreg_type(:npol,i) > 0) .and. cpar%sample_specind) then
+!              npr=0
+!              do j = 1,npol
+!                 if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+!              end do
+!              if (npr == 0) then !no pixelregions, theta = prior
+!                 if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+!                      & trim(self%indlabel(i))
+!              else
+!                 allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+!                 !pixel region values for theta
+!                 if (self%theta(i)%p%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(path)//'/'//&
+!                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
+!                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+!                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
+!                 !pixel region values for proposal length
+!                 if (self%theta(i)%p%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(path)//'/'//&
+!                      & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
+!                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+!                 self%proplen_pixreg(1:npr,1:npol,i)=dp_pixreg
+!                 !pixel region values for number of proposals
+!                 if (self%theta(i)%p%info%myid == 0) call read_hdf_int_2d_buffer(hdffile, trim(path)//'/'//&
+!                      & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+!                 call mpi_bcast(int_pixreg, size(int_pixreg),  MPI_INTEGER, 0, self%theta(i)%p%info%comm, ierr)
+!                 self%nprop_pixreg(1:npr,1:npol,i)=int_pixreg
+
+!                 deallocate(dp_pixreg,int_pixreg)
+!              end if
+!           end if
+!        end do !i = 1,npar
+!   call self%update_F_int()
+!   call self%updateMixmat
+
+! end subroutine initHDF_admbbtab
 
 end module comm_adMBBtab_comp_mod

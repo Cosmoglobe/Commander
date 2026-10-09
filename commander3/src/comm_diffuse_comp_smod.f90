@@ -2773,8 +2773,12 @@ contains
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
          if (trim(self%type) == 'adMBBtab') then
-            call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
-            if (self%ntab > 0) call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+            if (self%nastrotab > 0) call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+            if (self%ntab > 0) then 
+               call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+               call write_hdf(chainfile, trim(path)//'/nu_join', self%nu_join)
+               call write_hdf(chainfile, trim(path)//'/astrotab', self%astrotab)
+            end if 
          else
             call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
          end if
@@ -2791,7 +2795,6 @@ contains
 
          if (trim(self%type) == 'adMBBtab') then
             if (self%nastrotab > 0) then
-               call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
                !!!go start of ASTROTAB if it exists 
                nu2=self%astrotab(1,2)
             else if (self%ntab > 0) then
@@ -2887,6 +2890,9 @@ contains
        else if (trim(self%type) == 'adMBBtab') then
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
          call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
+         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+         call read_hdf(hdffile, trim(adjustl(path))//'/nu_join', self%nu_join)
+         call read_hdf(hdffile, trim(adjustl(path))//'/astrotab', self%astrotab)
        end if
 
        do i = 1, self%npar
