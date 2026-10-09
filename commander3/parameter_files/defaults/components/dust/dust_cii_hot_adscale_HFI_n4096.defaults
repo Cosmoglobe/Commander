@@ -24,11 +24,11 @@ COMP_CL_TYPE&&                = power_law gauss  # {none, single_l, binned,power
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
 COMP_CL_BETA_PRIOR_RMS&&      =  0.0
-COMP_CL_L_PIVOT&&             = 500          # Pivot multipole
+COMP_CL_L_PIVOT&&             =  500          # Pivot multipole
 COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       =  500
 COMP_CL_DEFAULT_AMP_B&&       =  500
-COMP_CL_DEFAULT_BETA_T&&      =  -0.5
+COMP_CL_DEFAULT_BETA_T&&      = -0.5
 COMP_CL_DEFAULT_BETA_E&&      =  10.d0
 COMP_CL_DEFAULT_BETA_B&&      =  10.d0
 
@@ -39,8 +39,8 @@ COMP_AMP_PRIOR_MAP&&          = none
 
 COMP_IND_LMAX&&               = 0
 
-COMP_BETA_NU_MIN&&            = 120          # Lowest frequency for index estimation in GHz
-COMP_BETA_NU_MAX&&            = 10000         # Highest frequency for index estimation in GHz
+COMP_BETA_NU_MIN&&            = 120        # Lowest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            = 10000      # Highest frequency for index estimation in GHz
 COMP_BETA_INPUT_MAP&&         = none 
 COMP_BETA_PRIOR_UNI_LOW&&     =   0.4
 COMP_BETA_PRIOR_UNI_HIGH&&    =   5.0
@@ -57,22 +57,22 @@ COMP_T_PRIOR_GAUSS_RMS&&      = 0 3
 COMP_T_SMOOTHING_SCALE&&      = 1
 COMP_T_POLTYPE&&              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_T_INPUT_MAP&&            = none 
-COMP_T_NU_MIN&&               = 120         # Lowest frequency for index estimation in GHz
-COMP_T_NU_MAX&&               = 10000         # Highest frequency for index estimation in GHz
+COMP_T_NU_MIN&&               = 120        # Lowest frequency for index estimation in GHz
+COMP_T_NU_MAX&&               = 10000      # Highest frequency for index estimation in GHz
 
-COMP_ADSCALE_PRIOR_UNI_LOW&&   = 10.
-COMP_ADSCALE_PRIOR_UNI_HIGH&&  = 100.
-COMP_ADSCALE_PRIOR_GAUSS_MEAN&&= 20.
-COMP_ADSCALE_PRIOR_GAUSS_RMS&& = 0 3
-COMP_ADSCALE_SMOOTHING_SCALE&& = 1
-COMP_ADSCALE_POLTYPE&&         = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_ADSCALE_POLTYPE&&         = 2         # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_ADSCALE_INPUT_MAP&&       = none 
-COMP_ADSCALE_NU_MIN&&          = 120         # Lowest frequency for index estimation in GHz
-COMP_ADSCALE_NU_MAX&&          = 10000        # Highest frequency for index estimation in GHz
+COMP_ADSCALE_NU_MIN&&          = 120       # Lowest frequency for index estimation in GHz
+COMP_ADSCALE_NU_MAX&&          = 10000     # Highest frequency for index estimation in GHz
 
-COMP_NU_JOIN&&                = 900 # join frequency between the MBB and the spline
+COMP_NU_JOIN&&                = 900        # join frequency between the MBB and the spline
 
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_OUTPUT_EB_MAP&&          = .false.
 
 COMP_SED_PRIOR&&              = 0
+
+COMP_T_DEFAULT&&              = 28.77
+COMP_SED_TEMPLATE&&           = /mn/stornext/d23/cmbco/akari/aimartin/data/SEDtab_dust_hot_FIRAS_v8.dat
+COMP_ADSED_TEMPLATE&&         = /mn/stornext/d23/cmbco/akari/raelynsu/dust_spline/astrodust_model.dat
+COMP_ADSCALE&&                = 0.4

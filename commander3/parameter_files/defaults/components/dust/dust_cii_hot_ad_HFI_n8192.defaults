@@ -66,3 +66,8 @@ COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_OUTPUT_EB_MAP&&          = .false.
 
 COMP_SED_PRIOR&&              = 0
+
+COMP_T_DEFAULT&&              = 28.77
+COMP_SED_TEMPLATE&&           = /mn/stornext/d23/cmbco/akari/aimartin/data/SEDtab_dust_hot_FIRAS_v8.dat
+COMP_ADSED_TEMPLATE&&         = /mn/stornext/d23/cmbco/akari/raelynsu/dust_spline/astrodust_model.dat
+COMP_ADSCALE&&                = 0.4
