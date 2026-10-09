@@ -50,7 +50,7 @@ def main():
         plt.title('Glitch Subtraction Result')
         plt.legend()
         plt.xlim(0, seconds[1000])
-        plt.savefig(f"{g.FIGURES_PATH}debug/glitch_subtraction_result_0.png")
+        plt.savefig(f"{g.FIGURES_PATH}subtraction/glitch_subtraction_result_0.png")
         plt.close()
 
     final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
@@ -108,6 +108,27 @@ def main():
 
         wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
         print(f"[Iteration {i+1}] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")
+
+        result, fit_amps = subtraction.subtract_glitches_from_data(glitch_idx, seconds,
+                                                                glitch_labels, fit_amps, res)
+
+        # calculate chi2
+        chi2_value = utils.chi2(result)
+        print(f"[Iteration {i+1}] Chi2: {int(chi2_value)}")
+
+        if g.PLOTS:
+            plt.plot(seconds[:1000], res[:1000], label='Original Data')
+            plt.plot(seconds[:1000], result[:1000], label='Data after Glitch Subtraction')
+            plt.scatter(seconds[glitch_idx], res[glitch_idx], color='red', label='Detected Glitches')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Amplitude')
+            plt.title('Glitch Subtraction Result')
+            plt.legend()
+            plt.xlim(0, seconds[1000])
+            plt.savefig(f"{g.FIGURES_PATH}subtraction/glitch_subtraction_result_{(i+1)}.png")
+            plt.close()
+
+        # final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
 
 if __name__ == "__main__":
     main()
