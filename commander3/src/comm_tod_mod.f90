@@ -430,6 +430,8 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
      real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
+     ! ADDED
+     type(spline_type)                             :: rolloff_filter ! High-frequency noise rolloff profile for Tbol deconv
   end type comm_scandata
 
   ! Class for uncompressed data of a single detector over the full flight; use sparingly

@@ -73,7 +73,7 @@ module comm_tod_hfi_mod
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
      procedure, private     :: remove_hfi_4k_lines
-     procedure, private     :: deconvolve_rolloff
+     procedure, private     :: spline_rolloff
      procedure, private     :: fill_gaps
      procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
@@ -515,8 +515,8 @@ interface
     logical(lgt),            optional, intent(in)    :: apply_mask
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
-    ! Deconvolves high frequency rolloff in noise spectrum
+  module subroutine spline_rolloff(self, sd, i_det, ps_output, set_wn_level)
+    ! Defines high frequency rolloff in noise spectrum
     !
     ! Arguments:
     ! ----------
@@ -535,7 +535,7 @@ interface
     integer(i4b),                              intent(in)    :: i_det
     character(len=*),                optional, intent(in)    :: ps_output
     logical(lgt),                    optional, intent(in)    :: set_wn_level
-  end subroutine deconvolve_rolloff
+  end subroutine spline_rolloff
 
   module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
     ! Fill gaps in flagged samples

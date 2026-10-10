@@ -69,8 +69,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    c%noise_psd_model = 'spline'
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -430,7 +430,7 @@ contains
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
     end if
-    fit_4k_lines          = .true. !iter > 2
+    fit_4k_lines          = .false. !iter > 2
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -584,7 +584,7 @@ contains
        if (.true.) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call deconvolve_rolloff(self, sd, j)!,&
+             call spline_rolloff(self, sd, j)!,&
                   !& ps_output = itertext // '_' // scantext)
           end do
        end if
@@ -1539,24 +1539,25 @@ contains
        end do
     end if
         
-    ! Deconvolve high-frequency roll-off
-    if (nonlin_lvl > 2) then
-       do i = 1, self%ndet
-          if (.not. self%scans(scan)%d(i)%accept) cycle
-          call deconvolve_rolloff(self, sd, i)
-       end do
-    end if
     
     ! Correct 4k lines (re-estimate after gain sampling)
-    if (nonlin_lvl > 3) then
+!    if (nonlin_lvl > 2) then
+!       do i = 1, self%ndet
+!          if (.not. self%scans(scan)%d(i)%accept) cycle
+!          call remove_hfi_4k_lines(self, sd, i)
+!       end do
+!    end if
+
+    ! Define high-frequency roll-off ! MODIFIED
+    if (nonlin_lvl > 3 .and. .true.) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          call remove_hfi_4k_lines(self, sd, i)
+          call spline_rolloff(self, sd, i)
        end do
     end if
     
     ! Deconvolve regularized bolometer transfer function
-    if (nonlin_lvl > 4) then
+    if (nonlin_lvl > 3) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
@@ -1566,7 +1567,8 @@ contains
              end do
              close(58)
           end if
-          call self%Tbol(i)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)
+          call self%Tbol(i)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back, &
+                                       & sd%rolloff_filter, abs(self%scans(scan)%d(i)%N_psd%sigma0)) ! ADDED
           if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
              open(58,file='tod_after.dat')
              do j = 1, sd%ntod
@@ -2020,8 +2022,8 @@ contains
  
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
-    ! Deconvolves high frequency rolloff in noise spectrum
+  module subroutine spline_rolloff(self, sd, i_det, ps_output, set_wn_level)
+    ! Defines high frequency rolloff in noise spectrum
     !
     ! Arguments:
     ! ----------
@@ -2053,7 +2055,7 @@ contains
     integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err, scan
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: gain, N_wn, samprate, dnu, rolloff_scale, eval_spline, sigma_0
-    type(spline_type) :: rolloff_filter
+    !type(spline_type) :: rolloff_filter
     integer(i4b), allocatable, dimension(:)   :: bin_count
     real(sp),     allocatable, dimension(:)   :: d_prime, dt, bin_sum
     complex(spc), allocatable, dimension(:)   :: dv
@@ -2118,52 +2120,52 @@ contains
 
     deallocate(bin_sum,bin_count,ps)
 
-    ! Define high-frequency rolloff on signal subtracted tod
-    rolloff_scale = 0.d0
-    k = 0
-    do j = 1, nbin
-       if (bin_spec(j,1) >= 70.5d0 .and. bin_spec(j,1) <= 74.5d0) then
-          k = k + 1
-          rolloff_scale = rolloff_scale + bin_spec(j,2)
-       end if
-    end do
-    rolloff_scale = rolloff_scale / k
+!    ! Define high-frequency rolloff on signal subtracted tod
+!    rolloff_scale = 0.d0
+!    k = 0
+!    do j = 1, nbin
+!       if (bin_spec(j,1) >= 70.5d0 .and. bin_spec(j,1) <= 74.5d0) then
+!          k = k + 1
+!          rolloff_scale = rolloff_scale + bin_spec(j,2)
+!       end if
+!    end do
+!    rolloff_scale = rolloff_scale / k
 !    if (self%myid==0) write(*,*) 'scan: ',self%scanid(scan),' ; rolloff_scale = ',rolloff_scale
 
-    call spline(rolloff_filter, bin_spec(:,1), dble(bin_spec(:,2)/rolloff_scale))
+    call spline(sd%rolloff_filter, bin_spec(:,1), dble(bin_spec(:,2))) !/rolloff_scale))
     deallocate(bin_spec)
 
-    ! Gap fill tod with respect to flag array
-    do i = 1, ntod
-       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then 
-          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
-       end if
-    end do
+!    ! Gap fill tod with respect to flag array
+!    do i = 1, ntod
+!       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then 
+!          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
+!       end if
+!    end do
 
-    ! Deconvolve high-frequency rolloff
-    allocate(ps(1:n-1,2))
-    dt(1:ntod)           = sd%tod(:,i_det)
-    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-    call timer%stop(TOT_FFT)
+!    ! Deconvolve high-frequency rolloff
+!    allocate(ps(1:n-1,2))
+!    dt(1:ntod)           = sd%tod(:,i_det)
+!    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!    call timer%start(TOT_FFT)
+!    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!    call timer%stop(TOT_FFT)
        
-    do l = 1, n-1
-       ps(l,1) = l*(samprate/2)/(n-1)
-       if (ps(l,1) > 75.d0) then
-          eval_spline = real(splint(rolloff_filter,dble(ps(l,1))),sp)
-          eval_spline = max(eval_spline,0.0001) ! to avoid exploding samples
-          dv(l) = dv(l) / sqrt(eval_spline)
-       end if
-       !ps(l,2) = abs(dv(l)) ** 2 / ntod
-    end do
+!    do l = 1, n-1
+!       ps(l,1) = l*(samprate/2)/(n-1)
+!       if (ps(l,1) > 75.d0) then
+!          eval_spline = real(splint(rolloff_filter,dble(ps(l,1))),sp)
+!          eval_spline = max(eval_spline,0.0001) ! to avoid exploding samples
+!          dv(l) = dv(l) / sqrt(eval_spline)
+!       end if
+!       !ps(l,2) = abs(dv(l)) ** 2 / ntod
+!    end do
     
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    call timer%stop(TOT_FFT) 
-
-    dt  = dt / nfft
-    sd%tod(:,i_det) = dt(1:ntod)
+!    call timer%start(TOT_FFT)
+!    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!    call timer%stop(TOT_FFT) 
+!
+!    dt  = dt / nfft
+!    sd%tod(:,i_det) = dt(1:ntod)
 
 
     if (set_wn_level_ .or. present(ps_output)) then
@@ -2208,11 +2210,11 @@ contains
 
 
     deallocate(dt, dv, ps)
-    call free_spline(rolloff_filter)
+    !call free_spline(rolloff_filter)
     call sfftw_destroy_plan(plan_fwd)
     call sfftw_destroy_plan(plan_back)
 
-  end subroutine deconvolve_rolloff
+  end subroutine spline_rolloff
 
   module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
     implicit none

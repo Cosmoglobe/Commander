@@ -67,7 +67,7 @@ contains
     class(comm_Tbol), pointer                  :: c
 
     integer(i4b) :: i
-    
+
     allocate(c)
     c%npole    = count(par_init(3::2) > 0.)
     c%samprate = samprate
@@ -91,13 +91,15 @@ contains
   end subroutine estimate_params
 
   ! Routine for convolving with bolometer transfer function, tod = T * tod
-  subroutine convolve_Tbol(self, tbol_type, operation, tod, plan_fwd, plan_back)
+  subroutine convolve_Tbol(self, tbol_type, operation, tod, plan_fwd, plan_back, rolloff,sigma)
     implicit none
-    class(comm_Tbol),               intent(in)    :: self
+    class(comm_Tbol),               intent(inout)    :: self ! MODIFIED
     character(len=*),               intent(in)    :: tbol_type
     character(len=*),               intent(in)    :: operation
     real(sp),         dimension(:), intent(inout) :: tod
     integer*8,                      intent(inout) :: plan_fwd, plan_back
+    type(spline_type),    optional, intent(in)    :: rolloff ! ADDED
+    real(sp),             optional, intent(in)    :: sigma ! ADDED
     
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
 
@@ -118,6 +120,11 @@ contains
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
+
+    if(present(rolloff)) then ! ADDED
+       ! Update regularization function K from the noise rolloff
+       call self%update(rolloff=rolloff, sigma=sigma)
+    end if
 
     ! Apply transfer function in Fourier space
     do i = 0, n-1
@@ -153,28 +160,36 @@ contains
   end subroutine convolve_Tbol
 
   ! Routine for convolving with bolometer transfer function, tod = T * tod
-  subroutine update_Tbol(self, par)
+  subroutine update_Tbol(self, par, rolloff, sigma) ! MODIFIED
     implicit none
     class(comm_Tbol),               intent(inout) :: self
-    real(dp),         dimension(:), intent(in)    :: par
+    real(dp),         dimension(:), optional, intent(in)    :: par     ! MODIFIED
+    type(spline_type),              optional, intent(in)    :: rolloff ! ADDED
+    real(sp),                       optional, intent(in)    :: sigma ! ADDED
 
     integer(i4b) :: i, j
-    real(dp)     :: omega, K
+    real(dp)     :: omega, K, peak ! MODIFIED
     complex(dpc) :: F, Hp
     real(dp),     allocatable, dimension(:)   :: nu
     complex(dpc), allocatable, dimension(:)   :: TF_full, TF_preproc, TF_cgmap
+    complex(dpc), allocatable, dimension(:)   :: TF_pre_regular ! ADDED
+
+    peak = 0.d0 ! ADDED
 
     ! Update parameters
-    self%npole     = count(par(3::2) > 0.d0)
-    self%tau_stray = par(1)
-    self%S_phase   = par(2)
-    do i = 1, self%npole
-       self%a(i)   = par(2+2*i-1)
-       self%tau(i) = par(2+2*i)
-    end do
+    if(present(par)) then ! ADDED
+       self%npole     = count(par(3::2) > 0.d0)
+       self%tau_stray = par(1)
+       self%S_phase   = par(2)
+       do i = 1, self%npole
+          self%a(i)   = par(2+2*i-1)
+          self%tau(i) = par(2+2*i)
+       end do
+    end if ! ADDED
 
     ! Generate transfer function; position 0 is spin frequency
     allocate(nu(0:NSPLINE), TF_full(0:NSPLINE), TF_preproc(0:NSPLINE), TF_cgmap(0:NSPLINE))
+    if(present(rolloff)) allocate(TF_pre_regular(0:NSPLINE))
     do i = 0, NSPLINE
        if (i == 0) then
           nu(i) = 1.d0/60.d0 ! One rotation per minute
@@ -192,6 +207,8 @@ contains
        ! Compute electronic transfer function
        Hp = self%get_HFI_electronic_transfunc(omega)
 
+       if(present(rolloff)) TF_pre_regular(i) = F*Hp
+
        ! Compute regularization kernel
        K = self%get_K_regularization(nu(i))
        
@@ -199,12 +216,37 @@ contains
        if (K > 0.d0) then
           TF_full(i)    = K
           TF_preproc(i) = K/(F*Hp)
+          if(present(rolloff)) then ! ADDED
+             if (nu(i) >= 80.d0 .and. peak== 0.d0) peak = splint(rolloff,dble(nu(i))) * abs(TF_preproc(i))**2
+          end if
        else
           TF_full(i)    = 0.d0
           TF_preproc(i) = 0.d0
        end if
        !write(*,fmt='(i6,5f10.6)') i, nu(i), omega, abs(F), abs(Hp), abs(TF(i))
     end do
+
+    ! ADDED =================
+    ! If the deconvolved curve needs to be above the white noise level (for the spline noise model), redifine K above 80 Hz
+    if(present(rolloff)) then
+       do i = 1, NSPLINE
+          if (nu(i) < 80.d0) cycle
+          nu(i) = (i-1)*(self%samprate/2)/(NSPLINE-1)
+          K = self%get_K_regularization(nu(i), rolloff, peak, sigma)
+          K = K * abs(TF_pre_regular(i))
+          
+          if (K > 0.d0) then
+             TF_full(i)    = K
+             TF_preproc(i) = K/TF_pre_regular(i)
+          else
+             TF_full(i)    = 0.d0
+             TF_preproc(i) = 0.d0
+          end if  
+       end do
+       deallocate(TF_pre_regular)
+    end if
+    ! =======================
+
 
     ! Normalize to unity amplitude at spin (dipole) frequency; require real component to be positive
     TF_full    = TF_full    / abs(TF_full(0))
@@ -262,7 +304,7 @@ contains
     complex(dpc) :: i, H_pos, H_neg
 
     Nsamp   = 40.d0                   ! Number of samples per modulation semi-cycle
-    fmod    = 90.18759d0              ! Modulation frequency
+    fmod    = 90.18685d0 !90.18759d0              ! Modulation frequency
     omega_r = 2.d0*pi * fmod          ! Angular modulation frequency
     dt      = self%S_phase/Nsamp/fmod ! Time shift
     i       = cmplx(0.d0, 1.d0)
@@ -319,15 +361,18 @@ contains
  
   end function get_HFI_Homega
 
-  function get_K_regularization(self, f) result(K)
+  function get_K_regularization(self, f, rolloff, peak, sigma) result(K) ! MODIFIED
     implicit none
     class(comm_Tbol), intent(in)    :: self
     real(dp),         intent(in)    :: f
+    type(spline_type), optional, intent(in) :: rolloff ! ADDED
+    real(dp),          optional, intent(in) :: peak ! ADDED
+    real(sp),          optional, intent(in) :: sigma ! ADDED
     real(dp)                        :: K
 
     real(dp) :: f_gauss, f_c, k0, fmax, fsamp
 
-    fsamp   = 2*90.18759d0
+    fsamp   = 2*90.18685 !90.18759d0
     f_gauss = 65.d0 ! Hz
     f_c     = 80.d0 ! Hz
     k0      = 0.9
@@ -341,6 +386,15 @@ contains
           K = K * cos(0.5d0*pi * (f-f_c)/(fmax-f_c))**2
        end if
     end if
+
+    ! ADDED ======
+    if(present(rolloff)) then
+       if (f >= f_c) then
+          K = ((peak - sigma**2 * 1.01) * cos(0.5d0*pi * (f-f_c)/(fmax-f_c)) + sigma**2 * 1.01) / splint(rolloff,dble(f))
+          K = sqrt(K)
+       end if  
+    end if
+    ! ============
 
     !write(*,*) f, K
     
