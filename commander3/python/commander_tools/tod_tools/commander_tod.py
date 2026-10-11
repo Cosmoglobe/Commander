@@ -252,8 +252,33 @@ class commander_tod:
         if self.filelists is not None:
             for pid in self.pids.keys():
                 self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
- 
+
         return
+
+    @staticmethod
+    def pointing_plane_normal(theta, phi, nsamp=1000):
+        """The normal of the plane that best fits one scan's pointing, as [theta, phi] in radians.
+
+        Given the pointing angles of a scan, first finds the plane which best describe those points
+        on a 3D sphere, and then calculates the normal vector of that plane (as two angles). This
+        works well for clustering overlapping scans for almost any scanning strategy, including
+        Planck, LiteBIRD, SO. These two values are written as columns 4-5 in the filelist.
+
+        Args:
+            theta, phi: One detector's pointing over the scan [rad]
+            nsamp: Number of samples to use to construct the plane.
+        Returns:
+            [theta, phi]: Two (scalar) values, representing the angles of the normal vector.
+        """
+        step = max(1, len(theta)//nsamp)
+        vecs = hp.ang2vec(np.asarray(theta)[::step], np.asarray(phi)[::step]).T  # (3, n)
+        # The best plane passes through the points' mean, and its normal is the direction the
+        # points spread least along: the eigenvector of their 3x3 covariance with the smallest
+        # eigenvalue (eigh sorts them in ascending order).
+        normal = np.linalg.eigh(np.cov(vecs))[1][:, 0]
+        normal *= np.sign(normal @ vecs.mean(axis=1))
+        outTheta, outPhi = hp.vec2ang(normal)
+        return [float(outTheta[0]), float(outPhi[0])]
 
     def finalize_chunk(self, pid, loadBalance=[0,0]):
         if len(loadBalance) != 2:
