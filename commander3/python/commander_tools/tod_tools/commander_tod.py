@@ -325,6 +325,12 @@ class commander_tod:
             pass
         self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
 
+        # The scan's number of samples, for the filelist's 6th column. Commander3 currently reads
+        # only the first five columns, but Commander4 uses it.
+        ntodField = '/' + str(pid).zfill(6) + '/common/ntod'
+        ntod = int(np.ravel(self.outFile[ntodField][()])[0]) if ntodField in self.outFile else 0
+        self.pids[pid] += ' ' + str(ntod)
+
     def compute_version(self):
         return
 
