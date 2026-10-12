@@ -62,22 +62,25 @@ contains
     ! General parameters
     allocate(c)
 
-    c%npar         = 1
+    c%npar         = 2
     allocate(c%poltype(c%npar))
     do i = 1, c%npar
        c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-    call c%initLmaxSpecind(cpar, id, id_abs)
+!    call c%initLmaxSpecind(cpar, id, id_abs)
+    allocate(c%lmax_ind_pol(3,c%npar), c%lmax_ind_mix(3,c%npar))
+    c%lmax_ind_pol = -1
+    c%lmax_ind_mix = -1
 
     call c%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
     
-    allocate(c%theta_def(1), c%p_gauss(2,1), c%p_uni(2,1))
-    allocate(c%theta_steplen(1,cpar%mcmc_num_samp_groups))
-    allocate(c%indlabel(1))
-    allocate(c%nu_min_ind(1), c%nu_max_ind(1))
-    do i = 1, 1
+    allocate(c%theta_def(c%npar), c%p_gauss(2,c%npar), c%p_uni(2,c%npar))
+    allocate(c%theta_steplen(c%npar,cpar%mcmc_num_samp_groups))
+    allocate(c%indlabel(c%npar))
+    allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
+    do i = 1, c%npar
        c%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        c%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        c%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
@@ -85,21 +88,7 @@ contains
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
     c%theta_steplen = 0d0
-    c%indlabel  = ['Te']
-
-    !c%npar         = 1
-    !allocate(c%theta_def(1), c%p_gauss(1,1), c%p_uni(1,1))
-    !allocate(c%poltype(1), c%indlabel(1))
-    !allocate(c%nu_min_ind(1), c%nu_max_ind(1))
-    !i = 1
-    !c%poltype(i)   = cpar%cs_poltype(i,id_abs)
-    !c%theta_def(i) = cpar%cs_theta_def(i,id_abs)
-    !c%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
-    !c%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-    !c%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
-    !c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
-    
-    !c%indlabel  = ['Te']
+    c%indlabel  = ['EM','Te']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
@@ -133,14 +122,14 @@ contains
                    cycle
                 end if
              end if
-             c%F_int(k,i,j)%p => comm_F_int_1D(c, data(i)%bp(j)%p, k)
+             c%F_int(k,i,j)%p => comm_F_int_2D(c, data(i)%bp(j)%p, k)
           end do
        end do
     end do
 
-    call c%initPixregSampling(cpar, id, id_abs)
-    ! Init alm 
-    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
+!!$    call c%initPixregSampling(cpar, id, id_abs)
+!!$    ! Init alm 
+!!$    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call c%updateMixmat
@@ -163,29 +152,29 @@ contains
     real(dp)     :: S, S_ref, EM, T_e
     real(dp)     :: g, g_ref, Z_i, tau, tau_ref, EM1, Te
 
-!!$    EM      = theta(1)
-!!$    !EM1 = 1.d0 
-!!$    Te      = theta(2)
-!!$    Z_i     = 1.d0
-!!$    g       = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * nu/1.d9          * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
-!!$    !g_ref   = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * self%nu_ref/1.d9 * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
-!!$    tau     = 5.468d-2 * Te**(-1.5d0) * (nu/1.d9)**(-2)          * EM * g
-!!$    !tau_ref = 5.468d-2 * Te**(-1.5d0) * (self%nu_ref/1.d9)**(-2) * EM * g_ref
-!!$
-!!$    evalSED_freefree = 1.d6 * Te * (1.d0 - exp(-tau)) !/ (1.d0 - exp(-tau_ref)) 
-!!$    
-!!$    return
-!!$    !write(*,*) "1:", evalSED_freefree
+    EM      = theta(1)
+    !EM1 = 1.d0 
+    Te      = theta(2)
+    Z_i     = 1.d0
+    g       = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * nu/1.d9          * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
+    !g_ref   = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * self%nu_ref/1.d9 * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
+    tau     = 5.468d-2 * Te**(-1.5d0) * (nu/1.d9)**(-2)          * EM * g
+    !tau_ref = 5.468d-2 * Te**(-1.5d0) * (self%nu_ref/1.d9)**(-2) * EM * g_ref
+
+    evalSED_freefree = 1.d6 * Te * (1.d0 - exp(-tau)) !/ (1.d0 - exp(-tau_ref)) 
+    
+    return
+    !write(*,*) "1:", evalSED_freefree
 
 
-    !EM    = theta(1) ! Not used
-    T_e   = theta(1)
-    S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
-    S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref(pol)/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
-    !evalSED_freefree = S/S_ref * exp(-h*(nu-self%nu_ref(pol))/k_b/T_e) * (nu/self%nu_ref(pol))**(-2)
-    !evalSED_freefree = S/S_ref * (nu/self%nu_ref(pol))**-2
-    evalSED_freefree = S/S_ref * (nu/self%nu_ref(pol))**(-2)
-    !write(*,*) "2",evalSED_freefree
+!!$    !EM    = theta(1) ! Not used
+!!$    T_e   = theta(1)
+!!$    S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
+!!$    S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref(pol)/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
+!!$    !evalSED_freefree = S/S_ref * exp(-h*(nu-self%nu_ref(pol))/k_b/T_e) * (nu/self%nu_ref(pol))**(-2)
+!!$    !evalSED_freefree = S/S_ref * (nu/self%nu_ref(pol))**-2
+!!$    evalSED_freefree = S/S_ref * (nu/self%nu_ref(pol))**(-2)
+!!$    !write(*,*) "2",evalSED_freefree
     
   end function evalSED_freefree
   
