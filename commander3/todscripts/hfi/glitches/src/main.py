@@ -20,10 +20,21 @@ def main():
 
     print("Iteration 0")
 
-    glitch_idx, _ = detection.matched_filter(res)
+    glitch_idx, score = detection.matched_filter(res)
     # match the detected glitches with the simulated ones
     matched_indices = np.intersect1d(glitch_idx, sim_indices)
     print(f"[Iteration 0] Detection accuracy: {(len(matched_indices)) * 100 / len(sim_indices):.2f}%")
+
+    if g.PLOTS:
+        plt.plot(seconds[:1000], score[:1000])
+        visible = glitch_idx[glitch_idx < 1000]
+        plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
+        plt.legend()
+        plt.title("Matched Filter Result")
+        plt.ylabel("Amplitude")
+        plt.xlabel("Time (s)")
+        plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_0.png")
+        plt.close()
 
     glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res, seconds)
 
@@ -61,7 +72,7 @@ def main():
             print(f"No {glitch_type} glitches found, keeping default template")
             continue
         glitch_params[glitch_type] = templates.glitch_estimation(seconds[:int(g.NSECS * g.SAMPRATE)],
-                                           final_stack[glitch_type])
+                                           final_stack[glitch_type], glitch_type)
 
         if g.PLOTS:
             plt.plot(seconds[:int(2*g.SAMPRATE)], final_stack[glitch_type][:int(2*g.SAMPRATE)],
@@ -85,7 +96,7 @@ def main():
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
         prev_glitch_idx = glitch_idx.copy()
-        glitch_idx, score = detection.matched_filter(res, glitch_params['short'])
+        glitch_idx, score = detection.matched_filter(res, glitch_params['long'])
 
         matched_indices = np.intersect1d(glitch_idx, sim_indices)
         print(f"[Iteration {i+1}] Detection accuracy: {(len(matched_indices)) * 100 / len(sim_indices):.2f}%")
@@ -98,7 +109,7 @@ def main():
             plt.title("Matched Filter Result")
             plt.ylabel("Amplitude")
             plt.xlabel("Time (s)")
-            plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i) + ".png")
+            plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i+1) + ".png")
             plt.close()
 
         (glitch_idx, glitch_labels,

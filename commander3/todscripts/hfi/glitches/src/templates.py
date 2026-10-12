@@ -70,6 +70,10 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     for i, idx in enumerate(glitch_idx):
         if idx + window > len(result):
             continue
+
+        # subtract a median from when the glitch starts until 1 min after
+        result[idx:idx + window] -= np.median(result[idx:idx + window])
+
         label = glitch_labels[i]
         model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=label)
 
@@ -93,12 +97,12 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     for t in types:
         if rows[t]:
             final_stack[t] = np.median(np.vstack(rows[t]), axis=0)
+            final_stack[t] /= np.max(final_stack[t])  # normalize the stacked average to have a max of 1
         else:
             final_stack[t] = None
 
         if g.PLOTS:
             plt.plot(seconds[:window], final_stack[t], label=t)
-            # plt.plot(seconds[:window], final_stack[glitch_type], label=glitch_type)
             plt.title("Stacked Average")
             plt.xlabel("Time (s)")
             plt.ylabel("Amplitude")
@@ -120,9 +124,19 @@ def glitch_model(seconds, *params):
 
     return model / np.max(model)  # normalize the glitch model to have a max of 1
 
-def glitch_estimation(seconds, stack):
-    tau_guess = np.geomspace(seconds[-1], seconds[1], 8)
-    amp_guess = np.linspace(np.max(stack), np.max(stack) * 1e-8, 8)
+def glitch_estimation(seconds, stack, glitch_type, glitch_params=None):
+    # tau_guess = np.geomspace(seconds[-1], seconds[1], 8)
+    # amp_guess = np.linspace(np.max(stack), np.max(stack) * 1e-8, 8)
+
+    if glitch_params is None:
+        glitch_params = _load_glitch_params()["143-2a"][glitch_type]
+
+    amp_guess = []
+    tau_guess = []
+    for amp_i in range(1, 9):
+        amp_guess.append(glitch_params[f"Amplitude{amp_i}"])
+        tau_guess.append(glitch_params[f"Tau{amp_i}"])
+
     p0 = np.concatenate([amp_guess, tau_guess])
     popt, _ = curve_fit(glitch_model, seconds, stack, p0=p0,
                         bounds=(0, np.inf), max_nfev=20000, sigma=g.SIGMA*np.ones_like(stack),
