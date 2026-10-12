@@ -76,7 +76,7 @@ contains
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
     
     ! Initialize instrument-specific parameters
-
+    c%reload_TOD        = .true.
     c%compressed_tod    = .true.
     c%correct_sl        = .true.
     c%correct_orb       = .true.
@@ -192,7 +192,6 @@ contains
        call mpi_finalize(ierr)
        stop
     end if
-
     
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
@@ -224,8 +223,10 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
-    call c%precompute_lookups()
+    !if (.not. c%reload_TOD) then
+       c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+       !call c%precompute_lookups()
+    !end if
 
     ! Allocate and initialize bolometer transfer functions
     if (c%correct_Tbol) allocate(c%Tbol(c%ndet))
@@ -239,14 +240,14 @@ contains
     ! Allocate sidelobe convolution data structures
     if (c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
     !allocate(c%orb_dp)
-    c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
+    c%orb_dp => comm_orbdipole(c%mbeam)  
     !c%orb_dp => comm_orbdipole(comm=c%comm)
 
     ! Initialize all baseline corrections to zero
     do i = 1, c%nscan
-      do j = 1, c%ndet
-       c%scans(i)%d(j)%baseline = 0.d0
-      end do
+       do j = 1, c%ndet
+          c%scans(i)%d(j)%baseline = 0.d0
+       end do
     end do
 
     ! Allocate modulation phase
@@ -265,7 +266,7 @@ contains
     ! Pre-initialize ADC object
     allocate(c%adc(c%ndet))
     allocate(c%adu_range(c%ndet,2))
-
+    
     ! Read 4k_lines frequencies
     allocate(c%nus_4k_lines(c%n_4k_lines))
     allocate(list_4k_lines(c%n_4k_lines))
@@ -359,7 +360,7 @@ contains
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
     logical(lgt)        :: fit_4k_lines
-    type(comm_binmap)   :: binmap
+    class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
@@ -378,16 +379,28 @@ contains
     ! file for saving tods
     type(hdf_file) :: tod_file
 
+    call int2string(iter, ctext)
+    call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
+    
     if (self%first_call) then
        seed = rand_uni(handle) * 100000000
        call rand_init(self%handle, seed)
     end if
 
+    if (self%reload_TOD) then
+       do i = 1, self%nscan
+          call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i),&
+               & self%ndet, self%label, self%nhorn, self%ndiode, self%diode_names)
+       end do
+
+       ! Construct lookup tables
+       call self%precompute_lookups()
+    end if
+    
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
-    call int2string(iter, ctext)
-    call update_status(status, "tod_start"//ctext)
-    call timer%start(TOD_TOT, self%band)
+    call update_status(status, "tod_read"//ctext)
     
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -511,12 +524,12 @@ contains
 
        ! Sample ADC parameters -- MUST BE FOLLOWED BY BASELINE SAMPLER
        ! HKE: Comment out for now
-!!$       do i = 1, self%ndet
-!!$          call self%sample_adc_and_baselines(handle, i)
-!!$       end do
+       !do i = 1, self%ndet
+       !   call self%sample_adc_and_baselines(handle, i)
+       !end do
        call update_status(status, "tod_adc"//ctext)
     end if
-    
+!!$    
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan ! Disable for now
        ! Skip scan if no accepted data
@@ -540,7 +553,6 @@ contains
        end if
        call demodulate_tod(sd, self, i)
        
-
        ! Estimate pre-deconvolution white noise rms
        call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.)
     !   do j = 1, self%ndet
@@ -550,6 +562,25 @@ contains
           
 
        ! Deconvolve high-frequency roll-off
+!!$<<<<<<< HEAD
+!!$       !do j = 1, self%ndet
+!!$       !   if (.not. self%scans(i)%d(j)%accept) cycle
+!!$       !   call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
+!!$       !end do
+!!$       
+!!$       if (.false. .and. .not. self%first_call) then
+!!$          call int2string(iter, itertext)
+!!$          call int2string(self%scanid(i), scantext)
+!!$||||||| 523aba3c
+!!$       do j = 1, self%ndet
+!!$          if (.not. self%scans(i)%d(j)%accept) cycle
+!!$          call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
+!!$       end do
+!!$       
+!!$       if (.false. .and. .not. self%first_call) then
+!!$          call int2string(iter, itertext)
+!!$          call int2string(self%scanid(i), scantext)
+!!$=======
        if (.true.) then
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
@@ -588,27 +619,27 @@ contains
     call mpi_barrier(self%comm, ierr) ! Improve timing information
     call timer%stop(TOD_WAIT, self%band)
 
-!!$    call update_status(status, "tod_nonlin"//ctext)
+    call update_status(status, "tod_nonlin"//ctext)
 
     ! Fit global timestream contaminants 
 
     ! Subtract cosmic ray contribution
-!!$    do j=1, self%ndet
-!!$
-!!$      call init_det_data_singlehorn(dd, self, j)
-!!$
-!!$      call self%cray(j)%p%build_cray_templates()
-!!$
-!!$      do i=1, self%nscan
-!!$        call populate_sd_from_dd(sd, dd, i, j)
-!!$
-!!$        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
-!!$
-!!$        call dealloc_scan_data(sd)
-!!$      end do
-!!$
-!!$      call dd%dealloc
-!!$    end do
+    !do j=1, self%ndet
+
+    !  call init_det_data_singlehorn(dd, self, j)
+
+    !  call self%cray(j)%p%build_cray_templates()
+
+    !  do i=1, self%nscan
+    !    call populate_sd_from_dd(sd, dd, i, j)
+
+    !    call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
+
+    !    call dealloc_scan_data(sd)
+    !  end do
+
+    !  call dd%dealloc
+    !end do
 
     ! Estimate ADC corrections
     !    Not implemented yet
@@ -625,17 +656,17 @@ contains
        call sample_calibration(self, 'relcal', oper_default, handle)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
-!!$       call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
+       !call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
     end if
     
-!!$    ! Create pixel histograms
-!!$    if (self%first_call) call compute_tod_pixhist(self)
-!!$    call update_status(status, "tod_hist"//ctext)
+    ! Create pixel histograms
+    !if (self%first_call) call compute_tod_pixhist(self)
+    !call update_status(status, "tod_hist"//ctext)
     
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
-    call binmap%init(self, .true., sample_rel_bandpass, nplus2=.false.)
+    binmap => comm_binmap(self, .true., sample_rel_bandpass, nplus2=.false.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
@@ -708,15 +739,6 @@ contains
        ! Select data
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
-
-!!$          ! Count number of unmasked samples outside the processing mask; for ADC sampling
-!!$          do j = 1, sd%ndet
-!!$             if (self%scans(i)%d(j)%accept) then
-!!$                self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
-!!$             else
-!!$                self%scans(i)%d(j)%nsamp_unmasked = 0
-!!$             end if
-!!$          end do
        end if
 
        ! Compute chisquare for bandpass fit
@@ -726,14 +748,6 @@ contains
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
-
-!!$       if (self%scanid(i) == 500) then
-!!$          open(58,file='res'//samptext//'.dat', recl=1024)
-!!$          do j = 1, sd%ntod
-!!$             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
-!!$          end do
-!!$          close(58)
-!!$       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -788,8 +802,6 @@ contains
     call mpi_barrier(self%comm, ierr) ! Improve timing information
     call timer%stop(TOD_WAIT, self%band)
     call update_status(status, "tod_postloop"//ctext)
-!!$       call mpi_finalize(ierr)
-!!$       stop
     
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
@@ -885,7 +897,7 @@ contains
     !call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
     
     ! Clean up
-    call binmap%dealloc()
+    call deallocate_binmap(binmap)
     call update_status(status, "tod_binmap4"//ctext)
     if (allocated(slist)) deallocate(slist)
     if (self%correct_sl) then
@@ -895,11 +907,29 @@ contains
           end do
        end do
     end if
+    
+    if (self%reload_TOD) then
+       call self%pixcache%dealloc
+       do i = self%nscan, 1, -1
+          do j = self%ndet, 1, -1
+             if (allocated(self%scans(i)%d(j)%flag))  deallocate(self%scans(i)%d(j)%flag)
+             do k = self%nhorn, 1, -1
+                if (allocated(self%scans(i)%d(j)%pix(k)%p)) deallocate(self%scans(i)%d(j)%pix(k)%p)
+                if (allocated(self%scans(i)%d(j)%psi(k)%p)) deallocate(self%scans(i)%d(j)%psi(k)%p)
+             end do
+             if (allocated(self%scans(i)%d(j)%psi)) deallocate(self%scans(i)%d(j)%psi)
+             if (allocated(self%scans(i)%d(j)%pix)) deallocate(self%scans(i)%d(j)%pix)
+             if (allocated(self%scans(i)%d(j)%zdiode)) deallocate(self%scans(i)%d(j)%zdiode)
+             if (allocated(self%scans(i)%d(j)%diode)) deallocate(self%scans(i)%d(j)%diode)
+             if (allocated(self%scans(i)%d(j)%ztod))  deallocate(self%scans(i)%d(j)%ztod)
+             if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
+          end do
+       end do
+    end if
 
+    ! Parameter to check if this is first time routine has been called
     if (allocated(procmask2)) deallocate(procmask2)
     if (allocated(chisq_S)) deallocate(chisq_S)
-
-    ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
@@ -2179,8 +2209,8 @@ contains
 
     deallocate(dt, dv, ps)
     call free_spline(rolloff_filter)
-    call dfftw_destroy_plan(plan_fwd)
-    call dfftw_destroy_plan(plan_back)
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
 
   end subroutine deconvolve_rolloff
 

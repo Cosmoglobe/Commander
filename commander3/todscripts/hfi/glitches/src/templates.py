@@ -25,16 +25,6 @@ def glitch_model_samples(sample_count, sample_rate, band, glitch_type, glitch_pa
         model += amplitude * np.exp(-t / glitch_params[f"Tau{amp_i}"])
     return model / np.max(model)
 
-
-def short_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "short")
-
-def long_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "long")
-
-def slow_glitch(t, A):
-    return glitch_model_func(t, A, "143-2a", "slow")
-
 def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short", glitch_params=None):
     t = np.asarray(t)
     if glitch_params is None:
@@ -51,9 +41,6 @@ def glitch_model_func(t, A=1, band="143-2a", glitch_type = "short", glitch_param
 
         tau.append(glitch_params[f"Tau{amp_i}"])
 
-        # print(f"Band: {band}, Type: {glitch_type}, Amplitude{amp_i}: {amp[-1]}, "
-        #       f"Tau{amp_i}: {tau[-1]}")
-
         glitch_model += amp[-1] * np.exp(-t / tau[-1])
 
     glitch_model = glitch_model / np.max(glitch_model)  # normalize the glitch model to have a max of 1
@@ -68,7 +55,6 @@ def fit_glitch(res, glitch, secs):
                            full_output=True, nan_policy = "raise")
 
     print(f"Fitted parameters: {popt}")
-    # print(f"Infodict: {infodict}")
     print(f"Message: {mesg}")
 
     # subtract the glitch model from the data
@@ -78,16 +64,16 @@ def fit_glitch(res, glitch, secs):
 
 def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     window = int(g.NSECS * g.SAMPRATE)
-    stack = {'short': np.zeros(window), 'long': np.zeros(window), 'slow': np.zeros(window)}
-    final_stack = {'short': np.zeros(window), 'long': np.zeros(window), 'slow': np.zeros(window)}
+    types = ('short', 'long', 'slow')
+    rows = {t: [] for t in types}
 
     for i, idx in enumerate(glitch_idx):
         if idx + window > len(result):
             continue
-        model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=glitch_labels[i])
+        label = glitch_labels[i]
+        model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=label)
 
-        stack[glitch_labels[i]] = np.vstack((stack[glitch_labels[i]],
-                                            result[idx:idx + window] + model))
+        rows[label].append((result[idx:idx + window] + model) / glitch_amps[i])
 
         if i == 0 and g.PLOTS:
             plot_res = result.copy()
@@ -103,12 +89,16 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
             plt.savefig(f"{g.FIGURES_PATH}templates/first_glitch_and_model.png")
             plt.close()
 
-    for glitch_type in ['short', 'long', 'slow']:
-        # print(f"shape of stack for {glitch_type}: {stack[glitch_type].shape}")
-        final_stack[glitch_type] = np.median(stack[glitch_type], axis=0)
+    final_stack = {}
+    for t in types:
+        if rows[t]:
+            final_stack[t] = np.median(np.vstack(rows[t]), axis=0)
+        else:
+            final_stack[t] = None
 
         if g.PLOTS:
-            plt.plot(seconds[:window], final_stack[glitch_type], label=glitch_type)
+            plt.plot(seconds[:window], final_stack[t], label=t)
+            # plt.plot(seconds[:window], final_stack[glitch_type], label=glitch_type)
             plt.title("Stacked Average")
             plt.xlabel("Time (s)")
             plt.ylabel("Amplitude")
@@ -138,7 +128,6 @@ def glitch_estimation(seconds, stack):
                         bounds=(0, np.inf), max_nfev=20000, sigma=g.SIGMA*np.ones_like(stack),
                         absolute_sigma=True)
     
-    # print(f"shape of popt: {popt.shape}")
     glitch_params = {'Amplitude' + str(i + 1): popt[i] for i in range(8)}
     glitch_params.update({'Tau' + str(i + 1): popt[i +8] for i in range(8)})
     return glitch_params

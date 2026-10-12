@@ -373,9 +373,9 @@ contains
                   ! end select
                end if
              end do
-             call chisq_sub%dealloc(); deallocate(chisq_sub)
+             call deallocate_comm_map(chisq_sub)
           end if
-          call map%dealloc(); deallocate(map)
+          call deallocate_comm_map(map)
           call update_status(status, "output_res3_"//trim(data(i)%label))
        end do
        
@@ -386,8 +386,8 @@ contains
           call chisq_map_eff%writeFITS(trim(cpar%outdir)//'/chisq_eff_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc();     deallocate(chisq_map)
-          call chisq_map_eff%dealloc(); deallocate(chisq_map_eff)
+          call deallocate_comm_map(chisq_map)
+          call deallocate_comm_map(chisq_map_eff)
        end if
        call update_status(status, "output_chisq")
     end if

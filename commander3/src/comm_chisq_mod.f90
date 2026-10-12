@@ -106,7 +106,7 @@ contains
                mask_tmp%map = 1.d0
             end where
             res%map = res%map * mask_tmp%map
-            call mask_tmp%dealloc(); deallocate(mask_tmp)
+            call deallocate_comm_map(mask_tmp)
           end if
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
@@ -123,7 +123,7 @@ contains
                 call data(i)%N%invN_lowres(res_lowres) ! invN*res
                 res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
 
-                call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
+                call deallocate_comm_map(res_lowres_temp)
              end if
           else
              lowres=.false.
@@ -140,7 +140,7 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
              end do
-             call chisq_sub%dealloc(); deallocate(chisq_sub)
+             call deallocate_comm_map(chisq_sub)
           end if
           if (present(chisq_fullsky)) then
              if (lowres) then
@@ -154,10 +154,9 @@ contains
           end if
 
           if (associated(res_lowres)) then
-             call res_lowres%dealloc(); deallocate(res_lowres)
-             nullify(res_lowres)
+             call deallocate_comm_map(res_lowres)
           end if
-          call res%dealloc(); deallocate(res)
+          call deallocate_comm_map(res)
        end do
     end if
 
@@ -221,7 +220,7 @@ contains
        call data(i)%N%sqrtInvN(map)
        chisq_jeffreys = chisq_jeffreys + sum(map%map**2)
 
-       call map%dealloc(); deallocate(map)
+       call deallocate_comm_map(map)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, chisq_jeffreys, 1, MPI_DOUBLE_PRECISION, MPI_SUM, c%comm, ierr)    
@@ -311,7 +310,7 @@ contains
 
     ! Clean up
     nullify(c)
-    call ptsrc%dealloc(); deallocate(ptsrc)
+    call deallocate_comm_map(ptsrc)
 
   end function compute_residual
 
@@ -354,7 +353,7 @@ contains
           call dipole%Y()
           map%map = map%map - dipole%map
           deallocate(alm)
-          call dipole%dealloc(); deallocate(dipole)
+          call deallocate_comm_map(dipole)
        end select
        c => c%nextComp()
     end do
@@ -443,7 +442,7 @@ contains
           if (.not. skip) call out%writeFITS(filename)
           c => c%nextComp()
        end do
-       call out%dealloc; deallocate(out)
+       call deallocate_comm_map(out)
     end do
 
     ! Clean up
@@ -583,10 +582,8 @@ contains
 
     ! Clean up
     nullify(c)
-    call map_diff%dealloc; deallocate(map_diff)
-    if (present(cmbmap)) then
-       call cmbmap_band%dealloc()
-    end if
+    call deallocate_comm_map(map_diff)
+    if (present(cmbmap)) call deallocate_comm_map(cmbmap_band)
 
   end subroutine get_sky_signal
 

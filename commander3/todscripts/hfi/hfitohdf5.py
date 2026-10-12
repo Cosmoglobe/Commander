@@ -630,8 +630,8 @@ def make_od(comm_tod, freq, od, args):
                 '''
 
                 if len(pixels > 0):
-                    #compute average outer product
-                    outAng = hfi.ring_outer_product(galTheta, galPhi)
+                    #the spin axis, for the filelist's theta and phi (used for load balancing)
+                    outAng = comm_tod.pointing_plane_normal(galTheta, galPhi)
                     comm_tod.add_field(prefix + '/outP', data=outAng)
                     if(args.no_compress):
                         comm_tod.add_field(prefix+'/theta', data=galTheta)

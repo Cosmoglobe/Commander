@@ -485,7 +485,7 @@ contains
                 alms(i,:,pl) = buffer3(0,0:c%nalm_tot-1,1)
                 deallocate(buffer3)
 
-                call theta_smooth%dealloc(); deallocate(theta_smooth)
+                call deallocate_comm_map(theta_smooth)
                 ! ------- region sampling end
              end if
 
@@ -780,7 +780,7 @@ contains
                 alms(i,:,pl) = buffer3(0,:c%nalm_tot-1,1)
                 deallocate(buffer3)
 
-                call theta_smooth%dealloc(); deallocate(theta_smooth)
+                call deallocate_comm_map(theta_smooth)
              
                 ! Save to correct poltypes
                 if (c%poltype(j) == 1) then      ! {T+E+B}
@@ -878,11 +878,11 @@ contains
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
        deallocate(alms, regs, chisq, maxit)
-       call theta%dealloc(); deallocate(theta)
+       call deallocate_comm_map(theta)
 
        if (c%apply_jeffreys) then
           do k = 1, numband
-             call df(k)%p%dealloc(); deallocate(df(k)%p)
+             call deallocate_comm_map(df(k)%p)
           end do
           deallocate(df)
        end if
@@ -961,8 +961,7 @@ contains
     do i = 1, numband
        res             => compute_residual(i)
        data(i)%res%map =  res%map
-       call res%dealloc(); deallocate(res)
-       nullify(res)
+       call deallocate_comm_map(res)
 !!$       call data(i)%res%writeFITS('res_'//trim(data(i)%label)//'.fits')
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -1059,8 +1058,7 @@ contains
              call temp_map%udgrade(res_smooth(i)%p)
 
              !deallocate fullres smooth rms
-             call temp_map%dealloc(); deallocate(temp_map)
-             nullify(temp_map)
+             call deallocate_comm_map(temp_map)
 
              rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
           end if
@@ -1102,8 +1100,7 @@ contains
           call temp_map%udgrade(c%x_smooth)
 
           !deallocate fullres smooth map (temp_map)
-          call temp_map%dealloc(); deallocate(temp_map)
-          nullify(temp_map)
+          call deallocate_comm_map(temp_map)
 
        end if
 
@@ -1146,8 +1143,7 @@ contains
                 !copy smoothed single map to temporary smoothed map, correct polarization 
                 temp_map%map(:,j)=temp_map2%map(:,1)
                 !deallocate smoothed single map
-                call temp_map2%dealloc(); deallocate(temp_map2)
-                nullify(temp_map2)
+                call deallocate_comm_map(temp_map2)
              end do
 
              !create the smoothing scale Nside theta map and downgrade parameter map
@@ -1160,10 +1156,8 @@ contains
              call c%theta(k)%p%udgrade(c%theta_smooth(k)%p)
 
              !deallocate fullres smooth parameter maps (temp_map,temp_map2,temp_res)
-             call temp_map%dealloc(); deallocate(temp_map)
-             nullify(temp_map)
-             call temp_res%dealloc(); deallocate(temp_res)
-             nullify(temp_res)
+             call deallocate_comm_map(temp_map)
+             call deallocate_comm_map(temp_res)
 
           end if
        end do
@@ -1181,25 +1175,17 @@ contains
     class is (comm_line_comp)
     class is (comm_diffuse_comp)
        
-       if (associated(c%x_smooth)) then
-          call c%x_smooth%dealloc(); deallocate(c%x_smooth)
-          nullify(c%x_smooth)
-       end if
+       if (associated(c%x_smooth)) call deallocate_comm_map(c%x_smooth)
        do k =1, c%npar
           if (k == par_id) cycle
           if (allocated(c%theta_smooth)) then
-             if (associated(c%theta_smooth(k)%p)) then
-                call c%theta_smooth(k)%p%dealloc(); deallocate(c%theta_smooth(k)%p)
-             end if
+             if (associated(c%theta_smooth(k)%p)) call deallocate_comm_map(c%theta_smooth(k)%p)
           end if
        end do
        if (allocated(c%theta_smooth)) deallocate(c%theta_smooth)
        do i = 1, numband
           if (.not. associated(rms_smooth(i)%p)) cycle
-          if (status_fit(i) == 2) then
-             call res_smooth(i)%p%dealloc(); deallocate(res_smooth(i)%p)
-          end if
-          nullify(res_smooth(i)%p)
+          if (status_fit(i) == 2) call deallocate_comm_map(res_smooth(i)%p)
        end do
 
        smooth_scale = c%smooth_scale(par_id)
@@ -1250,12 +1236,11 @@ contains
                       ! assign smoothed theta map to relevant polarizations
                       c%theta(par_id)%p%map(:,p) = c%theta_smooth(par_id)%p%map(:,1)
                    end do
-                   call c%theta_smooth(par_id)%p%dealloc(); deallocate(c%theta_smooth(par_id)%p)
+                   call deallocate_comm_map(c%theta_smooth(par_id)%p)
                    deallocate(c%theta_smooth)
                 end if
              end do
-             call theta_single_pol%dealloc(); deallocate(theta_single_pol)
-             theta_single_pol => null()
+             call deallocate_comm_map(theta_single_pol)
 
           end if
        end if
@@ -1375,9 +1360,7 @@ contains
        res             => compute_residual(i)
 !       call res%writeFITS("res_"//trim(data(i)%label)//"_sig.fits")
        data(i)%res%map =  res%map
-       call res%dealloc(); deallocate(res)
-       nullify(res)
-
+       call deallocate_comm_map(res)
 
        raw             => compute_residual(i)
        raw_lowres      => comm_map(info_lowres)
@@ -1390,12 +1373,9 @@ contains
        call raw2%udgrade(raw_lowres)
        call raw_lowres%writeFITS("res_"//trim(data(i)%label)//"_lowres_raw.fits")
 
-       call raw%dealloc(); deallocate(raw)
-       nullify(raw)
-       call raw2%dealloc(); deallocate(raw2)
-       nullify(raw2)
-       call raw_lowres%dealloc(); deallocate(raw_lowres)
-       nullify(raw_lowres)
+       call deallocate_comm_map(raw)
+       call deallocate_comm_map(raw2)
+       call deallocate_comm_map(raw_lowres)
     end do
 
     ! Add components back into residual
@@ -1434,7 +1414,7 @@ contains
        !call rms_smooth(i)%writeFITS("rmssmooth_"//trim(data(i)%label)//".fits")
 
        ! Clean up
-       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+       call deallocate_comm_map(temp_map)
 
        !temp_map => comm_map(info)
        !temp_map%map = comps(1)%p%getBand(i)
@@ -1461,7 +1441,7 @@ contains
             & c%B_smooth_amp(1)%p%b_l,           temp_map)
        c%x_smooth => comm_map(info_lowres)
        call temp_map%udgrade(c%x_smooth)
-       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+       call deallocate_comm_map(temp_map)
        call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
 
        ! Compute smoothed spectral index maps; spin zero
@@ -1614,7 +1594,7 @@ contains
                   & c%B_pp_fr(1)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
                   & c%B_pp_fr(1)%p%b_l, temp_map, spinzero=.true.)
              c%theta(k)%p%map = temp_map%map
-             call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+             call deallocate_comm_map(temp_map)
           end do
        end do
     end if
@@ -1645,22 +1625,15 @@ contains
     ! Clean up temporary data structures
     do j = 1, ncomp
        c => comps(j)%p
-       if (associated(c%x_smooth)) then
-          call c%x_smooth%dealloc(); deallocate(c%x_smooth); nullify(c%x_smooth)
-       end if
+       if (associated(c%x_smooth)) call deallocate_comm_map(c%x_smooth)
        do k =1, c%npar
-          if (associated(c%theta_smooth(k)%p)) then
-             call c%theta_smooth(k)%p%dealloc(); deallocate(c%theta_smooth(k)%p)
-          end if
+          if (associated(c%theta_smooth(k)%p)) call deallocate_comm_map(c%theta_smooth(k)%p)
        end do
        if (allocated(c%theta_smooth)) deallocate(c%theta_smooth)
     end do
 
     do i = 1, numband
-       if (associated(rms_smooth(i)%p)) then
-          call res_smooth(i)%p%dealloc()
-          deallocate(res_smooth(i)%p); nullify(res_smooth(i)%p)
-       end if
+       if (associated(rms_smooth(i)%p)) call deallocate_comm_map(res_smooth(i)%p)
     end do
     deallocate(comps)   
 
@@ -2643,8 +2616,7 @@ contains
                      & c_lnL%B_pp_fr(id)%p%b_l, temp_map)
                 theta_lr_hole => comm_map(info_lr_single)
                 call temp_map%udgrade(theta_lr_hole)
-                call temp_map%dealloc(); deallocate(temp_map)
-                nullify(temp_map)
+                call deallocate_comm_map(temp_map)
 
              else !no postproc smoothing, ud_grade to correct resolution
                 theta_lr_hole => comm_map(info_lr_single)
@@ -2810,10 +2782,8 @@ contains
              end if
           end do
 
-          call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
-          theta_lr_hole => null()
-          call theta_fr%dealloc(); deallocate(theta_fr)
-          theta_fr => null()
+          call deallocate_comm_map(theta_lr_hole)
+          call deallocate_comm_map(theta_fr)
           
        end if
 
@@ -3019,16 +2989,14 @@ contains
                   & c_lnL%B_pp_fr(id)%p%b_l, temp_map)
              theta_lr_hole => comm_map(info_lr_single)
              call temp_map%udgrade(theta_lr_hole)
-             call temp_map%dealloc(); deallocate(temp_map)
-             nullify(temp_map)
+             call deallocate_comm_map(temp_map)
 
              call smooth_map(info_fr_single, .false., &
                   & c_lnL%B_pp_fr(id)%p%b_l*0.d0+1.d0, theta_single_fr, &  
                   & c_lnL%B_pp_fr(id)%p%b_l, temp_map)
              theta_single_lr => comm_map(info_lr_single)
              call temp_map%udgrade(theta_single_lr)
-             call temp_map%dealloc(); deallocate(temp_map)
-             nullify(temp_map)
+             call deallocate_comm_map(temp_map)
           else !no postproc smoothing, ud_grade to correct resolution
              theta_single_lr => comm_map(info_lr_single)
              theta_lr_hole => comm_map(info_lr_single)
@@ -3606,10 +3574,8 @@ contains
           end if
        end if
 
-       call theta_single_lr%dealloc(); deallocate(theta_single_lr)
-       call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
-       theta_single_lr => null()
-       theta_lr_hole => null()
+       call deallocate_comm_map(theta_single_lr)
+       call deallocate_comm_map(theta_lr_hole)
        
        !print MC multipoles to file, (partially debug)
        if (.true. .and. c_lnL%spec_mono_combined(par_id) .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
@@ -3816,8 +3782,7 @@ contains
                   & c_lnL%B_pp_fr(id)%p%b_l, temp_map)
              theta_lr_hole => comm_map(info_lr_single)
              call temp_map%udgrade(theta_lr_hole)
-             call temp_map%dealloc(); deallocate(temp_map)
-             nullify(temp_map)
+             call deallocate_comm_map(temp_map)
 
           else !no postproc smoothing, ud_grade to correct resolution
              theta_lr_hole => comm_map(info_lr_single)
@@ -3863,13 +3828,11 @@ contains
           end if
 
           call temp_map%writeFITS(trim(filename))
-          call temp_map%dealloc(); deallocate(temp_map)
-          nullify(temp_map)
+          call deallocate_comm_map(temp_map)
 
        end do
 
-       call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
-       nullify(theta_lr_hole)
+       call deallocate_comm_map(theta_lr_hole)
 
        call update_status(status, "spec_local "//trim(c%label)//' '//trim(c%indlabel(id)) &
             & //' post sampling output, post residual writing')
@@ -3883,25 +3846,21 @@ contains
     deallocate(old_thetas,new_thetas,init_thetas, new_theta_smooth)
     if (c_lnL%apply_jeffreys) then
        do k = 1, numband
-          call df(k)%p%dealloc()
-          deallocate(df(k)%p)
+          call deallocate_comm_map(df(k)%p)
        end do
        deallocate(df)
     end if
     deallocate(accept_arr,dlnL_arr)
 
-    call theta_fr%dealloc();        deallocate(theta_fr);        theta_fr => null()
-    call theta_single_fr%dealloc(); deallocate(theta_single_fr); theta_single_fr => null()
-    call mask_lr%dealloc();         deallocate(mask_lr);         mask_lr => null()
-    call res_map%dealloc();         deallocate(res_map);         res_map => null()
-    call Ninv_map%dealloc();        deallocate(Ninv_map);        Ninv_map => null()
+    call deallocate_comm_map(theta_fr)
+    call deallocate_comm_map(theta_single_fr)
+    call deallocate_comm_map(mask_lr)
+    call deallocate_comm_map(res_map)
+    call deallocate_comm_map(Ninv_map)
     
     if (c_lnL%spec_mono_combined(par_id)) then
-       call mask_mono%dealloc() 
-       mask_mono => null()
-       call ones_map%dealloc()
-       ones_map => null()
-       !deallocate(ones_map,mask_mono)
+       call deallocate_comm_map(mask_mono) 
+       call deallocate_comm_map(ones_map)
     end if
 
     if (allocated(monopole_val)) deallocate(monopole_val)

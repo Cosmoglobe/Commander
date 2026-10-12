@@ -2571,20 +2571,24 @@ contains
     implicit none
     type(hdf_file) :: file
     character(len=*),                intent(in)  :: setname
-    byte,     allocatable, dimension(:), target, intent(out) :: val
+    byte, allocatable, dimension(:), intent(out) :: val
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
     type(c_ptr)     :: f_ptr
+    byte, dimension(:), pointer :: buffer
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
     numint = len
-    allocate(val(numint))
-    f_ptr = c_loc(val)
+    allocate(val(numint), buffer(numint))
+    f_ptr = c_loc(buffer)
+    !call h5dread_f(file%sethandle, dtype, val, file%status)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
     call h5tclose_f(dtype, file%status)
+    val = buffer
+    deallocate(buffer)
   end subroutine read_hdf_opaque
 
 

@@ -159,6 +159,7 @@ contains
     call update_status(status, "update_N_rms")
     info%rms = .true.
 
+    if (associated(self%rms0)) call deallocate_comm_map(self%rms0)
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
@@ -247,7 +248,7 @@ contains
           else
              self%alpha_nu(2:3) = 0.d0
           end if
-          call invW_tau%dealloc(); deallocate(invW_tau)
+          call deallocate_comm_map(invW_tau)
        end if
     end if
 
@@ -261,7 +262,7 @@ contains
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)
-    call iN%dealloc(); deallocate(iN)
+    call deallocate_comm_map(iN)
     self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_rms

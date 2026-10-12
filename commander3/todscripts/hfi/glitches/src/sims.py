@@ -35,6 +35,10 @@ for glitch_i, glitch_idx in enumerate(glitch_indices):
 
 # save simulations
 np.save(f"{g.DATA_PATH}143-2a_simulations.npy", res)
+# order and save glitch_types
+glitch_types = glitch_types[np.argsort(glitch_indices)]
+np.save(f"{g.DATA_PATH}143-2a_simulations_types.npy", glitch_types)
+np.save(f"{g.DATA_PATH}143-2a_simulations_indices.npy", glitch_indices)
 
 plot_window = 1000  # number of samples to plot
 plt.figure(figsize=(10, 5))
@@ -51,19 +55,6 @@ for i in range(0, len(res), plot_window):
         glt_lbl = glitch_types[(glitch_indices >= i) & (glitch_indices < i + plot_window)][j]
         plt.text(seconds[i:i + plot_window][glt - i], res[i:i + plot_window][glt - i], glt_lbl,
                  fontsize=8, color='red', rotation=45)
-
-        # DEBUG
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #          templates.glitch_model_func(glitch_time, 1, band="143-2a", glitch_type="short"),
-        #          alpha=0.5, label="Glitch model (short)")
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #                  templates.glitch_model_func(glitch_time, 1, band="143-2a", 
-        #                                              glitch_type="long"), alpha=0.5,
-        #                                              label="Glitch model (long)")
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #                  templates.glitch_model_func(glitch_time, 1, band="143-2a", 
-                                                    #  glitch_type="slow"), alpha=0.5,
-                                                    #  label="Glitch model (slow)")
 
     if g.PLOTS:
         if i > 0:

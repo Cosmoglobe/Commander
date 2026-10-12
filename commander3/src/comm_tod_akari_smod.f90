@@ -289,7 +289,7 @@ contains
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit, oper_default
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr, only_solar_mask, sample_xi_n, sample_ramp
-      type(comm_binmap)   :: binmap
+      class(comm_binmap), pointer   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
       character(len=2)    :: zodi_param_text
@@ -475,7 +475,7 @@ contains
       end if
       
       ! Prepare mapmaking data structures
-      call binmap%init(self, .true., sample_rel_bandpass)
+      binmap => comm_binmap(self, .true., sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
          chisq_S = 0.d0
@@ -658,7 +658,7 @@ contains
       !call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
       ! Clean up
-      call binmap%dealloc()
+      call deallocate_binmap(binmap)
       if (allocated(slist)) deallocate(slist)
       !  if (self%correct_sl) then
       !     do i = 1, self%ndet

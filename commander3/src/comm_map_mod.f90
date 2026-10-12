@@ -36,7 +36,7 @@ module comm_map_mod
 
 !  include "mpif.h"
       
-  public comm_map, comm_mapinfo, map_ptr, write_map
+  public comm_map, comm_mapinfo, map_ptr, write_map, deallocate_comm_map
 
 
   type :: comm_mapinfo
@@ -90,7 +90,7 @@ module comm_map_mod
      procedure     :: readFITS
      procedure     :: readHDF
      procedure     :: readHDF_mmax
-     procedure     :: dealloc => deallocate_comm_map
+     !procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
      procedure     :: add_alm
      procedure     :: set_alm
@@ -434,7 +434,7 @@ subroutine tod2file_dp3(filename,d)
   subroutine deallocate_comm_map(self)
     implicit none
 
-    class(comm_map), intent(inout)          :: self
+    class(comm_map), pointer, intent(inout)          :: self
     class(comm_map), pointer :: link => null()
 
     if (allocated(self%map)) deallocate(self%map)
@@ -453,6 +453,8 @@ subroutine tod2file_dp3(filename,d)
        end do
        nullify(self%nextLink)
     end if
+    deallocate(self)
+    self => null()
 
   end subroutine deallocate_comm_map
 
@@ -1155,6 +1157,7 @@ subroutine tod2file_dp3(filename,d)
     
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1))
+    alms = 0.d0  ! Allocate to zero such that missing optional field doesn't become garbage.
     if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms, opt=.true.)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
     !if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
@@ -2009,7 +2012,7 @@ subroutine tod2file_dp3(filename,d)
 
     ! Clean up
     deallocate(Ylm)
-    call map%dealloc()
+    call deallocate_comm_map(map)
     
   end subroutine remove_EE_l2_alm
 

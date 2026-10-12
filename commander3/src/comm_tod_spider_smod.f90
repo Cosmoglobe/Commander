@@ -261,7 +261,7 @@ contains
      real(dp)            :: t1, t2
      integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, oper_default
      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
-     type(comm_binmap)   :: binmap
+     class(comm_binmap), pointer   :: binmap
      type(comm_scandata) :: sd
      character(len=4)    :: ctext, myid_text
      character(len=6)    :: samptext, scantext
@@ -277,7 +277,7 @@ contains
      real(sp),     allocatable, dimension(:,:,:) :: jump_calib
      integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
      real(sp),     allocatable, dimension(:)     :: offset_level
-     type(comm_binmap)                           :: jump_map
+     class(comm_binmap), pointer                           :: jump_map
      character(len=4)                            :: it_label
      logical(lgt)                                :: debug
      real(sp),    allocatable, dimension(:)      :: test_array
@@ -352,8 +352,8 @@ contains
 
 
      ! Prepare intermediate data structures
-     call binmap%init(self, .true., sample_rel_bandpass)
-     call jump_map%init(self, .true., sample_rel_bandpass)  
+     binmap => comm_binmap(self, .true., sample_rel_bandpass)
+     jump_map => comm_binmap(self, .true., sample_rel_bandpass)  
      if (sample_abs_bandpass .or. sample_rel_bandpass) then
         allocate(chisq_S(self%ndet,size(delta,3)))
         chisq_S = 0.d0
@@ -576,8 +576,8 @@ contains
      call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
 
      ! Clean up
-     call binmap%dealloc()
-     call jump_map%dealloc() 
+     call deallocate_binmap(binmap)
+     call deallocate_binmap(jump_map) 
      if (allocated(slist)) deallocate(slist)
      deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then

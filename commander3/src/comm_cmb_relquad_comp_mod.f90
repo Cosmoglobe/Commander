@@ -241,7 +241,7 @@ contains
     end if
        
     ! Clean up
-    call m%dealloc(); deallocate(m)
+    call deallocate_comm_map(m)
     nullify(info)
     
   end function evalRelquadBand
@@ -309,8 +309,8 @@ contains
     call m%alm_equal(m_out)
     projectRelquadBand = m_out%alm
 
-    call m%dealloc(); deallocate(m)
-    call m_out%dealloc(); deallocate(m_out)
+    call deallocate_comm_map(m)
+    call deallocate_comm_map(m_out)
 
   end function projectRelquadBand
 

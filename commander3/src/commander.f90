@@ -557,11 +557,6 @@ contains
 
        end do
 
-!!$!       call compList%x%writeFITS("sig.fits")
-!!$       call s_sky(1,1)%p%writeFITS('sky.fits')
-!!$       call mpi_finalize(ierr)
-!!$       stop      
- 
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
@@ -600,7 +595,7 @@ contains
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)
-       call rms%dealloc; deallocate(rms); rms => null()
+       call deallocate_comm_map(rms)
 
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
@@ -613,9 +608,9 @@ contains
        ! Clean up temporary data structures
        do j = 1, data(i)%tod%ndet
           do k = 1, ndelta
-             call s_sky(j,k)%p%dealloc
+             call deallocate_comm_map(s_sky(j,k)%p)
           end do
-          call s_gain(j)%p%dealloc
+          call deallocate_comm_map(s_gain(j)%p)
        end do
        deallocate(s_sky, s_gain, delta, eta)
 
@@ -623,13 +618,7 @@ contains
        if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
           call nullify_monopole_amp(data(i)%label)
        end if
-      
-       if (associated(gainmap)) then 
-          call gainmap%dealloc()
-          deallocate(gainmap)
-          nullify(gainmap)
-       end if
-
+       if (associated(gainmap)) call deallocate_comm_map(gainmap)
     end do
 
   end subroutine process_all_TODs
