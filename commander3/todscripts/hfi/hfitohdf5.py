@@ -165,8 +165,8 @@ def make_warm_od(comm_tod, freq, od, args):
             print('Skipping existing file ' + comm_tod.outName)
             #add each chunk to filelist
             for chunk in chunks:
-                pid = int(chunk[0]/2)
-                comm_tod.finalize_chunk(pid)
+                pid = chunk[0]
+                comm_tod.finalize_chunk(pid, comm_tod.load_field('/' + str(pid).zfill(6) + '/ntod'))
             comm_tod.finalize_file()
             return
 
@@ -249,7 +249,7 @@ def make_warm_od(comm_tod, freq, od, args):
                     comm_tod.add_field(prefix + '/ztod', tod, compArray)
 
             #print(freq, od, pid)
-            comm_tod.finalize_chunk(pid)
+            comm_tod.finalize_chunk(pid, ntod)
         comm_tod.finalize_file()
 
     except:
@@ -327,7 +327,7 @@ def make_od(comm_tod, freq, od, args):
             print('Skipping existing file ' + comm_tod.outName)
             #add each chunk to filelist
             for chunk in chunks:
-                comm_tod.finalize_chunk(chunk[0])
+                comm_tod.finalize_chunk(chunk[0], comm_tod.'/'+str(chunk[0]).zfill(6)+ '/loadBalance'load_field('/'+str(chunk[0]).zfill(6) + '/ntod'), loadBalance=comm_tod.load_field('/'+str(chunk[0]).zfill(6)+ '/outP'))
             comm_tod.finalize_file()
             return
 
@@ -712,7 +712,7 @@ def make_od(comm_tod, freq, od, args):
 
 
             #print('Done: ',freq, od, pid)                 
-            comm_tod.finalize_chunk(pid, loadBalance=outAng)
+            comm_tod.finalize_chunk(pid, ntod, loadBalance=outAng)
         comm_tod.finalize_file()
     except:
         exc_type, exc_val, exc_tb = sys.exc_info()
