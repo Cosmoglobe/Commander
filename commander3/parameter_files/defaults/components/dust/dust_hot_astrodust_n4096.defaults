@@ -60,11 +60,6 @@ COMP_T_INPUT_MAP&&            = none
 COMP_T_NU_MIN&&               = 120        # Lowest frequency for index estimation in GHz
 COMP_T_NU_MAX&&               = 10000      # Highest frequency for index estimation in GHz
 
-COMP_ADSCALE_POLTYPE&&         = 2         # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_ADSCALE_INPUT_MAP&&       = none 
-COMP_ADSCALE_NU_MIN&&          = 120       # Lowest frequency for index estimation in GHz
-COMP_ADSCALE_NU_MAX&&          = 10000     # Highest frequency for index estimation in GHz
-
 COMP_NU_JOIN&&                = 900        # join frequency between the MBB and the spline
 
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
