@@ -252,8 +252,33 @@ class commander_tod:
         if self.filelists is not None:
             for pid in self.pids.keys():
                 self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
- 
+
         return
+
+    @staticmethod
+    def pointing_plane_normal(theta, phi, nsamp=1000):
+        """The normal of the plane that best fits one scan's pointing, as [theta, phi] in radians.
+
+        Given the pointing angles of a scan, first finds the plane which best describe those points
+        on a 3D sphere, and then calculates the normal vector of that plane (as two angles). This
+        works well for clustering overlapping scans for almost any scanning strategy, including
+        Planck, LiteBIRD, SO. These two values are written as columns 4-5 in the filelist.
+
+        Args:
+            theta, phi: One detector's pointing over the scan [rad]
+            nsamp: Number of samples to use to construct the plane.
+        Returns:
+            [theta, phi]: Two (scalar) values, representing the angles of the normal vector.
+        """
+        step = max(1, len(theta)//nsamp)
+        vecs = hp.ang2vec(np.asarray(theta)[::step], np.asarray(phi)[::step]).T  # (3, n)
+        # The best plane passes through the points' mean, and its normal is the direction the
+        # points spread least along: the eigenvector of their 3x3 covariance with the smallest
+        # eigenvalue (eigh sorts them in ascending order).
+        normal = np.linalg.eigh(np.cov(vecs))[1][:, 0]
+        normal *= np.sign(normal @ vecs.mean(axis=1))
+        outTheta, outPhi = hp.vec2ang(normal)
+        return [float(outTheta[0]), float(outPhi[0])]
 
     def finalize_chunk(self, pid, loadBalance=[0,0]):
         if len(loadBalance) != 2:
@@ -324,6 +349,12 @@ class commander_tod:
         except ValueError: #load field already exists because we are just adding the file to the filelist
             pass
         self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+
+        # The scan's number of samples, for the filelist's 6th column. Commander3 currently reads
+        # only the first five columns, but Commander4 uses it.
+        ntodField = '/' + str(pid).zfill(6) + '/common/ntod'
+        ntod = int(np.ravel(self.outFile[ntodField][()])[0]) if ntodField in self.outFile else 0
+        self.pids[pid] += ' ' + str(ntod)
 
     def compute_version(self):
         return
