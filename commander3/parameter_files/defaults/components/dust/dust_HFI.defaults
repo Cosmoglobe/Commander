@@ -27,7 +27,6 @@ COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
 COMP_CL_BETA_PRIOR_RMS&&      =  0.0
 COMP_CL_L_PIVOT&&             = 50          # Pivot multipole
-<<<<<<< HEAD
 COMP_CL_DEFAULT_AMP_T&&       =  1e7        # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       =  500
 COMP_CL_DEFAULT_AMP_B&&       =  500
