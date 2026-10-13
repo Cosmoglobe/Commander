@@ -823,7 +823,12 @@ contains
              c => c%nextComp()
              cycle
           end if
-                       
+
+          select type (c)
+          class is (comm_adMBBtab_comp)
+            c%spl_buff = c%spl
+          end select
+
           do j = 1, c%npar
              if (c%theta_steplen(j,l) == 0.d0) cycle
              select type (c)
@@ -865,31 +870,28 @@ contains
                if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
  
              end select
-
-            select type (c)
-            class is (comm_MBBtab_comp)
-            !if this is a spline type then the spline needs to be recalculated since the left derivative and leftmost spline
-            !point is defined by the MBB 
-              if (c%mbbtab_type == 'spline_log') then 
-                  c%spl_buff=c%spl
-                  pol=1
-                  ! beta    = theta(1)
-                  ! T       = theta(2)
-                  ! pol is set to 1, mbbTab not currently setup to support polarization
-                  call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)              
-              end if 
-            end select
-
-                ! call mpi_bcast(c%spl, size(c%spl), MPI_DOUBLE_PRECISION, &
-                              ! & 0, data(1)%info%comm, ierr)
-          
-            select type (c)
-              class is (comm_adMBBtab_comp)
-              c%spl_buff=c%spl
-              pol=1  
-              call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%adscale,pol) 
-            end select
           end do
+
+          select type (c)
+          class is (comm_MBBtab_comp)
+          !if this is a spline type then the spline needs to be recalculated since the left derivative and leftmost spline
+          !point is defined by the MBB 
+            if (c%mbbtab_type == 'spline_log') then 
+                c%spl_buff=c%spl
+                pol=1
+                ! beta    = theta(1)
+                ! T       = theta(2)
+                ! pol is set to 1, mbbTab not currently setup to support polarization
+                call c%update_spline(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),pol)              
+            end if 
+          end select
+        
+          select type (c)
+            class is (comm_adMBBtab_comp)
+            c%spl_buff=c%spl
+            pol=1  
+            call c%update_spline_astrodust(c%theta(1)%p%map(1,pol),c%theta(2)%p%map(1,pol),c%adscale,pol) 
+          end select
 
           !go to next component
           c => c%nextComp()

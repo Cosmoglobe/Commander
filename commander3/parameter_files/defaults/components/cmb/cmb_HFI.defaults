@@ -7,7 +7,7 @@ COMP_CG_SCALE_T&&             = 1.d0
 COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        =  1
 COMP_NSIDE&&                  = 2048
-COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_common_dx12_n2048_TQU.fits
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:common/mask/mask_common_dx12_n2048_TQU.fits
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 3000
 
@@ -20,7 +20,7 @@ COMP_LMAX_IND&&               = 0
 COMP_OUTPUT_FWHM&&            = 5         # arcmin
 COMP_UNIT&&                   = uK_cmb
 COMP_NU_MIN&&                 = 0.d0
-COMP_NU_MAX&&                 = 1000
+COMP_NU_MAX&&                 = 10000.d0
 COMP_NU_REF_T&&               = 1  100.
 COMP_NU_REF_P&&               = 1  100.
 COMP_CL_TYPE&&                = none  power_law  # {none, single_l, binned, power_law}

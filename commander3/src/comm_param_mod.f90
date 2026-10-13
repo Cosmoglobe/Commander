@@ -947,6 +947,8 @@ contains
           select case (trim(cpar%cs_type(i)))
           case ('cmb')
              call read_cmb_params_hash(htbl,cpar)
+          case ('tsz')
+               !!RAELYN SET THIS UP!!
           case ('power_law')
              call read_power_law_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('exponential')
@@ -4220,7 +4222,7 @@ end subroutine read_zodi_params_hash
              if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
              call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
-             call validate_file(trim(cpar%cs_SED_template(2,i)), 'COMP_SIL_FILE1_'//itext)
+             call validate_file(trim(cpar%cs_SED_template(2,i)), 'COMP_SIL_FILE2_'//itext)
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(cpar%cs_input_ind(1,i)))
