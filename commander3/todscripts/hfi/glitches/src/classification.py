@@ -20,7 +20,7 @@ def chi2(data, model):
     return np.sum((data - model) ** 2) / g.SIGMA**2
 
 def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev_amps=None,
-                      prev_labels=None):
+                      prev_labels=None, prev_idx=None):
     """glitch_params: optional {glitch_type: template params} from a previous iteration.
     If None, the default templates are used."""
     first_samples = int(g.FAST_PART * g.SAMPRATE)
@@ -29,7 +29,7 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
     if glitch_params is None and iter == 0:
         total_samples = int(0.05 * g.SAMPRATE)
     elif glitch_params is not None and iter > 0:
-        total_samples = int(g.NSECS * g.SAMPRATE)
+        total_samples = int(2 * g.SAMPRATE)
     else:
         raise ValueError("Invalid combination of glitch_params and iter")
     slowpart = np.arange(first_samples, total_samples) / g.SAMPRATE
@@ -53,6 +53,7 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
         ax[1].set_xlabel("Time (s)")
         ax[1].set_ylim(-0.1, 1.1)
     residual = res.copy()
+    res_copy = res.copy()
 
     glitch_labels = []
     glitch_amps = []
@@ -63,12 +64,12 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
 
     if iter > 0 and prev_amps is not None and prev_labels is not None:
         # subtreact all of the detected glitches from the data before fitting the next iteration
-        for glitch_i, glitch_label, glitch_amp in zip(glitch_idx, prev_labels, prev_amps):
-            res[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, glitch_amp)
+        for glitch_i, glitch_label, glitch_amp in zip(prev_idx, prev_labels, prev_amps):
+            res_copy[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, glitch_amp)
 
         if g.PLOTS:
             fig_sub, ax_sub = plt.subplots(1, 1)
-            ax_sub.plot(seconds, res, label="Residual after subtracting all detected glitches")
+            ax_sub.plot(seconds, res_copy, label="Residual after subtracting all detected glitches")
             ax_sub.legend()
             ax_sub.set_ylabel("Residual")
             ax_sub.set_xlabel("Time (s)")
@@ -76,14 +77,20 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
             fig_sub.savefig(f"{g.FIGURES_PATH}classification/residual_after_subtraction_{iter}.png")
             plt.close(fig_sub)
 
-    for  glitch_n, glitch_i in enumerate(glitch_idx):
+    prev = {}
+    if iter > 0 and prev_idx is not None and prev_amps is not None and prev_labels is not None:
+        prev = {int(i): (l, a) for i, l, a in zip(prev_idx, prev_labels, prev_amps)}
+
+    for glitch_n, glitch_i in enumerate(glitch_idx):
         if iter > 0 and prev_amps is not None and prev_labels is not None:
             # add back the current glitch so that we can look at the residual timestream with only the current glitch
-            res[glitch_i:glitch_i + len(oneminute)] += models[prev_labels[np.where(glitch_idx == glitch_i)[0][0]]](oneminute, prev_amps[np.where(glitch_idx == glitch_i)[0][0]])
+            old = prev.get(int(glitch_i))
+            if old is not None:
+                res_copy[glitch_i:glitch_i + len(oneminute)] += models[old[0]](oneminute, old[1])
 
             if g.PLOTS and glitch_n == 0:
                 fig_addback, ax_addback = plt.subplots(1, 1)
-                ax_addback.plot(seconds, res, label="Residual after adding back the current glitch")
+                ax_addback.plot(seconds, res_copy, label="Residual after adding back the current glitch")
                 ax_addback.legend()
                 ax_addback.set_ylabel("Residual")
                 ax_addback.set_xlabel("Time (s)")
@@ -91,7 +98,7 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
                 fig_addback.savefig(f"{g.FIGURES_PATH}classification/residual_after_adding_back_glitch_{iter}.png")
                 plt.close(fig_addback)
 
-        data = res[glitch_i + first_samples:glitch_i + total_samples]
+        data = res_copy[glitch_i + first_samples:glitch_i + total_samples]
         popt = {}
         for gtype in glitch_types:
             popt[gtype], _ = curve_fit(models[gtype], slowpart, data, p0=[1],
@@ -107,11 +114,11 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
         if g.PLOTS:
             ax[0].plot(oneminute + seconds[glitch_i],
                     models[glitch_label](oneminute, *popt[glitch_label]), color='green', alpha=0.5)
-            ax[0].text(seconds[glitch_i], res[glitch_i], glitch_label, fontsize=8, color='red',
+            ax[0].text(seconds[glitch_i], res_copy[glitch_i], glitch_label, fontsize=8, color='red',
                     rotation=45)
 
-        if iter > 0 and prev_amps is not None and prev_labels is not None:
-            res[glitch_i:glitch_i + len(oneminute)] -= models[prev_labels[np.where(glitch_idx == glitch_i)[0][0]]](oneminute, prev_amps[np.where(glitch_idx == glitch_i)[0][0]])
+        if iter > 0 and prev_amps is not None and prev_labels is not None and old is not None:
+            res_copy[glitch_i:glitch_i + len(oneminute)] -= models[old[0]](oneminute, old[1])
         
         residual[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, *popt[glitch_label])
 

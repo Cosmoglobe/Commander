@@ -16,9 +16,11 @@ from scipy.sparse.linalg import cg
 
 
 def add_glitch_to_data(args):
-    index, glitch_i, glitch_label, glitch_amp, ntod, oneminute = args
+    index, glitch_i, glitch_label, glitch_amp, ntod, oneminute, glitch_params = args
+    params = glitch_params[glitch_label] if glitch_params else None
     glitch_model = templates.glitch_model_func(oneminute, glitch_amp, band="143-2a",
-                                                glitch_type=glitch_label)
+                                                glitch_type=glitch_label,
+                                                glitch_params=params)
     column = np.zeros(ntod)
     end = min(glitch_i + len(glitch_model), ntod)
     if glitch_i < end:
@@ -26,7 +28,7 @@ def add_glitch_to_data(args):
     return index, column
 
 # let's build the T (template) matrix first. it should be a ntod x nglitch matrix
-def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps):
+def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps, glitch_params=None):
     ntod = len(seconds)
     nglitch = len(glitch_idx)
     T = np.zeros((ntod, nglitch))
@@ -36,10 +38,8 @@ def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps):
     # print(f"Building template matrix with {nglitch} glitches and {ntod} samples. Shape of "
     #       f"glitch_idx: {glitch_idx.shape}, glitch_labels: {len(glitch_labels)}, glitch_amps: "
     #       f"{len(glitch_amps)}")
-    tasks = [
-        (index, glitch_i, glitch_labels[index], glitch_amps[index], ntod, oneminute)
-        for index, glitch_i in enumerate(glitch_idx)
-    ]
+    tasks = [(index, glitch_i, glitch_labels[index], glitch_amps[index], ntod, oneminute,
+              glitch_params) for index, glitch_i in enumerate(glitch_idx)]
     if not tasks:
         return T
 
@@ -69,9 +69,11 @@ def run_cg(glitch_idx, seconds, glitch_labels, glitch_amps, res):
         print(f"CG solver did not converge. Info: {info}")
     return x
 
-def subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps, res):
+def subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps, res,
+                                glitch_params=None):
     # x = run_cg(glitch_idx, seconds, glitch_labels, glitch_amps, res)
-    T = build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps)
+    T = build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps,
+                              glitch_params=glitch_params)
     b = calculate_b(res, T)
     A = calculate_A(T)
 
@@ -81,9 +83,13 @@ def subtract_glitches_from_data(glitch_idx, seconds, glitch_labels, glitch_amps,
     amps = np.asarray(glitch_amps) * x
 
     result = res.copy()
+
     for (glitch_i, glitch_id), glitch_amp in zip(enumerate(glitch_idx), amps):
+        params = glitch_params[glitch_labels[glitch_i]] if glitch_params else None
+
         glitch_model = templates.glitch_model_func(np.arange(0, g.NSECS, 1 / g.SAMPRATE),
-                                                   glitch_amp, glitch_type=glitch_labels[glitch_i])
+                                                   glitch_amp, glitch_type=glitch_labels[glitch_i],
+                                                   glitch_params=params)
         if glitch_id + len(glitch_model) < len(res):
             result[glitch_id:glitch_id + len(glitch_model)] -= glitch_model
         else:

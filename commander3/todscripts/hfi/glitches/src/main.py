@@ -95,7 +95,7 @@ def main():
     maxiter = 1
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
-        prev_glitch_idx = glitch_idx.copy()
+        prev_idx = glitch_idx.copy()
         glitch_idx, score = detection.matched_filter(res, glitch_params['long'])
 
         matched_indices = np.intersect1d(glitch_idx, sim_indices)
@@ -113,15 +113,17 @@ def main():
             plt.close()
 
         (glitch_idx, glitch_labels,
-         glitch_amps) = classification.classify_glitches(prev_glitch_idx, res, seconds,
+         glitch_amps) = classification.classify_glitches(glitch_idx, res, seconds,
                                                          glitch_params, iter=i+1, prev_amps=fit_amps,
-                                                         prev_labels=glitch_labels)
+                                                         prev_labels=glitch_labels,
+                                                         prev_idx=prev_idx)
 
         wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
         print(f"[Iteration {i+1}] Classification accuracy: {100 * (1 - wrong_classifications / len(glitch_idx)):.2f}%")
 
         result, fit_amps = subtraction.subtract_glitches_from_data(glitch_idx, seconds,
-                                                                glitch_labels, fit_amps, res)
+                                                                glitch_labels, glitch_amps, res,
+                                                                glitch_params=glitch_params)
 
         # calculate chi2
         chi2_value = utils.chi2(result)
