@@ -290,7 +290,7 @@ module comm_param_mod
      character(len=2048) :: EBVmap
      
      ! Zodi parameters
-     integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
+     integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last, zs_nside
      character(len=24)                       :: zs_phasefunc, zs_bandpass
      real(dp)                                :: zs_nu_min_scatter, zs_nu_max_thermal
      integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
@@ -3397,6 +3397,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_PARAMETER_WIRING', par_string=cpar%zs_wiring)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
+     call get_parameter_from_hash(htbl, 'ZODI_NSIDE', par_int=cpar%zs_nside) !nside of solar-centric zodi lookup tables
 
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT

@@ -89,6 +89,7 @@ module comm_tod_mod
      byte,               allocatable, dimension(:)     :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked sample
      type(byte_pointer), allocatable, dimension(:)     :: pix            ! pointer array of pixels length nhorn
+     type(byte_pointer), allocatable, dimension(:)     :: pix_solar            ! pointer array of pixels length nhorn, in solar-centric coordinates because used for zodi, ONLY IN AKARI FOR NOW!!!
      type(byte_pointer), allocatable, dimension(:)     :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)   :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)     :: offset_level   ! Amplitude of every offset region(step)
@@ -330,6 +331,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering, udgrade_zodi
+
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -768,15 +770,17 @@ contains
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     integer(i4b) :: i, j, k, l, ierr
-    integer(i4b), allocatable, dimension(:) :: pix, psi
+    integer(i4b), allocatable, dimension(:) :: pix, psi, pix_solar
 
     !write(*,*) "xyz1", self%myid
     
     ! Construct observed pixel array
     !allocate(self%pix2ind(0:12*self%nside**2-1))
     !self%pix2ind = -2
+
+
     do i = 1, self%nscan
-       allocate(pix(self%scans(i)%ntod), psi(self%scans(i)%ntod))
+       allocate(pix(self%scans(i)%ntod), psi(self%scans(i)%ntod), pix_solar(self%scans(i)%ntod))
        if (self%nhorn == 2) then
           if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn))
           if (self%use_moon_point)  allocate(self%scans(i)%d(1)%pix_moon(self%scans(i)%ntod,self%nhorn))
@@ -788,6 +792,12 @@ contains
              !   self%pix2ind(pix(k)) = -1
              !end do
              if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
+             
+         !    if (trim(self%tod_type)=='AKARI') then
+         !      call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+         !      if (associated(self%pixcache_solar)) call self%pixcache_solar%add_pixels(pix_solar)
+         !    end if
+
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
@@ -816,6 +826,18 @@ contains
 !!$                   write(*,*) "pix = 46051400", self%myid, self%scanid(i), j
 !!$                   write(*,*) "pix = 46051400", self%pixcache%pix2ind(46051400)
 !!$                end if
+                
+         !       if (trim(self%tod_type)=='AKARI') then
+         !         call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, self%pix_solar_int(i, j))
+         !       end if
+
+         !       if (trim(self%tod_type)=='AKARI') then
+         !         call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+         !         ! do k=2 .... is needed here as well ??
+         !         if (associated(self%pixcache_solar)) call self%pixcache_solar%add_pixels(pix_solar)
+         !       end if
+
+             
                 if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
                 if (self%use_moon_point)  then
                    call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%psi(l)%p, psi)
@@ -825,7 +847,7 @@ contains
              end do
          end do
       end if
-      deallocate(pix,psi)
+      deallocate(pix,psi, pix_solar)
    end do
    !write(*,*) "xyz2", self%myid, associated(self%pixcache)
     !self%nobs = count(self%pix2ind == -1)
@@ -1258,7 +1280,7 @@ contains
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn), self%d(i)%pix_solar(nhorn))
        end if
        allocate(xi_n(tod%n_xi))
 
@@ -1314,13 +1336,19 @@ contains
          ! would involve needing to have a self%pixA and self%pixB attribute for
          ! WMAP only and not allocate self%d(i)%pix(j)
          do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+            if (trim(tod%tod_type)=='AKARI') then
+               call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix_solar" // achar(j+64),  self%d(i)%pix_solar(j)%p)
+            end if
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
        else if (nhorn .ne. 2) then
          do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+            if (trim(tod%tod_type)=='AKARI') then
+               call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix_solar",  self%d(i)%pix_solar(j)%p)
+            end if
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
          end do
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)

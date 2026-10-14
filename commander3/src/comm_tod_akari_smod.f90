@@ -170,6 +170,7 @@ contains
 
       ! Construct lookup tables
       c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam)
+   !   c%pixcache_solar => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam) !Angela: change this
       call c%precompute_lookups()
 
       ! Load the instrument file
