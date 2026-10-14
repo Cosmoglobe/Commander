@@ -160,11 +160,11 @@ if(COMPILE_HDF5)
 		When compiled with CMake, HDF5 creates additional folders inside include
 		to store .mod/.o files. We need to add them as well to compile sucessfully.	
 	#]=]
-	set(HDF5_Fortran_INCLUDE_DIRS 
-			"${CMAKE_INSTALL_PREFIX}/include"
-			#"${CMAKE_Fortran_MODULE_DIRECTORY}/static"
-      #"${CMAKE_INSTALL_PREFIX}/include/static"
-			)
+	set(HDF5_Fortran_INCLUDE_DIRS
+        "${CMAKE_INSTALL_PREFIX}/include"
+        "${CMAKE_INSTALL_PREFIX}/include/static"
+        "${CMAKE_INSTALL_PREFIX}/include/shared"
+        )
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
 	#message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")

@@ -1,10 +1,11 @@
 import h5py
+import matplotlib
 import numpy as np
 from eirik_flags import load_flags
-import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import detection
+import matplotlib.pyplot as plt
 
 # open a random TOD
 path = "/mn/stornext/d23/cmbco/globe/akari/tod/eirik_newhdf/v7/n8192/"
