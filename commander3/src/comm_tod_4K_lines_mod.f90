@@ -19,42 +19,42 @@
 !
 !================================================================================
 
-module comm_tod_4k_lines_mod
+module comm_tod_4K_lines_mod
   use comm_tod_mod
   use comm_status_mod
   use comm_tod_driver_mod
   implicit none
   private
 
-  public comm_4k_lines
+  public comm_4K_lines
 
-  type :: comm_4k_lines
+  type :: comm_4K_lines
     integer(i4b) :: window
     real(sp), dimension(:),   allocatable :: A_fit, f0_fit, sigma_fit, baseline
     real(sp), dimension(:,:), allocatable :: spike_profile
   contains
-    procedure :: estimate_4k_baseline
+    procedure :: estimate_4K_baseline
     procedure :: A_lin_fit
-  end type comm_4k_lines
+  end type comm_4K_lines
 
-  interface comm_4k_lines
-    procedure cooler_4k_lines_constructor
-  end interface comm_4k_lines
+  interface comm_4K_lines
+    procedure cooler_4K_lines_constructor
+  end interface comm_4K_lines
 
 contains
  
   !initializes a comm_4K_lines class
-  function cooler_4k_lines_constructor() result(c)
+  function cooler_4K_lines_constructor() result(c)
     implicit none
     class(comm_4K_lines), pointer :: c
     allocate(c)
-  end function cooler_4k_lines_constructor
+  end function cooler_4K_lines_constructor
  
-  subroutine estimate_4k_baseline(self,sub_ps)
+  subroutine estimate_4K_baseline(self,sub_ps)
      ! estimates the logaritmic baseline of the power spectrum in a 
      ! window around the spike
      implicit none
-     class(comm_4k_lines),        intent(inout) :: self
+     class(comm_4K_lines),        intent(inout) :: self
      real(sp), dimension(1:,1:),  intent(inout) :: sub_ps
 
      integer(i4b) :: i, j, nsub, ex0, ex1
@@ -91,12 +91,12 @@ contains
      do i = 1, nsub
         self%baseline(i) = exp(a + b*log(sub_ps(i,1)))
      end do
-  end subroutine estimate_4k_baseline
+  end subroutine estimate_4K_baseline
 
   subroutine A_lin_fit(self,sub_ps,iter,n_f0,n_sig)
   ! fits amplitude of gaussian profile from fixing f0 and sigma
      implicit none
-     class(comm_4k_lines),        intent(inout) :: self
+     class(comm_4K_lines),        intent(inout) :: self
      real(sp), dimension(1:,1:),  intent(inout) :: sub_ps
      integer(i4b),                intent(in)    :: iter, n_f0, n_sig
 
@@ -167,4 +167,4 @@ contains
 
   end subroutine A_lin_fit
 
-end module comm_tod_4k_lines_mod
+end module comm_tod_4K_lines_mod

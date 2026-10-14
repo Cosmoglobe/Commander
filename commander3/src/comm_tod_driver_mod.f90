@@ -96,6 +96,7 @@ contains
     if (btest(oper,SD_SPIKE))   allocate(sd%s_spike (ntod, ndet))
     if (btest(oper,SD_DARK))    allocate(sd%dark    (ntod, tod%ndark))
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
+                              !  allocate(sd%rolloff_filter(ndet)) ! ADDED
     call timer%stop(TOD_ALLOC, tod%band)
 
 
@@ -252,16 +253,24 @@ contains
        do j = 1, ndet
           d = j; if (present(det)) d = det
           if (.not. tod%scans(scan)%d(d)%accept) cycle
+          !call sd%spline_rolloff(d, tod%scans(scan)%d(d)%gain, abs(tod%scans(scan)%d(d)%N_psd%sigma0), tod%samprate)
           do h = 0, hmax
              do b = 1, nbp
-                if (allocated(sd%s_sky)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sky(:,j,h,b), sd%plan_fwd, sd%plan_back)
-                if (allocated(sd%s_bp))  call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_bp(:,j,h,b), sd%plan_fwd, sd%plan_back)
+                if (allocated(sd%s_sky)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sky(:,j,h,b), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
+                if (allocated(sd%s_bp))  call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_bp(:,j,h,b), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
              end do
-             if (allocated(sd%s_orb))    call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_orb(:,j,h), sd%plan_fwd, sd%plan_back)
-             if (allocated(sd%s_sl))     call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sl(:,j,h), sd%plan_fwd, sd%plan_back)
-             if (allocated(sd%s_zodi))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_zodi(:,j,h), sd%plan_fwd, sd%plan_back)
-             if (allocated(sd%s_objctr)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_objctr(:,j,h), sd%plan_fwd, sd%plan_back)
-             if (allocated(sd%s_gain))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_gain(:,j,h), sd%plan_fwd, sd%plan_back)
+             if (allocated(sd%s_orb))    call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_orb(:,j,h), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
+             if (allocated(sd%s_sl))     call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_sl(:,j,h), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
+             if (allocated(sd%s_zodi))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_zodi(:,j,h), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
+             if (allocated(sd%s_objctr)) call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_objctr(:,j,h), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
+             if (allocated(sd%s_gain))   call tod%Tbol(d)%p%convolve("full", "convolve", sd%s_gain(:,j,h), sd%plan_fwd, sd%plan_back)!,&
+!                                              & sd%rolloff_filter(i), abs(tod%scans(scan)%d(d)%N_psd%sigma0)) ! ADDED
           end do
        end do
 

@@ -39,25 +39,30 @@ module comm_tod_hfi_mod
   use comm_tod_cgmap_mod
   use comm_tod_pixhist_mod
   use comm_tod_adc_binfit_mod
-  use comm_tod_4k_lines_mod
+  use comm_tod_4K_lines_mod
   implicit none
 
   private
   public comm_hfi_tod
 
-  type comm_4k_lines_pointer
-    class(comm_4k_lines), pointer :: p => null()
-  end type comm_4k_lines_pointer
+  type comm_4K_lines_pointer
+    class(comm_4K_lines), pointer :: p => null()
+  end type comm_4K_lines_pointer
+
+  type :: comm_4K_lines_
+    real(sp), dimension(:), allocatable :: profile ! (ntod)
+  end type comm_4K_lines_
 
   type, extends(comm_tod) :: comm_hfi_tod
-     integer(i4b) :: n_4k_lines
+     integer(i4b) :: n_4K_lines
+     class(comm_4K_lines_), allocatable, dimension(:,:) :: cooler_4K_lines_profile ! (ndet,nscan)
      real(sp) :: f_spin
      type(planck_rng) :: handle
-     real(sp), allocatable, dimension(:) :: nus_4k_lines ! (n_4k_lines)
+     real(sp), allocatable, dimension(:) :: nus_4K_lines ! (n_4K_lines)
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)
      class(comm_dynmask), pointer :: dynmask
      class(comm_crosstalk),    pointer :: xtalk
-     class(comm_4k_lines_pointer), allocatable, dimension(:,:,:) :: cooler_4k_lines ! (n_4k_lines,ndet,nscan)
+     class(comm_4K_lines_pointer), allocatable, dimension(:,:,:) :: cooler_4K_lines ! (n_4K_lines,ndet,nscan)
      type(adc_binfit_pointer), allocatable, dimension(:) :: adc ! (ndet)
    contains
      procedure     :: process_tod             => process_hfi_tod
@@ -71,9 +76,10 @@ module comm_tod_hfi_mod
 
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
-     procedure, private     :: estimate_hfi_4k_lines
-     procedure, private     :: remove_hfi_4k_lines
-     procedure, private     :: spline_rolloff
+     procedure, private     :: estimate_hfi_4K_lines_tod
+     procedure, private     :: estimate_hfi_4K_lines_harm
+     procedure, private     :: remove_hfi_4K_lines_tod
+     procedure, private     :: remove_hfi_4K_lines_harm
      procedure, private     :: fill_gaps
      procedure, private     :: sample_adc_and_baselines
      procedure, private     :: compute_adu_range
@@ -471,9 +477,9 @@ interface
     integer(i4b),                        intent(in)    :: det
   end subroutine sample_adc_and_baselines
 
-  module subroutine estimate_hfi_4k_lines(self, sd, i_det, apply_mask, ps_output)
+  module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filename_out)
     !  Construct and apply HFI instrument-specific corrections
-    !  from 4k lines
+    !  from 4K lines
     !
     !  Arguments:
     !  ----------
@@ -485,18 +491,18 @@ interface
     !       detector id
     !  apply_mask: logical
     !              apply mask to residuals    
-    !  ps_output: character array
-    !             output filename
+    !  filename_out: character array
+    !                output filename
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-    character(len=*),        optional, intent(in)    :: ps_output
-  end subroutine estimate_hfi_4k_lines
+    character(len=*),        optional, intent(in)    :: filename_out
+  end subroutine estimate_hfi_4K_lines_tod
 
-  module subroutine remove_hfi_4k_lines(self, sd, i_det, apply_mask)
-    !  Apply HFI instrument-specific corrections from 4k lines
+  module subroutine remove_hfi_4K_lines_tod(self, sd, i_det, apply_mask)
+    !  Apply HFI instrument-specific corrections from 4K lines
     !
     !  Arguments:
     !  ----------
@@ -513,29 +519,52 @@ interface
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-  end subroutine remove_hfi_4k_lines
+  end subroutine remove_hfi_4K_lines_tod
 
-  module subroutine spline_rolloff(self, sd, i_det, ps_output, set_wn_level)
-    ! Defines high frequency rolloff in noise spectrum
+  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, ps_output)
+    !  Construct and apply HFI instrument-specific corrections
+    !  from 4K lines
     !
-    ! Arguments:
-    ! ----------
-    ! self: comm_tod object
-    !
-    ! sd: comm_scandata object
-    ! i_det: int
-    !        detector id
-    ! handle: planck_rng
-    !         rng handle
-    ! ps_output: character array
-    !            output filename
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !  
+    !  sd: comm_scandata object
+    !      scan data
+    !  i_det: int
+    !       detector id
+    !  apply_mask: logical
+    !              apply mask to residuals    
+    !  ps_output: lgt
+    !             output PSDs
     implicit none
-    class(comm_hfi_tod),                       intent(inout) :: self
-    class(comm_scandata),                      intent(inout) :: sd
-    integer(i4b),                              intent(in)    :: i_det
-    character(len=*),                optional, intent(in)    :: ps_output
-    logical(lgt),                    optional, intent(in)    :: set_wn_level
-  end subroutine spline_rolloff
+    class(comm_hfi_tod),               intent(inout) :: self
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+    logical(lgt),            optional, intent(in)    :: apply_mask
+    logical(lgt),        optional, intent(in)    :: ps_output
+  end subroutine estimate_hfi_4K_lines_harm
+
+  module subroutine remove_hfi_4K_lines_harm(self, sd, i_det, apply_mask)
+    !  Apply HFI instrument-specific corrections from 4K lines
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !  
+    !  sd: comm_scandata object
+    !      scan data
+    !  i_det: int
+    !       detector id
+    !  apply_mask: logical
+    !              .true. to apply mask to residuals
+    implicit none
+    class(comm_hfi_tod),               intent(inout) :: self
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+    logical(lgt),            optional, intent(in)    :: apply_mask
+  end subroutine remove_hfi_4K_lines_harm
+
 
   module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
     ! Fill gaps in flagged samples

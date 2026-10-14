@@ -73,7 +73,7 @@ contains
     c%samprate = samprate
     
     allocate(c%a(c%npole), c%tau(c%npole))
-    call c%update(par_init)
+    call c%update(par=par_init)
     
   end function Tbol_constructor
 
@@ -234,7 +234,6 @@ contains
           nu(i) = (i-1)*(self%samprate/2)/(NSPLINE-1)
           K = self%get_K_regularization(nu(i), rolloff, peak, sigma)
           K = K * abs(TF_pre_regular(i))
-          
           if (K > 0.d0) then
              TF_full(i)    = K
              TF_preproc(i) = K/TF_pre_regular(i)

@@ -431,7 +431,9 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
      real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
      ! ADDED
-     type(spline_type)                             :: rolloff_filter ! High-frequency noise rolloff profile for Tbol deconv
+     type(spline_type), allocatable, dimension(:)  :: rolloff_filter ! High-frequency noise rolloff profile for Tbol deconv [ndet]
+   contains
+     procedure                           :: spline_rolloff
   end type comm_scandata
 
   ! Class for uncompressed data of a single detector over the full flight; use sparingly
@@ -3728,5 +3730,89 @@ contains
     integer(i4b)             :: oper
     oper = sum(2**op_list)
   end function get_sd_operation_code  
-   
+
+  subroutine spline_rolloff(self, i_det, gain, sigma_0, samprate)
+    ! Defines high frequency rolloff in noise spectrum
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_scandata object
+    !
+    ! i_det: int
+    !        detector id
+    implicit none
+    class(comm_scandata),                      intent(inout) :: self
+    integer(i4b),                              intent(in)    :: i_det
+    real(dp),                                  intent(in)    :: gain, samprate
+    real(sp),                                  intent(in)    :: sigma_0
+    
+    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err
+    integer*8    :: plan_fwd, plan_back
+    real(sp)     :: dnu
+    integer(i4b), allocatable, dimension(:)   :: bin_count
+    real(sp),     allocatable, dimension(:)   :: d_prime, dt, bin_sum
+    complex(spc), allocatable, dimension(:)   :: dv
+    real(sp),     allocatable, dimension(:,:) :: ps
+    real(dp),     allocatable, dimension(:,:) :: bin_spec
+
+    ntod = self%ntod
+    allocate(d_prime(ntod))
+
+    ! Prepare TOD residual
+    d_prime = (self%tod(:,i_det) - gain * self%s_tot(:,i_det,0,1)) * self%mask(:,i_det)
+
+    nomp     = 1
+    nfft     = 2 * ntod
+    n        = nfft / 2 + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+
+    ! FFT
+    dt(1:ntod)           = d_prime(:)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+    do l = 1, n-1
+       ps(l,1) = l*(samprate/2)/(n-1)
+       ps(l,2) = abs(dv(l))** 2 / ntod
+    end do
+    deallocate(d_prime, dt, dv)
+
+    ! Binning
+    dnu = 5.d-1 ! Hz
+    nbin = (ps(n-1,1) - ps(1,1))/dnu
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n-1
+       j = (ps(i,1) - ps(1,1))/dnu + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i,2)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = ps(1,1) + (j-0.5d0)*dnu
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    deallocate(bin_sum,bin_count,ps)
+
+    call spline(self%rolloff_filter(i_det), bin_spec(:,1), dble(bin_spec(:,2)))
+    deallocate(bin_spec)
+
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
+ 
+  end subroutine spline_rolloff
+
 end module comm_tod_mod

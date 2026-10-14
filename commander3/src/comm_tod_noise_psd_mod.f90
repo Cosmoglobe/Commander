@@ -818,9 +818,9 @@ contains
     n = size(x)
     if (size(y)/=n) stop "Error: x and y arrays have different sizes"
 
-    nlog_bins = 5
-    threshold = 1.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
-    bin_width = 2.d0 !1.d0 ! Hz
+    nlog_bins = 2
+    threshold = 2.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
+    bin_width = 5.d0 !1.d0 ! Hz
     bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
 
     ! Check if at least 2 points per bin

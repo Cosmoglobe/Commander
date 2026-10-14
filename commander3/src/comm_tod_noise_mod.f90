@@ -125,7 +125,10 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
+       if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) then
+          call whitening_filter(self,sd,i)
+          call update_spline_noise_psd(self,sd,scan,i)
+       end if
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2
        !if (self%myid == 0) write(*,*) 'sigma0 = ', sigma_0
@@ -780,6 +783,137 @@ contains
        
   end subroutine sample_noise_psd
 
+  subroutine whitening_filter(self, sd, i_det)
+    implicit none
+    class(comm_tod),                       intent(inout) :: self
+    class(comm_scandata),                  intent(inout) :: sd
+    integer(i4b),                          intent(in)    :: i_det
+
+    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err, scan
+    integer*8    :: plan_fwd, plan_back
+    real(sp)     :: gain, samprate, dnu, eval_spline, sigma_0
+    type(spline_type) :: W
+    integer(i4b), allocatable, dimension(:)   :: bin_count
+    real(sp),     allocatable, dimension(:)   :: d_prime, dt, bin_sum
+    real(dp),     allocatable, dimension(:)   :: ps_target
+    complex(spc), allocatable, dimension(:)   :: dv
+    real(sp),     allocatable, dimension(:,:) :: ps
+    real(dp),     allocatable, dimension(:,:) :: bin_spec
+    character(len=6) :: scantext, dettext
+
+    scan = sd%scan
+    ntod = self%scans(scan)%ntod
+    allocate(d_prime(ntod))
+    gain     = self%scans(scan)%d(i_det)%gain  ! Gain in V / K
+    sigma_0  = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)
+
+    ! Prepare TOD residual
+    d_prime = (sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)) * sd%mask(:,i_det)
+
+    nomp     = 1
+    samprate = self%samprate
+    nfft     = 2 * ntod  
+    n        = nfft / 2 + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+
+    ! FFT
+    dt(1:ntod)           = d_prime(:)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+    do l = 1, n-1
+       ps(l,1) = l*(samprate/2)/(n-1)
+       ps(l,2) = abs(dv(l))** 2 / ntod
+    end do
+    deallocate(d_prime)
+
+    call int2string(self%scanid(scan), scantext)
+    call int2string(i_det, dettext)
+    open(58,file='new_Tbol/scan10000/spline/1/pre_whitening_' // scantext // '_' // dettext // '.dat', recl=1024)
+    do l = 1, n-1
+       write(58,*) ps(l,1), ps(l,2)
+    end do
+    close(58)
+
+    ! Binning
+    dnu = 1.d0 ! Hz, same spacing used for spline noise model binning
+    nbin = (ps(n-1,1) - ps(1,1))/dnu
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin+1,2), ps_target(nbin+1))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec = 0.d0
+    do i = 1, n-1
+       j = (ps(i,1) - ps(1,1))/dnu + 1
+       if (j >= 1 .and. j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i,2)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = ps(1,1) + (j-0.5d0)*dnu
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+       !if (bin_spec(j,2)/=bin_spec(j,2)) then
+       !   write(*,*) 'j, count, ls = ', j, bin_count(j), bin_spec(j,1)
+       !end if
+    end do
+
+    bin_spec(nbin+1,1) = (samprate/2) + 1.d-3
+    bin_spec(nbin+1,2) = bin_spec(nbin,2)
+
+    deallocate(bin_sum,bin_count,ps)
+
+
+    ! normalized Target PSD
+    do j = 1, nbin+1
+       ps_target(j) = max(bin_spec(j,2),1.01 * sigma_0**2) / bin_spec(j,2)
+    end do
+    !write(*,*) sigma_0**2, minval(ps_target)
+
+    ! Build the filter
+    call spline(W, bin_spec(:,1), ps_target)
+
+
+    ! Deconvolve
+    allocate(ps(1:n-1,2))
+    dt(1:ntod)           = sd%tod(:,i_det)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+
+    do l = 1, n-1
+       ps(l,1) = l*(samprate/2)/(n-1)
+       if (ps(l,1) > bin_spec(1,1)) then
+          eval_spline = real(splint(W,dble(ps(l,1))),sp)
+          !write(*,*) 'ls, W = ', ps(l,1), eval_spline ! ADDED
+          dv(l) = dv(l) * sqrt(eval_spline)
+       end if
+    end do
+
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT)
+
+    dt  = dt / nfft
+    sd%tod(:,i_det) = dt(1:ntod)
+
+    deallocate(dt, dv, ps, bin_spec)
+    call free_spline(W)
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
+
+  end subroutine whitening_filter
+
+
   ! Updates the spline noise PSD model
   subroutine update_spline_noise_psd(self, sd, scan, i)
     implicit none
@@ -788,13 +922,18 @@ contains
     integer(i4b),               intent(in)     :: scan
     integer(i4b),               intent(in)     :: i
 
+    character(len=6) :: scantext, dettext
     real(sp), allocatable, dimension(:)   :: d_prime
     real(sp), allocatable, dimension(:,:) :: noise_ps
 
     allocate(d_prime(self%scans(scan)%ntod))
     d_prime = sd%tod(:,i) - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
     d_prime = d_prime * sd%mask(:,i)
-    call self%compute_powspec(d_prime, scan, powspec=noise_ps)
+    call int2string(self%scanid(scan), scantext)
+    call int2string(i, dettext)
+    call self%compute_powspec(d_prime, scan, &
+         & print_output='new_Tbol/scan10000/spline/1/post_whitening_' // scantext // '_' // dettext // '.dat', &
+         & powspec=noise_ps)
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
           call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
