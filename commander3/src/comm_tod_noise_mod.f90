@@ -515,7 +515,7 @@ contains
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
     type(planck_rng),                   intent(inout)  :: handle
-    character(len=*),                   intent(in)    :: chaindir
+    character(len=*),                   intent(in), optional :: chaindir
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
@@ -587,31 +587,37 @@ contains
           ! Remove outliers
           s0 = 1d30
           do k = 1, 3
-             if (self%scanid(scan) == outscan) open(58,file=trim(chaindir)//'/res2.dat', recl=1024)
+             if (self%scanid(scan) == outscan .and. present(chaindir)) open(58,file=trim(chaindir)//'/res2.dat', recl=1024)
              s    = 0.d0
              nval = 0
              do j = 1, ntod0-1, 2
                 if (mask0(j) < 0.5 .or. mask0(j+1) < 0.5) cycle
                 res = (res0(j)-res0(j+1))/sqrt(2.)
                 if (abs(res) > s0) cycle
-                if (self%scanid(scan) == outscan) write(58,*) j, res, res0(j)
+                if (self%scanid(scan) == outscan .and. present(chaindir)) write(58,*) j, res, res0(j)
                 s    = s    + res**2
                 nval = nval + 1
              end do
              if (nval > 100) then
                 if( present(dec_wn) )then
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
-                   if (sigma0_preproc_) self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   if (sigma0_preproc_) then
+                      self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                 else
-                   self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
-                   if (sigma0_preproc_) self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1))
+                   if (sigma0_preproc_) then
+                      self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1))
+                   else
+                      self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+                   end if
                    s0 = threshold * sqrt(s/(nval-1))
                 end if
              else
                 exit
              end if
-             if (self%scanid(scan) == outscan) close(58)
+             if (self%scanid(scan) == outscan .and. present(chaindir)) close(58)
           end do
        end do
        deallocate(res0, mask0)
@@ -645,7 +651,7 @@ contains
           end if
        end do
 
-       if (mod(self%scanid(scan),5000) == 0) then
+       if (mod(self%scanid(scan),5000) == 0 .and. present(chaindir)) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)
@@ -686,7 +692,7 @@ contains
           end do
        end do
 
-       if (mod(self%scanid(scan),5000) == 0) then
+       if (mod(self%scanid(scan),5000) == 0 .and. present(chaindir)) then
        !if (self%scanid(scan) == 1) then
           call int2string(self%scanid(scan), stext)
           call int2string(i, dtext)

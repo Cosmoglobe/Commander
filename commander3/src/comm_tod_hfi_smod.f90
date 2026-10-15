@@ -557,10 +557,6 @@ contains
        
        ! Estimate pre-deconvolution white noise rms
        call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.)
-    !   do j = 1, self%ndet
-    !      if (.not. self%scans(i)%d(j)%accept) cycle
-    !      !call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
-    !   end do
           
        call timer%stop(TOD_NONLIN, self%band)
 
@@ -1485,7 +1481,7 @@ contains
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
 
-    integer(i4b) :: i, j, d, scan
+    integer(i4b) :: i, j, d, scan, dec_wn
 
     scan = sd%scan
 
@@ -1595,6 +1591,10 @@ contains
          end if
       end do
    end if
+
+   ! Estimate post-deconvolution white noise rms
+   dec_wn = 2
+   call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
 
   end subroutine apply_nonlin_corr_hfi
 
@@ -1927,7 +1927,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     samprate = self%samprate
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2
+    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0_preproc)**2
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
     output_  = .false.; if (present(output) .and. mod(self%scanid(scan),5000)==0) output_ = output

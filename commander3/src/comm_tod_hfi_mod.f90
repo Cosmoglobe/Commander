@@ -31,7 +31,7 @@ module comm_tod_hfi_mod
   !       Routine which processes the time ordered data
   !
   use comm_tod_driver_mod
-  us comm_tod_cray_mod
+  use comm_tod_cray_mod
   use comm_conviqt_mod
   use comm_tod_crosstalk_mod
   use comm_tod_Tbol_mod
