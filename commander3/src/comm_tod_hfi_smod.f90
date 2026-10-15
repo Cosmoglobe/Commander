@@ -689,7 +689,7 @@ contains
           if (.not. any(self%scans(i)%d%accept)) cycle
 
           ! Update scan data with new flagging
-          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle, only_sigma0 = .false.)
+          call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
        end if
 
        ! Sample correlated noise
@@ -1446,7 +1446,7 @@ contains
 
   end subroutine construct_corrtemp_hfi
 
-  module subroutine apply_nonlin_corr_hfi(self, sd, nonlin_lvl, handle, det, only_sigma0)
+  module subroutine apply_nonlin_corr_hfi(self, sd, nonlin_lvl, handle, det)
     !  Construct and apply HFI instrument-specific non-linear corrections
     !
     !  Arguments:
@@ -1469,13 +1469,10 @@ contains
     integer(i4b),                          intent(in)    :: nonlin_lvl
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
-    logical(lgt),                optional, intent(in)    :: only_sigma0 ! To avoid updating the spline noise model
-                                                                        ! before calibration
-    integer(i4b) :: i, j, d, scan, dec_wn
-    logical(lgt) :: only_sigma0_
+
+    integer(i4b) :: i, j, d, scan
 
     scan = sd%scan
-    only_sigma0_ = .true.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
 
     ! Apply ADC corrections to raw self%tod_dp
     if (nonlin_lvl > 0 .and. associated(self%adc(1)%p)) then
@@ -1574,24 +1571,10 @@ contains
        end do
     end if
 
-   ! At the end, update spline noise model nodes or sigma0
-   if (nonlin_lvl > 3) then
-      dec_wn = 2
-      if (self%noise_psd_model == 'spline') then
-         if (only_sigma0_) then
-            call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
-         else   
-            do i = 1, self%ndet
-               if (self%scans(scan)%d(i)%accept) then
-                  !call whitening_filter(self, sd, i)
-                  call update_spline_noise_psd(self,sd,scan,i)
-               end if
-            end do
-         end if
-      else
-         ! Estimate post-deconvolution white noise rms
-         call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=dec_wn)
-      end if
+   ! At the end, update sigma0 and possibly spline noise model
+   if (nonlin_lvl > 4) then
+      ! Estimate post-deconvolution white noise rms
+      call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=2)
    end if
 
   end subroutine apply_nonlin_corr_hfi

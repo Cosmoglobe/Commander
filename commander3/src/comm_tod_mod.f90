@@ -2346,7 +2346,7 @@ contains
   end subroutine coadd_horns
 
   
-  subroutine apply_nonlin_corr_inst(self, sd, nonlin_lvl, handle, det, only_sigma0)
+  subroutine apply_nonlin_corr_inst(self, sd, nonlin_lvl, handle, det)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2359,7 +2359,6 @@ contains
     integer(i4b),                          intent(in)       :: nonlin_lvl
     type(planck_rng),                      intent(inout), optional :: handle
     integer(i4b),                          intent(in),    optional :: det
-    logical(lgt),                optional, intent(in)    :: only_sigma0
   end subroutine apply_nonlin_corr_inst
 
   subroutine apply_fast_flags_inst(self, sd)
@@ -3706,7 +3705,7 @@ contains
     if (present(powspec)) then
        do l = 1, n-1
           powspec(l,1) = l*(samprate/2)/(n-1)
-          powspec(l,2) = abs(dv(l))** 2 / ntod
+          powspec(l,2) = (abs(dv(l))** 2 / ntod)/2
        end do
     end if
 
@@ -3714,7 +3713,7 @@ contains
        open(58,file=print_output, recl=1024)
        do l = 1, n-1
           ls = l*(samprate/2)/(n-1)
-          ps = abs(dv(l))** 2 / ntod
+          ps = (abs(dv(l))** 2 / ntod)/2
           write(58,*) ls, ps
        end do
        close(58)

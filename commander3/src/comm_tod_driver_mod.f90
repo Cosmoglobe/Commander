@@ -37,7 +37,7 @@ contains
   !                   (2) = (1) + jumps
   !                   (3) = (2) + instrument-specific
   !                   (4) = (3) + spikes
-  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle, only_sigma0)
+  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
     integer(i4b),         intent(in)              :: scan, oper, bitmask0
@@ -46,11 +46,9 @@ contains
     integer(i4b),         intent(in),    optional :: nonlin_level
     integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
-    logical(lgt),         intent(in),    optional :: only_sigma0
 
     integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
     integer(i4b) :: n, nfft
-    logical(lgt) :: only_sigma0_
     real(sp),     allocatable, dimension(:)   :: dt
     complex(spc), allocatable, dimension(:)   :: dv
 
@@ -67,7 +65,6 @@ contains
          & sd%nbp = size(tod%pixcache%map_sky,4)
     sd%hmax     = 0; if (tod%nhorn > 1) sd%hmax = tod%nhorn
     nonlin_lvl  = 100; if (present(nonlin_level)) nonlin_lvl = nonlin_level
-    only_sigma0_ = .true.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
     spur_lvl    = 100; if (present(spur_level))   spur_lvl = spur_level
     
     ! Allocate data structures
@@ -350,7 +347,7 @@ contains
     ! Apply non-linearity corrections
     if (btest(oper,SD_TOD) .and. nonlin_lvl > 0) then
        call timer%start(TOD_NONLIN, tod%band)
-       call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle, only_sigma0=only_sigma0_)
+       call tod%apply_nonlin_corr_inst(sd, nonlin_lvl, handle)
        call timer%stop(TOD_NONLIN, tod%band)
     end if
 
@@ -440,7 +437,7 @@ contains
   ! initializes a detector data structure for a single detector over the entire flight
   ! - Flagged data are omitted
   ! - nside_pix -> 0 = skip pix; >0 = ring; <0 = nest
-  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd, nonlin_level, spur_level, only_sigma0)
+  subroutine init_det_data(tod, det, oper, bitmask0, nside_pix, init_mjd, dd, nonlin_level, spur_level)
     implicit none
     class(comm_tod),     intent(inout) :: tod
     integer(i4b),        intent(in)    :: det
@@ -450,17 +447,14 @@ contains
     logical(lgt),        intent(in)    :: init_mjd
     class(comm_detdata), intent(inout) :: dd
     integer(i4b),        intent(in),   optional :: nonlin_level, spur_level
-    logical(lgt),        intent(in),   optional :: only_sigma0
     
     integer(i4b) :: i, j, k, p, ntod, q
     type(comm_scandata) :: sd
-    logical(lgt) :: only_sigma0_
     real(sp)     :: g
     real(sp),     allocatable, dimension(:) :: data
     integer(i4b), allocatable, dimension(:) :: pix
     real(dp),     allocatable, dimension(:) :: mjd
 
-    only_sigma0_ = .true.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
     q = (tod%info%nside/nside_pix)**2
     
     ! Find maximum number of samples
@@ -477,7 +471,7 @@ contains
     k = 0 ! Number of unmasked samples
     do i = 1, tod%nscan
        if (.not. tod%scans(i)%d(det)%accept) cycle
-       call init_scan_data(tod, i, oper, bitmask0, sd, det=det, nonlin_level=nonlin_level, spur_level=spur_level, only_sigma0 = only_sigma0_)
+       call init_scan_data(tod, i, oper, bitmask0, sd, det=det, nonlin_level=nonlin_level, spur_level=spur_level)
 
        g = tod%scans(i)%d(det)%gain
        do j = 1, sd%ntod

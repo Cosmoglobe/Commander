@@ -126,8 +126,8 @@ contains
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
        if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) then
-          call whitening_filter(self,sd,i)
-          call update_spline_noise_psd(self,sd,scan,i)
+          !call whitening_filter(self,sd,i)
+          call update_spline_noise_psd(self,sd,scan,i, handle)
        end if
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2
@@ -921,30 +921,85 @@ contains
 
 
   ! Updates the spline noise PSD model
-  subroutine update_spline_noise_psd(self, sd, scan, i)
+  subroutine update_spline_noise_psd(self, sd, scan, i, handle)
     implicit none
     class(comm_tod),            intent(inout)  :: self
     class(comm_scandata),       intent(in)     :: sd
     integer(i4b),               intent(in)     :: scan
     integer(i4b),               intent(in)     :: i
+    type(planck_rng),           intent(inout)  :: handle
 
     character(len=6) :: scantext, dettext
+    integer(i4b) :: j, j0, j1, k, ntod, Nedge, Nleft, Nright
+    real(sp) :: sigma0, mu_left, mu_right, w
     real(sp), allocatable, dimension(:)   :: d_prime
     real(sp), allocatable, dimension(:,:) :: noise_ps
 
-    allocate(d_prime(self%scans(scan)%ntod))
+
+    ntod = self%scans(scan)%ntod
+    sigma0 = self%scans(scan)%d(i)%N_psd%sigma0
+    allocate(d_prime(ntod))
     d_prime = sd%tod(:,i) - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
-    d_prime = d_prime * sd%mask(:,i)
-    call int2string(self%scanid(scan), scantext)
-    call int2string(i, dettext)
-    call self%compute_powspec(d_prime, scan, &
-         & print_output='new_Tbol/scan10000/spline/1/post_whitening_' // scantext // '_' // dettext // '.dat', &
+    Nedge = 10 ! number of samples beyond the gap edges to compute the average
+
+   ! Fill masked gaps: linear interpolation between edge means + white noise
+   !                   to account for 1/f
+   j = 1
+   do while (j <= ntod)
+      if (sd%mask(j,i) > 0.5) then
+         j = j + 1
+         cycle
+      end if
+      j0 = j ! start of gap
+      do while (j <= ntod)
+         if (sd%mask(j,i) > 0.5) exit
+         j = j + 1
+      end do
+      j1 = j - 1 ! end of gap
+
+      ! left edge mean
+       mu_left = 0.d0; Nleft = 0; k = j0 - 1
+       do while (k >= 1 .and. Nleft < Nedge)
+          if (sd%mask(k,i) < 0.5) exit
+          mu_left = mu_left + d_prime(k)
+          Nleft = Nleft + 1
+          k = k - 1
+       end do
+
+       ! right edge mean
+       mu_right = 0.d0; Nright = 0; k = j1 + 1
+       do while (k <= ntod .and. Nright < Nedge)
+          if (sd%mask(k,i) < 0.5) exit
+          mu_right = mu_right + d_prime(k)
+          Nright = Nright + 1
+          k = k + 1
+       end do
+
+       if (Nleft > 0)  mu_left = mu_left/Nleft
+       if (Nright > 0) mu_right= mu_right/Nright
+       if (Nleft == 0) mu_left = mu_right ! gap at scan start
+       if (Nright == 0) mu_right = mu_left  ! gap at scan end
+       do k = j0, j1
+          w = real(k - j0 + 1, sp) / real(j1 - j0 + 2, sp)
+          d_prime(k) = (1. - w)*mu_left + w*mu_right + sigma0 * rand_gauss(handle) ! baseline + white noise
+       end do
+    end do
+
+    if (mod(self%scanid(scan), 5000) == 0) then
+       call int2string(self%scanid(scan), scantext)
+       call int2string(i, dettext)
+       call self%compute_powspec(d_prime, scan, &
+         & print_output='new_Tbol/scan10000/spline/1/ps_pre_update_spline_' // scantext // '_' // dettext // '.dat', &
          & powspec=noise_ps)
+    else
+       call self%compute_powspec(d_prime, scan, powspec=noise_ps)
+    end if
+
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
-          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
-       deallocate(d_prime,noise_ps)
+       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
     end select
+    deallocate(d_prime,noise_ps)
 
   end subroutine update_spline_noise_psd
 
