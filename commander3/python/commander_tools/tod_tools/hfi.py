@@ -24,9 +24,7 @@ import commander_tools.tod_tools.commander_instrument as inst
 import os
 import numpy as np
 import healpy as hp
-import random
-import math
-class hfi(object):   
+class hfi(object):
  
     freqs = [100, 143, 217, 353, 545, 857]
     dets = {100:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b'], 143:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5', '6', '7'], 217:['1', '2', '3', '4', '5a', '5b', '6a', '6b', '7a', '7b', '8a', '8b'], 353:['1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', '7', '8'], 545:['1', '2', '4'], 857:['1', '2', '3', '4']}
@@ -162,26 +160,6 @@ class hfi(object):
     @staticmethod
     def instrument_filename(version):
         return 'HFI_instrument_v' + str(version) + '.h5'
-
-    @staticmethod
-    def ring_outer_product(theta, phi):
-        outAng = [0, 0]
-        nsamps = min(100, len(theta))
-        pair1 = random.sample(range(len(theta)), nsamps)
-        pair2 = random.sample(range(len(theta)), nsamps)
-        vecs = hp.pixelfunc.ang2vec(theta, phi)
-        for a1, a2 in zip(pair1, pair2):
-            crossP = np.cross(vecs[a1], vecs[a2])
-            if(crossP[0] < 0):
-                crossP *= -1
-            theta1, phi1 = hp.vec2ang(crossP)
-            if(not math.isnan(theta1) and not math.isnan(phi1)):
-                outAng[0] += theta1/nsamps
-                outAng[1] += phi1/nsamps
-            else:
-                outAng[0] += outAng[0]/nsamps
-                outAng[1] += outAng[1]/nsamps
-        return outAng
 
     def freq2dets(self, freq):
         return self.dets[freq]
