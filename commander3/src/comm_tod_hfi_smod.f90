@@ -273,18 +273,20 @@ contains
     end do
     c%nus_4K_lines(9) = 16.7d0  ! One of the  main lines
     c%nus_4K_lines(10:15) = [16.d0, 25.d0, 43.4d0, 46.2d0, 47.6d0, 56.8d0] ! NPIPE secondary lines
+    c%cooler_correction_domain = 'time' ! 'frequency'
 
-    !! Estimation in real space
-    allocate(c%cooler_4K_lines_profile(c%ndet,c%nscan))
-
-!    allocate(c%cooler_4K_lines(c%n_4K_lines,c%ndet,c%nscan))
-!    do i = 1, c%nscan
-!       do j = 1, c%ndet
-!          do k = 1, c%n_4K_lines
-!             c%cooler_4K_lines(k,j,i)%p => comm_4K_lines()
-!          end do
-!       end do
-!    end do
+    if (trim(c%cooler_correction_domain) == 'time') then ! Estimation in time domain
+       allocate(c%cooler_4K_lines_profile(c%ndet,c%nscan))
+    elseif (trim(c%cooler_correction_domain) == 'frequency') then ! In frequency domain
+       allocate(c%cooler_4K_lines(c%n_4K_lines,c%ndet,c%nscan))
+       do i = 1, c%nscan
+          do j = 1, c%ndet
+             do k = 1, c%n_4K_lines
+                c%cooler_4K_lines(k,j,i)%p => comm_4K_lines()
+             end do
+          end do
+       end do
+    end if
 
     ! Initialize dynamic mask
     c%dynmask => comm_dynmask(c, cpar)
@@ -568,13 +570,32 @@ contains
        ! Dark bolometer drift correction
        call self%hfi_dark_correction(i, sd)       
 
-       ! 4K Line corrections
+
        if (fit_4K_lines) then
-          do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
-             call estimate_hfi_4K_lines_tod(self, sd, j)
-          end do
+          if (trim(self%cooler_correction_domain) == 'time') then
+             ! 4K Line corrections from TOD
+             do j = 1, self%ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                call estimate_hfi_4K_lines_tod(self, sd, j)
+             end do
+          elseif (trim(self%cooler_correction_domain) == 'frequency') then
+             ! In-paint flagged samples for 4K lines estimation
+             do j = 1, self%ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                do k = 1, sd%ntod
+                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
+                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc * rand_gauss(handle)
+                   end if
+                end do
+             end do   
+             ! 4K Line corrections from PSD
+             do j = 1, self%ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                call estimate_hfi_4K_lines_harm(self, sd, j)
+             end do
+          end if
        end if
+
 
        ! Initialize spline noise model
        if (self%noise_psd_model == 'spline') then
@@ -1501,26 +1522,37 @@ contains
        call demodulate_tod(sd, self, scan)
     end if
     
-    ! In-paint flagged samples with s_tot + white noise
+
+    ! 4K lines removal and/or in-painting
     if (nonlin_lvl > 2) then
-       do i = 1, self%ndet
-          d = i; if (present(det)) d = det
-          if (.not. self%scans(scan)%d(d)%accept) cycle
-          do j = 1, sd%ntod
-             if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
-                sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
-             end if
+       if (trim(self%cooler_correction_domain) == 'time') then
+          do i = 1, self%ndet
+             ! Correct 4K lines from TOD
+             if (self%scans(scan)%d(i)%accept) call remove_hfi_4K_lines_tod(self, sd, i)
+             ! In-paint flagged samples with s_tot + white noise
+             d = i; if (present(det)) d = det
+             if (.not. self%scans(scan)%d(d)%accept) cycle
+             do j = 1, sd%ntod
+                if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+                end if
+             end do
           end do
-       end do
-    end if
-        
-    
-    ! Correct 4K lines (re-estimate after gain sampling)
-    if (.false. .and. nonlin_lvl > 2) then
-       do i = 1, self%ndet
-          if (.not. self%scans(scan)%d(i)%accept) cycle
-          call remove_hfi_4K_lines_tod(self, sd, i)
-       end do
+       elseif (trim(self%cooler_correction_domain) == 'frequency') then
+          ! In-paint flagged samples with s_tot + white noise
+          do i = 1, self%ndet
+             d = i; if (present(det)) d = det
+             if (self%scans(scan)%d(d)%accept) then
+                do j = 1, sd%ntod
+                   if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                      sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+                   end if
+                end do
+             end if
+             ! Correct 4K lines from PSD
+             if (self%scans(scan)%d(i)%accept) call remove_hfi_4K_lines_harm(self, sd, i)
+          end do
+       end if
     end if
 
     ! Define high-frequency roll-off ! MODIFIED
@@ -1609,7 +1641,7 @@ contains
 
   end subroutine hfi_dark_correction
 
-module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filename_out)
+module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -1621,58 +1653,66 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     !       scan data
     !  i_det: int
     !       detector id
-    !  apply_mask: logaical
-    !              apply mask to residuals
-    !  filename_out: character array
-    !                output filename    
+    !  output: lgt
+    !          output TOD    
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
-    logical(lgt),            optional, intent(in)    :: apply_mask
-    character(len=*),        optional, intent(in)    :: filename_out
+    logical(lgt),            optional, intent(in)    :: output
 
     integer(i4b) :: i, j, k, l, m, ntod, scan
     integer(i4b) :: n, nphi, dt_chunk, n_chunks, ind, i0, i1
-    logical(lgt) :: apply_mask_
-    real(sp)     :: samprate, gain, wn, Ttot
-    real(sp),     allocatable, dimension(:) :: d_prime, chunk, templ
+    character(len=6) :: scantext, dettext
+    logical(lgt) :: output_
+    real(sp)     :: samprate, gain!, fade_width
+    real(sp),     allocatable, dimension(:) :: d_prime, chunk, templ, template
     real(dp),     allocatable, dimension(:) :: times
-
-    apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
 
     scan     = sd%scan
     ntod     = self%scans(scan)%ntod
     samprate = self%samprate
-    Ttot     = ntod/samprate
     n        = self%n_4K_lines
     nphi     = n+1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2!_preproc)**2
+
+    output_  = .false.; if (present(output) .and. mod(self%scanid(scan),5000)==0) output_ = output
+    if (output_) then
+       call int2string(self%scanid(scan), scantext)
+       call int2string(i_det, dettext)
+    end if
 
     dt_chunk = 5*60*samprate ! 5 minutes chunks
-    n_chunks = (ntod + dt_chunk - 1) / dt_chunk
+    n_chunks = max(1, ntod/dt_chunk) ! Avoid small chunk at the end by defining a larger last scan
+    !fade_width = 10 ! [s], time width of fading edges between chunks
+
+    self%cooler_4K_lines_profile(i_det,scan)%n_chunks   = n_chunks
+    !self%cooler_4K_lines_profile(i_det,scan)%fade_width = fade_width
+    if (.not. allocated(self%cooler_4K_lines_profile(i_det,scan)%coeffs)) then
+       allocate(self%cooler_4K_lines_profile(i_det,scan)%i0(n_chunks))
+       allocate(self%cooler_4K_lines_profile(i_det,scan)%i1(n_chunks))
+       allocate(self%cooler_4K_lines_profile(i_det,scan)%coeffs(n_chunks,2*nphi-2))
+       self%cooler_4K_lines_profile(i_det,scan)%coeffs = 0.d0
+    end if
 
     gain = self%scans(scan)%d(i_det)%gain
-    allocate(d_prime(ntod))
-    if (.not. allocated(self%cooler_4K_lines_profile(i_det,scan)%profile)) then
-       allocate(self%cooler_4K_lines_profile(i_det,scan)%profile(ntod))
-    end if
+    allocate(d_prime(ntod), template(ntod))
+    template = 0.d0
     d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
 
     ! Output starting res tod
-    if (present(filename_out) .and. mod(self%scanid(scan),10000)==0) then
-       open(58,file='res_tod_4K_' // filename_out // '_before.dat', recl=1024)
-       do l = 1, n-1
+    if (output_) then
+       open(58,file='res_tod_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
+       do l = 1, ntod
           write(58,*) l, d_prime(l), sd%mask(l,i_det)
        end do
        close(58)
     end if
 
-    if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
-
+    d_prime = d_prime * sd%mask(:,i_det)
     do ind = 1, n_chunks
        i0 = (ind-1)*dt_chunk + 1
-       i1 = min(ind*dt_chunk,ntod)
+       i1 = ind*dt_chunk
+       if (ind==n_chunks) i1 = ntod
        m = i1 - i0 + 1
 
        allocate(times(m), chunk(m), templ(m))
@@ -1683,43 +1723,45 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
        end do
        times = times - times(m/2)
 
-       call template_chunk(templ,times, chunk, sd%mask(i0:i1,i_det))
-       self%cooler_4K_lines_profile(i_det,scan)%profile(i0:i1) = templ
+       call template_chunk(templ,times, chunk, sd%mask(i0:i1,i_det), ind)
+       template(i0:i1) = templ
        deallocate(times,chunk,templ)
+       self%cooler_4K_lines_profile(i_det,scan)%i0(ind) = i0
+       self%cooler_4K_lines_profile(i_det,scan)%i1(ind) = i1
     end do
 
 
-    d_prime = d_prime - self%cooler_4K_lines_profile(i_det,scan)%profile * sd%mask(:,i_det)
-
     ! Output corrected res tod
-    if (present(filename_out) .and. mod(self%scanid(scan),10000)==0) then
-       open(58,file='res_tod_4K_' // filename_out // '_after.dat', recl=1024)
+    if (output_) then
+       d_prime = d_prime - template
+       open(58,file='res_tod_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, ntod
-          write(58,*) l, d_prime(l), sd%mask(l,i_det), self%cooler_4K_lines_profile(i_det,scan)%profile(l)
+          write(58,*) l, d_prime(l), sd%mask(l,i_det), template(l)
        end do
        close(58)
     end if
 
-    sd%tod(:,i_det) = d_prime + gain * sd%s_tot(:,i_det,0,1)
-    do i = 1, ntod
-       if (sd%mask(i,i_det) == 0) then
-          sd%tod(i,i_det) = sd%tod(i,i_det) + sqrt(wn) * rand_gauss(self%handle)
-       end if
-    end do
-
-    deallocate(d_prime)
+    sd%tod(:,i_det) = sd%tod(:,i_det) - template
+    deallocate(d_prime, template)
 
     contains
 
-    subroutine template_chunk(templ,times,chunk,mask)
+    subroutine template_chunk(templ,times,chunk,mask,ind)
        real(sp), dimension(:), intent(inout) :: templ
        real(sp), dimension(:), intent(in)    :: chunk, mask
        real(dp), dimension(:), intent(in)    :: times
+       integer(i4b),           intent(in)    :: ind
 
        integer(i4b) :: ierr
        real(dp)     :: phi, tr
        real(dp), allocatable, dimension(:)   :: ATd, row, y, x
        real(dp), allocatable, dimension(:,:) :: ATA
+
+       ! Check if enough unmasked samples
+       if (count(mask > 0.5) < 10*2*nphi) then
+          self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:) = 0.d0
+          return
+       end if
 
        allocate(ATA(2*nphi, 2*nphi), ATd(2*nphi), row(2*nphi))
        allocate(y(2*nphi), x(2*nphi))
@@ -1736,9 +1778,8 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
              row(2*j+2) = sin(phi*times(i))
           end do
 
-
           do j = 1, 2*nphi
-             ATd(j) = ATd(j) + row(j)*chunk(i)
+             ATd(j) = ATd(j) + row(j)*real(chunk(i),dp)
              do k = j, 2*nphi
                 ATA(j,k) = ATA(j,k) + row(j) * row(k)
              end do
@@ -1764,7 +1805,8 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
        call cholesky_decompose_single(ATA, ierr=ierr)
        if (ierr /= 0) then
           deallocate(ATA, ATd, row, y, x)
-          write(*,*) 'Error: 4K cholesky decomposition failed.'
+          write(*,*) 'Error: 4K cholesky decomposition failed - scan ', self%scanid(scan)
+          self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:) = 0.
           return
        end if
 
@@ -1781,56 +1823,71 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
           templ = templ + x(2*i+1) * cos(phi*times) + x(2*i+2) * sin(phi*times)
        end do
 
+       self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:) = x(3:2*nphi)
+
        deallocate(ATA,ATd,row,y,x)
     end subroutine template_chunk
 
   end subroutine estimate_hfi_4K_lines_tod
 
-  module subroutine remove_hfi_4K_lines_tod(self, sd, i_det, apply_mask)
+  module subroutine remove_hfi_4K_lines_tod(self, sd, i_det)
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
-    logical(lgt),            optional, intent(in)    :: apply_mask
 
-    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
-    integer(i4b) :: i0, i1
-    logical(lgt) :: apply_mask_, remove_4K_lines
-    real(sp)     :: gain, wn
-    real(sp),     allocatable, dimension(:)   :: d_prime
+    integer(i4b) :: i, j, n, ntod, scan
+    integer(i4b) :: i0, i1, nphi, n_chunks, ind, m
+    real(sp) :: samprate 
+    real(dp) :: phi
+    logical(lgt) :: remove_4K_lines
+    real(sp),     allocatable, dimension(:) :: templ, template, x
+    real(dp),     allocatable, dimension(:) :: times
 
     scan     = sd%scan
     remove_4K_lines = .false.
-    do i = 1, self%n_4K_lines
-       if (allocated(self%cooler_4K_lines_profile(i_det,scan)%profile)) then
-          remove_4K_lines = .true.
-       end if
-    end do
+    if (allocated(self%cooler_4K_lines_profile(i_det,scan)%coeffs)) then
+       remove_4K_lines = .true.
+    end if
     if (.not. remove_4K_lines) return
 
-    apply_mask_ = .true.; if (present(apply_mask)) apply_mask_ = apply_mask
     ntod = self%scans(scan)%ntod
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2
+    samprate = self%samprate
+    n        = self%n_4K_lines
+    nphi     = n+1
 
-    gain = self%scans(scan)%d(i_det)%gain
-    allocate(d_prime(ntod))
-    d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
-    if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
+    allocate(template(ntod), x(2*nphi-2))
+    template=  0.d0
+    n_chunks = self%cooler_4K_lines_profile(i_det,scan)%n_chunks
 
-    d_prime = d_prime - self%cooler_4K_lines_profile(i_det,scan)%profile * sd%mask(:,i_det)
+    do ind = 1, n_chunks
+       i0 = self%cooler_4K_lines_profile(i_det,scan)%i0(ind)
+       i1 = self%cooler_4K_lines_profile(i_det,scan)%i1(ind)
+       m = i1 - i0 + 1
 
-    sd%tod(:,i_det) = d_prime + gain * sd%s_tot(:,i_det,0,1)
-    do i = 1, ntod
-       if (sd%mask(i,i_det) == 0) then
-          sd%tod(i,i_det) = sd%tod(i,i_det) + sqrt(wn) * rand_gauss(self%handle)
-       end if
+       allocate(times(m), templ(m))
+       templ = 0.d0
+       do j = i0, i1
+          times(j-i0+1) = real(j-1,dp)/real(samprate,dp)
+       end do
+       times = times - times(m/2)
+
+       ! Build template
+       x = self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:)
+       do i = 1, n
+          phi = 2*PI*self%nus_4K_lines(i)
+          templ = templ + x(2*i-1) * cos(phi*times) + x(2*i) * sin(phi*times)
+       end do
+       template(i0:i1) = templ
+       deallocate(times, templ)
     end do
 
-    deallocate(d_prime)
+    sd%tod(:,i_det) = sd%tod(:,i_det) - template
+    deallocate(template, x)
 
   end subroutine remove_hfi_4K_lines_tod
 
-  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, ps_output)
+  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, output)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -1844,26 +1901,25 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     !       detector id
     !  apply_mask: logaical
     !              apply mask to residuals
-    !  ps_output: lgt
-    !             output PSDs    
+    !  output: lgt
+    !          output PSDs    
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-    logical(lgt),            optional, intent(in)    :: ps_output
+    logical(lgt),            optional, intent(in)    :: output
 
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: apply_mask_, ps_output_
+    logical(lgt) :: apply_mask_, output_
     character(len=6) :: scantext, dettext
     real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain, wn
     real(sp)     :: A_fit, f0_fit, sigma_fit
-    real(sp),     allocatable, dimension(:)   :: dt, d_prime
-    real(sp),     allocatable, dimension(:)   :: ps_flat, ps_spikes, W
+    real(sp),     allocatable, dimension(:)   :: dt, d_prime, profile, W
     complex(spc), allocatable, dimension(:)   :: dv, dv_4K
-    real(sp),     allocatable, dimension(:,:) :: ps, sub_ps, profile
+    real(sp),     allocatable, dimension(:,:) :: ps
 
     scan     = sd%scan
     ntod     = self%scans(scan)%ntod
@@ -1874,8 +1930,8 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
-    ps_output_  = .false.; if (present(ps_output) .and. mod(self%scanid(scan),5000)==0)  ps_output_  = ps_output
-    if (ps_output) then
+    output_  = .false.; if (present(output) .and. mod(self%scanid(scan),5000)==0) output_ = output
+    if (output_) then
        call int2string(self%scanid(scan), scantext)
        call int2string(i_det, dettext)
     end if
@@ -1885,7 +1941,6 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    allocate(ps_flat(1:n-1), ps_spikes(1:n-1), W(1:n-1))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
@@ -1904,22 +1959,22 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
        ps(l,2) = abs(dv(l))** 2 / ntod
     end do
     deallocate(d_prime)
-    ps_flat   = ps(:,2)
-    ps_spikes = 1.d-12
     
     ! Output starting noise power spectrum
-    if (ps_output) then
+    if (output_) then
        open(58,file='res_ps_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), ps(l,2)
        end do
        close(58)
+    
+       allocate(W(1:n-1))
+       W = 1.d0
     end if
-
 
     dnu = 0.03 ! Hz (size of freq window around each spike)
     maxiter = 1 ! Can be extended to iterative correction
-    n_f0 = 50; n_sig = 100
+    n_f0 = 20; n_sig = 10
     do i = 1, self%n_4K_lines
        fmin = self%nus_4K_lines(i) - dnu
        fmax = self%nus_4K_lines(i) + dnu
@@ -1934,21 +1989,18 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
           i1 = i1 + 1
        end do
        nsub = i1 - i0 + 1
-       if(nsub < 5) cycle ! too small window
+       if(nsub < 10) cycle ! too small window
        
        if (allocated(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)) then
           deallocate(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)
        end if
        
+       self%cooler_4K_lines(i,i_det,scan)%p%i0 = i0
        self%cooler_4K_lines(i,i_det,scan)%p%window = nsub
-       allocate(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(nsub,2))
-       allocate(sub_ps(nsub,2), profile(nsub,2))
-       sub_ps(:,1) = ps(i0:i1,1)
-       sub_ps(:,2) = ps(i0:i1,2)
-       profile(:,1) = sub_ps(:,1)
-       profile(:,2) = 1.d-12
-       self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,2) = 1.d-12
-       peak_val = maxval(sub_ps(:,2))
+       allocate(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(nsub))
+       allocate(profile(nsub))
+       profile = 0.d0
+       self%cooler_4K_lines(i,i_det,scan)%p%spike_profile = 0.d0
 
        if (.true.) then
           ! Gaussian fit
@@ -1961,23 +2013,21 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
              if (allocated(self%cooler_4K_lines(i,i_det,scan)%p%baseline)) then 
                 deallocate(self%cooler_4K_lines(i,i_det,scan)%p%baseline)
              end if
-             call self%cooler_4K_lines(i,i_det,scan)%p%estimate_4K_baseline(sub_ps)
+             call self%cooler_4K_lines(i,i_det,scan)%p%estimate_4K_baseline(ps(i0:i1,:))
 
              ! 2. residual = sub_ps - baseline
-             sub_ps(:,2) = sub_ps(:,2) - self%cooler_4K_lines(i,i_det,scan)%p%baseline
+             ps(i0:i1,2) = ps(i0:i1,2) - self%cooler_4K_lines(i,i_det,scan)%p%baseline
 
              ! 3. amplitude linear fit
-             call self%cooler_4K_lines(i,i_det,scan)%p%A_lin_fit(sub_ps,j,n_f0,n_sig)
+             call self%cooler_4K_lines(i,i_det,scan)%p%A_lin_fit(ps(i0:i1,:),j,n_f0,n_sig)
              A_fit = self%cooler_4K_lines(i,i_det,scan)%p%A_fit(j)
              f0_fit = self%cooler_4K_lines(i,i_det,scan)%p%f0_fit(j)
              sigma_fit = self%cooler_4K_lines(i,i_det,scan)%p%sigma_fit(j)
            
              ! 4. subtract gaussian fit
-             sub_ps(:,2) = sub_ps(:,2) + self%cooler_4K_lines(i,i_det,scan)%p%baseline
+             ps(i0:i1,2) = ps(i0:i1,2) + self%cooler_4K_lines(i,i_det,scan)%p%baseline
              do k = 1, nsub
-                profile(k,2) = profile(k,2) + A_fit * exp(-0.5 * ((profile(k,1) - f0_fit)/sigma_fit)**2)
-                sub_ps(k,2)  = sub_ps(k,2)  - A_fit * exp(-0.5 * ((sub_ps(k,1) - f0_fit)/sigma_fit)**2)
-                sub_ps(k,2) = max(wn/10,sub_ps(k,2)) ! avoid too strong correction
+                profile(k) = profile(k) + A_fit * exp(-0.5 * ((ps(i0+k-1,1) - f0_fit)/sigma_fit)**2)
              end do
 
              ! 5. tolerance check?
@@ -1986,11 +2036,11 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
        else
           ! Delta correction
           do j = 1, maxiter
-             peak_val = maxval(sub_ps(:,2))
+             peak_val = maxval(ps(i0:i1,2))
              do k = 1, nsub
-                if (sub_ps(k,2)>=peak_val) then
-                   profile(k,2) = profile(k,2) + peak_val
-                   sub_ps(k,2) = wn
+                if (ps(i0+k-1,2)>=peak_val) then
+                   profile(k) = profile(k) + peak_val
+                   ps(i0+k-1,2) = wn
                 end if
              end do
           end do
@@ -1998,29 +2048,20 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
 
 
        ! Save line profile
-       self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,1) = profile(:,1)
-       self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,2) = self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,2) + profile(:,2)
+       self%cooler_4K_lines(i,i_det,scan)%p%spike_profile = self%cooler_4K_lines(i,i_det,scan)%p%spike_profile + profile
        deallocate(profile)
-
-       ps_spikes(i0:i1) = self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,2)
-       ps_flat(i0:i1) = sub_ps(:,2)
-       deallocate(sub_ps)
+       if (output_) W(i0:i1) =  self%cooler_4K_lines(i,i_det,scan)%p%baseline / &
+                             & (self%cooler_4K_lines(i,i_det,scan)%p%baseline + self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)
     end do
 
-    ! Wiener filter
-    W = ps_flat / (ps_flat + ps_spikes)
-    deallocate(ps_flat, ps_spikes)
 
-    if (ps_output) then
+    if (output_) then
        allocate(dv_4K(0:n-1))
        dv_4K = dv
-       dv_4K(1:n-1) = dv_4K(1:n-1) * W
+       dv_4K(1:n-1) = dv_4K(1:n-1) * sqrt(W)
+       deallocate(W)
 
        ! Output ending noise power spectrum
-       call timer%start(TOT_FFT)
-       call sfftw_execute_dft_c2r(plan_back, dv_4K, dt)
-       call timer%stop(TOT_FFT)
-
        open(58,file='res_ps_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
@@ -2029,9 +2070,17 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
 
        ! Output 4K lines PSD and TOD
        dv_4K = dv - dv_4K
+
+       open(58,file='4K_lines_ps_' // scantext // '_' // dettext // '.dat', recl=1024)
+       do l = 1, n-1
+          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
+       end do
+       close(58)
+
        call timer%start(TOT_FFT)
        call sfftw_execute_dft_c2r(plan_back, dv_4K, dt)
        call timer%stop(TOT_FFT)
+       deallocate(dv_4K)
        dt  = dt / nfft
 
        open(58,file='4K_lines_tod_' // scantext // '_' // dettext // '.dat', recl=1024)
@@ -2039,32 +2088,29 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
           write(58,*) l, dt(l)
        end do
        close(58)
-
-       open(58,file='4K_lines_ps_' // scantext // '_' // dettext // '.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
-       end do
-       close(58)
-       deallocate(dv_4K)
     end if
     
 
+    !! If in the low-level loop there is no other step after this, there's no need to correct the spectrum.
+    !!  Otherwise, uncomment the following lines
+
     ! FFT total TOD
-    dt(1:ntod)           = sd%tod(:,i_det)
-    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-    call timer%stop(TOT_FFT)
-
-    dv(1:n-1) = dv(1:n-1) * W
-    deallocate(W)
-
-    ! FFT^-1 back to TOD
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    call timer%stop(TOT_FFT)
-
-    dt  = dt / nfft
+!    dt(1:ntod)           = sd%tod(:,i_det)
+!    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!    call timer%start(TOT_FFT)
+!    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!    call timer%stop(TOT_FFT)
+!
+!    dv(1:n-1) = dv(1:n-1) * sqrt(W)
+!    deallocate(W)
+!
+!    ! FFT^-1 back to TOD
+!    call timer%start(TOT_FFT)
+!    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!    call timer%stop(TOT_FFT)
+!
+!    dt  = dt / nfft
+!    sd%tod(:,i_det) = dt(1:ntod)
 
     deallocate(dt, dv, ps)
     call sfftw_destroy_plan(plan_fwd)
@@ -2072,7 +2118,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
 
   end subroutine estimate_hfi_4K_lines_harm
 
-  module subroutine remove_hfi_4K_lines_harm(self, sd, i_det, apply_mask)
+  module subroutine remove_hfi_4K_lines_harm(self, sd, i_det)
     !  Apply HFI instrument-specific corrections from 4K lines
     !
     !  Arguments:
@@ -2083,23 +2129,18 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     !      scan data
     !  i_det: int
     !       detector id
-    !  apply_mask: logical
-    !              apply mask to residuals    
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
-    logical(lgt),            optional, intent(in)    :: apply_mask
 
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
     integer(i4b) :: i0, i1, nsub
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: apply_mask_, remove_4K_lines
-    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain, wn
-    real(sp),     allocatable, dimension(:)   :: dt, d_prime
-    real(sp),     allocatable, dimension(:)   :: ps_flat, ps_spikes, W
+    logical(lgt) :: remove_4K_lines
+    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
+    real(sp),     allocatable, dimension(:)   :: dt, W
     complex(spc), allocatable, dimension(:)   :: dv
-    real(sp),     allocatable, dimension(:,:) :: ps
 
     scan     = sd%scan
     remove_4K_lines = .false.
@@ -2111,78 +2152,39 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     if (.not. remove_4K_lines) return
 
 
-    apply_mask_ = .true.; if (present(apply_mask)) apply_mask_ = apply_mask
     ntod = self%scans(scan)%ntod
     nomp     = 1
     samprate = self%samprate
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2
 
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    allocate(ps_flat(1:n-1), ps_spikes(1:n-1), W(1:n-1))
+    allocate(dt(nfft), dv(0:n-1), W(1:n-1))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
 
     ! FFT
-    gain = self%scans(scan)%d(i_det)%gain
-    allocate(d_prime(ntod))
-    d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
-    if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
-
-    dt(1:ntod)           = d_prime
-    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-    call timer%stop(TOT_FFT)
-    do l = 1, n-1
-       ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l))** 2 / ntod
-    end do    
-    deallocate(d_prime)
-    ps_flat   = ps(:,2)
-    ps_spikes = 1.d-12
-
-    dnu = 0.03 ! Hz (size of freq window around each spike)
-    do i = 1, self%n_4K_lines
-       fmin = self%nus_4K_lines(i) - dnu
-       fmax = self%nus_4K_lines(i) + dnu
-
-       ! Find window
-       i0 = 1
-       do while (i0 < ntod .and. ps(i0,1) < fmin)
-          i0 = i0 + 1
-       end do
-       i1 = i0 + 1
-       do while (i1 < ntod .and. ps(i1,1) < fmax)
-          i1 = i1 + 1
-       end do
-       nsub = i1 - i0 + 1
-       if(nsub < 5) cycle ! too small window
-       if (.not. allocated(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)) cycle 
-
-       ps_spikes(i0:i1) = self%cooler_4K_lines(i,i_det,scan)%p%spike_profile(:,2)
-       ps_flat(i0:i1) = ps_flat(i0:i1) - ps_spikes(i0:i1)
-       do k = 0, nsub-1
-          ps_flat(i0+k) = max(wn/10,ps_flat(i0+k))
-       end do
-    end do
-
-    ! Weiner filter
-    W = ps_flat / (ps_flat + ps_spikes)
-    deallocate(ps_flat,ps_spikes)
-
-    ! FFT total TOD
     dt(1:ntod)           = sd%tod(:,i_det)
     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
 
-    dv(1:n-1) = dv(1:n-1) * W
+    W = 1.d0
+    do i = 1, self%n_4K_lines
+       i0 = self%cooler_4K_lines(i,i_det,scan)%p%i0
+       nsub = self%cooler_4K_lines(i,i_det,scan)%p%window
+       i1 = nsub + i0 - 1
+       if(nsub < 10) cycle ! too small window
+       if (.not. allocated(self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)) cycle 
+
+       W(i0:i1) =  self%cooler_4K_lines(i,i_det,scan)%p%baseline / &
+                & (self%cooler_4K_lines(i,i_det,scan)%p%baseline + self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)
+    end do
+
+    dv(1:n-1) = dv(1:n-1) * sqrt(W)
     deallocate(W)
 
     ! FFT^-1 back to TOD
@@ -2191,8 +2193,9 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, apply_mask, filenam
     call timer%stop(TOT_FFT)
 
     dt  = dt / nfft
+    sd%tod(:,i_det) = dt(1:ntod)
 
-    deallocate(dt, dv, ps)
+    deallocate(dt, dv)
     call sfftw_destroy_plan(plan_fwd)
     call sfftw_destroy_plan(plan_back)
 

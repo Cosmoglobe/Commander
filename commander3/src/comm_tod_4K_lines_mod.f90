@@ -29,9 +29,9 @@ module comm_tod_4K_lines_mod
   public comm_4K_lines
 
   type :: comm_4K_lines
-    integer(i4b) :: window
+    integer(i4b) :: i0, window
     real(sp), dimension(:),   allocatable :: A_fit, f0_fit, sigma_fit, baseline
-    real(sp), dimension(:,:), allocatable :: spike_profile
+    real(sp), dimension(:),   allocatable :: spike_profile
   contains
     procedure :: estimate_4K_baseline
     procedure :: A_lin_fit
@@ -55,7 +55,7 @@ contains
      ! window around the spike
      implicit none
      class(comm_4K_lines),        intent(inout) :: self
-     real(sp), dimension(1:,1:),  intent(inout) :: sub_ps
+     real(sp), dimension(1:,1:),  intent(in)   :: sub_ps
 
      integer(i4b) :: i, j, nsub, ex0, ex1
      real(sp) :: a, b, frac_excl, X, Y, XX, XY, meanX, meanY
@@ -65,32 +65,42 @@ contains
      self%baseline = 0.d0
      
      frac_excl = 0.2 ! exclude +- 20% of the window around peak
-     ex0 = nsub * (0.5 - frac_excl)
-     ex1 = nsub * (0.5 + frac_excl)
+     ex0 = nint(0.5*(nsub+1) - frac_excl*nsub)
+     ex1 = nint(0.5*(nsub+1) + frac_excl*nsub)
      j = 0
-     X = 0.d0; Y = 0.d0; XX = 0.d0; XY = 0.d0
-     do i = 1, nsub
-        if (i>=ex0 .or. i<=ex1) cycle
-        X = X + log(sub_ps(i,1))
-        Y = Y + log(sub_ps(i,2))
-        XY = XY + log(sub_ps(i,1)) * log(sub_ps(i,2))
-        XX = XX + log(sub_ps(i,1)) * log(sub_ps(i,1))
-        j = j+1
-     end do
-
-     if (j<3) then ! baseline is constant
-        a = log(max(1.d-30,(sub_ps(1,2) + sub_ps(nsub,2))/2))
-        b = 0.d0
+    
+     if (.false.) then ! Log mean
+        X = 0.d0; Y = 0.d0; XX = 0.d0; XY = 0.d0
+        do i = 1, nsub
+           if (i>=ex0 .and. i<=ex1) cycle
+           X = X + log(sub_ps(i,1))
+           Y = Y + log(sub_ps(i,2))
+           XY = XY + log(sub_ps(i,1)) * log(sub_ps(i,2))
+           XX = XX + log(sub_ps(i,1)) * log(sub_ps(i,1))
+           j = j+1
+        end do
+        if (j<3) then ! baseline is constant
+           a = log(max(1.d-30,(sub_ps(1,2) + sub_ps(nsub,2))/2))
+           b = 0.d0
+        else
+           meanX = X/j
+           meanY = Y/j
+           b = (XY - j*meanX*meanY) / (XX - j*meanX**2)
+           a = meanY - b*meanX
+        end if
+        do i = 1, nsub
+           self%baseline(i) = exp(a + b*log(sub_ps(i,1)))
+        end do
      else
-        meanX = X/j
-        meanY = Y/j
-        b = (XY - j*meanX*meanY) / (XX - j*meanX*meanY)
-        a = meanY - b*meanX
+        Y = 0.d0
+        do i = 1, nsub
+           if (i >= ex0 .and. i <= ex1) cycle
+           Y = Y + sub_ps(i,2)
+           j = j+1
+        end do
+        self%baseline = Y / j
      end if
 
-     do i = 1, nsub
-        self%baseline(i) = exp(a + b*log(sub_ps(i,1)))
-     end do
   end subroutine estimate_4K_baseline
 
   subroutine A_lin_fit(self,sub_ps,iter,n_f0,n_sig)
@@ -101,7 +111,7 @@ contains
      integer(i4b),                intent(in)    :: iter, n_f0, n_sig
 
      integer(i4b) :: i, j, k, nsub, idx_peak
-     real(sp) :: peak_val, f0_low, f0_high, sigma_low, sigma_high, chisq
+     real(sp) :: df, peak_val, f0_low, f0_high, sigma_low, sigma_high, chisq
      real(sp) :: A_try, f0_try, sigma_try, denom, numer, chisq_try
      real(sp), dimension(:), allocatable :: phi
 
@@ -114,10 +124,9 @@ contains
         end if
      end do
     
-     f0_low = sub_ps(idx_peak,1) - (sub_ps(nsub,1) - sub_ps(1,1))/2
-     f0_low = max(sub_ps(1,1),f0_low)
-     f0_high = sub_ps(idx_peak,1) + (sub_ps(nsub,1) - sub_ps(1,1))/2
-     f0_low = min(sub_ps(nsub,1),f0_high)
+     df = sub_ps(2,1) - sub_ps(1,1)
+     f0_low  = max(sub_ps(1,1),    sub_ps(idx_peak,1) - 2*df)
+     f0_high = min(sub_ps(nsub,1), sub_ps(idx_peak,1) + 2*df)
      sigma_low = (sub_ps(2,1) - sub_ps(1,1))/5
      sigma_high = (sub_ps(2,1) - sub_ps(1,1))*2 
 
@@ -125,11 +134,11 @@ contains
      allocate(phi(nsub))
      self%A_fit(iter) = peak_val
      self%f0_fit(iter) = sub_ps(idx_peak,1)
-     self%sigma_fit(iter) = 2.d-4 
+     self%sigma_fit(iter) = df
      chisq = 0.d0
      do k = 1, nsub
         phi(k) = exp(-0.5 * ((sub_ps(k,1) - self%f0_fit(iter))/self%sigma_fit(iter))**2)
-        chisq = (sub_ps(k,2) - self%A_fit(iter)*phi(k))**2
+        chisq = chisq + (sub_ps(k,2) - self%A_fit(iter)*phi(k))**2
      end do
 
 
@@ -148,7 +157,7 @@ contains
 
            if (denom <=0 .or. numer <=0) cycle
            A_try = numer / denom
-           A_try = min(1.d5, A_try) ! avoid too strong correction
+           A_try = min(peak_val, A_try) ! avoid too strong correction
            chisq_try = 0.d0
            do k = 1, nsub
               chisq_try = chisq_try + (sub_ps(k,2) - A_try*phi(k))**2
