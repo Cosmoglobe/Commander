@@ -2346,7 +2346,7 @@ contains
   end subroutine coadd_horns
 
   
-  subroutine apply_nonlin_corr_inst(self, sd, nonlin_lvl, handle, det)
+  subroutine apply_nonlin_corr_inst(self, sd, nonlin_lvl, handle, det, only_sigma0)
     !  Apply an instrument-specific non_linear corrections
     !
     !  Arguments:
@@ -2359,6 +2359,7 @@ contains
     integer(i4b),                          intent(in)       :: nonlin_lvl
     type(planck_rng),                      intent(inout), optional :: handle
     integer(i4b),                          intent(in),    optional :: det
+    logical(lgt),                optional, intent(in)    :: only_sigma0
   end subroutine apply_nonlin_corr_inst
 
   subroutine apply_fast_flags_inst(self, sd)
