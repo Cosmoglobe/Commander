@@ -1,0 +1,405 @@
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+CG_CONVERGENCE_CRITERION       = fixed_iter   # {residual,chisquare}
+CG_MINITER                     =     5
+CG_TOLERANCE                   = 1.d-31   # Fractional CG convergence criterion
+CG_CONV_CHECK_FREQUENCY        =     1   # Check convergence every n'th iteration
+CG_PRECOND_TYPE                = diagonal  #{pseudoinv}
+
+NUM_SMOOTHING_SCALES           = 1
+
+#fullsky spec. ind. parameters sampling (per say no smoothing in skymaps, but smoothing in postproc)
+SMOOTHING_SCALE_FWHM01          = 60.      # Arcmin; 0 = native resolution
+SMOOTHING_SCALE_LMAX01          = 768
+SMOOTHING_SCALE_NSIDE01         = 256  # Must match NSIDE of component it is used for
+SMOOTHING_SCALE_PIXWIN01        = common/pixwind/pixel_window_n0256.fits
+SMOOTHING_SCALE_FWHM_POSTPROC01 = 30.    # Smoothing FWHM after pixel-by-pixel fit
+
+# Alm sampler settings
+ALMSAMP_NSAMP_ALM                      = 100
+ALMSAMP_BURN_IN                        = 2     
+ALMSAMP_NSIDE_CHISQ_LOWRES             = 512
+ALMSAMP_PRIOR_FWHM                     = 0
+ALMSAMP_OPTIMIZE_ALM                   = .false. 
+ALMSAMP_APPLY_PRIOR                    = .true. 
+ALMSAMP_PIXREG                         = .true.
+ALMSAMP_PRIORSAMP_FROZEN_REGIONS       = .true.
+
+INSTRUMENT_PARAM_FILE         = /mn/stornext/u3/hke/data_hfi/data/init_instpar_hfi_v1.dat
+INIT_INSTRUMENT_FROM_HDF      = none 
+ 
+EXTINCTION_E(B-V)_MAP = none
+
+NUM_SIGNAL_COMPONENTS         = 16
+INCLUDE_COMP01                = .true.  # Cmb # CMB; no monopole or dipole
+INCLUDE_COMP02                = .true.  # md # Mono and dipoles
+INCLUDE_COMP03                = .true.  # Cold dust # HI correlated dust
+INCLUDE_COMP04                = .true.  # Hot dust # CII correlated dust
+INCLUDE_COMP05                = .true.  # WHAM Halpha correlated dust in absorption
+INCLUDE_COMP06                = .true.  # nearby dust #hotPAH dust
+INCLUDE_COMP07                = .true.  # freefree
+INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
+INCLUDE_COMP09                = .false.  # CO10
+INCLUDE_COMP10                = .false.  # CO21
+INCLUDE_COMP11                = .false.  # CO32
+INCLUDE_COMP12                = .false.  # Polarized synchrotron (DR1)
+INCLUDE_COMP13                = .false.  # Polarized dust (DR1)
+INCLUDE_COMP14                = .true. # Sync
+INCLUDE_COMP15                = .false. # Radio
+INCLUDE_COMP16                = .true. # AME
+
+NUM_CG_SAMPLING_GROUPS = 0
+
+@START 01
+CG_SAMPLING_GROUP&&          = cmb,dust,dust_cii
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 70
+CG_SAMPLING_GROUP_BANDS&&    = 023-WMAP_K,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2,090-WMAP_W1,090-WMAP_W2,090-WMAP_W3,090-WMAP_W4,030,044,070,100,143,217,353,545,857,0.4-Haslam
+@END 01
+
+@START 02
+CG_SAMPLING_GROUP&&          = synch
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 70
+CG_SAMPLING_GROUP_BANDS&&    = 023-WMAP_K,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2,090-WMAP_W1,090-WMAP_W2,090-WMAP_W3,090-WMAP_W4,030,044,070,100,143,217,353,545,857,0.4-Haslam
+@END 02
+
+
+@START 03
+CG_SAMPLING_GROUP&&          = ame
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 70
+CG_SAMPLING_GROUP_BANDS&&    = 023-WMAP_K,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2,090-WMAP_W1,090-WMAP_W2,090-WMAP_W3,090-WMAP_W4,030,044,070
+@END 03
+
+
+
+# CMB #RS yes
+@START 01
+@DEFAULT components/cmb/cmb_HFI.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/COM_CMB_IQU-commander_2048_R3.00_full_inpaint_dipole.fits
+COMP_INIT_FROM_HDF&&          = none default
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:common/mask/mask_common_dx12_n2048_TQU.fits
+@END 01
+
+# Mono- and dipole component for non-FIRAS bands #RS yes
+@START 02
+@DEFAULT components/monodipole/md_HFI.defaults
+COMP_MD_DEFINITION_FILE&&     = /mn/stornext/u3/hke/data_hfi/data/init_md_hfi_v1.dat
+COMP_INIT_FROM_HDF&&          = default
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@END 02
+
+# Thermal dust component #RS yes #DONT USE TABS< ONYL SPACES ALLOWED!
+@START 03
+@DEFAULT components/dust/dust_HI_cold_HFI_n4096_pol.defaults
+COMP_LABEL&&                  = dust
+COMP_TYPE&&                   = MBBtab
+COMP_MBBTAB_TYPE&&            = spline_log
+COMP_SED_TEMPLATE&&           = init_comm3/common/init_sed_cold_dust.dat
+COMP_NU_REF_T&&               = 545
+COMP_T_DEFAULT&&              = 11.3
+COMP_BETA_DEFAULT&&           = 1.50
+COMP_AMP_INPUT_MAP&&          = none /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/dust_c0001_k000002.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_BETA_INPUT_MAP&&         = none
+COMP_T_INPUT_MAP&&            = none
+COMP_AMP_PRIOR_MAP&&          = none
+COMP_INDMASK&&                = fullsky
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@DEFAULT components/dust/dust_DIRBE_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 03
+
+# CII-correlated thermal dust component #RS yes
+@START 04
+@DEFAULT components/dust/dust_cii_hot_HFI_n4096.defaults
+COMP_LABEL&&                  = dust_cii
+COMP_TYPE&&                   = MBBtab
+COMP_MBBTAB_TYPE&&            = spline_log
+COMP_SED_TEMPLATE&&           = init_comm3/common/init_sed_hot_dust.dat
+COMP_NU_REF_T&&               = 545
+COMP_T_DEFAULT&&              = 30.0
+COMP_BETA_DEFAULT&&           = 1.75
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/dust_cii_c0001_k000002.fits
+COMP_BETA_INPUT_MAP&&         = none
+COMP_T_INPUT_MAP&&            = none 
+COMP_AMP_PRIOR_MAP&&          = none 
+COMP_INDMASK&&                = fullsky 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 04
+
+# WHAM Halpha correlated dust in absorption #RS yes
+@START 05
+@DEFAULT components/dust/dust_Ha_ext_HFI_n2048.defaults
+COMP_LABEL&&                  = dust_Ha
+COMP_TYPE&&                   = MBBtab
+COMP_MBBTAB_TYPE&&            = spline_log
+COMP_SED_TEMPLATE&&           = init_comm3/common/init_sed_Ha_dust.dat
+COMP_T_DEFAULT&&              = 17.8
+COMP_BETA_DEFAULT&&           = 2.62
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/dust_Ha_c0001_k000002.fits
+COMP_NU_REF_T&&               = 545
+COMP_BETA_INPUT_MAP&&         = none 
+COMP_T_INPUT_MAP&&            = none 
+COMP_INDMASK&&                = common/mask/mask_DIRBE_colddust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 05
+
+
+# Hot dust + PAH #RS yes, nearby dust
+@START 06
+@DEFAULT components/dust/dust_near_HFI_n2048.defaults
+COMP_LABEL&&                  = dust_nearby
+COMP_TYPE&&                   = MBBtab
+COMP_MBBTAB_TYPE&&            = spline_log
+COMP_SED_TEMPLATE&&           = init_comm3/common/init_sed_nearby_dust.dat
+COMP_NU_REF_T&&               = 545
+COMP_AMP_PRIOR_MAP&&          = edenhofer/init_edenhofer_545_uKrj_n2048_v1.fits
+COMP_T_DEFAULT&&              = 18.0
+COMP_BETA_DEFAULT&&           = 1.7
+COMP_AMP_INPUT_MAP&& = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/hotPAH_c0001_k000002.fits
+COMP_BETA_INPUT_MAP&&         = none
+COMP_T_INPUT_MAP&&            = none   
+COMP_INDMASK&&                = common/mask/mask_DIRBE_hotdust_n2048_v2.fits
+COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 06
+
+
+# freefree component  #RS yes
+#@START 07
+#@DEFAULT components/freefree/freefree_HFI.defaults
+#@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+#COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/init_ff_amp_BP8.1_v1_x2.fits   init_comm3/common/init_ff_amp_BP8.1_v1.fits
+#COMP_MONOPOLE_PRIOR&&         = monopole-dipole:common/mask/mask_ff_monoprior_bp10_n1024_TQU.fits
+#COMP_T_E_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/InputMaps/ff_Te_c0001_k000036.fits #just a map filled with 7000
+#COMP_T_E_DEFAULT&&            = 7000.
+#COMP_L_APOD&&                 = 3000 1100
+#COMP_AMP_LMAX&&               = 3000 1100
+#COMP_IND_LMAX&&               = 0
+#COMP_INIT_FROM_HDF&&          = none
+#COMP_APPLY_DUST_EXTINCTION&&  = .false.
+#@END 07
+
+# freefree component ---------------------------------------------------------------------
+@START 07
+@DEFAULT components/freefree/freefree_LFI.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/data/COM_CompMap_freefree-commander_1024_R2.00_amp1.fits
+#COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/hke/chains_chipass_init166/ff_c0001_k000012.fits
+COMP_AMP_LMAX&&               = 1000  #2000 2955
+COMP_APOD_LMAX&&              = 1000  #2000 2955
+COMP_T_E_DEFAULT&&            = 5000.
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned,power_law, exp}
+COMP_CL_DEFAULT_AMP_T&&       = 100          # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_BETA_T&&      = 30.d0 # smoothing scale
+COMP_OUTPUT_FWHM&&            = 30         # arcmin
+
+#COMP_CL_TYPE&&                = power_law_gauss  # {none, single_l, binned,power_law, ex#p}
+#COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+#COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
+#COMP_CL_BETA_PRIOR_RMS&&      = 0.0
+#COMP_CL_L_PIVOT&&             = 50  1          # Pivot multipole
+#COMP_CL_DEFAULT_AMP_T&&       = 10          # D_l = amp * (l/lpivot)**beta
+#COMP_CL_DEFAULT_BETA_T&&      = 1.0d0 
+#COMP_CL_DEFAULT_THETA_T&&     = 30.d0 # equivalent to BETA for CL_TYPE = gauss (see synch), BP8.0 used 90.d0
+
+COMP_MONOPOLE_PRIOR&&         = monopole:common/mask/mask_ff_monoprior_bp10_n1024_TQU.fits
+COMP_AMP_PRIOR_MAP&&          = none
+COMP_EM_INPUT_MAP&&           = /mn/stornext/u3/hke/data_hfi/data/COM_CompMap_freefree-commander_1024_R2.00_EM_1deg.fits
+COMP_T_E_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/data/COM_CompMap_freefree-commander_1024_R2.00_Te.fits
+@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = none
+COMP_APPLY_DUST_EXTINCTION&& = .false.
+@END 07
+
+
+# CMB relativistic quadrupole correction #RS yes
+@START 08
+@DEFAULT components/cmb/cmb_relquad2.defaults
+@END 08
+
+# CO10 line emission #RS yes
+@START 09
+@DEFAULT components/co/co100_HFI.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/co100_c0001_k000002.fits
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/co_x2.0.fits
+COMP_LINE_TEMPLATE&&          = planck/templ/co100_line_template_HFI_v3.dat
+COMP_INIT_FROM_HDF&&          = none 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+COMP_INDMASK&&                = common/mask/mask_co_lineratio_v3_n2048.fits
+@END 09
+
+# CO21 line emission #RS yes
+@START 10
+@DEFAULT components/co/co217_HFI.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/co217_c0001_k000002.fits
+COMP_LINE_TEMPLATE&&          = planck/templ/co217_line_template_HFI_v3.dat
+COMP_INDMASK&&                = common/mask/mask_co_lineratio_v3_n2048.fits
+COMP_INIT_FROM_HDF&&          = none 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@END 10
+
+# CO32 line emission #RS yes
+@START 11
+@DEFAULT components/co/co353_HFI.defaults
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/d22/cmbco_nobackup/raelynsu/grid_tests/grid_300000000/co353_c0001_k000002.fits
+COMP_LINE_TEMPLATE&&          = /mn/stornext/d23/cmbco/cg/hfi/compsep/co353_line_template_HFI_v0.dat 
+COMP_INIT_FROM_HDF&&          = none 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+COMP_INDMASK&&                = common/mask/mask_co_lineratio_v3_n2048.fits
+@END 11
+
+# Polarized synchrotron component
+@START 12
+@DEFAULT components/synch/synch_LFI.defaults
+COMP_LABEL&&                  = polsynch
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/data/init_polsynch_amp_DR1_QU_v1.fits
+COMP_BETA_INPUT_MAP&&         = default 
+COMP_OUTPUT_FWHM&&            = 40
+# New Local sampling parameters
+@DEFAULT components/synch/synch_LFI_localsampler.defaults
+COMP_BETA_SMOOTHING_SCALE&&   = 0
+COMP_CG_SAMP_GROUP_MAXITER&&  = 50
+COMP_INDMASK&&                = fullsky 
+COMP_BETA_MASK&&              = fullsky 
+COMP_INIT_FROM_HDF&&          = none 
+COMP_BETA_POL_LMAX&&          = -1
+COMP_BETA_INT_PRIOR_MEAN&&    = -3.15
+COMP_BETA_INT_PRIOR_RMS&&     =  0.05
+COMP_BETA_POL_PRIOR_MEAN&&    = -3.15
+COMP_BETA_POL_PRIOR_RMS&&     =  0.05
+#COMP_BETA_PRIOR_GAUSS_MEAN&&  =  -3.1
+#COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.03
+COMP_BETA_DEFAULT&&           = -3.2
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+@END 12
+
+
+# Thermal dust component
+@START 13
+@DEFAULT components/dust/dust_LFI.defaults
+COMP_LABEL&&                  = poldust
+COMP_NU_REF_T&&               = 857
+COMP_NU_REF_P&&               = 353
+COMP_INDMASK&&                = fullsky
+COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/data/init_poldust_amp_DR1_QU_v1_x5.fits
+COMP_BETA_INPUT_MAP&&         = default
+COMP_T_INPUT_MAP&&            = default
+COMP_BETA_SMOOTHING_SCALE&&   = 0
+COMP_AMP_LMAX&&               = 2000
+@DEFAULT components/dust/dust_LFI_localsampler.defaults
+# New Local sampling parameters, 'dust'
+COMP_MONOPOLE_PRIOR&&         = crosscorr:hi4pi/maps/HI4PI_NHI_n0064_60arcmin_rescaled_TQU.fits,64,60.d0,1.5,2.0,2.5,3.0,3.5,4.0  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
+COMP_IND_LMAX&&               = 0
+COMP_BETA_DEFAULT&&           = 1.50
+COMP_T_DEFAULT&&              = 19.5
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+COMP_BETA_ALMSAMP_INIT&&      = none
+COMP_BETA_MASK&&              = fullsky
+COMP_BETA_INT_LNLTYPE&&       = prior 
+COMP_BETA_INT_LMAX&&          = -1
+COMP_BETA_INT_PIXREG&&        = pixreg
+COMP_BETA_POL_LNLTYPE&&       = prior
+COMP_BETA_INT_PRIOR_MEAN&&    = 1.50
+COMP_BETA_POL_PRIOR_MEAN&&    = 1.50
+COMP_BETA_POL_PRIOR_RMS&&     = 0.03 0.03
+COMP_BETA_INT_PRIOR_RMS&&     = 0.03 
+COMP_BETA_POL_LMAX&&          = -1
+COMP_INIT_FROM_HDF&&          = none 
+@END 13
+
+# Synchrotron component
+@START 14
+@DEFAULT components/synch/synch_LFI.defaults
+COMP_AMP_INPUT_MAP&&          = common/maps/CG_synch_amp_v4.fits
+COMP_BETA_INPUT_MAP&&         = common/maps/CG_synch_beta_v4.fits
+COMP_OUTPUT_FWHM&&            = 40
+# New Local sampling parameters
+@DEFAULT components/synch/synch_LFI_localsampler.defaults
+COMP_CG_SAMP_GROUP_MAXITER&&  = 50
+COMP_INDMASK&&                = common/mask/mask_synch_beta_sampling_BP10_n1024_TQU.fits
+COMP_BETA_MASK&&              = common/mask/mask_synch_beta_sampling_BP10_n1024_TQU.fits
+COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_POL_LMAX&&          = -1
+COMP_BETA_POL_LNLTYPE&&       = prior
+COMP_BETA_POL_FIX_PIXREG&&    = 1
+COMP_BETA_SMOOTHING_SCALE&&   = 1
+COMP_BETA_POL_PIXREG_PRIOR&&  = '-3.1,-3.1,-3.1,-3.1,'
+COMP_BETA_ALMSAMP_INIT&&      = init_comm3/common/init_alm_synch_beta_CG_v3.dat
+COMP_PRIOR_GAUSS_BETA_MEAN&&  = -3.1
+COMP_BETA_INT_PRIOR_MEAN&&    = -3.15
+COMP_BETA_INT_PRIOR_RMS&&     =  0.05
+COMP_BETA_POL_PRIOR_MEAN&&    = -3.15
+COMP_BETA_POL_PRIOR_RMS&&     =  0.05
+COMP_BETA_PRIOR_GAUSS_MEAN&&  =  -3.1
+COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.03
+COMP_BETA_DEFAULT&&           = -3.2
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+@END 14
+
+
+# Radio sources
+@START 15
+@DEFAULT components/radio/radio_LFI.defaults
+COMP_CATALOG&&                 = NVSS/COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v8.dat
+COMP_INIT_CATALOG&&            = init_comm3/common/init_radio_BP8.11.dat
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.  # set to true the first time for new data sets, generates file named in COMP_PTSRC_TEMPLATE
+COMP_PTSRC_TEMPLATE&&          = NVSS/COM_AT20G_GB6_NVSS_PCCS2_nothreshold_hfilfiwmap_v4.h5
+COMP_INIT_FROM_HDF&&           = none
+COMP_APPLY_DUST_EXTINCTION&&  = .false.
+@END 15
+# Radio sources
+
+
+# Low-frequency AME component ------------------------------------------------------------------
+@START 16
+@DEFAULT components/ame/ame_CG_exp.defaults
+COMP_AMP_INPUT_MAP&&          = common/maps/CG_ame_amp_v4.fits
+COMP_BETA_INPUT_MAP&&         = common/maps/CG_ame_beta_v4.fits
+@DEFAULT components/ame/ame_CG_exp_localsampler.defaults
+# New Local sampling parameters, 'ame'
+COMP_BETA_INT_LMAX&&          = -1
+COMP_BETA_INT_PIXREG&&        = pixreg
+COMP_BETA_INT_LNLTYPE&&       = prior
+COMP_BETA_POL_LNLTYPE&&       = prior
+COMP_BETA_INT_PRIOR_MEAN&&    = -3.57
+COMP_BETA_INT_PRIOR_RMS&&     = 0.1
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+COMP_INDMASK&&                = common/mask/mask_ame_nup_CG_v1.fits
+COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_DEFAULT&&           = -3.4
+COMP_BETA_ALMSAMP_INIT&&      = init_comm3/common/init_alm_ame_beta_CG_v1.dat
+COMP_CL_DEFAULT_AMP_T&&       = 1e4
+@END 16
+
+NUM_MCMC_SAMPLING_GROUPS = 0
+
+
+@START 01
+MCMC_SAMPLING_GROUP_PARAMS&&            = dust:T%0.005,dust_cii:T%0.005,dust_nearby:T%0.005,dust_Ha:T%0.005,dust:beta%0.001,dust_cii:beta%0.001,dust_nearby:beta%0.001,dust_Ha:beta%0.001
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 060-WMAP_V1,060-WMAP_V2,090-WMAP_W1,090-WMAP_W2,090-WMAP_W3,090-WMAP_W4,030,044,070,100,143,217,353,545,857
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = /mn/stornext/u3/hke/data_hfi/data/mask_hfi_chisq10k_v1.fits common/mask/mask_fullsky_n0512_TQU.fits 
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+@END 01
+
+@START 02
+MCMC_SAMPLING_GROUP_PARAMS&&            = ame:beta%0.01
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none 1,2,3
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 023-WMAP_K,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2,090-WMAP_W1,090-WMAP_W2,090-WMAP_W3,090-WMAP_W4,030,044,070
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = /mn/stornext/u3/hke/data_hfi/data/mask_hfi_chisq10k_v1.fits
+MCMC_SAMPLING_GROUP_NUMSTEP&&           = 30
+@END 02

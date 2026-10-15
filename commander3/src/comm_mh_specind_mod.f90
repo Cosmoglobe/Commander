@@ -948,7 +948,8 @@ contains
                  c => c%nextComp()
               end do
 
-            else if (comp_names(2)(1:4) == 'beta') then
+           else if (comp_names(2)(1:4) == 'beta' .or. &
+                & comp_names(2)(1:4) == 'nu_p') then
               c => compList
               do while (associated(c))
                 if (trim(c%label) == trim(comp_names(1))) then
