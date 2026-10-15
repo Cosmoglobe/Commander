@@ -534,6 +534,7 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps, res0, mask0
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+    real(sp),     allocatable, dimension(:,:) :: noise_ps ! for spline model sampling
 
     ! Subroutine to fit noise parameters, alpha, 1/f sigma_0
 
@@ -670,27 +671,44 @@ contains
           ps(l) = abs(dv(l)) ** 2 / ntod
        end do
 
-       ! Perform sampling over all non-linear parameters
-       do k = 1, n_gibbs
-          do j = 1, self%scans(scan)%d(i)%N_psd%npar
-             !if (self%myid==0) write(*,*) "psd", k, j, self%myid
-             n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     min(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)), n-1)
-             P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
-             if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
-             currpar = j
-             xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
-             x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
-             x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
-             x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
-             x_in(2) = 0.5 * (x_in(1) + x_in(3))
-             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
-             xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
-             self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-             !if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
+       ! =================================
+       if (self%noise_psd_model == 'spline') then
+          ! Sample bin powers directly from model definition
+          call self%compute_powspec(dt, scan, powspec=noise_ps)
+          select type (N_psd => self%scans(scan)%d(i)%N_psd)
+             type is (comm_noise_psd_spline)
+             if (trim(self%operation) == 'sample') then
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle)   ! Gibbs sampling
+             else
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2))           ! Compute bin means > optimize
+             end if
+          end select
+          deallocate(noise_ps)
+       else
+          ! Perform sampling over all non-linear parameters
+          do k = 1, n_gibbs
+             do j = 1, self%scans(scan)%d(i)%N_psd%npar
+                !if (self%myid==0) write(*,*) "psd", k, j, self%myid
+                n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
+                n_high =     min(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)), n-1)
+                P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
+                if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
+
+                currpar = j
+                xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
+                x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
+                x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
+                x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
+                x_in(2) = 0.5 * (x_in(1) + x_in(3))
+                xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
+                xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
+                self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
+                !if (self%scanid(scan) == 100 .and. i == 1) write(*,*) 'xi_n = ', k, real(self%scans(scan)%d(i)%N_psd%xi_n,sp)
+             end do
           end do
-       end do
+       end if
+       ! ======================================
 
        if (mod(self%scanid(scan),5000) == 0 .and. present(chaindir)) then
        !if (self%scanid(scan) == 1) then
@@ -698,6 +716,7 @@ contains
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
+          write(58,*)  "# gain =", self%scans(scan)%d(i)%gain
           logbin = 1.05
           j1     = 1
           j2     = 2
@@ -939,7 +958,9 @@ contains
     ntod = self%scans(scan)%ntod
     sigma0 = self%scans(scan)%d(i)%N_psd%sigma0
     allocate(d_prime(ntod))
-    d_prime = sd%tod(:,i) - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
+    d_prime = sd%tod(:,i) 
+    if (allocated(sd%s_tot))  d_prime = d_prime - self%scans(scan)%d(i)%gain * sd%s_tot(:,i,0,1)
+    if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
     Nedge = 10 ! number of samples beyond the gap edges to compute the average
 
    ! Fill masked gaps: linear interpolation between edge means + white noise
@@ -985,19 +1006,23 @@ contains
        end do
     end do
 
-    if (mod(self%scanid(scan), 5000) == 0) then
-       call int2string(self%scanid(scan), scantext)
-       call int2string(i, dettext)
-       call self%compute_powspec(d_prime, scan, &
-         & print_output='new_Tbol/scan10000/spline/1/ps_pre_update_spline_' // scantext // '_' // dettext // '.dat', &
-         & powspec=noise_ps)
-    else
-       call self%compute_powspec(d_prime, scan, powspec=noise_ps)
-    end if
+    call self%compute_powspec(d_prime, scan, powspec=noise_ps)
+    write(*,*), 'mean, sigma0**2 = ', sum(noise_ps(:,2))/size(noise_ps(:,2)), self%scans(scan)%d(i)%N_psd%xi_n(1)**2
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
        call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
+
+       ! Output model for debug
+       if (mod(self%scanid(scan), 5000) == 0) then
+          call int2string(self%scanid(scan), scantext) 
+          call int2string(i, dettext) 
+          open(58, file='new_Tbol/scan10000/spline/2/spline_model_' // scantext // '_' // dettext // '.dat', recl=1024)
+          do j = 1, size(noise_ps,1)
+             write(58,*) noise_ps(j,1), noise_ps(j,2), N_psd%eval_full(noise_ps(j,1)), N_psd%sigma0**2
+          end do
+          close(58)
+       end if
     end select
     deallocate(d_prime,noise_ps)
 

@@ -637,7 +637,7 @@ contains
     else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
     else if (trim(self%noise_psd_model) == 'spline') then
-       self%n_xi = 13 !94 ! {sigma0, spline nodes}
+       self%n_xi = 22 !94 ! {sigma0, spline nodes}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -1339,7 +1339,7 @@ contains
        else if (trim(tod%noise_psd_model) == 'spline') then
           xi_n(1) =  0.1
           do j = 2, tod%n_xi
-             xi_n(j) = 1.d8 / j
+             xi_n(j) = 1.d4
           end do
           self%d(i)%N_psd => comm_noise_psd_spline(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 !!$          open(58,file='noise.dat')

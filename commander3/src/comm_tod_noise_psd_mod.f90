@@ -160,6 +160,7 @@ module comm_tod_noise_psd_mod
      !
      ! Class definition for splined noise PSD model
      !
+     real(sp) :: pcorr_offset = 0.d0
      type(spline_type) :: spline_profile    ! Spline profile for 'spline' type PSD
      integer(i4b) :: n_common_points ! Number of common points
      real(sp), allocatable, dimension(:,:) :: common_points ! coordinates of common points
@@ -791,7 +792,7 @@ contains
   end function constructor_spline
 
 
-  subroutine update_spline(self,x,y)
+  subroutine update_spline(self,x,y,handle)
     !
     ! Routine to update spline profile
     !
@@ -806,89 +807,83 @@ contains
     implicit none
     class(comm_noise_psd_spline), target, intent(inout) :: self
     real(sp),           dimension(:),     intent(in)    :: x, y
+    type(planck_rng),           optional, intent(inout) :: handle ! pass it to Gibb sample the nodes
 
-    integer(i4b) :: i, j, n, nbin, nlog_bins, npar, n_finegrid_
-    real(sp) :: nu, f_nu, threshold, bin_width, wn_level
-    real(sp) :: x_first, x_last, y_first, y_last
-    character(len=6) :: binning_
-    real(sp), allocatable, dimension(:)   :: sigmas, sigmas_full_range, y_nodes
-    real(sp), allocatable, dimension(:,:) :: bin_spec, bin_spec_full_range, fixbins
-
+    integer(i4b) :: i, j, n, nbin, n_dec
+    real(sp) :: thr, dx_lin, wn_level, slope_lowf, f_nu
+    real(dp) :: nu
+    real(sp), allocatable, dimension(:)   :: sigmas_full_range
+    real(sp), allocatable, dimension(:,:) :: bin_spec_full_range
+    real(sp),     allocatable, dimension(:) :: xbin, pbin
+    integer(i4b), allocatable, dimension(:) :: nbins
 
     n = size(x)
-    if (size(y)/=n) stop "Error: x and y arrays have different sizes"
+    if (size(y) /= n) stop 'update_spline: x and y have different sizes'
 
-    nlog_bins = 2
-    threshold = 2.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
-    bin_width = 5.d0 !1.d0 ! Hz
-    bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
+    n_dec  = 4 ! log bins per decade
+    thr    = 1.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
+    dx_lin = 8.d0 ! Hz
+    call bin_psd_spline(x, y, thr, n_dec, dx_lin, 20, xbin, pbin, nbins) 
 
-    ! Check if at least 2 points per bin
-    do while (bin_spec(1,1) == -1.d0 .and. nlog_bins > 1)
-       deallocate(bin_spec)
-       nlog_bins = nlog_bins - 1
-       bin_spec = bin_spec_loglin(x, y, nlog_bins, bin_width, threshold, sigmas)
-    end do
-    if (nlog_bins == 1) stop "Error: too few points under 1 Hz"
+    nbin = size(xbin)
+    if (any(pbin /= pbin)) stop 'update_spline: nan in binned PSD'
+    if (nbin < 2) stop 'update_spline: less than 2 bins'
 
-    nbin = size(bin_spec(:,1))
-    x_first = 1.d-6 !x(1)   ! smaller than smallest frequency sample ! NOW IS SET ON HFI
-    x_last  = x(n) + 0.5    ! bigger than biggest frequency sample
-    y_first = bin_spec(1,2)
-    y_last  = bin_spec(nbin,2)
 
-    do i = 1, nbin
-       if (bin_spec(i,2) .ne. bin_spec(i,2)) then ! nan entry
-          write(*,*) "bin = ",i
-          stop "Error: nan value in bin_spec"
-       end if
-    end do
+    ! Gibbs ssample the bins from the conditional posterior
+    if (present(handle)) then
+       do i = 1, nbin
+          pbin(i) = draw_bin_power(pbin(i), nbins(i), handle)
+       end do
+    end if
 
-    wn_level = minval(bin_spec(nlog_bins+1:,2)) ! setting wn level on lowest point after threshold
+
+    wn_level = minval(pbin, mask = xbin >= thr) ! setting wn level on lowest point after threshold
 
     ! Check if lower frequencies have less power. In that case inject regularization noise
-    do i = 1, nlog_bins
-       if (bin_spec(i,2) < wn_level) bin_spec(i,2) = bin_spec(i,2) + wn_level
+    do i = 1, nbin
+       if (xbin(i) < thr .and. pbin(i) < wn_level) pbin(i) = pbin(i) + wn_level
     end do
-    if (y_first < wn_level) y_first = y_first + wn_level
 
     allocate(bin_spec_full_range(nbin+2,2), sigmas_full_range(nbin+2)) ! extend spline over first and last bins
 
+    ! Extend to low frequencies using the slope between first two bins. 
+    ! Instead, at high frequencies it's fine to just go straight
+    slope_lowf = (log10(pbin(2)) - log10(pbin(1))) / (log10(xbin(2)) - log10(xbin(1)))
+    slope_lowf = min(slope_lowf, 0.0) ! can only increase to low frequencies
+
     ! rescale for logarithmic spline
-    bin_spec_full_range(1,1)        = log10(x_first)
-    bin_spec_full_range(2:nbin+1,1) = log10(bin_spec(:,1))
-    bin_spec_full_range(nbin+2,1)   = log10(x_last)
-    bin_spec_full_range(1,2)        = log10(y_first)
-    bin_spec_full_range(2:nbin+1,2) = log10(bin_spec(:,2))
-    bin_spec_full_range(nbin+2,2)   = log10(y_last)
-    sigmas_full_range(1)        = sigmas(1)
-    sigmas_full_range(2:nbin+1) = sigmas
-    sigmas_full_range(nbin+2)   = sigmas(nbin)
-    deallocate(bin_spec, sigmas)
+    bin_spec_full_range(1,1)        = log10(x(1))
+    bin_spec_full_range(2:nbin+1,1) = log10(xbin)
+    bin_spec_full_range(nbin+2,1)   = log10(x(n) + 0.5)
+
+    bin_spec_full_range(1,2)        = log10(pbin(1)) + slope_lowf * (log10(x(1)) - log10(xbin(1)))
+    bin_spec_full_range(2:nbin+1,2) = log10(pbin)
+    bin_spec_full_range(nbin+2,2)   = log10(pbin(nbin))
+
+!    sigmas_full_range(1)        = sigmas(1)
+!    sigmas_full_range(2:nbin+1) = sigmas
+!    sigmas_full_range(nbin+2)   = sigmas(nbin)
+    deallocate(xbin, pbin,nbins)
 
     call free_spline(self%spline_profile)
-    call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp), linear=.false.)
+    call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp))
     deallocate(bin_spec_full_range)
 
     ! Resetting the white noise level on the lowest point
     do i = 1, n
-       nu = log10(x(i))
-       f_nu = splint(self%spline_profile, dble(nu))
-       f_nu = 10**f_nu
-
-       if (f_nu > 0 .and. f_nu < wn_level) then
-          wn_level = f_nu
-       end if
+       nu = real(log10(x(i)),dp)
+       f_nu = real(10**splint(self%spline_profile, nu), sp)
+       wn_level = min(f_nu, wn_level)
     end do
 
     ! Rebinning in fixed bins which stay common through different scans
     ! for remove_outlier routine
     do i = 1, self%n_common_points
-       nu = log10(self%common_points(i,1))
-       f_nu = splint(self%spline_profile, dble(nu))
+       nu = real(log10(self%common_points(i,1)), dp)
+       f_nu = real(splint(self%spline_profile, nu), sp)
        self%common_points(i,2) = f_nu
     end do
-
 
     if (self%npar /= nbin + 1) then ! spline nodes (but first and last) + sigma0
        deallocate(self%xi_n,self%P_active,self%P_uni,self%nu_fit,self%P_lognorm)
@@ -903,17 +898,20 @@ contains
     ! Sigma0
     self%xi_n(1)       = sqrt(0.99 * wn_level) ! 0.99 to avoid singularity in correlated noise
     self%sigma0 => self%xi_n(1)
-    self%P_uni(1,:)    = [10.d0, 3000.d0]
+    self%pcorr_offset = self%xi_n(1)**2 ! P_corr(f) = P_spline(f) - pcorr_offset, doesn't break if sigma0 is sampled
+
+    self%P_uni(1,:)    = [0.5, 2.0] * self%xi_n(1)
     self%P_active(1,1) = self%xi_n(1)
     self%P_active(1,2) = 50.d0
     self%nu_fit(1,1)   = 5.d0 ! only fit sigma0 from 5 Hz on
     self%nu_fit(1,2)   = x(n)
+    self%P_lognorm = .false.
 
     ! Correlated noise
     do i = 2, self%npar
        self%P_uni(i,1)    = -6.0
        self%P_uni(i,2)    = 12.0
-       self%P_active(i,2) = log10(sigmas_full_range(i))
+       self%P_active(i,2) = 0 
 
        if (i==2) then
           self%nu_fit(i,1) = 10**self%spline_profile%x(i)
@@ -927,10 +925,10 @@ contains
        end if
     end do
 
-    self%spline_profile%y = 10**self%spline_profile%y - self%xi_n(1)**2 ! Correlated noise only!!
-    self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! avoid too low wn_level estimation from binning
-    self%sigma0 => self%xi_n(1)
-    self%spline_profile%y = log10(self%spline_profile%y)
+    !self%spline_profile%y = 10**self%spline_profile%y - self%xi_n(1)**2 ! Correlated noise only!!
+    !self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! avoid too low wn_level estimation from binning
+    !self%sigma0 => self%xi_n(1)
+    !self%spline_profile%y = log10(self%spline_profile%y)
     self%xi_n(2:) = self%spline_profile%y(2:self%npar)
     self%P_active(2:,1) = self%spline_profile%y(2:self%npar)
 
@@ -980,10 +978,11 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_spline_corr
 
-    real(sp) :: nu_
+    real(sp) :: nu_, p
 
-    nu_ = log10(nu)
-    eval_noise_psd_spline_corr = 10**(splint(self%spline_profile, dble(nu_)))
+    nu_ = log10(max(nu, real(10.d0**self%spline_profile%x(1), sp))) ! Avoid evaluation below the spline domain
+    p = 10**(splint(self%spline_profile, dble(nu_))) - self%pcorr_offset
+    eval_noise_psd_spline_corr = max(p, 1.e-3 * self%pcorr_offset)  ! P_corr is strictly positive
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
@@ -992,6 +991,115 @@ contains
     end if
 
   end function eval_noise_psd_spline_corr
+
+  subroutine bin_psd_spline(x, ps, thr, n_dec, dx_lin, n_min, xbin, pbin, nbin)
+    !
+    ! Bin a PSD for the spline noise model:
+    ! - logarithmic bins (n_dec per decade) from x(1) up to thr
+    ! - linear bins of width dx_lin above thr. The last one reaches x(n)
+    !
+    implicit none
+    real(sp),     dimension(:),              intent(in)  :: x, ps
+    real(sp),                                intent(in)  :: thr, dx_lin
+    integer(i4b),                            intent(in)  :: n_dec, n_min
+    real(sp),     allocatable, dimension(:), intent(out) :: xbin, pbin
+    integer(i4b), allocatable, dimension(:), intent(out) :: nbin
+
+    integer(i4b) :: i, k, n, nlog, nlin, nedge, nout, cnt
+    real(dp)     :: logmin, logthr, s_ps, s_logx
+    real(dp),     allocatable, dimension(:) :: edges, sum_ps, sum_logx
+    integer(i4b), allocatable, dimension(:) :: n_out
+
+    n = size(x)
+    if (size(ps) /= n) stop 'bin_psd_spline: x and ps have different sizes'
+
+    ! Bin edges
+    logmin  = log10(real(x(1),dp))
+    logthr  = log10(real(thr,dp))
+    nlog  = max(1, ceiling((logthr - logmin) * n_dec))
+    nlin  = max(1, floor((x(n) - thr) / dx_lin))  ! last bin absorbs the remaining frequencies
+    nedge = nlog + nlin + 1
+    allocate(edges(nedge))
+    do k = 0, nlog
+       edges(k+1) = 10.d0**(logmin + (logthr - logmin) * real(k,dp) / real(nlog,dp))
+    end do
+    do k = 1, nlin
+       edges(nlog+1+k) = real(thr,dp) + real(k,dp) * real(dx_lin,dp)
+    end do
+    edges(nedge) = real(x(n),dp) * (1.d0 + 1.d-6)        ! include the last point
+
+    allocate(sum_ps(nedge-1), sum_logx(nedge-1), n_out(nedge-1))
+    nout = 0; cnt = 0; s_ps = 0.d0; s_logx = 0.d0; k = 1
+
+    do i = 1, n
+       do while (k < nedge-1)
+          if (x(i) < edges(k+1)) exit
+          call close_bin()
+          k = k + 1
+       end do
+       s_ps = s_ps + real(ps(i),dp)
+       s_logx = s_logx + log10(real(x(i),dp))
+       cnt  = cnt + 1
+    end do
+    call close_bin()
+
+    ! Leftover points (fewer than n_min) are merged into the last bin
+    if (cnt > 0) then
+       if (nout == 0) then
+          nout = 1; sum_ps(1) = 0.d0; sum_logx(1) = 0.d0; n_out(1) = 0
+       end if
+       sum_ps(nout) = sum_ps(nout) + s_ps
+       sum_logx(nout) = sum_logx(nout) + s_logx
+       n_out(nout)  = n_out(nout)  + cnt
+    end if
+
+    allocate(xbin(nout), pbin(nout), nbin(nout))
+    nbin = n_out(1:nout)
+    pbin = real(sum_ps(1:nout) / nbin, sp)
+    xbin = real(10.d0**(sum_logx(1:nout) / nbin), sp)
+    deallocate(edges, sum_ps, sum_logx, n_out)
+
+  contains
+
+    subroutine close_bin()
+      ! Close the bin if it has enough points, otherwise keep
+      ! them for the next bin
+      if (cnt >= n_min) then
+         nout = nout + 1
+         sum_ps(nout) = s_ps
+         sum_logx(nout) = s_logx
+         n_out(nout)  = cnt
+         cnt = 0; s_ps = 0.d0; s_logx = 0.d0
+      end if
+    end subroutine close_bin
+
+  end subroutine bin_psd_spline
+                  
+  function draw_bin_power(pmean, k, handle) result(p)
+    !
+    ! Draw the PSD node from its conditional posterior.
+    ! Chi2 distribution comes from choosing 1/p as prior
+    !
+    implicit none
+    real(sp),         intent(in)    :: pmean
+    integer(i4b),     intent(in)    :: k
+    type(planck_rng), intent(inout) :: handle
+    real(sp)                        :: p
+    integer(i4b) :: i
+    real(dp)     :: chi2, z, y
+
+    if (k <= 200) then ! sum of k squared Gaussians
+       chi2 = 0.d0
+       do i = 1, k
+          chi2 = chi2 + rand_gauss(handle)**2
+       end do
+    else  ! Wilson-Hilferty approximation of chi2_k
+       z = rand_gauss(handle)
+       y = 1.d0 - 2.d0/(9.d0*k) + z*sqrt(2.d0/(9.d0*k))
+       chi2 = k * y**3
+    end if
+    p = real(k * real(pmean,dp) / chi2, sp)
+  end function draw_bin_power
 
   
 end module comm_tod_noise_psd_mod

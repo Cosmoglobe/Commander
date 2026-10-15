@@ -99,7 +99,7 @@ contains
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
     if (c%noise_psd_model == 'spline') then
-       c%n_xi            = 13 !94 ! {sigma0, spline nodes}
+       c%n_xi            = 22 !94 ! {sigma0, spline nodes}
        allocate(c%xi_n_P_uni(c%n_xi,2))
        allocate(c%xi_n_P_rms(c%n_xi))
        allocate(c%xi_n_nu_fit(c%n_xi,2))
