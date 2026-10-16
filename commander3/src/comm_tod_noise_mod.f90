@@ -716,7 +716,7 @@ contains
           call int2string(i, dtext)
           open(58,file=trim(chaindir)//'/noise_psd_'//trim(self%freq)//'_'//stext//'_'//dtext//'.dat', recl=1024)
           write(58,*)  "# xi_n =", self%scans(scan)%d(i)%N_psd%xi_n
-          write(58,*)  "# gain =", self%scans(scan)%d(i)%gain
+          !write(58,*)  "# gain =", self%scans(scan)%d(i)%gain
           logbin = 1.05
           j1     = 1
           j2     = 2
@@ -1007,7 +1007,7 @@ contains
     end do
 
     call self%compute_powspec(d_prime, scan, powspec=noise_ps)
-    write(*,*), 'mean, sigma0**2 = ', sum(noise_ps(:,2))/size(noise_ps(:,2)), self%scans(scan)%d(i)%N_psd%xi_n(1)**2
+    !write(*,*), 'mean, sigma0**2 = ', sum(noise_ps(:,2))/size(noise_ps(:,2)), self%scans(scan)%d(i)%N_psd%xi_n(1)**2
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)

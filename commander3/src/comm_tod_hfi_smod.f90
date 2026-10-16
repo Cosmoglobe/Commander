@@ -68,8 +68,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    !c%noise_psd_model = 'spline'
+    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -99,7 +99,7 @@ contains
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
     if (c%noise_psd_model == 'spline') then
-       c%n_xi            = 22 !94 ! {sigma0, spline nodes}
+       c%n_xi            = 16 !94 ! {sigma0, spline nodes}
        allocate(c%xi_n_P_uni(c%n_xi,2))
        allocate(c%xi_n_P_rms(c%n_xi))
        allocate(c%xi_n_nu_fit(c%n_xi,2))

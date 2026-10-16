@@ -809,10 +809,10 @@ contains
     real(sp),           dimension(:),     intent(in)    :: x, y
     type(planck_rng),           optional, intent(inout) :: handle ! pass it to Gibb sample the nodes
 
-    integer(i4b) :: i, j, n, nbin, n_dec
+    integer(i4b) :: i, j, n, nbin, n_dec, n_min
     real(sp) :: thr, dx_lin, wn_level, slope_lowf, f_nu
-    real(dp) :: nu
-    real(sp), allocatable, dimension(:)   :: sigmas_full_range
+    logical(lgt) :: check
+    real(dp) :: nu 
     real(sp), allocatable, dimension(:,:) :: bin_spec_full_range
     real(sp),     allocatable, dimension(:) :: xbin, pbin
     integer(i4b), allocatable, dimension(:) :: nbins
@@ -820,10 +820,11 @@ contains
     n = size(x)
     if (size(y) /= n) stop 'update_spline: x and y have different sizes'
 
-    n_dec  = 4 ! log bins per decade
+    n_dec  = 2 ! log bins per decade
     thr    = 1.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
     dx_lin = 8.d0 ! Hz
-    call bin_psd_spline(x, y, thr, n_dec, dx_lin, 20, xbin, pbin, nbins) 
+    n_min  = 50 ! minimum number of points per bin
+    call bin_psd_spline(x, y, thr, n_dec, dx_lin, n_min, xbin, pbin, nbins) 
 
     nbin = size(xbin)
     if (any(pbin /= pbin)) stop 'update_spline: nan in binned PSD'
@@ -837,35 +838,29 @@ contains
        end do
     end if
 
-
     wn_level = minval(pbin, mask = xbin >= thr) ! setting wn level on lowest point after threshold
 
-    ! Check if lower frequencies have less power. In that case inject regularization noise
-    do i = 1, nbin
-       if (xbin(i) < thr .and. pbin(i) < wn_level) pbin(i) = pbin(i) + wn_level
-    end do
-
-    allocate(bin_spec_full_range(nbin+2,2), sigmas_full_range(nbin+2)) ! extend spline over first and last bins
-
-    ! Extend to low frequencies using the slope between first two bins. 
-    ! Instead, at high frequencies it's fine to just go straight
-    slope_lowf = (log10(pbin(2)) - log10(pbin(1))) / (log10(xbin(2)) - log10(xbin(1)))
-    slope_lowf = min(slope_lowf, 0.0) ! can only increase to low frequencies
-
+    allocate(bin_spec_full_range(nbin+2,2)) ! extend spline over first and last bins
     ! rescale for logarithmic spline
     bin_spec_full_range(1,1)        = log10(x(1))
     bin_spec_full_range(2:nbin+1,1) = log10(xbin)
     bin_spec_full_range(nbin+2,1)   = log10(x(n) + 0.5)
 
+    ! Check if lower frequencies have less power. In that case inject regularization noise
+    do i = 1, nbin
+       if (xbin(i) < thr .and. pbin(i) < wn_level) pbin(i) = pbin(i) + wn_level
+    end do
+    ! Extend to low frequencies using the slope between first two bins. 
+    ! Instead, at high frequencies it's fine to just go straight
+    slope_lowf = (log10(pbin(2)) - log10(pbin(1))) / (log10(xbin(2)) - log10(xbin(1)))
+    slope_lowf = min(slope_lowf, 0.0) ! can only increase to low frequencies
     bin_spec_full_range(1,2)        = log10(pbin(1)) + slope_lowf * (log10(x(1)) - log10(xbin(1)))
     bin_spec_full_range(2:nbin+1,2) = log10(pbin)
     bin_spec_full_range(nbin+2,2)   = log10(pbin(nbin))
 
-!    sigmas_full_range(1)        = sigmas(1)
-!    sigmas_full_range(2:nbin+1) = sigmas
-!    sigmas_full_range(nbin+2)   = sigmas(nbin)
     deallocate(xbin, pbin,nbins)
 
+    ! Define the spline
     call free_spline(self%spline_profile)
     call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp))
     deallocate(bin_spec_full_range)
@@ -911,6 +906,7 @@ contains
     do i = 2, self%npar
        self%P_uni(i,1)    = -6.0
        self%P_uni(i,2)    = 12.0
+       self%P_active(i,1) = self%spline_profile%y(i)
        self%P_active(i,2) = 0 
 
        if (i==2) then
@@ -925,14 +921,7 @@ contains
        end if
     end do
 
-    !self%spline_profile%y = 10**self%spline_profile%y - self%xi_n(1)**2 ! Correlated noise only!!
-    !self%xi_n(1) = max(self%xi_n(1),self%sigma0_preproc) ! avoid too low wn_level estimation from binning
-    !self%sigma0 => self%xi_n(1)
-    !self%spline_profile%y = log10(self%spline_profile%y)
     self%xi_n(2:) = self%spline_profile%y(2:self%npar)
-    self%P_active(2:,1) = self%spline_profile%y(2:self%npar)
-
-    deallocate(sigmas_full_range)
 
   end subroutine update_spline
 
