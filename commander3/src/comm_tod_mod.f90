@@ -292,6 +292,7 @@ module comm_tod_mod
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_S     ! Signal crosstalk object, (ndet x ndet) matrix
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_N     ! Noise crosstalk object, (ndet x ndet) matrix
      class(Tbol_ptr),    allocatable, dimension(:)     :: Tbol     ! Bolometer transfer function 
+     type(spline_type), allocatable, dimension(:,:)  :: rolloff_filter ! High-frequency noise rolloff profile for Tbol deconv (ndet,nscan)
      class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      !class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
@@ -376,6 +377,7 @@ module comm_tod_mod
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
      procedure                           :: compute_powspec
+     procedure                           :: spline_rolloff
   end type comm_tod
   
   abstract interface
@@ -430,10 +432,6 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
      real(sp),     allocatable, dimension(:,:)     :: dark          ! Dark bolometer signals
-     ! ADDED
-     type(spline_type), allocatable, dimension(:)  :: rolloff_filter ! High-frequency noise rolloff profile for Tbol deconv [ndet]
-   contains
-     procedure                           :: spline_rolloff
   end type comm_scandata
 
   ! Class for uncompressed data of a single detector over the full flight; use sparingly
@@ -3731,7 +3729,7 @@ contains
     oper = sum(2**op_list)
   end function get_sd_operation_code  
 
-  subroutine spline_rolloff(self, i_det, gain, sigma_0, samprate)
+  subroutine spline_rolloff(self, sd, i_det)
     ! Defines high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -3741,25 +3739,27 @@ contains
     ! i_det: int
     !        detector id
     implicit none
-    class(comm_scandata),                      intent(inout) :: self
-    integer(i4b),                              intent(in)    :: i_det
-    real(dp),                                  intent(in)    :: gain, samprate
-    real(sp),                                  intent(in)    :: sigma_0
-    
-    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err
+    class(comm_tod),                   intent(inout) :: self
+    class(comm_scandata),              intent(inout) :: sd
+    integer(i4b),                      intent(in)    :: i_det
+
+    integer(i4b) :: i, j, k, l, n, nbin, ntod, nomp, nfft, err, scan
     integer*8    :: plan_fwd, plan_back
-    real(sp)     :: dnu
+    real(sp)     :: dnu, gain, samprate, frac
     integer(i4b), allocatable, dimension(:)   :: bin_count
     real(sp),     allocatable, dimension(:)   :: d_prime, dt, bin_sum
     complex(spc), allocatable, dimension(:)   :: dv
     real(sp),     allocatable, dimension(:,:) :: ps
     real(dp),     allocatable, dimension(:,:) :: bin_spec
 
-    ntod = self%ntod
+    ntod     = sd%ntod
+    scan     = sd%scan
+    gain     = self%scans(scan)%d(i_det)%gain
+    samprate = self%samprate
     allocate(d_prime(ntod))
 
     ! Prepare TOD residual
-    d_prime = (self%tod(:,i_det) - gain * self%s_tot(:,i_det,0,1)) * self%mask(:,i_det)
+    d_prime = (sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)) * sd%mask(:,i_det)
 
     nomp     = 1
     nfft     = 2 * ntod
@@ -3780,18 +3780,20 @@ contains
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l))** 2 / ntod
+       ps(l,2) = (abs(dv(l))** 2 / ntod) / 2
     end do
+    frac = sum(sd%mask(:,i_det)) / real(ntod, sp)
+    ps(:,2) = ps(:,2) / frac
     deallocate(d_prime, dt, dv)
 
     ! Binning
-    dnu = 5.d-1 ! Hz
+    dnu = 0.5d0 ! Hz
     nbin = (ps(n-1,1) - ps(1,1))/dnu
     allocate(bin_sum(nbin), bin_count(nbin))
     allocate(bin_spec(nbin,2))
 
     bin_sum = 0.d0; bin_count = 0
-    bin_spec(nbin,2) = 0.d0
+    bin_spec = 0.d0
     do i = 1, n-1
        j = (ps(i,1) - ps(1,1))/dnu + 1
        if (j >= 1 .and. j <= nbin) then
@@ -3807,12 +3809,13 @@ contains
 
     deallocate(bin_sum,bin_count,ps)
 
-    call spline(self%rolloff_filter(i_det), bin_spec(:,1), dble(bin_spec(:,2)))
+    call free_spline(self%rolloff_filter(i_det,scan))
+    call spline(self%rolloff_filter(i_det,scan), bin_spec(:,1), dble(bin_spec(:,2)))
     deallocate(bin_spec)
 
     call sfftw_destroy_plan(plan_fwd)
     call sfftw_destroy_plan(plan_back)
- 
+
   end subroutine spline_rolloff
 
 end module comm_tod_mod

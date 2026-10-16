@@ -561,7 +561,6 @@ interface
     integer(i4b),                      intent(in)    :: i_det
   end subroutine remove_hfi_4K_lines_harm
 
-
   module subroutine fill_gaps(self, tod, handle, scan, i_det, mask, s_sub, pix, nomono, dospike, ps_output, filling)
     ! Fill gaps in flagged samples
     !

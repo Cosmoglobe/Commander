@@ -127,7 +127,11 @@ contains
 
        if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) then
           !call whitening_filter(self,sd,i)
-          call update_spline_noise_psd(self,sd,scan,i, handle)
+          if (present(freqmask)) then
+             call update_spline_noise_psd(self,sd,scan,i, handle, freqmask)
+          else
+             call update_spline_noise_psd(self,sd,scan,i, handle)
+          end if
        end if
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2
@@ -940,13 +944,15 @@ contains
 
 
   ! Updates the spline noise PSD model
-  subroutine update_spline_noise_psd(self, sd, scan, i, handle)
+  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask)
     implicit none
-    class(comm_tod),            intent(inout)  :: self
-    class(comm_scandata),       intent(in)     :: sd
-    integer(i4b),               intent(in)     :: scan
-    integer(i4b),               intent(in)     :: i
-    type(planck_rng),           intent(inout)  :: handle
+    class(comm_tod),                      intent(inout)  :: self
+    class(comm_scandata),                 intent(in)     :: sd
+    integer(i4b),                         intent(in)     :: scan
+    integer(i4b),                         intent(in)     :: i
+    type(planck_rng),                     intent(inout)  :: handle
+    real(sp), dimension(0:,1:), optional, intent(in) :: freqmask
+    
 
     character(len=6) :: scantext, dettext
     integer(i4b) :: j, j0, j1, k, ntod, Nedge, Nleft, Nright

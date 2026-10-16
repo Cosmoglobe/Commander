@@ -566,16 +566,23 @@ contains
        ! Dark bolometer drift correction
        call self%hfi_dark_correction(i, sd)       
 
-
+       ! 4K lines estimation
        if (fit_4K_lines) then
           if (trim(self%cooler_correction_domain) == 'time') then
              ! 4K Line corrections from TOD
              do j = 1, self%ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 call estimate_hfi_4K_lines_tod(self, sd, j)
+!!                ! In-paint flagged samples AFTER 4K lines estimation
+!!                ! CURRENTLY NOT NEEDED: after 4K estimation there is only spline_rolloff, which is based on unmasked samples
+!!                do k = 1, sd%ntod
+!!                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
+!!                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc * rand_gauss(handle)
+!!                   end if
+!!                end do
              end do
           elseif (trim(self%cooler_correction_domain) == 'frequency') then
-             ! In-paint flagged samples for 4K lines estimation
+             ! In-paint flagged samples BEFORE 4K lines estimation
              do j = 1, self%ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 do k = 1, sd%ntod
@@ -583,13 +590,21 @@ contains
                       sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc * rand_gauss(handle)
                    end if
                 end do
-             end do   
-             ! 4K Line corrections from PSD
-             do j = 1, self%ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
+                ! 4K Line corrections from PSD
                 call estimate_hfi_4K_lines_harm(self, sd, j)
              end do
           end if
+       end if
+
+
+       ! Spline rolloff for Tbol conv./deconv. later on
+       if (trim(self%noise_psd_model) == 'spline') then
+          if (.not. allocated(self%rolloff_filter)) allocate(self%rolloff_filter(self%ndet,self%nscan))
+          do j = 1, self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             !call spline_rolloff(self, sd, j)
+             call self%spline_rolloff(sd, j)
+          end do
        end if
 
 
@@ -694,19 +709,21 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          call sample_n_corr(self, sd, handle)
+!          call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+          call sample_n_corr(self, sd, handle)!, freqmask = freqmask)
           if (sample_xi_n) then
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.
-             call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+           call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              !call sample_noise_psd(self, sd, handle, chaindir)
-             deallocate(freqmask)
+           deallocate(freqmask)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
+!!          deallocate(freqmask)
        else
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
@@ -1471,6 +1488,7 @@ contains
     integer(i4b),                optional, intent(in)    :: det
 
     integer(i4b) :: i, j, d, scan
+    logical(lgt) :: K_prime
 
     scan = sd%scan
 
@@ -1512,11 +1530,11 @@ contains
     if (nonlin_lvl > 2) then
        if (trim(self%cooler_correction_domain) == 'time') then
           do i = 1, self%ndet
-             ! Correct 4K lines from TOD
-             if (self%scans(scan)%d(i)%accept) call remove_hfi_4K_lines_tod(self, sd, i)
-             ! In-paint flagged samples with s_tot + white noise
              d = i; if (present(det)) d = det
              if (.not. self%scans(scan)%d(d)%accept) cycle
+             ! Correct 4K lines from TOD
+             call remove_hfi_4K_lines_tod(self, sd, i)
+             ! In-paint flagged samples with s_tot + white noise
              do j = 1, sd%ntod
                 if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
                    sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
@@ -1527,49 +1545,53 @@ contains
           ! In-paint flagged samples with s_tot + white noise
           do i = 1, self%ndet
              d = i; if (present(det)) d = det
-             if (self%scans(scan)%d(d)%accept) then
-                do j = 1, sd%ntod
-                   if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
-                      sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+             if (.not. self%scans(scan)%d(d)%accept) cycle
+             do j = 1, sd%ntod
+                if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
                    end if
                 end do
-             end if
              ! Correct 4K lines from PSD
-             if (self%scans(scan)%d(i)%accept) call remove_hfi_4K_lines_harm(self, sd, i)
+             call remove_hfi_4K_lines_harm(self, sd, i)
           end do
        end if
     end if
 
-    ! Define high-frequency roll-off ! MODIFIED
-    if (.false. .and. nonlin_lvl > 3) then
-       do i = 1, self%ndet
-          if (.not. self%scans(scan)%d(i)%accept) cycle
-          call sd%spline_rolloff(i, self%scans(scan)%d(i)%gain, abs(self%scans(scan)%d(i)%N_psd%sigma0), self%samprate)
-       end do
-    end if
 
     ! Deconvolve regularized bolometer transfer function
     if (nonlin_lvl > 3) then
        do i = 1, self%ndet
-          if (.not. self%scans(scan)%d(i)%accept) cycle
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+          d = i; if (present(det)) d = det
+          if (.not. self%scans(scan)%d(d)%accept) cycle
+          if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
              open(58,file='tod_before.dat')
              do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i)
+                write(58,*) j, sd%tod(j,d)
              end do
              close(58)
+          end if 
+
+          K_prime = .false.
+          if (allocated(self%rolloff_filter) .and. trim(self%noise_psd_model) == 'spline') then
+             if (allocated(self%rolloff_filter(d,scan)%x)) K_prime = .true.
           end if
-          call self%Tbol(i)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)!, &
-!                                       & sd%rolloff_filter(i), abs(self%scans(scan)%d(i)%N_psd%sigma0)) ! ADDED
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+          if (K_prime) then
+             call self%Tbol(d)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back, &
+                                          & self%rolloff_filter(d,scan))
+          else
+             call self%Tbol(d)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)
+          end if
+
+          if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
              open(58,file='tod_after.dat')
              do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i)
+                write(58,*) j, sd%tod(j,d)
              end do
              close(58)
           end if
        end do
     end if
+
 
    ! At the end, update sigma0 and possibly spline noise model
    if (nonlin_lvl > 4) then
