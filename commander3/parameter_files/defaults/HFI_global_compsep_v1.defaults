@@ -81,7 +81,7 @@ CG_SAMPLING_GROUP_BANDS&&    = 023-WMAP_K,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,06
 @START 01
 @DEFAULT components/cmb/cmb_HFI.defaults
 COMP_AMP_INPUT_MAP&&          = /mn/stornext/u3/hke/data_hfi/COM_CMB_IQU-commander_2048_R3.00_full_inpaint_dipole.fits
-COMP_INIT_FROM_HDF&&          = none default
+COMP_INIT_FROM_HDF&&          = default
 COMP_APPLY_DUST_EXTINCTION&&  = .false.
 COMP_MONOPOLE_PRIOR&&         = monopole-dipole:common/mask/mask_common_dx12_n2048_TQU.fits
 @END 01
