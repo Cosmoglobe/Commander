@@ -792,7 +792,7 @@ contains
   end function constructor_spline
 
 
-  subroutine update_spline(self,x,y,handle)
+  subroutine update_spline(self, x, y, handle, freqmask)
     !
     ! Routine to update spline profile
     !
@@ -808,9 +808,10 @@ contains
     class(comm_noise_psd_spline), target, intent(inout) :: self
     real(sp),           dimension(:),     intent(in)    :: x, y
     type(planck_rng),           optional, intent(inout) :: handle ! pass it to Gibb sample the nodes
+    real(sp), dimension(0:),    optional, intent(in)    :: freqmask
 
     integer(i4b) :: i, j, n, nbin, n_dec, n_min
-    real(sp) :: thr, dx_lin, wn_level, slope_lowf, f_nu
+    real(sp) :: thr, dx_lin, wn_level, slope_lowf, f_nu, thr_bin
     logical(lgt) :: check
     real(dp) :: nu 
     real(sp), allocatable, dimension(:,:) :: bin_spec_full_range
@@ -821,10 +822,17 @@ contains
     if (size(y) /= n) stop 'update_spline: x and y have different sizes'
 
     n_dec  = 2 ! log bins per decade
-    thr    = 1.d0 ! Hz  ! Frequency dividing logarithmic and linear regimes
+    thr = 1.d0 ! for WN and low-bin regularization
+
+    ! Log-linear binning
+    thr_bin = thr
+
+    ! Full log binning
+    !thr_bin = x(n) 
+
     dx_lin = 8.d0 ! Hz
-    n_min  = 50 ! minimum number of points per bin
-    call bin_psd_spline(x, y, thr, n_dec, dx_lin, n_min, xbin, pbin, nbins) 
+    n_min  = 20 ! minimum number of points per bin
+    call bin_psd_spline(x, y, thr_bin, n_dec, dx_lin, n_min, xbin, pbin, nbins, freqmask) 
 
     nbin = size(xbin)
     if (any(pbin /= pbin)) stop 'update_spline: nan in binned PSD'
@@ -981,7 +989,7 @@ contains
 
   end function eval_noise_psd_spline_corr
 
-  subroutine bin_psd_spline(x, ps, thr, n_dec, dx_lin, n_min, xbin, pbin, nbin)
+  subroutine bin_psd_spline(x, ps, thr, n_dec, dx_lin, n_min, xbin, pbin, nbin, freqmask)
     !
     ! Bin a PSD for the spline noise model:
     ! - logarithmic bins (n_dec per decade) from x(1) up to thr
@@ -993,8 +1001,9 @@ contains
     integer(i4b),                            intent(in)  :: n_dec, n_min
     real(sp),     allocatable, dimension(:), intent(out) :: xbin, pbin
     integer(i4b), allocatable, dimension(:), intent(out) :: nbin
+    real(sp),    dimension(0:),    optional, intent(in)  :: freqmask
 
-    integer(i4b) :: i, k, n, nlog, nlin, nedge, nout, cnt
+    integer(i4b) :: i, k, km, n, nm, nlog, nlin, nedge, nout, cnt
     real(dp)     :: logmin, logthr, s_ps, s_logx
     real(dp),     allocatable, dimension(:) :: edges, sum_ps, sum_logx
     integer(i4b), allocatable, dimension(:) :: n_out
@@ -1002,11 +1011,17 @@ contains
     n = size(x)
     if (size(ps) /= n) stop 'bin_psd_spline: x and ps have different sizes'
 
+    if (present(freqmask)) nm = size(freqmask)
+
     ! Bin edges
     logmin  = log10(real(x(1),dp))
-    logthr  = log10(real(thr,dp))
+    logthr  = log10(min(real(thr,dp), real(x(n),dp)*(1.d0+1.d-6))) ! In case of full log binning
     nlog  = max(1, ceiling((logthr - logmin) * n_dec))
-    nlin  = max(1, floor((x(n) - thr) / dx_lin))  ! last bin absorbs the remaining frequencies
+    if (thr < x(n)) then
+       nlin  = max(1, floor((x(n) - thr) / dx_lin))  ! last bin absorbs the remaining frequencies
+    else
+       nlin = 0
+    end if
     nedge = nlog + nlin + 1
     allocate(edges(nedge))
     do k = 0, nlog
@@ -1026,6 +1041,12 @@ contains
           call close_bin()
           k = k + 1
        end do
+       
+       if (present(freqmask)) then ! spin freqmask for low freqs wobble
+          km = min(nint(x(i) * real(nm-1, sp) / x(n)), nm-1)   ! freqmask index of frequency x(i)
+                                                              ! (half resolution and starts from 0)
+          if (freqmask(km) == 0.) cycle
+       end if
        s_ps = s_ps + real(ps(i),dp)
        s_logx = s_logx + log10(real(x(i),dp))
        cnt  = cnt + 1

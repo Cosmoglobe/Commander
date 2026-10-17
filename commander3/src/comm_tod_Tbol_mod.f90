@@ -93,7 +93,7 @@ contains
   ! Routine for convolving with bolometer transfer function, tod = T * tod
   subroutine convolve_Tbol(self, tbol_type, operation, tod, plan_fwd, plan_back, rolloff)
     implicit none
-    class(comm_Tbol),               intent(inout) :: self ! MODIFIED
+    class(comm_Tbol),               intent(inout) :: self
     character(len=*),               intent(in)    :: tbol_type
     character(len=*),               intent(in)    :: operation
     real(sp),         dimension(:), intent(inout) :: tod

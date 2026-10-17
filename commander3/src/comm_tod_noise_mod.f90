@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono)
+  subroutine sample_n_corr(self, sd, handle, freqmask, psdmask, dospike, nomono, onlymono, chaindir)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -64,9 +64,13 @@ contains
 
     type(planck_rng),                   intent(inout)  :: handle
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
+    real(sp),         dimension(0:),    intent(in), optional :: psdmask ! same as freqmask but for PSD binning only 
+                                                                        ! with spline noise model, withouth forcing to draw n_corr
+                                                                        ! at masked frequencies
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
+    character(len=*),                   intent(in), optional :: chaindir
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
@@ -127,11 +131,7 @@ contains
 
        if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) then
           !call whitening_filter(self,sd,i)
-          if (present(freqmask)) then
-             call update_spline_noise_psd(self,sd,scan,i, handle, freqmask)
-          else
-             call update_spline_noise_psd(self,sd,scan,i, handle)
-          end if
+          call update_spline_noise_psd(self,sd,scan,i, handle, freqmask = psdmask, chaindir = chaindir)
        end if
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2
@@ -683,9 +683,9 @@ contains
           select type (N_psd => self%scans(scan)%d(i)%N_psd)
              type is (comm_noise_psd_spline)
              if (trim(self%operation) == 'sample') then
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle)   ! Gibbs sampling
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle, freqmask=freqmask)   ! Gibbs sampling
              else
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2))           ! Compute bin means > optimize
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), freqmask = freqmask) ! Compute bin means > optimize
              end if
           end select
           deallocate(noise_ps)
@@ -944,15 +944,15 @@ contains
 
 
   ! Updates the spline noise PSD model
-  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask)
+  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask, chaindir)
     implicit none
     class(comm_tod),                      intent(inout)  :: self
     class(comm_scandata),                 intent(in)     :: sd
     integer(i4b),                         intent(in)     :: scan
     integer(i4b),                         intent(in)     :: i
     type(planck_rng),                     intent(inout)  :: handle
-    real(sp), dimension(0:,1:), optional, intent(in) :: freqmask
-    
+    real(sp), dimension(0:),    optional, intent(in)     :: freqmask
+    character(len=*),           optional, intent(in)     :: chaindir
 
     character(len=6) :: scantext, dettext
     integer(i4b) :: j, j0, j1, k, ntod, Nedge, Nleft, Nright
@@ -1017,13 +1017,13 @@ contains
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
-       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))
+       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), freqmask=freqmask)
 
        ! Output model for debug
-       if (mod(self%scanid(scan), 5000) == 0) then
+       if (mod(self%scanid(scan), 5000) == 0 .and. present(chaindir)) then
           call int2string(self%scanid(scan), scantext) 
           call int2string(i, dettext) 
-          open(58, file='new_Tbol/scan10000/spline/2/spline_model_' // scantext // '_' // dettext // '.dat', recl=1024)
+          open(58, file=trim(chaindir)//'/spline_model_' // scantext // '_' // dettext // '.dat', recl=1024)
           do j = 1, size(noise_ps,1)
              write(58,*) noise_ps(j,1), noise_ps(j,2), N_psd%eval_full(noise_ps(j,1)), N_psd%sigma0**2
           end do

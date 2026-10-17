@@ -709,21 +709,23 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-!          call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
-          call sample_n_corr(self, sd, handle)!, freqmask = freqmask)
+          allocate(freqmask(0:sd%ntod/2))
+          freqmask = 1.
+          call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+          call sample_n_corr(self, sd, handle, psdmask = freqmask)
           if (sample_xi_n) then
-             allocate(freqmask(0:sd%ntod/2))
-             freqmask = 1.
-           call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+!!           allocate(freqmask(0:sd%ntod/2))
+!!           freqmask = 1.
+!!           call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              !call sample_noise_psd(self, sd, handle, chaindir)
-           deallocate(freqmask)
+!!           deallocate(freqmask)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
-!!          deallocate(freqmask)
+          deallocate(freqmask)
        else
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
