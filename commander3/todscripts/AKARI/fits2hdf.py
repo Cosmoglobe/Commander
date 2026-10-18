@@ -21,10 +21,13 @@ def run_single_band_write(band):
         AKARI_FITS_DIR, NSIDE, bands=[band],
         extend_reset_flag=EXTEND_RESET_FLAG)
     comm_todwriter = CommanderHDFWriter(akari_comm_data_adapter)
+    # NB: include_solarcentric_pixpointing was removed from
+    # CommanderHDFWriter.write_hdf_files; the adapter's get_chunk_data always
+    # includes the solar-centric pixel pointing as the second row of the
+    # returned pix array, so this is unconditional now.
     comm_todwriter.write_hdf_files(OUTPATH, overwrite=True,
                                    num_processes=NUM_SEGMENT_PROCESSES,
-                                   bands=[band],
-                                   include_solarcentric_pixpointing=True)
+                                   bands=[band])
 
 def main():
     for band in BANDS:

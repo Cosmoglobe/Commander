@@ -11,6 +11,8 @@ import healpy
 from astropy.time import Time, TimeDelta
 import os.path
 import pickle
+import fitsio
+import get_pointing_from_quaternion as gpq
 
 """ 
 This module's purpose is to define the AKARICommanderDataAdapter, which is the link between the
@@ -197,6 +199,11 @@ REFERENCE_TIME = Time("2000-01-01", format="isot", scale="utc")
 PATH_TO_GADS_PKL_FILES = '/mn/stornext/d23/cmbco/akari/akari_TSD_pkl/gads/all/'
 PATH_TO_LONLAT_PKL_FILES = '/mn/stornext/d23/cmbco/akari/akari_TSD_pkl/'
 
+# Directory containing the CCF-derived detector pixel offset tables
+# (ofsts_001_002.txt / ofstl_001_003.txt), used by the fallback pointing
+# computation (see compute_lonlat_from_quaternion below).
+PATH_TO_PIXELPOS_DIR = os.path.expanduser('~/akari/FISimage/PixelPos')
+
 for band, ndets in NUM_DETECTORS.items():
     BAND_DETS[band] = []
     for i in range(1, ndets+1):
@@ -206,7 +213,12 @@ for band, ndets in NUM_DETECTORS.items():
 
 def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
     """This function loads certain flags that have been extracted by Tamaki and
-    Ryosuke from the GADS data (see data manual)
+    Ryosuke from the GADS data (see data manual).
+
+    If the pre-computed pkl files aren't found (e.g. for TOD fits files that
+    weren't processed through the official bulk pipeline), falls back to
+    computing the same flags directly from the GADS extension of the fits
+    file itself (see compute_gads_flags_from_fits).
 
     Arguments:
         fitsfilename (str): The filename of the (original) TOD FITS file for which we
@@ -219,6 +231,35 @@ def load_gads_flags(fitsfilename, band, pkl_path=PATH_TO_GADS_PKL_FILES):
         A dict where each key (the detector names) points to a bool numpy array
             with the GADS flags set.
     """
+    try:
+        return _load_gads_flags_from_pkl(fitsfilename, band, pkl_path)
+    except FileNotFoundError:
+        return compute_gads_flags_from_fits(fitsfilename, band)
+
+
+def compute_gads_flags_from_fits(fitsfilename, band):
+    """Fallback for load_gads_flags: computes the same flags directly from
+    the GADS extension of the (own) gb fits file rather than from externally
+    pre-computed pkl files.
+
+    The GADS STATUS bitfield already contains ATT_CNT_MD_B1/B0 (bits 1 and 2;
+    bit 0 is BLANK/unused), and AA_LUN gives the lunar avoidance angle in
+    degrees directly, so aa_lun2 = AA_LUN < 21.5.
+
+    These flags are frame-level (the same for every detector in the band), so
+    the same array is returned for every detector name.
+    """
+    with fitsio.FITS(fitsfilename) as f:
+        status = f['GADS']['STATUS'].read().astype(bool)
+        aa_lun = f['GADS']['AA_LUN'].read().astype(float)
+    flags = np.zeros((status.shape[0], 3), dtype=bool)
+    flags[:, 0] = status[:, 1]  # ATT_CNT_MD_B1
+    flags[:, 1] = status[:, 2]  # ATT_CNT_MD_B0
+    flags[:, 2] = aa_lun < 21.5  # aa_lun2
+    return {detname: flags for detname in BAND_DETS[band]}
+
+
+def _load_gads_flags_from_pkl(fitsfilename, band, pkl_path):
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -240,6 +281,11 @@ def load_lonlat_pkl(fitsfilename, band, pkl_path=PATH_TO_LONLAT_PKL_FILES):
     """This function loads the lon/lat files that have been created by Ryosuke
     and which provides accurate pointing for each of the detector pixels.
 
+    If the pre-computed pkl files aren't found (e.g. for TOD fits files that
+    weren't processed through the official bulk pipeline), falls back to
+    computing per-detector pointing directly from the fits file's own
+    attitude quaternion (see compute_lonlat_from_quaternion).
+
     Arguments:
         fitsfilename (str): The filename of the (original) TOD FITS file for which we
             want to extract the lon/lat.
@@ -251,6 +297,65 @@ def load_lonlat_pkl(fitsfilename, band, pkl_path=PATH_TO_LONLAT_PKL_FILES):
             a numpy array containing the lon or lat, respectively, for that
             detector.
     """
+    try:
+        return _load_lonlat_pkl_from_pkl(fitsfilename, band, pkl_path)
+    except FileNotFoundError:
+        return compute_lonlat_from_quaternion(fitsfilename, band)
+
+
+def compute_lonlat_from_quaternion(fitsfilename, band,
+                                    pixelpos_dir=PATH_TO_PIXELPOS_DIR):
+    """Fallback for load_lonlat_pkl: computes per-detector RA/Dec directly
+    from the fits file's own attitude quaternion using the validated
+    LongCorrect-equivalent focal-plane model in get_pointing_from_quaternion.py,
+    instead of relying on externally pre-computed pkl files.
+
+    The GADS extension is used as the attitude source rather than PR, because
+    PR (pointed-observation) attitude is only populated during pointed
+    observations/maneuvers; during all-sky-survey scanning most PR quaternion
+    rows are zero, while GADS is populated continuously. The LongCorrect
+    offset/aberration models used here are attitude-source-agnostic, so using
+    GADS instead of PR does not change the pointing recipe itself.
+
+    Samples with an invalid (zero-norm) attitude quaternion (rare) have their
+    pointing filled from the nearest earlier valid sample; such samples are
+    expected to already be excluded via the frame/pixel flags elsewhere.
+    """
+    det_type = gpq.infer_detector_type_from_filename(fitsfilename)
+    with fitsio.FITS(fitsfilename) as f:
+        gads_columns = f['GADS'].get_colnames()
+        attitude_column = next(
+            (name for name in ('QUATERNION', 'ATTITUDE') if name in gads_columns),
+            None,
+        )
+        if attitude_column is None:
+            raise ValueError("AKARI GADS extension has no QUATERNION or ATTITUDE column")
+        quat_raw = f['GADS'][attitude_column].read().astype(np.float64)
+        packetid0 = int(f['FIS_OBS']['PACKETID'].read()[0])
+    quat, valid = gpq.normalize_quat(quat_raw)
+    x0, y0 = gpq.load_pixel_positions(det_type, pixelpos_dir)
+    ra_fp, dec_fp, _ = gpq.focal_plane_solution(
+        quat, x0, y0, aberration=True, compute_roll=False,
+        offset_style='long', detector=det_type, packetid0=packetid0,
+        aberration_style='long')
+
+    # valid is 1-D (shared across all detectors/channels); map every sample
+    # (valid or not) to the index of the nearest earlier valid sample.
+    fill_idx = np.clip(np.cumsum(valid) - 1, 0, None)
+    ra_full = ra_fp[fill_idx]
+    dec_full = dec_fp[fill_idx]
+
+    start_ind = START_DET_INDS[band]
+    numdets = NUM_DETECTORS[band]
+    outlons = {}
+    outlats = {}
+    for detidx, detname in enumerate(BAND_DETS[band]):
+        outlons[detname] = ra_full[:, start_ind + detidx]
+        outlats[detname] = dec_full[:, start_ind + detidx]
+    return outlons, outlats
+
+
+def _load_lonlat_pkl_from_pkl(fitsfilename, band, pkl_path):
     ff = os.path.basename(fitsfilename)
     split_ff = ff.split('_')
     time = split_ff[2]
@@ -352,9 +457,8 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
         self.filelist = {}
         for band in self.bands:
             self.todreaders[band] = AKARITODReader(
-                akari_fits_dir, band, fits2output_formatter, load_idx_file_mapping=True,
-                save_idx_file_mapping=False,
-                mapping_dir='/mn/stornext/u3/eirikgje/data/akari_analysis/')
+                akari_fits_dir, band, fits2output_formatter,
+                load_idx_file_mapping=False, save_idx_file_mapping=False)
             self.filelist[band] = self.todreaders[band].filelist
             self.detectors[band] = []
             for i in range(1, self.num_detectors[band]+1):
@@ -575,14 +679,31 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
 
     @get_chunk
     def get_chunk_data(self, band: str, det:str):
+        # The CommanderDataAdapter interface expects a 4-tuple
+        # (tod, pix, psi, flag). We report the calibrated flux (float) as the
+        # TOD - see get_should_compress_tods - so the raw ADU counts
+        # ('todz', kept in self.all_chunk_data for diagnostic purposes) are
+        # not passed on here.
+        # The CommanderDataAdapter interface expects a 4-tuple
+        # (tod, pix, psi, flag), where pix is a plain 1-D pointing index array
+        # - this is what the hdf writer's shared Huffman code-table builder
+        # and the Fortran reader (comm_tod_mod.f90, nhorn=1) both assume. We
+        # therefore only report the galactic pix here; 'pix_solarcentric'
+        # (kept in self.all_chunk_data for diagnostic purposes) is not
+        # currently consumed anywhere downstream and must not be stacked into
+        # this array (doing so silently breaks the Huffman encoding, since it
+        # mixes differently-shaped/differently-distributed fields under the
+        # same code table).
+        # We report the calibrated flux (float) as the TOD - see
+        # get_should_compress_tods - so the raw ADU counts ('todz', also kept
+        # in self.all_chunk_data for diagnostic purposes) are not passed on
+        # here either.
         # The third entry is just zeroes - i.e. currently we're not operating with a 'psi'.
         tod = self.all_chunk_data[band][det]['tod']
-        todz = self.all_chunk_data[band][det]['todz']
-        psi_arr = np.zeros_like(self.all_chunk_data[band][det]['pix'], dtype=int)
+        pix = self.all_chunk_data[band][det]['pix']
+        psi_arr = np.zeros_like(pix, dtype=int)
         return (tod,
-                todz,
-                np.array([self.all_chunk_data[band][det]['pix'],
-                          self.all_chunk_data[band][det]['pix_solarcentric']]),
+                pix,
                 psi_arr,
                 self.all_chunk_data[band][det]['flag'])
 
@@ -614,6 +735,12 @@ class AKARICommanderDataAdapter(CommanderDataAdapter):
     def get_chunk_satvel(self):
         return [0]*3
 
+
+    def get_should_compress_tods(self):
+        # The TOD is the calibrated flux (float), not raw integer ADU counts,
+        # so it should not be Huffman/rice-compressed as an integer (see
+        # get_chunk_data and e.g. the IRAS adapter for the same convention).
+        return False
 
     def get_gain(self, band: str, detector: str):
         return 1
