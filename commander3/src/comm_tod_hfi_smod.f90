@@ -68,8 +68,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    c%noise_psd_model = 'spline'
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -99,7 +99,7 @@ contains
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
     if (c%noise_psd_model == 'spline') then
-       c%n_xi            = 16 !94 ! {sigma0, spline nodes}
+       c%n_xi            = 18 ! {sigma0, spline nodes}
        allocate(c%xi_n_P_uni(c%n_xi,2))
        allocate(c%xi_n_P_rms(c%n_xi))
        allocate(c%xi_n_nu_fit(c%n_xi,2))
@@ -432,7 +432,7 @@ contains
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
     end if
-    fit_4K_lines          = .true. !iter > 2
+    fit_4K_lines          = .false. !iter > 2
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -572,7 +572,7 @@ contains
              ! 4K Line corrections from TOD
              do j = 1, self%ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                call estimate_hfi_4K_lines_tod(self, sd, j)
+                call estimate_hfi_4K_lines_tod(self, sd, j, chaindir=chaindir)
 !!                ! In-paint flagged samples AFTER 4K lines estimation
 !!                ! CURRENTLY NOT NEEDED: after 4K estimation there is only spline_rolloff, which is based on unmasked samples
 !!                do k = 1, sd%ntod
@@ -591,7 +591,7 @@ contains
                    end if
                 end do
                 ! 4K Line corrections from PSD
-                call estimate_hfi_4K_lines_harm(self, sd, j)
+                call estimate_hfi_4K_lines_harm(self, sd, j, chaindir=chaindir)
              end do
           end if
        end if
@@ -709,23 +709,35 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          allocate(freqmask(0:sd%ntod/2))
-          freqmask = 1.
-          call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
-          call sample_n_corr(self, sd, handle, psdmask = freqmask)
-          if (sample_xi_n) then
-!!           allocate(freqmask(0:sd%ntod/2))
-!!           freqmask = 1.
-!!           call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
-             !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
-             
-             call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
-             !call sample_noise_psd(self, sd, handle, chaindir)
-!!           deallocate(freqmask)
+          if (trim(self%noise_psd_model) == 'spline') then ! Use spin mask directly for noise model definition
+             allocate(freqmask(0:sd%ntod/2))
+             freqmask = 1.
+             if (self%freq(1:3) /= "857") then  ! 857 spin residuals are strong and removing them produces
+                                                ! a factor ~5 well at ~[0.3,3] Hz in the model
+                call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+             end if
+             call sample_n_corr(self, sd, handle, psdmask = freqmask)
+             if (sample_xi_n) then
+                call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
+             else
+                call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+             end if
+             deallocate(freqmask)
           else
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+             call sample_n_corr(self, sd, handle)
+             if (sample_xi_n) then
+                allocate(freqmask(0:sd%ntod/2))
+                freqmask = 1.
+                call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
+                !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
+             
+                call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
+                !call sample_noise_psd(self, sd, handle, chaindir)
+                deallocate(freqmask)
+             else
+                call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+             end if
           end if
-          deallocate(freqmask)
        else
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
@@ -1646,7 +1658,7 @@ contains
 
   end subroutine hfi_dark_correction
 
-module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
+module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -1658,13 +1670,13 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     !       scan data
     !  i_det: int
     !       detector id
-    !  output: lgt
-    !          output TOD    
+    !  chaindir: char array
+    !          output directory    
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
-    logical(lgt),            optional, intent(in)    :: output
+    character(len=*),        optional, intent(in)    :: chaindir
 
     integer(i4b) :: i, j, k, l, m, ntod, scan
     integer(i4b) :: n, nphi, dt_chunk, n_chunks, ind, i0, i1
@@ -1680,7 +1692,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     n        = self%n_4K_lines
     nphi     = n+1
 
-    output_  = .false.; if (present(output) .and. mod(self%scanid(scan),5000)==0) output_ = output
+    output_  = .false.; if (present(chaindir) .and. mod(self%scanid(scan),5000)==0) output_ = .true.
     if (output_) then
        call int2string(self%scanid(scan), scantext)
        call int2string(i_det, dettext)
@@ -1706,7 +1718,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
 
     ! Output starting res tod
     if (output_) then
-       open(58,file='res_tod_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/res_tod_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) l, d_prime(l), sd%mask(l,i_det)
        end do
@@ -1739,7 +1751,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     ! Output corrected res tod
     if (output_) then
        d_prime = d_prime - template
-       open(58,file='res_tod_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/res_tod_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, ntod
           write(58,*) l, d_prime(l), sd%mask(l,i_det), template(l)
        end do
@@ -1892,7 +1904,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
 
   end subroutine remove_hfi_4K_lines_tod
 
-  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, output)
+  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, chaindir)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -1906,14 +1918,14 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     !       detector id
     !  apply_mask: logaical
     !              apply mask to residuals
-    !  output: lgt
-    !          output PSDs    
+    !  chaindir: char array
+    !          output directory
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-    logical(lgt),            optional, intent(in)    :: output
+    character(len=*),        optional, intent(in)    :: chaindir
 
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
@@ -1935,7 +1947,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0_preproc)**2
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
-    output_  = .false.; if (present(output) .and. mod(self%scanid(scan),5000)==0) output_ = output
+    output_  = .false.; if (present(chaindir) .and. mod(self%scanid(scan),5000)==0) output_ = .true.
     if (output_) then
        call int2string(self%scanid(scan), scantext)
        call int2string(i_det, dettext)
@@ -1967,7 +1979,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     
     ! Output starting noise power spectrum
     if (output_) then
-       open(58,file='res_ps_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/res_ps_before_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), ps(l,2)
        end do
@@ -2064,10 +2076,10 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
        allocate(dv_4K(0:n-1))
        dv_4K = dv
        dv_4K(1:n-1) = dv_4K(1:n-1) * sqrt(W)
-       deallocate(W)
+!!     deallocate(W)
 
        ! Output ending noise power spectrum
-       open(58,file='res_ps_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/res_ps_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
        end do
@@ -2076,7 +2088,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
        ! Output 4K lines PSD and TOD
        dv_4K = dv - dv_4K
 
-       open(58,file='4K_lines_ps_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/4K_lines_ps_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
        end do
@@ -2088,7 +2100,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
        deallocate(dv_4K)
        dt  = dt / nfft
 
-       open(58,file='4K_lines_tod_' // scantext // '_' // dettext // '.dat', recl=1024)
+       open(58,file=trim(chaindir) // '/4K_lines_tod_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
           write(58,*) l, dt(l)
        end do
@@ -2100,22 +2112,22 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
     !!  Otherwise, uncomment the following lines
 
     ! FFT total TOD
-!    dt(1:ntod)           = sd%tod(:,i_det)
-!    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-!    call timer%start(TOT_FFT)
-!    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-!    call timer%stop(TOT_FFT)
-!
-!    dv(1:n-1) = dv(1:n-1) * sqrt(W)
-!    deallocate(W)
-!
-!    ! FFT^-1 back to TOD
-!    call timer%start(TOT_FFT)
-!    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-!    call timer%stop(TOT_FFT)
-!
-!    dt  = dt / nfft
-!    sd%tod(:,i_det) = dt(1:ntod)
+    dt(1:ntod)           = sd%tod(:,i_det)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+
+    dv(1:n-1) = dv(1:n-1) * sqrt(W)
+    deallocate(W)
+
+    ! FFT^-1 back to TOD
+    call timer%start(TOT_FFT)
+    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT)
+
+    dt  = dt / nfft
+    sd%tod(:,i_det) = dt(1:ntod)
 
     deallocate(dt, dv, ps)
     call sfftw_destroy_plan(plan_fwd)

@@ -482,7 +482,7 @@ interface
     integer(i4b),                        intent(in)    :: det
   end subroutine sample_adc_and_baselines
 
-  module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, output)
+  module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -494,13 +494,13 @@ interface
     !      scan data
     !  i_det: int
     !       detector id
-    !  output: lgt
-    !          output TOD
+    !  chaindir: char array
+    !          output directory
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
-    logical(lgt),            optional, intent(in)    :: output
+    character(len=*),        optional, intent(in)    :: chaindir
   end subroutine estimate_hfi_4K_lines_tod
 
   module subroutine remove_hfi_4K_lines_tod(self, sd, i_det)
@@ -520,7 +520,7 @@ interface
     integer(i4b),                      intent(in)    :: i_det
   end subroutine remove_hfi_4K_lines_tod
 
-  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, output)
+  module subroutine estimate_hfi_4K_lines_harm(self, sd, i_det, apply_mask, chaindir)
     !  Construct and apply HFI instrument-specific corrections
     !  from 4K lines
     !
@@ -534,14 +534,14 @@ interface
     !       detector id
     !  apply_mask: logical
     !              apply mask to residuals    
-    !  output: lgt
-    !          output PSDs
+    !  chaindir: char array
+    !          output directory
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-    logical(lgt),            optional, intent(in)    :: output
+    character(len=*),        optional, intent(in)    :: chaindir
   end subroutine estimate_hfi_4K_lines_harm
 
   module subroutine remove_hfi_4K_lines_harm(self, sd, i_det)

@@ -870,7 +870,7 @@ contains
 
     ! Define the spline
     call free_spline(self%spline_profile)
-    call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp))
+    call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp), linear=.false.)
     deallocate(bin_spec_full_range)
 
     ! Resetting the white noise level on the lowest point
@@ -1004,6 +1004,8 @@ contains
     real(sp),    dimension(0:),    optional, intent(in)  :: freqmask
 
     integer(i4b) :: i, k, km, n, nm, nlog, nlin, nedge, nout, cnt
+    integer(i4b) :: n_all, n_ok
+    real(sp)     :: s_all, s_ok
     real(dp)     :: logmin, logthr, s_ps, s_logx
     real(dp),     allocatable, dimension(:) :: edges, sum_ps, sum_logx
     integer(i4b), allocatable, dimension(:) :: n_out
@@ -1034,7 +1036,7 @@ contains
 
     allocate(sum_ps(nedge-1), sum_logx(nedge-1), n_out(nedge-1))
     nout = 0; cnt = 0; s_ps = 0.d0; s_logx = 0.d0; k = 1
-
+    s_all = 0.d0; s_ok = 0.d0; n_all = 0; n_ok = 0
     do i = 1, n
        do while (k < nedge-1)
           if (x(i) < edges(k+1)) exit
@@ -1045,6 +1047,16 @@ contains
        if (present(freqmask)) then ! spin freqmask for low freqs wobble
           km = min(nint(x(i) * real(nm-1, sp) / x(n)), nm-1)   ! freqmask index of frequency x(i)
                                                               ! (half resolution and starts from 0)
+
+          ! Check hwo much the mask is affecting the binning
+          if (x(i) > 0.3 .and. x(i) < 1.0) then
+             s_all = s_all + ps(i); n_all = n_all + 1
+             if (freqmask(km) /= 0.d0) then 
+                s_ok = s_ok + ps(i)
+                n_ok = n_ok + 1
+             end if
+          end if
+
           if (freqmask(km) == 0.) cycle
        end if
        s_ps = s_ps + real(ps(i),dp)
@@ -1068,6 +1080,8 @@ contains
     pbin = real(sum_ps(1:nout) / nbin, sp)
     xbin = real(10.d0**(sum_logx(1:nout) / nbin), sp)
     deallocate(edges, sum_ps, sum_logx, n_out)
+
+    !if (present(freqmask)) write(*,*) 'all', s_all/n_all, n_all, ' unmasked', s_ok/n_ok, n_ok ! All samples vs freqmasked
 
   contains
 

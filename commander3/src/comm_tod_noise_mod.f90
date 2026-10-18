@@ -683,9 +683,9 @@ contains
           select type (N_psd => self%scans(scan)%d(i)%N_psd)
              type is (comm_noise_psd_spline)
              if (trim(self%operation) == 'sample') then
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle, freqmask=freqmask)   ! Gibbs sampling
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle)!, freqmask=freqmask)   ! Gibbs sampling
              else
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), freqmask = freqmask) ! Compute bin means > optimize
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2))!, freqmask = freqmask) ! Compute bin means > optimize
              end if
           end select
           deallocate(noise_ps)
@@ -863,13 +863,13 @@ contains
     end do
     deallocate(d_prime)
 
-    call int2string(self%scanid(scan), scantext)
-    call int2string(i_det, dettext)
-    open(58,file='new_Tbol/scan10000/spline/1/pre_whitening_' // scantext // '_' // dettext // '.dat', recl=1024)
-    do l = 1, n-1
-       write(58,*) ps(l,1), ps(l,2)
-    end do
-    close(58)
+!    call int2string(self%scanid(scan), scantext)
+!    call int2string(i_det, dettext)
+!    open(58,file='new_Tbol/scan10000/spline/1/pre_whitening_' // scantext // '_' // dettext // '.dat', recl=1024)
+!    do l = 1, n-1
+!       write(58,*) ps(l,1), ps(l,2)
+!    end do
+!    close(58)
 
     ! Binning
     dnu = 1.d0 ! Hz, same spacing used for spline noise model binning
@@ -1017,7 +1017,7 @@ contains
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
-       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), freqmask=freqmask)
+       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))!, freqmask=freqmask)
 
        ! Output model for debug
        if (mod(self%scanid(scan), 5000) == 0 .and. present(chaindir)) then

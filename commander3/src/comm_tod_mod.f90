@@ -635,7 +635,7 @@ contains
     else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
     else if (trim(self%noise_psd_model) == 'spline') then
-       self%n_xi = 16 !94 ! {sigma0, spline nodes}
+       self%n_xi = 18 ! {sigma0, spline nodes}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
