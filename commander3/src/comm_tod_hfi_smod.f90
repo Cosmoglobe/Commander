@@ -68,8 +68,8 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    !c%noise_psd_model = 'spline'
+    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
@@ -432,7 +432,7 @@ contains
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
     end if
-    fit_4K_lines          = .false. !iter > 2
+    fit_4K_lines          = .true. !iter > 2
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -1607,7 +1607,7 @@ contains
     end if
 
 
-   ! At the end, update sigma0 and possibly spline noise model
+   ! At the end, update sigma0
    if (nonlin_lvl > 4) then
       ! Estimate post-deconvolution white noise rms
       call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=2)
