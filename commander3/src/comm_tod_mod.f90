@@ -2050,6 +2050,11 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+      if (hdf_group_exists(chainfile, trim(adjustl(path))//'polang')) then
+         call read_hdf(chainfile, trim(adjustl(path))//'polang',  self%polang)
+      else
+         write(*,*) 'polang field not in existing chain, keeping default'
+      end if
        if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
@@ -2078,8 +2083,8 @@ contains
          & self%comm, ierr)
     call mpi_bcast(self%bp_delta, size(self%bp_delta), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
-!    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
-!         & self%comm, ierr)
+   call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+        & self%comm, ierr)
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
