@@ -716,7 +716,7 @@ contains
                                                 ! a factor ~5 well at ~[0.3,3] Hz in the model
                 call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              end if
-             call sample_n_corr(self, sd, handle, psdmask = freqmask)
+             call sample_n_corr(self, sd, handle, psdmask = freqmask, init_psd = .not. sample_xi_n)
              if (sample_xi_n) then
                 call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              else

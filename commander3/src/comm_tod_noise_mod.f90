@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, psdmask, dospike, nomono, onlymono, chaindir)
+  subroutine sample_n_corr(self, sd, handle, freqmask, psdmask, dospike, nomono, onlymono, init_psd, chaindir)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -70,12 +70,14 @@ contains
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
+    logical(lgt),                       intent(in), optional :: init_psd ! For spline model only: build PSD from data unless 
+                                                                         !                        it has already been sampled
     character(len=*),                   intent(in), optional :: chaindir
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_, init_psd_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu
 
     real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
@@ -96,6 +98,7 @@ contains
 
     nomono_ = .false.; if (present(nomono)) nomono_ = nomono
     onlymono_ = .false.; if (present(onlymono)) onlymono_ = onlymono
+    init_psd_ = .false.; if (present(init_psd)) init_psd_ = init_psd
 
     scan     = sd%scan
     ntod     = sd%ntod
@@ -129,7 +132,7 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
-       if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) then
+       if (self%noise_psd_model == 'spline' .and. init_psd_ .and. self%scans(scan)%d(i)%accept) then
           !call whitening_filter(self,sd,i)
           call update_spline_noise_psd(self,sd,scan,i, handle, freqmask = psdmask, chaindir = chaindir)
        end if
