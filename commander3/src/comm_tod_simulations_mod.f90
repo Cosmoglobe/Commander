@@ -3,10 +3,11 @@ module comm_tod_simulations_mod
   ! This module contains the collection of subroutines
   ! needed to simulate (e.g. LFI) tods.
   !
+  use comm_tod_mod
   use comm_hdf_mod
   use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
+!  use comm_shared_arr_mod
+!  use spline_1D_mod
   use comm_param_mod
   use comm_utils
   !use comm_tod_LFI_mod
@@ -374,5 +375,308 @@ contains
     if(reminder > rank) end_chunk = end_chunk + 1
 
   end subroutine split_workload 
+
+
+
+  subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)
+    !
+    ! Commander3 native simulation routine. It simulates  correlated
+    ! noise component, adds it to the commander-sampled total sky 
+    ! signal (multiplied by gain factor for a given frequency) and 
+    ! overwrites the original timestreams inside copied files.
+    !
+    !  Arguments:
+    !  ----------
+    !  s_tot:    real(sp), array(:,:)
+    !            Total sky signal 
+    !  scan_id:  integer(i4b)
+    !            Local scan ID for the current core
+    !  handle:   planck_rng derived type
+    !            Healpix definition for random number generation
+    !
+    !  Returns:
+    !  --------
+    !
+    implicit none
+    class(comm_tod), intent(inout) :: self
+    ! Parameter file variables
+    !type(comm_params),                     intent(in)    :: cpar
+    ! Other input/output variables
+    real(sp),              dimension(:,:), intent(in)    :: s_tot   !< total sky signal
+    real(sp),              dimension(:,:), intent(out)   :: n_corr  !< Correlated noise (output)
+    integer(i4b),                          intent(in)    :: scan_id !< current PID
+    type(planck_rng),                      intent(inout) :: handle
+    ! Simulation variables
+    real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
+    real(sp)                              :: gain   !< detector's gain value
+    real(sp)                              :: sigma0
+    real(sp) :: N_c
+    real(sp) :: samprate
+    real(sp) :: fft_norm
+    real(dp) :: chisq
+    integer(i4b)                          :: ntod !< total amount of ODs
+    integer(i4b)                          :: ndet !< total amount of detectors
+    byte,    allocatable, dimension(:)    :: ztod 
+
+    ! HDF5 variables
+    character(len=6)   :: samptext, scantext
+    character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
+    integer(i4b)       :: myindex     !< dummy value for string manipulation
+    character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
+    character(len=6)   :: pidLabel
+    character(len=512) :: detectorLabel
+    type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
+    type(hdf_file)     :: tod_file
+    integer(i4b)       :: hdf5_error  !< hdf5 error status
+    integer(HID_T)     :: hdf5_file_id !< File identifier
+    integer(HID_T)     :: dset_id     !< Dataset identifier
+    integer(hid_t)     :: dtype  ! hdf5 datatype
+    integer(HSIZE_T), dimension(1) :: dims
+    ! Other variables
+    integer(i4b)                          :: i, j, k !< loop variables
+    integer(i4b)       :: mpi_err, errorcode !< MPI error status
+    integer(i4b)       :: nomp !< Number of threads available
+    integer(i4b)       :: omp_err !< OpenMP error status
+    integer(i4b) :: omp_get_max_threads
+    integer(i4b) :: n, nfft
+    integer*8    :: plan_back
+    real(sp) :: nu
+    !real(sp), allocatable, dimension(:,:) :: n_corr
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    character(len=10) :: processor_label   !< to have a nice output to screen
+    integer(i4b) :: ntoks
+    character(len=512), dimension(100) :: toks
+
+    !write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
+
+    ! shortcuts
+    ntod = self%scans(scan_id)%ntod
+    ndet = self%ndet
+
+    ! Simulating 1/f noise
+    !write(*,*) "Simulating correlated noise"
+    nfft = 2 * ntod
+    n = nfft / 2 + 1
+    nomp = omp_get_max_threads()
+    call sfftw_init_threads(omp_err)
+    call sfftw_plan_with_nthreads(nomp)
+    ! planning FFTW - in principle we should do both forward and backward FFTW,
+    ! but in this case we can omit forward one and go directly with backward to
+    ! save some time on a whole operation.
+    allocate(dt(nfft), dv(0:n-1))
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+
+    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
+    allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
+    !$OMP DO SCHEDULE(guided)
+    do j = 1, ndet
+      ! skipping iteration if scan was not accepted
+      if (.not. self%scans(scan_id)%d(j)%accept) cycle
+      ! getting gain for each detector (units, V / K)
+      ! (gain is assumed to be CONSTANT for EACH SCAN)
+      gain   = self%scans(scan_id)%d(j)%gain
+      sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
+      samprate = self%samprate
+      ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
+      fft_norm = sqrt(1.d0 * nfft)
+      !
+      !dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      dv(0) = 0. ! fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! HKE: This expression is not correct for the monopole
+      do k = 1, (n - 1)
+        nu    = k * (samprate / 2) / (n - 1)
+        N_c   = self%scans(scan_id)%d(j)%N_psd%eval_corr(nu)
+        dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
+      end do
+      ! Executing Backward FFT
+      call timer%start(TOT_FFT)
+      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
+      dt = dt / sqrt(1.d0*nfft)
+      n_corr(:,j) = dt(1:ntod)
+      !write(*,*) "n_corr ", n_corr(:, j)
+    end do
+    !$OMP END DO
+    deallocate(dt, dv)
+    !$OMP END PARALLEL
+
+    call sfftw_destroy_plan(plan_back)
+
+    ! Allocating main simulations' array
+    allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
+    tod_per_detector = 1d30
+
+    ! Main simulation loop
+    do i = 1, ntod
+      do j = 1, ndet
+        ! skipping iteration if scan was not accepted
+        if (.not. self%scans(scan_id)%d(j)%accept) cycle
+        gain   = self%scans(scan_id)%d(j)%gain
+        sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
+        tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
+      end do
+    end do
+    ! Digitizes the data to the nearest integer; probably should mimic the
+    ! actual ADC conversion process
+    if (self%compressed_tod) tod_per_detector = real(nint(tod_per_detector), kind=sp)
+
+    !----------------------------------------------------------------------------------
+    ! Saving stuff to hdf file
+    ! Getting the full path and name of the current hdf file to overwrite
+    !----------------------------------------------------------------------------------
+    mystring = trim(self%hdfname(scan_id))
+    mysubstring = '/'
+
+    myindex = index(trim(mystring), trim(mysubstring), back=.true.) + 1
+
+
+    call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
+    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
+    call int2string(self%scanid(scan_id), pidLabel)
+    call int2string(self%myid, processor_label)
+    write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) "!  "//trim(toks(ntoks))
+
+    dims(1) = ntod
+    call h5open_f(hdf5_error)
+    call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
+    if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+
+    ! Remake huffman, symbols for tod_per_detector
+    ! decompress the zipped tods to remake the tod
+    !do j = 1, 4
+    !   if (.not. self%scans(scan_id)%d(j)%accept) cycle
+    !   call self%decompress_tod(scan_id, j, tod_per_detector(:,j))
+    !end do
+    ! call hufmak(tod_per_detector, self%scans(scan_id)%todkey)
+    ! Need to overwrite the keys in the simulated data
+
+    if (self%compressed_tod) then
+      call open_hdf_file(trim(self%sims_output_dir)//'/tod_'//pidLabel//'.h5', tod_file, 'w')
+      do k = 1, self%ndet
+        detectorLabel = self%label(k)
+
+        call write_hdf(tod_file, '/'//trim(detectorLabel), tod_per_detector(:,k))
+        call write_hdf(tod_file, '/xi_n_'//trim(detectorLabel), self%scans(scan_id)%d(k)%N_psd%xi_n)
+        call write_hdf(tod_file, '/gain_'//trim(detectorLabel), self%scans(scan_id)%d(k)%gain)
+
+      end do
+      call write_hdf(tod_file, '/x_im', self%x_im)
+      call close_hdf_file(tod_file)
+    else
+      do j = 1, ndet
+        detectorLabel = self%label(j)
+        call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      end do
+    end if
+    call h5dclose_f(dset_id, hdf5_error)
+    call h5fclose_f(hdf5_file_id, hdf5_error)
+    call h5close_f(hdf5_error)
+
+
+    deallocate(tod_per_detector)
+    write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
+
+  end subroutine simulate_tod
+
+
+  subroutine simulate_tod_on_the_fly(self, sd, handle)
+    ! on_the_fly simulation routine that generates simulated tod,
+    ! consisting of sum of correlated and white noise generate here,
+    ! and sky signal taken from sd%s_tot multiplied by gain,
+    ! and puts it into self%tod (where it overwrites existing tod)
+    implicit none
+    class(comm_tod),          intent(inout) :: self   ! full data object with compressed tods
+    class(comm_scandata),     intent(in)    :: sd     ! decompressed self%scans(scan)%d(det)%tod
+    type(planck_rng),         intent(inout) :: handle ! for random number generator
+
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    real(sp)                                :: gain, sigma0, N_c, samprate, fft_norm, chisq, nu, todsim
+    integer(i4b)                            :: ntod, ndet, scan, i, j, k, n, nfft
+    integer(i4b)                            :: nomp !< Number of threads available
+    integer(i4b)                            :: omp_err !< OpenMP error status
+    integer(i4b)                            :: omp_get_max_threads
+    integer*8                               :: plan_back
+
+    ! shortcuts
+    scan   = sd%scan              ! scan number
+    ndet   = sd%ndet              ! number of detectors                = self%ndet
+    ntod   = sd%ntod              ! number of tod samples for my scan  = self%scans(scan)%ntod
+
+    !write(*,*) 'sim', scan, self%scans(scan)%d%accept
+    
+    ! Simulating 1/f noise
+    nfft = 2 * ntod
+    n = nfft / 2 + 1
+    nomp = omp_get_max_threads()
+    call sfftw_init_threads(omp_err)
+    call sfftw_plan_with_nthreads(nomp)
+    ! planning FFTW - in principle we should do both forward and backward FFTW,
+    ! but in this case we can omit forward one and go directly with backward to
+    ! save some time on a whole operation.
+    allocate(dt(nfft), dv(0:n-1))
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+    allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
+    do j = 1, ndet
+       ! skipping iteration if scan was not accepted
+       if (.not. self%scans(scan)%d(j)%accept) cycle
+       ! getting gain for each detector (units, V / K)
+       ! (gain is assumed to be CONSTANT for EACH SCAN)
+       gain   = self%scans(scan)%d(j)%gain
+       sigma0 = self%scans(scan)%d(j)%N_psd%sigma0
+       samprate = self%samprate
+       ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
+       fft_norm = sqrt(1.d0 * nfft)
+       !dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+       ! HKE: expression above is not correct for the monopole
+       dv(0) = 0. ! OBS spceial case for the monopole, better to not alter it
+       do k = 1, (n - 1)
+          nu    = k * (samprate / 2) / (n - 1)
+          N_c   = self%scans(scan)%d(j)%N_psd%eval_corr(nu)
+          dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
+       end do
+       ! Executing Backward FFT
+       call timer%start(TOT_FFT)
+       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       call timer%stop(TOT_FFT)
+       dt = dt / sqrt(1.d0*nfft)
+            
+       ! getting parameters for tod simulations
+       gain   = self%scans(scan)%d(j)%gain
+       sigma0 = self%scans(scan)%d(j)%N_psd%sigma0
+       !write(*,*) 'det,gain,sigma0', j, gain, sigma0
+       !write(*,*) "tod before", j, self%scans(scan)%d(j)%tod(1), self%scans(scan)%d(j)%tod(ntod)
+       ! make full tod simulations
+       do i = 1, ntod
+          ! simulated tod = gain * sky_signal + correlated noise + white noise
+          ! sky signal taken from sd%s_tot with dimension (ntod, ndet, 0:hmax, nbp))
+          todsim = gain * sd%s_tot(i,j,0,1) + dt(i) + sigma0 * rand_gauss(handle)
+          ! Digitizes the data to the nearest integer; probably should mimic the
+          ! actual ADC conversion process
+          if (self%compressed_tod) todsim = real(nint(todsim), kind=sp)
+          ! overwrite tod in self by simulation
+          self%scans(scan)%d(j)%tod(i) = todsim
+       end do
+       !write(*,*) "tod after ", j, self%scans(scan)%d(j)%tod(1), self%scans(scan)%d(j)%tod(ntod)
+
+!       if (self%myid==0 .and. j==1) then
+!!          filename='dt_'//trim(int2string(j))//'.dat'
+!          open(18, file='dt.dat')
+!          do i = 1, ntod
+!             write(18,*) i, gain *sd%s_tot(i,j,0,1), dt(i), self%scans(scan)%d(j)%tod(i) - gain *sd%s_tot(i,j,0,1) - dt(i),  self%scans(scan)%d(j)%tod(i)
+!          end do
+!          close(18)
+!          write(*,*) 'written to file dt.dat'
+!       end if
+       
+    end do
+    deallocate(dv, dt)
+    call sfftw_destroy_plan(plan_back)
+    
+  end subroutine simulate_tod_on_the_fly
 
 end module comm_tod_simulations_mod

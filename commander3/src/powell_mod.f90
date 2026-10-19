@@ -141,7 +141,8 @@ contains
        end do
 
        ! The second test here, fret < 1, is *only* for Anderson-Darling fitting
-       if (2.d0*(fp-fret) <= epsilon*(abs(fp)+abs(fret))) then
+       if (2.d0*(fp-fret) <= epsilon*(abs(fp)+abs(fret)) .and. fret /= 1d30) then
+          !write(*,*) 'powell -- fp = ', fp, ', fret = ', fret, ', epsilon = ', epsilon, ', lhs = ', 2.d0*(fp-fret), ', rhs = ', epsilon*(abs(fp)+abs(fret))
           ierr = 0
           return
        end if

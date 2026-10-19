@@ -11,6 +11,7 @@ COMP_NSIDE&&                  = 2048
 COMP_MONOPOLE_PRIOR&&         = none
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1000
+COMP_APPLY_DUST_EXTINCTION&& = .false.
 COMP_OUTPUT_FWHM&&            = 14         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0
@@ -65,3 +66,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

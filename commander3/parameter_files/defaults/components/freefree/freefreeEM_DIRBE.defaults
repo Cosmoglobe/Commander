@@ -71,3 +71,4 @@ COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
+COMP_APPLY_DUST_EXTINCTION&&  = .false.

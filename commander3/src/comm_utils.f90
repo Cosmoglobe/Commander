@@ -25,7 +25,8 @@ module comm_utils
   use head_fits
   use pix_tools
   use udgrade_nr
-  use iso_c_binding
+  !use iso_c_binding
+  use, intrinsic :: iso_c_binding, only: c_double, c_int
   use comm_system_mod
   use comm_defs
   use sort_utils
@@ -40,9 +41,21 @@ module comm_utils
   !include "mpif.h"
   include 'fftw3.f'
 
+  interface compute_running_variance
+     module procedure compute_running_variance_sp, compute_running_variance_dp
+  end interface compute_running_variance
+
+  interface median
+     module procedure median_sp, median_dp
+  end interface median
+
+  interface read_map
+     module procedure read_map_dp, read_map_sp
+  end interface read_map
+
 contains
 
-  function median(array) result(res)
+  function median_dp(array) result(res)
     implicit none
     real(dp) :: array(:), res
     real(dp), dimension(:), allocatable :: tmp
@@ -52,7 +65,19 @@ contains
     call QuickSort_real(tmp)
     res = tmp(size(tmp)/2+1)
     deallocate(tmp)
-  end function median
+  end function median_dp
+
+  function median_sp(array) result(res)
+    implicit none
+    real(sp) :: array(:), res
+    real(dp), dimension(:), allocatable :: tmp
+
+    allocate(tmp(size(array)))
+    tmp = array
+    call QuickSort_real(tmp)
+    res = tmp(size(tmp)/2+1)
+    deallocate(tmp)
+  end function median_sp
 
   function getlun()
     implicit none
@@ -259,7 +284,7 @@ contains
 
     allocate(pixwin(0:4*nside,nmaps))
     
-    if (nmaps == 3) then
+    if (nmaps >= 3) then
        nc = 2
     else
        nc = 1
@@ -271,7 +296,7 @@ contains
     if (exist) then
        nullval = 0.d0
        call read_dbintab(pixwin_file, pixwin(0:4*nside,1:nc), 4*nside+1, nc, nullval, anynull)
-       if (nmaps == 3) pixwin(:,3) = pixwin(:,2)
+       if (nmaps >= 3) pixwin(:,3) = pixwin(:,2)
     else
        pixwin = 1.d0
        write(*,*) ''
@@ -299,7 +324,7 @@ contains
        matrix_is_positive_definite = (cl(1,1) > 0.d0)
        return
 
-    else if (nmaps == 3) then
+    else if (nmaps >= 3) then
 
        matrix_is_positive_definite = .true.
        do i = 1, nmaps
@@ -522,7 +547,7 @@ contains
 !!$  end subroutine allocate_map
 
   
-  subroutine read_map(filename, map)
+  subroutine read_map_dp(filename, map)
     implicit none
 
     character(len=*),                 intent(in)  :: filename
@@ -547,7 +572,34 @@ contains
        end do
     end if
 
-  end subroutine read_map
+  end subroutine read_map_dp
+
+  subroutine read_map_sp(filename, map)
+    implicit none
+
+    character(len=*),                 intent(in)  :: filename
+    real(sp),         dimension(0:,1:), intent(out) :: map
+
+    integer(i4b)   :: nside, nmaps, ordering, i, npix, nmaps_in, nside_in
+    integer(i8b)   :: temp_i
+
+    npix  = size(map(:,1))
+    nmaps = size(map(0,:))
+    nside = nint(sqrt(real(npix,sp)/12.))
+
+    temp_i = getsize_fits(trim(filename), ordering=ordering, nside=nside_in, nmaps=nmaps_in)
+    if ((nmaps_in < nmaps) .or. (nside_in /= nside)) then
+       write(*,*) 'Incorrect nside or nmaps for file called ', trim(filename)
+    end if
+
+    call input_map(filename, map, npix, nmaps, ignore_polcconv=.true.)
+    if (ordering == 2) then
+       do i = 1, nmaps
+          call convert_nest2ring(nside, map(:,i))
+       end do
+    end if
+
+  end subroutine read_map_sp
 
     ! Routine for initializing the monopole and dipoles
   subroutine initialize_mono_dipole(nside, pix, monopole, dipole)
@@ -602,7 +654,7 @@ contains
 
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
     
-    if (myid == 0) write(*,*) trim(message)
+    write(*,*) trim(message)
 
     call mpi_abort(MPI_COMM_WORLD, 1, ierr)
     
@@ -845,11 +897,12 @@ contains
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
+    character(len=8) :: headernum
 
     npix         = size(map(:,1))
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
-    polarization = (nmaps == 3)
+    polarization = (nmaps >= 3)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 
@@ -901,6 +954,24 @@ contains
        call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
        call add_card(header,"TUNIT3", unit_,"Map unit")
        call add_card(header)
+!!$    else !Something weird with a nonstandard number of maps, add dummy header
+!!$       call add_card(header)
+!!$       do i = 1, nmaps
+!!$         ! Will crash for nmaps > 9
+!!$         write(headernum, '(I1.1)') i
+!!$         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype")
+!!$         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+!!$         call add_card(header)
+!!$       end do
+!!$    end if
+    else
+       call add_card(header)
+       do i = 2, nmaps
+         ! Will crash for nmaps > 9
+         write(headernum, '(I1.1)') i
+         call add_card(header, "TTYPE"//trim(headernum), "unknown"//trim(headernum), "Unknown datatype")
+         call add_card(header, "TUNIT"//trim(headernum), unit_, "Map Unit")
+       end do
     endif
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
@@ -1481,5 +1552,403 @@ contains
      READ(string,*,IOSTAT=e) x
      is_numeric = e == 0
    END FUNCTION is_numeric
+
+  subroutine compute_running_variance_sp(x, mask, window, variance, var_mean, mean_full)
+    implicit none
+    real(sp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(sp),     dimension(:), intent(out) :: variance
+    real(sp),                   intent(out), optional :: var_mean
+    logical(lgt),               intent(in),  optional :: mean_full
+
+    integer(i4b) :: i, j, k, l, n, m
+    real(sp)     :: mu, mu_full
+    logical(lgt) :: mean_full_
+    !integer(i4b), allocatable, dimension(:) :: m
+
+    mean_full_ = .false.; if (present(mean_full)) mean_full_ = mean_full
+    
+    n = size(x)
+
+    if (mean_full_) then
+       mu_full = median(x)
+!!$       mu_full = 0.
+!!$       m       = 0
+!!$       do l = j, k
+!!$          if (mask(l) == 1.) then
+!!$             mu_full = mu_full + x(l)
+!!$             m       = m  + 1
+!!$          end if
+!!$       end do
+!!$       if (m > 0) mu_full = mu_full / m
+    end if
+    
+    do i = 1, n
+       j = max(i-window,1)
+       k = min(i+window,n)
+       variance(i) = 0.
+       mu = 0.
+       m  = 0
+       do l = j, k
+          if (mask(l) == 1.) then
+             mu = mu + x(l)
+             m  = m  + 1
+          end if
+       end do
+       if (m < 3) then
+          variance(i) = 0.
+       else
+          if (mean_full_) then
+             mu = mu_full
+          else
+             mu = mu / m
+          end if
+          do l = j, k
+             if (mask(l) == 1.) then
+                variance(i) = variance(i) + (x(l) - mu)**2
+             end if
+          end do
+          variance(i) = variance(i) / (m-1)
+       end if
+    end do
+    
+!!$    allocate(m(n))
+!!$    variance(1) = 0.d0
+!!$    m           = 0
+!!$    do j = 1, window
+!!$       if (mask(j) == 1.d0) then
+!!$          variance(1) = variance(1) + x(j)**2
+!!$          m(1)        = m(1)        + 1
+!!$       end if
+!!$    end do
+!!$    
+!!$    ! Compute running mean variance
+!!$    do i = 2, n
+!!$       variance(i) = variance(i-1)
+!!$       m(i)        = m(i-1)
+!!$       k = i-window
+!!$       if (k > 0) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) - x(k)**2
+!!$             m(i)        = m(i) - 1
+!!$          end if
+!!$       end if
+!!$       k = i+window
+!!$       if (k <= n) then
+!!$          if (mask(k) == 1.d0) then
+!!$             variance(i) = variance(i) + x(k)**2
+!!$             m(i)        = m(i) + 1
+!!$          end if
+!!$       end if
+!!$    end do
+!!$    do i = 1, n
+!!$       if (m(i) > 2) then
+!!$          variance(i) = variance(i) / (m(i) - 1.d0)
+!!$       else
+!!$          variance(i) = 0.d0
+!!$       end if
+!!$    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0 .and. variance(i) > 0.) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+             !write(*,*) i, var_mean, j, var_mean/j
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    !deallocate(m)
+    
+  end subroutine compute_running_variance_sp
+
+  
+
+  subroutine compute_running_variance_dp(x, mask, window, variance, var_mean)
+    implicit none
+    real(dp),     dimension(:), intent(in)  :: x, mask
+    integer(i4b),               intent(in)  :: window
+    real(dp),     dimension(:), intent(out) :: variance
+    real(dp),                   intent(out), optional :: var_mean
+
+    integer(i4b) :: i, j, k, n
+    integer(i4b), allocatable, dimension(:) :: m
+
+    n = size(x)
+    
+    allocate(m(n))
+    variance(1) = 0.d0
+    m           = 0
+    do j = 1, window
+       if (mask(j) == 1.d0) then
+          variance(1) = variance(1) + x(j)**2
+          m(1)        = m(1)        + 1
+       end if
+    end do
+    
+    ! Compute running mean variance
+    do i = 2, n
+       variance(i) = variance(i-1)
+       m(i)        = m(i-1)
+       k = i-window
+       if (k > 0) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) - x(k)**2
+             m(i)        = m(i) - 1
+          end if
+       end if
+       k = i+window
+       if (k <= n) then
+          if (mask(k) == 1.d0) then
+             variance(i) = variance(i) + x(k)**2
+             m(i)        = m(i) + 1
+          end if
+       end if
+    end do
+    do i = 1, n
+       if (m(i) > 2) then
+          variance(i) = variance(i) / (m(i) - 1.d0)
+       else
+          variance(i) = 0.d0
+       end if
+    end do
+
+    ! Compute average variance if requested
+    if (present(var_mean)) then
+       var_mean = 0.d0
+       j        = 0
+       do i = 1, n
+          if (mask(i) == 1.d0) then
+             var_mean = var_mean + variance(i)
+             j        = j+1
+          end if
+       end do
+       if (j > 0) var_mean = var_mean / j
+    end if
+    
+    deallocate(m)
+    
+  end subroutine compute_running_variance_dp
+
+  function bin_spec_lin(x, ps, dx, sigmas) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with uniform bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! dx: bin width
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the binned power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:),                        intent(in) :: ps, x
+    real(sp),                                          intent(in) :: dx
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, k, n, nbin
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    nbin = (x(n) - x(1))/dx
+    allocate(bin_sum(nbin), bin_count(nbin))
+    allocate(bin_spec(nbin,2))
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       j = (x(i) - x(1))/dx + 1
+       if (j <= nbin) then
+          bin_sum(j)   = bin_sum(j) + ps(i)
+          bin_count(j) = bin_count(j) + 1
+       end if
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = x(1) + (j-0.5d0)*dx
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    ! Compute sigmas
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas = 0.d0
+       k = 0
+       do j = 1, nbin
+          do i = 1, bin_count(j)
+             k = k + 1
+             sigmas(j) = sigmas(j) + (ps(k) - bin_spec(j,2))**2
+          end do
+          sigmas(j) = sigmas(j) / (bin_count(j) - 1)
+          sigmas(j) = sqrt(sigmas(j))
+       end do
+    end if
+
+
+    deallocate(bin_sum,bin_count)
+  end function bin_spec_lin
+
+  function bin_spec_log(x, ps, nbin, sigmas) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin: number of bins
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),    dimension(1:),                        intent(in) :: ps, x
+    integer(i4b),                                      intent(in) :: nbin
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: i, j, k, n
+    real(sp)     :: log_min, log_max, dx
+    integer(i4b), allocatable, dimension(:) :: bin_count
+    real(sp),     allocatable, dimension(:) :: bin_sum, edges
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    log_min = log10(x(1))
+    log_max = log10(x(n))
+    dx = (log_max - log_min) / nbin
+    allocate(bin_sum(nbin), bin_count(nbin), edges(nbin+1))
+    allocate(bin_spec(nbin,2))
+
+    edges = 0.d0
+    do j = 1, nbin+1
+       edges(j) = 10.0**(log_min + (j-1)*dx)
+    end do
+
+    bin_sum = 0.d0; bin_count = 0
+    bin_spec(nbin,2) = 0.d0
+    do i = 1, n
+       do j = 1, nbin
+          if (x(i) >= edges(j) .and. x(i) < edges(j+1)) then
+             bin_sum(j)   = bin_sum(j) + ps(i)
+             bin_count(j) = bin_count(j) + 1
+          end if
+       end do
+    end do
+
+    do j = 1, nbin
+       bin_spec(j,1) = sqrt(edges(j) * edges(j+1))
+       if (bin_count(j) > 0) bin_spec(j,2) = bin_sum(j) / bin_count(j)
+    end do
+
+    ! Compute sigmas
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas = 0.d0
+       k = 0
+       do j = 1, nbin
+          do i = 1, bin_count(j)
+             k = k + 1
+             sigmas(j) = sigmas(j) + (ps(k) - bin_spec(j,2))**2
+          end do
+          sigmas(j) = sigmas(j) / (bin_count(j) - 1)
+          sigmas(j) = sqrt(sigmas(j))
+       end do
+    end if
+
+    deallocate(bin_sum,bin_count,edges)
+  end function bin_spec_log
+
+  function bin_spec_loglin(x, ps, nbin_log, dx_lin, threshold, sigmas) result(bin_spec)
+    !
+    ! Routine to bin a power spectrum with logarithmic bins up to a threshold
+    !
+    ! Arguments
+    ! ---------
+    ! ps: sp array
+    !     Power spectrum values
+    !
+    ! x: sp array
+    !    x values
+    !
+    ! nbin_log: Number of logarithmic bins
+    !
+    ! dx_lin:   Width of linear bins
+    !
+    ! threshold: Threshold from logarithmic to linear
+    !
+    ! sigmas: sp array
+    !         std of each bin
+    !
+    !
+    ! ----------------------
+    ! Returns
+    ! -------
+    ! bin_spec: sp array (2)
+    !           contains x- and y- values for the power spectrum
+    !
+    implicit none
+    real(sp),     dimension(:),                        intent(in) :: ps, x
+    integer(i4b),                                      intent(in) :: nbin_log
+    real(sp),                                          intent(in) :: dx_lin, threshold
+    real(sp),  allocatable, dimension(:), optional, intent(inout) :: sigmas
+    real(sp),  allocatable, dimension(:,:) :: bin_spec
+
+    integer(i4b) :: n, nbin, thr_ind
+    real(sp),  allocatable, dimension(:)   :: sigmas_lin, sigmas_log
+    real(sp),  allocatable, dimension(:,:) :: log_bin_spec, lin_bin_spec
+
+    n = size(x)
+    if (size(ps)/=n) stop "Error: x and y arrays have different sizes"
+
+    thr_ind = locate(real(x,dp),dble(threshold))
+    if (present(sigmas)) then
+       log_bin_spec = bin_spec_log(x(:thr_ind), ps(:thr_ind), nbin_log, sigmas_log)
+       lin_bin_spec = bin_spec_lin(x(thr_ind:), ps(thr_ind:), dx_lin, sigmas_lin)
+    else
+       log_bin_spec = bin_spec_log(x(:thr_ind), ps(:thr_ind), nbin_log)
+       lin_bin_spec = bin_spec_lin(x(thr_ind:), ps(thr_ind:), dx_lin)
+    end if
+
+    nbin = nbin_log + size(lin_bin_spec(2:,1))
+    allocate(bin_spec(nbin,2))
+    bin_spec(:nbin_log,:) = log_bin_spec
+    bin_spec(nbin_log+1:,:) = lin_bin_spec(2:,:)
+
+    if (present(sigmas)) then
+       allocate(sigmas(nbin))
+       sigmas(:nbin_log)   = sigmas_log
+       sigmas(nbin_log+1:) = sigmas_lin
+       deallocate(sigmas_log, sigmas_lin)
+    end if
+
+    deallocate(log_bin_spec,lin_bin_spec)
+  end function bin_spec_loglin
 
 end module comm_utils

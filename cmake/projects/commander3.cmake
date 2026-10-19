@@ -59,11 +59,15 @@ set(sources
 	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_pixhist_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_pixcache_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_cgmap_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_hfi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_hfi_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_mod.f90
@@ -71,6 +75,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_dirbe_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_akari_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_akari_smod.f90
 #	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
 #	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
@@ -78,6 +84,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_dynmask_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_inst_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
@@ -99,9 +106,12 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_dust_extinction_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_objctr_samp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefree_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefreeEM_comp_mod.f90
@@ -130,8 +140,10 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_status_mod.f90
 	${COMMANDER3_SOURCE_DIR}/locate_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_conviqt_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_cray_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
+	${COMMANDER3_SOURCE_DIR}/comm_sparse_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_mbb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_mbbtab_comp_mod.f90
@@ -165,7 +177,13 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_mh_specind_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_smod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_binfit_smod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_crosstalk_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_4k_lines_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_Tbol_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_spike_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)

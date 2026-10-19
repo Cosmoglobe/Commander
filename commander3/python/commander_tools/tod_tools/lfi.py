@@ -25,10 +25,8 @@ import commander_tools.tod_tools.commander_instrument as inst
 import os
 import numpy as np
 import healpy as hp
-import random
-import math
 
-class lfi(object):   
+class lfi(object):
  
     freqs = [30, 44, 70]
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
@@ -65,26 +63,6 @@ class lfi(object):
     @staticmethod
     def instrument_filename(version):
         return 'LFI_instrument_v' + str(version) + '.h5'
-
-    @staticmethod
-    def ring_outer_product(theta, phi):
-        outAng = [0, 0]
-        nsamps = min(100, len(theta))
-        pair1 = random.sample(range(len(theta)), nsamps)
-        pair2 = random.sample(range(len(theta)), nsamps)
-        vecs = hp.pixelfunc.ang2vec(theta, phi)
-        for a1, a2 in zip(pair1, pair2):
-            crossP = np.cross(vecs[a1], vecs[a2])
-            if(crossP[0] < 0):
-                crossP *= -1
-            theta1, phi1 = hp.vec2ang(crossP)
-            if(not math.isnan(theta1) and not math.isnan(phi1)):
-                outAng[0] += theta1/nsamps
-                outAng[1] += phi1/nsamps
-            else:
-                outAng[0] += outAng[0]/nsamps
-                outAng[1] += outAng[1]/nsamps
-        return outAng
 
     def horn2freq(self, horn):
          return
@@ -125,7 +103,7 @@ class lfi(object):
 
     @staticmethod
     def complex2realAlms(data, mmax):
-        lmax = lfi.getLmax(len(data), mmax)
+        lmax = hp.Alm.getlmax(len(data), mmax)
         outData = np.zeros((lmax+1)**2)
 
         for l in range(0, lmax):
@@ -145,9 +123,6 @@ class lfi(object):
 
         return outData
 
-    @staticmethod
-    def getLmax(N, mmax):
-        return int((2.0*(N - 1.0)/mmax + mmax -1)/(2.0*(1.0 + 1.0/mmax)))
 
     @staticmethod
     def getOutidx(l, m):

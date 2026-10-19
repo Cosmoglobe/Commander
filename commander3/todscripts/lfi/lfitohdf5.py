@@ -36,8 +36,7 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format')
-    #/mn/stornext/d16/cmbco/archive/bp/data
+    parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format', default='/mn/stornext/d16/cmbco/archive/bp/data')
 
     parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/archive/bp/data/npipe_gains')
 
@@ -246,8 +245,8 @@ def make_od(comm_tod, freq, od, args):
                 pixels = hp.pixelfunc.ang2pix(nside, newTheta, newPhi)
 
                 if len(pixels > 0):
-                    #compute average outer product
-                    outAng = lfi.ring_outer_product(newTheta, newPhi)
+                    #the spin axis, for the filelist's theta and phi (used for load balancing)
+                    outAng = comm_tod.pointing_plane_normal(newTheta, newPhi)
                     comm_tod.add_field(prefix + '/outP', data=outAng)
                     if(args.no_compress):
                         comm_tod.add_field(prefix+'/theta', data=newTheta)

@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol, ndof)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -36,6 +36,7 @@ contains
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
     character(len=512),             intent(in),    optional :: maskpath
     integer(i4b), dimension(:),     intent(in),    optional :: band_list
+    integer(i4b),                   intent(out),   optional :: ndof
 
     integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
     integer(i4b), dimension(:), allocatable :: bandlist
@@ -78,6 +79,7 @@ contains
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
+       if (present(ndof))          ndof          = 0
        do p = 1, nbands
           i = bandlist(p)
           if (i == 0) cycle
@@ -104,7 +106,7 @@ contains
                mask_tmp%map = 1.d0
             end where
             res%map = res%map * mask_tmp%map
-            call mask_tmp%dealloc(); deallocate(mask_tmp)
+            call deallocate_comm_map(mask_tmp)
           end if
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
@@ -121,7 +123,7 @@ contains
                 call data(i)%N%invN_lowres(res_lowres) ! invN*res
                 res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
 
-                call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
+                call deallocate_comm_map(res_lowres_temp)
              end if
           else
              lowres=.false.
@@ -138,27 +140,29 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
              end do
-             call chisq_sub%dealloc(); deallocate(chisq_sub)
+             call deallocate_comm_map(chisq_sub)
           end if
           if (present(chisq_fullsky)) then
              if (lowres) then
                 chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
+                if (present(ndof)) ndof = ndof + count(res_lowres%map /= 0.)
              else
                 chisq_fullsky = chisq_fullsky + sum(res%map)
+                if (present(ndof)) ndof = ndof + count(res%map /= 0.)
                 !write(*,*) trim(data(i)%label), sum(res%map), chisq_fullsky
              end if
           end if
 
           if (associated(res_lowres)) then
-             call res_lowres%dealloc(); deallocate(res_lowres)
-             nullify(res_lowres)
+             call deallocate_comm_map(res_lowres)
           end if
-          call res%dealloc(); deallocate(res)
+          call deallocate_comm_map(res)
        end do
     end if
 
     if (present(chisq_fullsky)) then
        call mpi_allreduce(MPI_IN_PLACE, chisq_fullsky, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+       if (present(ndof)) call mpi_allreduce(MPI_IN_PLACE, ndof, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
     end if
 
   end subroutine compute_chisq
@@ -216,7 +220,7 @@ contains
        call data(i)%N%sqrtInvN(map)
        chisq_jeffreys = chisq_jeffreys + sum(map%map**2)
 
-       call map%dealloc(); deallocate(map)
+       call deallocate_comm_map(map)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, chisq_jeffreys, 1, MPI_DOUBLE_PRECISION, MPI_SUM, c%comm, ierr)    
@@ -301,11 +305,12 @@ contains
     if (nonzero) call res%Y()
 
     ! Compute residual map
+
     res%map = data(band)%map%map - res%map - ptsrc%map
 
     ! Clean up
     nullify(c)
-    call ptsrc%dealloc(); deallocate(ptsrc)
+    call deallocate_comm_map(ptsrc)
 
   end function compute_residual
 
@@ -348,7 +353,7 @@ contains
           call dipole%Y()
           map%map = map%map - dipole%map
           deallocate(alm)
-          call dipole%dealloc(); deallocate(dipole)
+          call deallocate_comm_map(dipole)
        end select
        c => c%nextComp()
     end do
@@ -437,7 +442,7 @@ contains
           if (.not. skip) call out%writeFITS(filename)
           c => c%nextComp()
        end do
-       call out%dealloc; deallocate(out)
+       call deallocate_comm_map(out)
     end do
 
     ! Clean up
@@ -454,7 +459,7 @@ contains
     character(len=512), intent(in), optional :: abscal_comps
     class(comm_map), pointer, intent(inout), optional    :: gainmap
 
-    integer(i4b) :: i, j, k, n
+    integer(i4b) :: i, j, k, n, nmaps
     logical(lgt) :: skip, mono_, calmap
     real(dp)     :: rms_EE2_prior
     class(comm_map),  pointer :: map_diff, cmbmap_band, gaindiff
@@ -462,12 +467,24 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     character(len=16),         dimension(100) :: abscal_labels
-    
+    character(len=16)                         :: istr, istr2
+    class(comm_mapinfo), pointer              :: info_pol => null()
+
     mono_ = .true.; if (present(mono)) mono_=mono 
 
     ! Allocate map
-    map_out  => comm_map(data(band)%info)  
-    map_diff => comm_map(data(band)%info)
+    nmaps = data(band)%info%nmaps
+    if(nmaps > 3) nmaps = 3
+
+    if(data(band)%distribute_type == 'nplus2') then
+      info_pol => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, data(band)%info%pol, & 
+                &distribute_type=data(band)%info%distribute_type)
+      map_out  => comm_map(info_pol)
+      map_diff => comm_map(info_pol)
+    else
+      map_out  => comm_map(data(band)%info)  
+      map_diff => comm_map(data(band)%info)
+    end if
 
     if (present(cmbmap)) then
        cmbmap_band => comm_map(data(band)%info)
@@ -504,13 +521,14 @@ contains
        end if
        select type (c)
        class is (comm_diffuse_comp)
-          !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))       
+          !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
           if (present(cmbmap) .and. trim(c%label) == 'cmb') then
              alm     = c%getBand(band, alm_out=.true., det=det, amp_in=cmbmap_band%alm)
           else
              alm     = c%getBand(band, alm_out=.true., det=det)
-          end if
-          map_diff%alm = map_diff%alm + alm
+          end if          
+          map_diff%alm = map_diff%alm + alm(:,1:nmaps)
+          
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -522,7 +540,7 @@ contains
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -534,7 +552,7 @@ contains
        class is (comm_template_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
-          map_out%map = map_out%map + map
+          map_out%map = map_out%map + map(:, 1:nmaps)
           if (calmap) then
             do i = 1, n
               if (trim(c%label) == trim(abscal_labels(i))) then
@@ -545,9 +563,13 @@ contains
           deallocate(map)
        end select
        c => c%nextComp()
-    end do
-    
+    end do   
+ 
     call map_diff%Y()
+
+    !write(istr, '(I0)') band
+    !write(istr2, '(I0)') det
+    !call map_out%writeFITS('input_map_band' // trim(istr)//'_det' //trim(istr2) // '.fits')
 
     ! Compute residual map
     map_out%map = map_out%map + map_diff%map
@@ -560,10 +582,8 @@ contains
 
     ! Clean up
     nullify(c)
-    call map_diff%dealloc; deallocate(map_diff)
-    if (present(cmbmap)) then
-       call cmbmap_band%dealloc()
-    end if
+    call deallocate_comm_map(map_diff)
+    if (present(cmbmap)) call deallocate_comm_map(cmbmap_band)
 
   end subroutine get_sky_signal
 

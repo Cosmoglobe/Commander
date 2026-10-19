@@ -81,6 +81,7 @@ if(COMPILE_CFITSIO)
 			# Specifying compilers
 			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
 			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
+      -DCMAKE_C_STANDARD=11
 			# Specifying the location of ZLIB library (required from version 4.0.0)
 			-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}
 			-DZLIB_LIBRARY:FILEPATH=${ZLIB_LIBRARIES}

@@ -110,7 +110,7 @@ contains
        implicit none
        class(comm_N),                      intent(inout)          :: self
        type(planck_rng),                   intent(inout)          :: handle
-       class(comm_mapinfo),                intent(in)             :: info
+       class(comm_mapinfo),                intent(inout)          :: info
        class(comm_map),                    intent(in),   optional :: mask
        real(dp),         dimension(0:,1:), intent(out),  optional :: regnoise
        class(comm_map),                    intent(in),   optional :: procmask

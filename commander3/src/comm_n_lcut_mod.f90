@@ -65,7 +65,7 @@ contains
     implicit none
     class(comm_N_lcut),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
-    type(comm_mapinfo), target,         intent(in)    :: info
+    type(comm_mapinfo), target,         intent(inout) :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
@@ -82,7 +82,7 @@ contains
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps
-    constructor%pol               = info%nmaps == 3
+    constructor%pol               = info%pol
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
@@ -152,8 +152,8 @@ contains
 
   subroutine update_N_lcut(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
-    class(comm_N_lcut),                   intent(inout)          :: self
-    class(comm_mapinfo),                 intent(in)             :: info
+    class(comm_N_lcut),                  intent(inout)          :: self
+    class(comm_mapinfo),                 intent(inout)          :: info
     type(planck_rng),                    intent(inout)          :: handle
     class(comm_map),                     intent(in),   optional :: mask
     real(dp),          dimension(0:,1:), intent(out),  optional :: regnoise
@@ -237,7 +237,7 @@ contains
           self%alpha_nu(1) = 0.d0
        end if
 
-       if (self%nmaps == 3) then
+       if (self%pol) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
@@ -247,7 +247,7 @@ contains
           else
              self%alpha_nu(2:3) = 0.d0
           end if
-          call invW_tau%dealloc(); deallocate(invW_tau)
+          call deallocate_comm_map(invW_tau)
        end if
     end if
 
@@ -259,7 +259,7 @@ contains
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)
-    call iN%dealloc(); deallocate(iN)
+    call deallocate_comm_map(iN)
     self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_lcut
@@ -478,7 +478,7 @@ contains
 !!$    end do
     
     deallocate(Y, C, W, V)
-    call map%dealloc
+    call deallocate_comm_map(map)
 
   end subroutine init_P0
 

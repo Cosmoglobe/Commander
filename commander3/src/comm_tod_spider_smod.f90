@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-submodule (comm_tod_spider_mod) comm_tod_SPIDER_mod
+submodule (comm_tod_spider_mod) comm_tod_SPIDER_smod
 contains
  
    !**************************************************
@@ -200,7 +200,7 @@ contains
      call c%load_default_gains()
  
      ! Allocate sidelobe convolution data structures
-     allocate(c%slconv(c%ndet), c%orb_dp)
+     allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
      if (c%orb_4pi_beam) c%orb_dp => comm_orbdipole(c%mbeam)
  
 
@@ -258,13 +258,13 @@ contains
      real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
      class(comm_map),                          intent(inout) :: map_out      ! Combined output map
      class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-     type(map_ptr),     dimension(:,:),   intent(inout), optional :: map_gain
+     type(map_ptr),     dimension(:),   intent(inout), optional :: map_gain
  
 
      real(dp)            :: t1, t2
-     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
+     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, oper_default
      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
-     type(comm_binmap)   :: binmap
+     class(comm_binmap), pointer   :: binmap
      type(comm_scandata) :: sd
      character(len=4)    :: ctext, myid_text
      character(len=6)    :: samptext, scantext
@@ -280,7 +280,7 @@ contains
      real(sp),     allocatable, dimension(:,:,:) :: jump_calib
      integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
      real(sp),     allocatable, dimension(:)     :: offset_level
-     type(comm_binmap)                           :: jump_map
+     class(comm_binmap), pointer                           :: jump_map
      character(len=4)                            :: it_label
      logical(lgt)                                :: debug
      real(sp),    allocatable, dimension(:)      :: test_array
@@ -311,24 +311,18 @@ contains
         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
      end if
 
+     oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,SD_JUMP])
+     
      call int2string(chain, ctext)
      call int2string(iter, samptext)
      call int2string(self%myid, myid_text)
      prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
      postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
-     ! Distribute maps
-     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-     call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
-     allocate(m_gain(nmaps,self%nobs,0:self%ndet,ndelta))
-     call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
-
-     ! Distribute processing masks
-     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
-     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
-     deallocate(m_buf)
-
+     ! Initialize index-based sky map and mask
+     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain, scale=1e-6)
+     
      ! Precompute far sidelobe Conviqt structures
      if (self%correct_sl) then
         call timer%start(TOD_SL_PRE, self%band)
@@ -337,7 +331,7 @@ contains
         do i = 1, self%ndet
            !TODO: figure out why this is rotated
            call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-           self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+           self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                 & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
         end do
@@ -361,8 +355,8 @@ contains
 
 
      ! Prepare intermediate data structures
-     call binmap%init(self, .true., sample_rel_bandpass)
-     call jump_map%init(self, .true., sample_rel_bandpass)  
+     binmap => comm_binmap(self, .true., sample_rel_bandpass)
+     jump_map => comm_binmap(self, .true., sample_rel_bandpass)  
      if (sample_abs_bandpass .or. sample_rel_bandpass) then
         allocate(chisq_S(self%ndet,size(delta,3)))
         chisq_S = 0.d0
@@ -381,31 +375,23 @@ contains
         call wall_time(t1)
 
         ! Prepare data
-        if (sample_rel_bandpass) then
- !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
-        else if (sample_abs_bandpass) then
-           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
-        else
-           call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
-        end if
-        allocate(s_buf(sd%ntod,sd%ndet))
+        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
         ! Calling Simulation Routine
-        if (self%enable_tod_simulations) then
-           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-           call sd%dealloc
-           cycle
-        end if
+!!$        if (self%enable_tod_simulations) then
+!!$           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+!!$           call dealloc_scan_data(sd)
+!!$           cycle
+!!$        end if
 
-
+        ! REMOVE JUMPS ----------------------------------
         allocate(s_jump(sd%ntod, sd%ndet))
         allocate(jumps(sd%ntod, sd%ndet))
         allocate(tod_gapfill(sd%ntod, sd%ndet))
         allocate(test_array(sd%ntod))
 
         debug = .false.
-
+        
         do j=1, sd%ndet
 
          ! call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
@@ -420,10 +406,8 @@ contains
             self%scans(i)%d(j)%accept = .false.
             cycle
          end if
-    
-
-
-           ! Retrieve offset template from previous run, if it exist
+   
+           ! Retrieve offsets from previous run, if they exist
            if (allocated(self%scans(i)%d(j)%offset_range)) then
               call expand_offset_list(              &
                  & self%scans(i)%d(j)%offset_range, &
@@ -432,7 +416,6 @@ contains
            else
               s_jump(:,j) = 0
            end if
-
            
            ! Retrieve jump flags from previous run, if they exist
            if (allocated(self%scans(i)%d(j)%jumpflag_range)) then
@@ -440,11 +423,11 @@ contains
             & self%scans(i)%d(j)%jumpflag_range, &
             & sd%flag(:,j))
          end if
-
+         
          ! Scanning for jumps
-         if (.true.) then 
+         if (.true.) then
             call jump_scan(                                 &
-            & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
+            & sd%tod(:,j) - sd%s_sky(:,j,0,1) - s_jump(:,j), &
             & sd%flag(:,j),                              &
             & jumps(:,j),                                &
             & offset_range,                              &
@@ -455,7 +438,7 @@ contains
             & chaindir,                                  &
             & debug)
             
-              ! Add offsets to persistent list that survives until the next Gibbs iteration
+              ! Add offsets to persistent list
               if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
                  allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
                  allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
@@ -503,13 +486,12 @@ contains
            if (debug) then
               call tod2file(trim(adjustl(chaindir))//'/tod_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',         sd%tod(:,j))
               call tod2file(trim(adjustl(chaindir))//'/flag_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',        sd%flag(:,j))
-              call tod2file(trim(adjustl(chaindir))//'/s_sky_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_sky(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_sky_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_sky(:,j,0,1))
               call tod2file(trim(adjustl(chaindir))//'/s_jump_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',      s_jump(:,j))
               call tod2file(trim(adjustl(chaindir))//'/tod_gapfill_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt', tod_gapfill(:,j))
-              call tod2file(trim(adjustl(chaindir))//'/s_tot_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_tot(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_tot_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_tot(:,j,0,1))
            end if
         end do
-
 
         ! Sample correlated noise
         if (self%first_call) then
@@ -522,6 +504,7 @@ contains
         end do
 
       !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+      !  HFI branch originally just had: call sample_n_corr(self, sd, handle)
         call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
       !   sd%n_corr(:,:) = 0.0
         
@@ -599,21 +582,15 @@ contains
       end if
 
         ! Compute noise spectrum parameters
-      !   call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-      !   call sample_noise_psd(self, tod_gapfill, handle, i, sd%mask, sd%s_sky, sd%n_corr)
-        call sample_noise_psd(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_sky, sd%n_corr)
-
+        call sample_noise_psd(self, sd, handle, chaindir)
 
         ! Compute chisquare
         call timer%start(TOD_CHISQ, self%band)
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
-         !   call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
-           call self%compute_tod_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
+           call self%compute_tod_chisq(sd, j)
         end do
         call timer%stop(TOD_CHISQ, self%band)
-
-
 
         ! Select data
         if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -624,49 +601,15 @@ contains
         ! Compute binned map
         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
         call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
-      !   d_calib(1,:,:) = sd%s_sky(:,:) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !   write(*,*) "Replace d_calib with s_sky"
 
 
         allocate(jump_calib(1, sd%ntod, sd%ndet))
         jump_calib(1,:,:) = s_jump 
 
-        ! Output psi
-      !   do j=1, sd%ndet
-      !    write(*,*) 'self%psi(5)', self%psi(5)
-      !    do k=1, sd%ntod
-      !       test_array(k) = self%psi(sd%psi(k,j,1))
-      !    end do
-      !    call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', test_array(:))
-      !   end do
-      !   write(*,*) 'Stop after outputting psi'
-      !   stop
-
-
-        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-        if (self%output_4D_map > 0) then
-           if (mod(iter-1,self%output_4D_map) == 0) then
-              call timer%start(TOD_4D, self%band)
-              allocate(sigma0(sd%ndet))
-              do j = 1, sd%ndet
-                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-              end do
-              call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                   & samptext, self%scanid(i), self%nside, self%npsi, &
-                   & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                   & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                   & self%scans(i)%d(:)%accept)
-              deallocate(sigma0)
-              call timer%stop(TOD_4D, self%band)
-           end if
-        end if
 
         ! Bin TOD
         call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib,    binmap)
         call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, jump_calib, jump_map) 
-
-         
-
 
         ! Update scan list
         call wall_time(t2)
@@ -679,8 +622,8 @@ contains
         end if
  
         ! Clean up
-        call sd%dealloc
-        deallocate(s_buf, d_calib)
+        call dealloc_scan_data(sd)
+        deallocate(d_calib)
         deallocate(s_jump, jumps, tod_gapfill, jump_calib, test_array)
 
      end do
@@ -695,7 +638,7 @@ contains
      call synchronize_binmap(jump_map, self) 
 
      if (sample_rel_bandpass) then
-        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S)
      else
         call finalize_binned_map(self, binmap, rms_out, 1.d6)
      end if
@@ -705,7 +648,7 @@ contains
 
      ! Sample bandpass parameters
      if (sample_rel_bandpass .or. sample_abs_bandpass) then
-        call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+        call sample_bp(self, handle, chisq_S, delta)
         self%bp_delta = delta(:,:,1)
      end if
 
@@ -721,13 +664,15 @@ contains
      call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
 
      ! Clean up
-     call binmap%dealloc()
-     call jump_map%dealloc() 
+     call deallocate_binmap(binmap)
+     call deallocate_binmap(jump_map) 
      if (allocated(slist)) deallocate(slist)
      deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then
         do i = 1, self%ndet
-           call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
+           do h = 1, self%nhorn
+              call self%slconv(i,h)%p%dealloc(); deallocate(self%slconv(i,h)%p)
+           end do
         end do
      end if
  
@@ -937,5 +882,5 @@ contains
       close(unit)
     end subroutine write2file
  
- end submodule comm_tod_SPIDER_mod
+ end submodule comm_tod_SPIDER_smod
  

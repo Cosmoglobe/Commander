@@ -31,12 +31,12 @@ import os
 import sys
 
 class commander_tod:
-
-    def __init__(self, outPath, name, version=None, dicts=None, overwrite=False):
+    
+    def __init__(self, outPath, experiment, version=None, dicts=None, overwrite=False):
         self.outPath = outPath
         self.filelists = dicts
         self.version = version
-        self.name = name
+        self.experiment = experiment
         #TODO: something with the version number
         self.overwrite = overwrite
 
@@ -51,20 +51,14 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name and self.name.lower() == 'planck':
+        if self.experiment.lower() == 'lfi':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
         if not self.od:
-            if not self.name:
-                self.outName = os.path.join(self.outPath, sfreq + '.h5')
-            else:
-                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '.h5')
         else:
-            if not self.name:
-                self.outName = os.path.join(self.outPath, sfreq + '_' + str(od).zfill(6) + '.h5')
-            else:
-                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
 
@@ -165,13 +159,24 @@ class commander_tod:
                     if dictNum not in self.huffDict.keys():
                         self.huffDict[dictNum] = {}
 
-                    if(issubclass(data.dtype.type, np.integer)):
-                        delta = np.diff(data).astype(np.int64)
-                    else: #float data 
-                        delta = np.diff(data)
+                    #check for uint issue before differencing
+                    #np.diff maintains data types so this was a mess for uints
+                    if(np.issubdtype(data.dtype, np.unsignedinteger)):
+                        dtypestr = str(data.dtype)
+
+                        dsize = int(dtypestr[4:])
+                        dsize *= 2
+                        dtypestr = 'int' + str(dsize)
+                        #print("Converting unsigned Huffman field " + fieldName + " from " + str(data.dtype) + " to " + dtypestr)
+                        data = data.astype(dtypestr)
+
+                    delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
-                    #print("adding " + fieldName + " to dict, contents ", delta[delta != 0], data[data != 0])
+                    #if('flag' in fieldName):
+                    #    for i in range(len(data)):
+                    #        print(data[i], delta[i], ",", end='')
+                    #print("adding " + fieldName + " to dict, contents ", delta[delta!=0])
                     self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
                     writeField = False 
 
@@ -252,10 +257,34 @@ class commander_tod:
         if self.filelists is not None:
             #print(self.pids.keys())
             for pid in self.pids.keys():
-                self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + str(self.pids[pid]) + '\n'       
-                #print(pid, self.filelists[self.freq]['id' + str(pid)]) 
+                self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
 
         return
+
+    @staticmethod
+    def pointing_plane_normal(theta, phi, nsamp=1000):
+        """The normal of the plane that best fits one scan's pointing, as [theta, phi] in radians.
+
+        Given the pointing angles of a scan, first finds the plane which best describe those points
+        on a 3D sphere, and then calculates the normal vector of that plane (as two angles). This
+        works well for clustering overlapping scans for almost any scanning strategy, including
+        Planck, LiteBIRD, SO. These two values are written as columns 4-5 in the filelist.
+
+        Args:
+            theta, phi: One detector's pointing over the scan [rad]
+            nsamp: Number of samples to use to construct the plane.
+        Returns:
+            [theta, phi]: Two (scalar) values, representing the angles of the normal vector.
+        """
+        step = max(1, len(theta)//nsamp)
+        vecs = hp.ang2vec(np.asarray(theta)[::step], np.asarray(phi)[::step]).T  # (3, n)
+        # The best plane passes through the points' mean, and its normal is the direction the
+        # points spread least along: the eigenvector of their 3x3 covariance with the smallest
+        # eigenvalue (eigh sorts them in ascending order).
+        normal = np.linalg.eigh(np.cov(vecs))[1][:, 0]
+        normal *= np.sign(normal @ vecs.mean(axis=1))
+        outTheta, outPhi = hp.vec2ang(normal)
+        return [float(outTheta[0]), float(outPhi[0])]
 
     def finalize_chunk(self, pid, loadBalance=[0,0]):
         if len(loadBalance) != 2:
@@ -321,8 +350,17 @@ class commander_tod:
  
         self.raggedDict = {}
         self.huffDict = {}
-        self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
+        try:
+            self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
+        except ValueError: #load field already exists because we are just adding the file to the filelist
+            pass
         self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+
+        # The scan's number of samples, for the filelist's 6th column. Commander3 currently reads
+        # only the first five columns, but Commander4 uses it.
+        ntodField = '/' + str(pid).zfill(6) + '/common/ntod'
+        ntod = int(np.ravel(self.outFile[ntodField][()])[0]) if ntodField in self.outFile else 0
+        self.pids[pid] += ' ' + str(ntod)
 
     def compute_version(self):
         return

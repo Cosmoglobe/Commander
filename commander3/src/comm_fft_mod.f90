@@ -23,7 +23,7 @@ module comm_fft_mod
   implicit none
 
   private
-  public initialize_fft_mod, get_closest_fft_magic_number, ind2freq
+  public initialize_fft_mod, get_closest_fft_magic_number, get_closest_fft_pow2, ind2freq
 
   integer(i4b) :: min_fft_magic_number, max_fft_magic_number
   integer(i4b), allocatable, dimension(:) :: fft_magic_numbers
@@ -87,4 +87,19 @@ contains
     freq = (ind-1)*(samp_rate/2)/(n-1)
   end function ind2freq
 
+  ! Find the smallest power of 2 greater or equal to n_in
+  function get_closest_fft_pow2(n_in) result(n_out)
+    implicit none
+    integer(i4b), intent(in) :: n_in
+    integer(i4b)             :: n_out
+
+    real(dp) :: pow2
+
+    pow2  = log(real(n_in,dp))/log(2.d0)
+    n_out = floor(pow2)
+    if (pow2 /= floor(pow2)) n_out = n_out+1
+    n_out = 2**n_out
+
+  end function get_closest_fft_pow2
+  
 end module comm_fft_mod
