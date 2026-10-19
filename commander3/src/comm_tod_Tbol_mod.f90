@@ -224,7 +224,7 @@ contains
     if(present(rolloff)) then
        floor = 1.d30
        do i = 1, NSPLINE
-          if (nu(i) >= 80.d0 .and. abs(TF_preproc(i)) == 0.d0) then
+          if (nu(i) >= 80.d0 .and. abs(TF_preproc(i)) > 0.d0) then
              peak = splint(rolloff, nu(i)) * abs(TF_preproc(i))**2 / abs(TF_preproc(0))**2
              exit
           end if

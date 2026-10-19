@@ -1608,7 +1608,7 @@ contains
 
 
    ! At the end, update sigma0
-   if (nonlin_lvl > 4) then
+   if (.false. .and. nonlin_lvl > 4) then
       ! Estimate post-deconvolution white noise rms
       call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=2)
    end if

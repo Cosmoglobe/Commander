@@ -683,9 +683,9 @@ contains
           select type (N_psd => self%scans(scan)%d(i)%N_psd)
              type is (comm_noise_psd_spline)
              if (trim(self%operation) == 'sample') then
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle)!, freqmask=freqmask)   ! Gibbs sampling
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), handle, freqmask=freqmask)   ! Gibbs sampling
              else
-                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2))!, freqmask = freqmask) ! Compute bin means > optimize
+                call N_psd%update_spline(noise_ps(:,1), noise_ps(:,2), freqmask = freqmask) ! Compute bin means > optimize
              end if
           end select
           deallocate(noise_ps)
@@ -944,7 +944,7 @@ contains
 
 
   ! Updates the spline noise PSD model
-  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask, chaindir)
+  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask, chaindir, sample)
     implicit none
     class(comm_tod),                      intent(inout)  :: self
     class(comm_scandata),                 intent(in)     :: sd
@@ -953,14 +953,16 @@ contains
     type(planck_rng),                     intent(inout)  :: handle
     real(sp), dimension(0:),    optional, intent(in)     :: freqmask
     character(len=*),           optional, intent(in)     :: chaindir
+    logical(lgt),               optional, intent(in)     :: sample
 
     character(len=6) :: scantext, dettext
     integer(i4b) :: j, j0, j1, k, ntod, Nedge, Nleft, Nright
+    logical(lgt) :: sample_
     real(sp) :: sigma0, mu_left, mu_right, w
     real(sp), allocatable, dimension(:)   :: d_prime
     real(sp), allocatable, dimension(:,:) :: noise_ps
 
-
+    sample_ = .false.; if(present(sample)) sample_ = sample
     ntod = self%scans(scan)%ntod
     sigma0 = self%scans(scan)%d(i)%N_psd%sigma0
     allocate(d_prime(ntod))
@@ -1017,7 +1019,11 @@ contains
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
-       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2))!, freqmask=freqmask)
+       if (sample_) then
+          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), handle=handle, freqmask=freqmask)
+       else
+          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), freqmask=freqmask)
+       end if
 
        ! Output model for debug
        if (mod(self%scanid(scan), 5000) == 0 .and. present(chaindir)) then
