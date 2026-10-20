@@ -2050,6 +2050,11 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+      if (hdf_group_exists(chainfile, trim(adjustl(path))//'polEff')) then
+         call read_hdf(chainfile, trim(adjustl(path))//'polEff',  self%pol_eff)
+      else
+         write(*,*) 'polEff field not in existing chain, keeping default'
+      end if
       if (hdf_group_exists(chainfile, trim(adjustl(path))//'polang')) then
          call read_hdf(chainfile, trim(adjustl(path))//'polang',  self%polang)
       else
@@ -2083,7 +2088,9 @@ contains
          & self%comm, ierr)
     call mpi_bcast(self%bp_delta, size(self%bp_delta), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
-   call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+        & self%comm, ierr)
+    call mpi_bcast(self%pol_eff, size(self%pol_eff), MPI_REAL, 0, &
         & self%comm, ierr)
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
