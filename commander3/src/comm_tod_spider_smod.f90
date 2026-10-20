@@ -276,7 +276,7 @@ contains
      real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-     real(sp),     allocatable, dimension(:,:)   :: s_jump, tod_gapfill
+     real(sp),     allocatable, dimension(:,:)   :: s_jump, tod_gapfill, tod_orig
      real(sp),     allocatable, dimension(:,:,:) :: jump_calib
      integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
      real(sp),     allocatable, dimension(:)     :: offset_level
@@ -312,7 +312,8 @@ contains
      end if
 
      oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_ORB,SD_INST,SD_JUMP])
+            & SD_SKY,SD_BP,SD_SL,SD_INST,SD_NCORR])
+     ! Removed SD_JUMP and SD_ORB 
      
      call int2string(chain, ctext)
      call int2string(iter, samptext)
@@ -503,9 +504,14 @@ contains
            self%scans(i)%d(j)%gain = self%scans(i)%d(j)%gain_def
         end do
 
-      !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
       !  HFI branch originally just had: call sample_n_corr(self, sd, handle)
-        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
+      ! spider_harald branch had: call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
+      ! Subtract the jumps before passing to sample_n_corr
+      tod_orig = sd%tod
+      sd%tod = sd%tod - s_jump
+      call sample_n_corr(self, sd, handle, dospike=.true.) ! Spike finding currently not working anyways
+      sd%tod = tod_orig
+
       !   sd%n_corr(:,:) = 0.0
         
 
@@ -600,7 +606,14 @@ contains
  
         ! Compute binned map
         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-        call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
+        ! Original spider_harald method: call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
+
+        ! Subtract the jumps before passing to sample_n_corr
+        tod_orig = sd%tod
+        sd%tod = sd%tod - s_jump
+        call compute_calibrated_data(self, i, sd, d_calib)
+        sd%tod = tod_orig
+        deallocate(tod_orig)
 
 
         allocate(jump_calib(1, sd%ntod, sd%ndet))
