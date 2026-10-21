@@ -146,6 +146,52 @@ def glitch_estimation(seconds, stack, glitch_type, glitch_params=None):
     glitch_params.update({'Tau' + str(i + 1): popt[i +8] for i in range(8)})
     return glitch_params
 
+def chi2_glitches(data):
+    chi2 = np.sum((data_i - (a_i * glitch_model(seconds, params) + offset_i) / sigma)**2)
+    return chi2
+
+def amp_matrix(glitch_type="short"):
+    # Create a matrix of amplitudes for each glitch type and each amplitude index
+    amp_matrix = np.zeros(8)
+    glitch_params = _load_glitch_params()["143-2a"][glitch_type]
+    for i in range(8):
+        amp_matrix[i] = glitch_params[f"Amplitude{i + 1}"]
+    return amp_matrix
+
+def design_matrix(glitch_type="short"):
+    # Create a design matrix for the glitch model
+    window = int(g.NSECS * g.SAMPRATE)
+    seconds = np.arange(window) / g.SAMPRATE
+    design_matrix = np.zeros((window, 8))
+    for i in range(2):
+        design_matrix[:, i] = np.exp(-seconds / _load_glitch_params()["143-2a"][glitch_type][f"Tau{i + 1}"])
+    return design_matrix
+
+def solve_for_amplitudes(data, eta):
+    T = design_matrix()
+    N = np.eye(T.shape[0]) * g.SIGMA**2  # Assuming white noise with variance SIGMA^2
+    N_inv = np.linalg.inv(N)
+    T_transpose_N_inv = T.T @ N_inv
+    T_transpose_N_inv_T = T_transpose_N_inv @ T
+    T_transpose_N_inv_T_inv = np.linalg.inv(T_transpose_N_inv_T)
+
+    N_inv_data = N_inv @ data
+    T_transpose_N_inv_data = T.T @ N_inv_data
+
+    N_inv_12_eta = N_inv ** 0.5 @ eta
+    T_transpose_N_inv_12_eta = T.T @ N_inv_12_eta
+
+    amplitudes = T_transpose_N_inv_T_inv @ (T_transpose_N_inv_data + T_transpose_N_inv_12_eta)
+    return amplitudes
+
+def gibbs_sampler(data, nsamples=100):
+    amplitudes = []
+    for _ in range(nsamples):
+        eta = np.random.normal(0, 1, size=(int(g.NSECS * g.SAMPRATE),))
+        amp = solve_for_amplitudes(data, eta)
+        amplitudes.append(amp)
+    return np.array(amplitudes)
+
 if __name__ == "__main__":
     params = _load_glitch_params()
     print(f"Loaded glitch parameters: {params}")

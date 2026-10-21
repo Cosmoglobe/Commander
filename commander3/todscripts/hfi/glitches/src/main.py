@@ -30,7 +30,7 @@ def main():
         visible = glitch_idx[glitch_idx < 1000]
         plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
         plt.legend()
-        plt.title("Matched Filter Result")
+        plt.title("Matched Filter Result - Iteration 0")
         plt.ylabel("Amplitude")
         plt.xlabel("Time (s)")
         plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_0.png")
@@ -63,6 +63,10 @@ def main():
         plt.xlim(0, seconds[1000])
         plt.savefig(f"{g.FIGURES_PATH}subtraction/glitch_subtraction_result_0.png")
         plt.close()
+
+    
+
+    # quit() 
 
     final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
 
@@ -106,7 +110,7 @@ def main():
             visible = glitch_idx[glitch_idx < 1000]
             plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
             plt.legend()
-            plt.title("Matched Filter Result")
+            plt.title("Matched Filter Result - Iteration " + str(i+1))
             plt.ylabel("Amplitude")
             plt.xlabel("Time (s)")
             plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i+1) + ".png")
