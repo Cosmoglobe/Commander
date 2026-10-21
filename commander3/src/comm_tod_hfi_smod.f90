@@ -577,15 +577,15 @@ contains
              end do
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.,&
                                                                                                 & which_preproc = 2)
-!             ! In-paint flagged samples AFTER 4K lines estimation
-!             do j = 1, self%ndet
-!                if (.not. self%scans(i)%d(j)%accept) cycle
-!                do k = 1, sd%ntod
-!                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
-!                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
-!                   end if
-!                end do
-!             end do
+             ! In-paint flagged samples AFTER 4K lines estimation
+             do j = 1, self%ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                do k = 1, sd%ntod
+                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
+                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
+                   end if
+                end do
+             end do
           elseif (trim(self%cooler_correction_domain) == 'frequency') then
              ! In-paint flagged samples BEFORE 4K lines estimation
              do j = 1, self%ndet
@@ -598,8 +598,6 @@ contains
                 ! 4K Line corrections from PSD
                 call estimate_hfi_4K_lines_harm(self, sd, j, chaindir=chaindir)
              end do
-             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.,&
-                                                                                                & which_preproc = 2)
           end if
        end if
 

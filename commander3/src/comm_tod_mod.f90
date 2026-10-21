@@ -3760,7 +3760,7 @@ contains
     allocate(d_prime(ntod))
 
     ! Prepare TOD residual
-    d_prime = (sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)) * sd%mask(:,i_det)
+    d_prime = (sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1))! * sd%mask(:,i_det)
 
     nomp     = 1
     nfft     = 2 * ntod
@@ -3783,8 +3783,8 @@ contains
        ps(l,1) = l*(samprate/2)/(n-1)
        ps(l,2) = (abs(dv(l))** 2 / ntod) / 2
     end do
-    frac = sum(sd%mask(:,i_det)) / real(ntod, sp)
-    ps(:,2) = ps(:,2) / frac
+    !frac = sum(sd%mask(:,i_det)) / real(ntod, sp)
+    !ps(:,2) = ps(:,2) / frac
     deallocate(d_prime, dt, dv)
 
     ! Binning
