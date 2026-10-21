@@ -99,6 +99,7 @@ contains
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
     if (c%noise_psd_model == 'spline') then
+       c%init_psd = .true.
        c%n_xi            = 18 ! {sigma0, spline nodes}
        allocate(c%xi_n_P_uni(c%n_xi,2))
        allocate(c%xi_n_P_rms(c%n_xi))
@@ -566,33 +567,39 @@ contains
        ! Dark bolometer drift correction
        call self%hfi_dark_correction(i, sd)       
 
-       ! 4K lines estimation
+       ! 4K lines estimation ==========
        if (fit_4K_lines) then
           if (trim(self%cooler_correction_domain) == 'time') then
              ! 4K Line corrections from TOD
              do j = 1, self%ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 call estimate_hfi_4K_lines_tod(self, sd, j, chaindir=chaindir)
-!!                ! In-paint flagged samples AFTER 4K lines estimation
-!!                ! CURRENTLY NOT NEEDED: after 4K estimation there is only spline_rolloff, which is based on unmasked samples
-!!                do k = 1, sd%ntod
-!!                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
-!!                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc * rand_gauss(handle)
-!!                   end if
-!!                end do
              end do
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.,&
+                                                                                                & which_preproc = 2)
+!             ! In-paint flagged samples AFTER 4K lines estimation
+!             do j = 1, self%ndet
+!                if (.not. self%scans(i)%d(j)%accept) cycle
+!                do k = 1, sd%ntod
+!                   if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
+!                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
+!                   end if
+!                end do
+!             end do
           elseif (trim(self%cooler_correction_domain) == 'frequency') then
              ! In-paint flagged samples BEFORE 4K lines estimation
              do j = 1, self%ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 do k = 1, sd%ntod
                    if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
-                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc * rand_gauss(handle)
+                      sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc(1) * rand_gauss(handle)
                    end if
                 end do
                 ! 4K Line corrections from PSD
                 call estimate_hfi_4K_lines_harm(self, sd, j, chaindir=chaindir)
              end do
+             call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.,&
+                                                                                                & which_preproc = 2)
           end if
        end if
 
@@ -716,7 +723,7 @@ contains
                                                 ! a factor ~5 well at ~[0.3,3] Hz in the model
                 call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              end if
-             call sample_n_corr(self, sd, handle, psdmask = freqmask, init_psd = .not. sample_xi_n)
+             call sample_n_corr(self, sd, handle, psdmask = freqmask, init_psd = self%init_psd, chaindir = chaindir)
              if (sample_xi_n) then
                 call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              else
@@ -809,6 +816,7 @@ contains
        call dealloc_scan_data(sd)
        deallocate(d_calib)
     end do
+    if (sample_ncorr .and. sample_xi_n) self%init_psd = .false.
 
     call timer%start(TOD_WAIT, self%band)
     call mpi_barrier(self%comm, ierr) ! Improve timing information
@@ -1503,6 +1511,7 @@ contains
 
     integer(i4b) :: i, j, d, scan
     logical(lgt) :: K_prime
+    character(len=6) :: scantext, dettext
 
     scan = sd%scan
 
@@ -1551,7 +1560,7 @@ contains
              ! In-paint flagged samples with s_tot + white noise
              do j = 1, sd%ntod
                 if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
-                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
                 end if
              end do
           end do
@@ -1562,7 +1571,7 @@ contains
              if (.not. self%scans(scan)%d(d)%accept) cycle
              do j = 1, sd%ntod
                 if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
-                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc * rand_gauss(handle)
+                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(1) * rand_gauss(handle)
                    end if
                 end do
              ! Correct 4K lines from PSD
@@ -1577,10 +1586,14 @@ contains
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
           if (.not. self%scans(scan)%d(d)%accept) cycle
-          if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
-             open(58,file='tod_before.dat')
+          !if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
+          if (mod(self%scanid(scan),5000) == 0) then
+             !open(58,file='tod_before.dat')
+             call int2string(self%scanid(scan), scantext)
+             call int2string(d, dettext)
+             open(58,file=trim(self%outdir)//'/tod_before_'//scantext//'_'//dettext//'.dat', recl=1024)
              do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,d)
+                write(58,*) j, sd%tod(j,d), sd%mask(j,d)
              end do
              close(58)
           end if 
@@ -1596,8 +1609,12 @@ contains
              call self%Tbol(d)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)
           end if
 
-          if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
-             open(58,file='tod_after.dat')
+          !if (self%myid == 0 .and. sd%scan == 1 .and. d == 1) then
+          if (mod(self%scanid(scan),5000) == 0) then
+             call int2string(self%scanid(scan), scantext)
+             call int2string(d, dettext)
+             !open(58,file='tod_after.dat')
+             open(58,file=trim(self%outdir)//'/tod_after_'//scantext//'_'//dettext//'.dat', recl=1024)
              do j = 1, sd%ntod
                 write(58,*) j, sd%tod(j,d)
              end do
@@ -1608,7 +1625,7 @@ contains
 
 
    ! At the end, update sigma0
-   if (.false. .and. nonlin_lvl > 4) then
+   if (.true. .and. nonlin_lvl > 4) then
       ! Estimate post-deconvolution white noise rms
       call sample_noise_psd(self, sd, handle, only_sigma0=.true., dec_wn=2)
    end if
@@ -1944,7 +1961,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
     samprate = self%samprate
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0_preproc)**2
+    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0_preproc(1))**2
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
     output_  = .false.; if (present(chaindir) .and. mod(self%scanid(scan),5000)==0) output_ = .true.

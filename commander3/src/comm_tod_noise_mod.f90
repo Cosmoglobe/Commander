@@ -517,7 +517,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_preproc)
+  subroutine sample_noise_psd(self, sd, handle, chaindir, freqmask, only_sigma0, dec_wn, sigma0_preproc, which_preproc)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     class(comm_scandata),               intent(in)     :: sd
@@ -527,10 +527,11 @@ contains
     logical(lgt),                       intent(in), optional :: only_sigma0
     integer(i4b),                       intent(in), optional :: dec_wn
     logical(lgt),                       intent(in), optional :: sigma0_preproc
+    integer(i4b),                       intent(in), optional :: which_preproc
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs, ntod0, j1, j2, scan
-    integer(i4b) :: ndet, outscan
+    integer(i4b) :: ndet, outscan, which_preproc_
     logical(lgt) :: only_sigma0_, sigma0_preproc_
     real(sp)     :: f, logbin
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n, ps_d, ps_s
@@ -558,7 +559,7 @@ contains
     outscan   = -1! 5020 !92
     only_sigma0_ = .false.; if (present(only_sigma0)) only_sigma0_ = only_sigma0
     sigma0_preproc_ = .false.; if (present(sigma0_preproc)) sigma0_preproc_ = sigma0_preproc
-
+    which_preproc_ = 1; if (present(which_preproc)) which_preproc_ = which_preproc
 
     if (only_sigma0_) then
        ! Sample sigma_0 from pairwise differenced TOD
@@ -609,14 +610,14 @@ contains
              if (nval > 100) then
                 if( present(dec_wn) )then
                    if (sigma0_preproc_) then
-                      self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
+                      self%scans(scan)%d(i)%N_psd%sigma0_preproc(which_preproc_) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                    else
                       self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                    end if
                    s0 = threshold * sqrt(s/(nval-1)) * sqrt(real(dec_wn,dp))
                 else
                    if (sigma0_preproc_) then
-                      self%scans(scan)%d(i)%N_psd%sigma0_preproc = sqrt(s/(nval-1))
+                      self%scans(scan)%d(i)%N_psd%sigma0_preproc(which_preproc_) = sqrt(s/(nval-1))
                    else
                       self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
                    end if
@@ -947,7 +948,7 @@ contains
 
 
   ! Updates the spline noise PSD model
-  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask, chaindir, sample)
+  subroutine update_spline_noise_psd(self, sd, scan, i, handle, freqmask, chaindir)
     implicit none
     class(comm_tod),                      intent(inout)  :: self
     class(comm_scandata),                 intent(in)     :: sd
@@ -956,16 +957,13 @@ contains
     type(planck_rng),                     intent(inout)  :: handle
     real(sp), dimension(0:),    optional, intent(in)     :: freqmask
     character(len=*),           optional, intent(in)     :: chaindir
-    logical(lgt),               optional, intent(in)     :: sample
 
     character(len=6) :: scantext, dettext
     integer(i4b) :: j, j0, j1, k, ntod, Nedge, Nleft, Nright
-    logical(lgt) :: sample_
     real(sp) :: sigma0, mu_left, mu_right, w
     real(sp), allocatable, dimension(:)   :: d_prime
     real(sp), allocatable, dimension(:,:) :: noise_ps
 
-    sample_ = .false.; if(present(sample)) sample_ = sample
     ntod = self%scans(scan)%ntod
     sigma0 = self%scans(scan)%d(i)%N_psd%sigma0
     allocate(d_prime(ntod))
@@ -1022,11 +1020,7 @@ contains
 
     select type(N_psd => self%scans(scan)%d(i)%N_psd)
        type is (comm_noise_psd_spline)
-       if (sample_) then
-          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), handle=handle, freqmask=freqmask)
-       else
-          call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), freqmask=freqmask)
-       end if
+       call N_psd%update_spline(noise_ps(:,1),noise_ps(:,2), freqmask=freqmask)
 
        ! Output model for debug
        if (mod(self%scanid(scan), 5000) == 0 .and. present(chaindir)) then

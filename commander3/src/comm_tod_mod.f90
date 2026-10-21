@@ -249,6 +249,7 @@ module comm_tod_mod
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
+     logical(lgt) :: init_psd                                     ! For spline model: init psd only if not sampled yet
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
      real(sp),           allocatable, dimension(:)     :: pol_sign ! Sign of each detector, used when horn > 1 (ndet)
