@@ -12,6 +12,6 @@ FAST_PART = 0 # seconds
 CUT_OFF = 38
 NO_TRUST = 3 # samples
 
-NSECS = 60
+NSECS = 2 # used for matched filter, estimating template etc
 
 PLOTS = True

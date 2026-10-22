@@ -33,7 +33,7 @@ def build_template_matrix(glitch_idx, seconds, glitch_labels, glitch_amps, glitc
     nglitch = len(glitch_idx)
     T = np.zeros((ntod, nglitch))
 
-    oneminute = np.arange(0, g.NSECS, 1 / g.SAMPRATE) 
+    oneminute = np.arange(0, 60 * g.SAMPRATE) / g.SAMPRATE
 
     # print(f"Building template matrix with {nglitch} glitches and {ntod} samples. Shape of "
     #       f"glitch_idx: {glitch_idx.shape}, glitch_labels: {len(glitch_labels)}, glitch_amps: "

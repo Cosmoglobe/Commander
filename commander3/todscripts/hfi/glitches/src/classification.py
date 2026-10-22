@@ -33,7 +33,7 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
     else:
         raise ValueError("Invalid combination of glitch_params and iter")
     slowpart = np.arange(first_samples, total_samples) / g.SAMPRATE
-    oneminute = np.arange(0, int(g.NSECS * g.SAMPRATE)) / g.SAMPRATE
+    oneminute = np.arange(0, int(60 * g.SAMPRATE)) / g.SAMPRATE
 
     # Drop glitches that are too close to the end of the TOD to provide a full
     # window of data. This must happen before any fitting so that glitch_idx
@@ -119,8 +119,11 @@ def classify_glitches(glitch_idx, res, seconds, glitch_params=None, iter=0, prev
 
         if iter > 0 and prev_amps is not None and prev_labels is not None and old is not None:
             res_copy[glitch_i:glitch_i + len(oneminute)] -= models[old[0]](oneminute, old[1])
-        
-        residual[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute, *popt[glitch_label])
+
+        print(f"DEBUG: shape of residual: {residual[glitch_i:glitch_i + len(oneminute)].shape}")
+        print(f"DEBUG: shape of model: {models[glitch_label](oneminute, *popt[glitch_label]).shape}")
+        residual[glitch_i:glitch_i + len(oneminute)] -= models[glitch_label](oneminute,
+                                                                             *popt[glitch_label])
 
     if g.PLOTS:
         ax[1].plot(seconds, residual)

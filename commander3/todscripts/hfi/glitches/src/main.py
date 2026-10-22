@@ -6,12 +6,15 @@ import numpy as np
 import subtraction
 import templates
 import utils
+import os
 
 
 def main():
-    res = np.load(f"{g.DATA_PATH}143-2a_simulations.npy")
-    sim_types = np.load(f"{g.DATA_PATH}143-2a_simulations_types.npy")
-    sim_indices = np.load(f"{g.DATA_PATH}143-2a_simulations_indices.npy")
+    simname = "143-2a_simulations_3600"
+
+    res = np.load(f"{g.DATA_PATH}{simname}.npy")
+    sim_types = np.load(f"{g.DATA_PATH}{simname}_types.npy")
+    sim_indices = np.load(f"{g.DATA_PATH}{simname}_indices.npy")
     seconds = np.linspace(0, len(res) / g.SAMPRATE, len(res))
 
     # for now, we are excluding the classification etc of the last min of data, so let's exclude those from the sims
@@ -26,6 +29,9 @@ def main():
     print(f"[Iteration 0] Detection accuracy: {(len(matched_indices)) * 100 / len(sim_indices):.2f}%")
 
     if g.PLOTS:
+        if not os.path.exists(f"{g.FIGURES_PATH}detection/{simname}/"):
+            os.makedirs(f"{g.FIGURES_PATH}detection/{simname}/")
+
         plt.plot(seconds[:1000], score[:1000])
         visible = glitch_idx[glitch_idx < 1000]
         plt.scatter(seconds[visible], score[visible], color='red', label='Glitches')
@@ -33,10 +39,11 @@ def main():
         plt.title("Matched Filter Result - Iteration 0")
         plt.ylabel("Amplitude")
         plt.xlabel("Time (s)")
-        plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_0.png")
+        plt.savefig(f"{g.FIGURES_PATH}detection/{simname}/matched_filter_result_0.png")
         plt.close()
 
-    glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res, seconds)
+    glitch_idx, glitch_labels, glitch_amps = classification.classify_glitches(glitch_idx, res,
+                                                                              seconds)
 
     # count how many wrong classifications
     wrong_classifications = np.sum(glitch_labels[np.isin(glitch_idx, matched_indices)] != sim_types[np.isin(sim_indices, matched_indices)])
@@ -53,32 +60,38 @@ def main():
     print(f"[Iteration 0] Chi2: {int(chi2_value)}")
 
     if g.PLOTS:
+        if not os.path.exists(f"{g.FIGURES_PATH}subtraction/{simname}/"):
+            os.makedirs(f"{g.FIGURES_PATH}subtraction/{simname}/")
+
         plt.plot(seconds[:1000], res[:1000], label='Original Data')
         plt.plot(seconds[:1000], result[:1000], label='Data after Glitch Subtraction')
         plt.scatter(seconds[glitch_idx], res[glitch_idx], color='red', label='Detected Glitches')
         plt.xlabel('Time (s)')
         plt.ylabel('Amplitude')
-        plt.title('Glitch Subtraction Result')
+        plt.title('Glitch Subtraction Result - Iteration 0')
         plt.legend()
         plt.xlim(0, seconds[1000])
-        plt.savefig(f"{g.FIGURES_PATH}subtraction/glitch_subtraction_result_0.png")
+        plt.savefig(f"{g.FIGURES_PATH}subtraction/{simname}/glitch_subtraction_result_0.png")
         plt.close()
-
-    
 
     # quit() 
 
     final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
 
+    temp = templates._load_glitch_params()
     glitch_params = {}
     for glitch_type in ['short', 'long', 'slow']:
         if final_stack[glitch_type] is None:
-            print(f"No {glitch_type} glitches found, keeping default template")
+            print(f"No {glitch_type} glitches found, keeping previous template")
+            glitch_params[glitch_type] = temp[glitch_type]
             continue
         glitch_params[glitch_type] = templates.glitch_estimation(seconds[:int(g.NSECS * g.SAMPRATE)],
                                            final_stack[glitch_type], glitch_type)
 
         if g.PLOTS:
+            if not os.path.exists(f"{g.FIGURES_PATH}templates/{simname}/"):
+                os.makedirs(f"{g.FIGURES_PATH}templates/{simname}/")
+
             plt.plot(seconds[:int(2*g.SAMPRATE)], final_stack[glitch_type][:int(2*g.SAMPRATE)],
                     label="Stacked median")
 
@@ -93,10 +106,10 @@ def main():
             plt.xlabel("Time (s)")
             plt.ylabel("Amplitude")
             plt.legend()
-            plt.savefig(f"{g.FIGURES_PATH}templates/glitch_fitting_{glitch_type}.png")
+            plt.savefig(f"{g.FIGURES_PATH}templates/{simname}/glitch_fitting_{glitch_type}_0.png")
             plt.close()
 
-    maxiter = 1
+    maxiter = 100
     for i in range(maxiter):
         print(f"Iteration {i+1}/{maxiter}")
         prev_idx = glitch_idx.copy()
@@ -113,12 +126,13 @@ def main():
             plt.title("Matched Filter Result - Iteration " + str(i+1))
             plt.ylabel("Amplitude")
             plt.xlabel("Time (s)")
-            plt.savefig(g.FIGURES_PATH + "detection/matched_filter_result_" + str(i+1) + ".png")
+            plt.savefig(f"{g.FIGURES_PATH}detection/{simname}/matched_filter_result_" + str(i+1) + ".png")
             plt.close()
 
         (glitch_idx, glitch_labels,
          glitch_amps) = classification.classify_glitches(glitch_idx, res, seconds,
-                                                         glitch_params, iter=i+1, prev_amps=fit_amps,
+                                                         glitch_params, iter=i+1,
+                                                         prev_amps=fit_amps,
                                                          prev_labels=glitch_labels,
                                                          prev_idx=prev_idx)
 
@@ -139,13 +153,41 @@ def main():
             plt.scatter(seconds[glitch_idx], res[glitch_idx], color='red', label='Detected Glitches')
             plt.xlabel('Time (s)')
             plt.ylabel('Amplitude')
-            plt.title('Glitch Subtraction Result')
+            plt.title(f'Glitch Subtraction Result - Iteration {i+1}')
             plt.legend()
             plt.xlim(0, seconds[1000])
-            plt.savefig(f"{g.FIGURES_PATH}subtraction/glitch_subtraction_result_{(i+1)}.png")
+            plt.savefig(f"{g.FIGURES_PATH}subtraction/{simname}/glitch_subtraction_result_{(i+1)}.png")
             plt.close()
 
-        # final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
+        final_stack = templates.stacking(result, glitch_idx, glitch_labels, fit_amps, seconds)
+
+        temp = glitch_params.copy()
+        glitch_params = {}
+        for glitch_type in ['short', 'long', 'slow']:
+            if final_stack[glitch_type] is None:
+                print(f"No {glitch_type} glitches found, keeping previous template")
+                glitch_params[glitch_type] = temp[glitch_type]
+                continue
+            glitch_params[glitch_type] = templates.glitch_estimation(
+                seconds[:int(g.NSECS * g.SAMPRATE)], final_stack[glitch_type], glitch_type)
+    
+            if g.PLOTS:
+                plt.plot(seconds[:int(2*g.SAMPRATE)], final_stack[glitch_type][:int(2*g.SAMPRATE)],
+                        label="Stacked median")
+    
+                p = glitch_params[glitch_type]
+                amps = [p[f'Amplitude{i}'] for i in range(1, 9)]
+                taus = [p[f'Tau{i}']       for i in range(1, 9)]
+                plt.plot(seconds[:int(2*g.SAMPRATE)],
+                        templates.glitch_model(seconds[:int(g.NSECS * g.SAMPRATE)], *amps,
+                                                *taus)[:int(2*g.SAMPRATE)], label="Fit Model")
+    
+                plt.title(f"Glitch Stacking and Fitting for {glitch_type} Glitches")
+                plt.xlabel("Time (s)")
+                plt.ylabel("Amplitude")
+                plt.legend()
+                plt.savefig(f"{g.FIGURES_PATH}templates/{simname}/glitch_fitting_{glitch_type}_{i+1}.png")
+                plt.close()
 
 if __name__ == "__main__":
     main()

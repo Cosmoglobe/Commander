@@ -100,6 +100,7 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
             final_stack[t] /= np.max(final_stack[t])  # normalize the stacked average to have a max of 1
         else:
             final_stack[t] = None
+            continue
 
         if g.PLOTS:
             plt.plot(seconds[:window], final_stack[t], label=t)
