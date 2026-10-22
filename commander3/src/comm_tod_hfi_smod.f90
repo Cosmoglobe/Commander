@@ -1988,7 +1988,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
     call timer%stop(TOT_FFT)
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l))** 2 / ntod
+       ps(l,2) = abs(dv(l))** 2 / ntod / 2
     end do
     deallocate(d_prime)
     
@@ -1999,10 +1999,10 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
           write(58,*) ps(l,1), ps(l,2)
        end do
        close(58)
-    
-       allocate(W(1:n-1))
-       W = 1.d0
     end if
+
+    allocate(W(1:n-1))
+    W = 1.d0
 
     dnu = 0.03 ! Hz (size of freq window around each spike)
     maxiter = 1 ! Can be extended to iterative correction
@@ -2082,8 +2082,8 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
        ! Save line profile
        self%cooler_4K_lines(i,i_det,scan)%p%spike_profile = self%cooler_4K_lines(i,i_det,scan)%p%spike_profile + profile
        deallocate(profile)
-       if (output_) W(i0:i1) =  self%cooler_4K_lines(i,i_det,scan)%p%baseline / &
-                             & (self%cooler_4K_lines(i,i_det,scan)%p%baseline + self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)
+       W(i0:i1) =  self%cooler_4K_lines(i,i_det,scan)%p%baseline / &
+                & (self%cooler_4K_lines(i,i_det,scan)%p%baseline + self%cooler_4K_lines(i,i_det,scan)%p%spike_profile)
     end do
 
 
@@ -2091,12 +2091,11 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
        allocate(dv_4K(0:n-1))
        dv_4K = dv
        dv_4K(1:n-1) = dv_4K(1:n-1) * sqrt(W)
-!!     deallocate(W)
 
        ! Output ending noise power spectrum
        open(58,file=trim(chaindir) // '/res_ps_after_4K_removal_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
-          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
+          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod / 2
        end do
        close(58)
 
@@ -2105,7 +2104,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
 
        open(58,file=trim(chaindir) // '/4K_lines_ps_' // scantext // '_' // dettext // '.dat', recl=1024)
        do l = 1, n-1
-          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod
+          write(58,*) ps(l,1), abs(dv_4K(l))** 2 / ntod / 2
        end do
        close(58)
 
@@ -2122,9 +2121,6 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
        close(58)
     end if
     
-
-    !! If in the low-level loop there is no other step after this, there's no need to correct the spectrum.
-    !!  Otherwise, uncomment the following lines
 
     ! FFT total TOD
     dt(1:ntod)           = sd%tod(:,i_det)
