@@ -2008,6 +2008,11 @@ contains
     call map%writeMapToHDF(chainfile, path, 'map')
     call rms%writeMapToHDF(chainfile, path, 'rms')
 
+    if (associated(self%map_line)) then
+       call self%map_line%writeMapToHDF(chainfile, path, 'map_line')
+       call self%map_line%writeMapToHDF(chainfile, path, 'rmd_line')
+    end if
+    
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 

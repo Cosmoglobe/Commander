@@ -583,7 +583,7 @@ contains
        end if
 
        if (.false.) then
-       !if (j == 2 .and. (tod%scanid(scan) == 10000 .or. tod%scanid(scan)== 9000)) then
+       !if (j == 1 .and. tod%scanid(scan) == 11381) then
           call int2string(tod%scanid(scan), itext)
           open(58,file='gain_delta_'//itext//'.dat', recl=1024)
           write(58,*) "#", tod%scans(scan)%ntod, size(tod_arr), db/dA
@@ -608,7 +608,7 @@ contains
        end if
 
 !!$       !if (tod%scanid(scan) == 30 .and. out) then
-       if (.false. .and. out .and. dA > 0.d0) then
+       if (.false. .and. j == 1 .and. dA > 0.d0) then
           write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
          !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
 !!$       else if (dA > 0.d0) then

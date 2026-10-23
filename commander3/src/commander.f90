@@ -380,7 +380,7 @@ program commander
               call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
             else
               if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
-              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              call sample_specind_mh_pol(cpar%outdir, cpar, handle, handle_noise, i, cpar%mcmc_samp_group_pol(i), iter)
             end if
         end do
         ! Do CG group sampling

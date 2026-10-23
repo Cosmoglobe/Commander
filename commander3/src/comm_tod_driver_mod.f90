@@ -1340,7 +1340,7 @@ contains
           if (allocated(sd%s_bp))  d_calib(2,:,j) = d_calib(2,:,j) + sd%s_bp(:,j,0,1)
        end if
        ! ncorr
-       if (tod%output_n_maps > 2 .and. allocated(sd%n_corr)) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain
+       if (tod%output_n_maps > 2 .and. allocated(sd%n_corr)) d_calib(3,:,j) = (sd%n_corr(:,j)-sum(sd%n_corr(:,j))/sd%ntod) * inv_gain
        ! bandpass
        if (tod%output_n_maps > 3 .and. allocated(sd%s_bp))   d_calib(4,:,j) = sd%s_bp(:,j,0,1)
        ! orbital dipole

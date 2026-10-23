@@ -80,12 +80,12 @@ contains
 
     c%reload_TOD        = .true.
     c%compressed_tod    = .true.
-    c%correct_sl        = .false.
+    !c%correct_sl        = .true.
     c%correct_orb       = .true.
     c%correct_S_crosstalk = .false.
     c%correct_N_crosstalk = .false.
     c%apply_inst_corr   = .true.
-    c%orb_4pi_beam      = .false.
+    c%orb_4pi_beam      = .true.
     c%symm_flags        = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%ntime           = 1
@@ -136,11 +136,11 @@ contains
     c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nhorn           = 1
     c%compressed_tod  = .true.
-    c%correct_sl      = .false.
+    !c%correct_sl      = .true.
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
     c%correct_Tbol    = .true.
-    c%orb_4pi_beam    = .false.
+    !c%orb_4pi_beam    = .true.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%nmaps           = info%nmaps
@@ -158,19 +158,37 @@ contains
 
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
-       c%chisq_threshold  = 1.d30  ! 120d0
+       c%chisq_threshold  = 200d0
        c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
-       c%correct_sl       = .false.
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "143") then
+       c%chisq_threshold  = 300d0
+       c%sigma0_threshold = 1.d30  !100.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "217") then
+       c%chisq_threshold  = 500d0
+       c%sigma0_threshold = 1.d30  !100.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
     else if (c%freq(1:3) == "353") then
        c%chisq_threshold  = 1000.d0
        c%sigma0_threshold = 1000.d0
        c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "545") then
+       c%chisq_threshold  = 1.d30
        c%correct_sl       = .false.
-    else
-       c%chisq_threshold  = 100.d0
-       c%accept_threshold = 0.5d0
+       c%orb_4pi_beam    = .false.
+    else if (c%freq(1:3) == "857") then
+       c%chisq_threshold  = 1.d30
        c%correct_sl       = .false.
+       c%orb_4pi_beam    = .false.
     end if
 
 
@@ -220,8 +238,11 @@ contains
     if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
 
     allocate(c%orb_dp)
-    !c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
-    c%orb_dp => comm_orbdipole(comm=c%comm)
+    if (c%orb_4pi_beam) then
+       c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
+    else
+       c%orb_dp => comm_orbdipole(comm=c%comm)
+    end if
 
     ! Initialize all baseline corrections to zero
     do i = 1, c%nscan
@@ -410,7 +431,7 @@ contains
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 1 !.false.
-       select_data           = .false. !iter == 1 ! self%first_call  
+       select_data           = iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
        sample_co             = self%num_emission_lines > 0
        sample_cray           = .false. ! iter  > 0.
@@ -421,6 +442,10 @@ contains
        !sample_xi_n   = .false.
     end if
 
+!!$    ! Disable ncorr until gain related effects are solved
+!!$    sample_ncorr          = .false.
+!!$    sample_xi_n           = .false.
+    
     fit_4k_lines          = .false. !iter > 2
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
@@ -433,9 +458,9 @@ contains
     end if
 
     oper_minimal = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
     oper_default = oper_minimal
-    if (sample_ncorr)    oper_default = add_sd_operation_code(oper_default, SD_NCORR)
+    !if (sample_ncorr)    oper_default = add_sd_operation_code(oper_default, SD_NCORR)
     if (self%correct_sl) oper_default = add_sd_operation_code(oper_default, SD_SL)
     if (sample_cray)     oper_default = add_sd_operation_code(oper_default, SD_CRAY)
     if (sample_co) then
@@ -645,6 +670,8 @@ contains
     if (sample_gain) then
        ! TODO: Also sample non-linear gain response here?
        call sample_calibration(self, 'abscal', oper_default, handle)
+!!$       call mpi_finalize(ierr)
+!!$       stop
        call sample_calibration(self, 'relcal', oper_default, handle)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
@@ -668,12 +695,19 @@ contains
 
           ! Prepare data
           call init_scan_data(self, i, oper_line, TODMASK_NCORR, sd, handle=handle)
-       
+
+          ! Sample correlated noise
+          if (sample_ncorr) then
+             call sample_n_corr(self, sd, handle)
+          else
+             call sample_n_corr(self, sd, handle, onlymono=.true.)
+          end if
+          
           ! Compute calibrated TOD for mapmaking
           allocate(d_calib(1,sd%ntod, sd%ndet))
           d_calib = 0.d0
           do j = 1, self%ndet
-             d_calib(1,:,j) = sd%tod(:,j)/self%scans(i)%d(j)%gain - &
+             d_calib(1,:,j) = (sd%tod(:,j)-sd%n_corr(:,j))/self%scans(i)%d(j)%gain - &
                   & sd%s_tot(:,j,0,1)
           end do
 
@@ -688,7 +722,7 @@ contains
     
        ! Sample line ratios and maps
        call synchronize_linemap(linemap, self)
-       !call sample_line_ratios(self, linemap, .true.)
+       call sample_line_ratios(self, linemap, .true.)
        !call sample_line_ratios_amp2(self, linemap)
        !call sample_line_scaling(self, linemap)
        !call sample_line_ratios(self, linemap)
@@ -697,8 +731,8 @@ contains
 
        ! Update lookup table
        call self%pixcache%init_line_emission(self%map_line, self%line_ratio)
-       call self%map_line%writeFITS("map_line.fits")
-       call self%rms_line%writeFITS("rms_line.fits")
+       call self%map_line%writeFITS(trim(prefix)//'linemap'//trim(postfix))
+       call self%rms_line%writeFITS(trim(prefix)//'linerms'//trim(postfix))
        call update_status(status, "tod_co2")
     end if
 !!$    call mpi_finalize(ierr)
@@ -766,12 +800,13 @@ contains
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
-             call sample_noise_psd(self, sd, handle, chaindir)
+             !call sample_noise_psd(self, sd, handle, chaindir)
              deallocate(freqmask)
           else
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
        else
+          call sample_n_corr(self, sd, handle, onlymono=.true.)
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
 

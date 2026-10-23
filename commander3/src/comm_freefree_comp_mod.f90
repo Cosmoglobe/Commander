@@ -67,10 +67,10 @@ contains
     do i = 1, c%npar
        c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-!    call c%initLmaxSpecind(cpar, id, id_abs)
-    allocate(c%lmax_ind_pol(3,c%npar), c%lmax_ind_mix(3,c%npar))
-    c%lmax_ind_pol = -1
-    c%lmax_ind_mix = -1
+    call c%initLmaxSpecind(cpar, id, id_abs)
+!!$    allocate(c%lmax_ind_pol(3,c%npar), c%lmax_ind_mix(3,c%npar))
+!!$    c%lmax_ind_pol = -1
+!!$    c%lmax_ind_mix = -1
 
     call c%initDiffuse(cpar, id, id_abs)
 
@@ -127,9 +127,9 @@ contains
        end do
     end do
 
-!!$    call c%initPixregSampling(cpar, id, id_abs)
-!!$    ! Init alm 
-!!$    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call c%updateMixmat
