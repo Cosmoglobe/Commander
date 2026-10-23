@@ -2156,7 +2156,8 @@ contains
     allocate(self%prop_bp_mean(npar))
     self%prop_bp      = 0.d0
     self%prop_bp_mean = 0.d0
-
+    ! prevents none files from being spawned if BAND_TOD_BP_INIT_PROP is none
+    if (trim(filename) == 'none') return
 
     open(unit,file=trim(filename), iostat=ios)
     if (ios .ne. 0) then

@@ -290,6 +290,7 @@ contains
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
+       sd%s_jump = 0. !Initialize with zero jumps. spider fills this later 
        !call tod%construct_jump_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
@@ -1267,7 +1268,6 @@ contains
     !  scan: integer
     !     integer label for scan
     !  sd:  comm_scandata object
-    !  jump_template:  baseline that traces jumping tod level
     !
     !  Returns:
     !  --------
@@ -1303,6 +1303,7 @@ contains
        ! sky signal
        d_calib(1,:,j) = sd%tod(:,j) * inv_gain
        if (allocated(sd%n_corr))   d_calib(1,:,j) = d_calib(1,:,j) - sd%n_corr(:,j) * inv_gain
+       if (allocated(sd%s_jump))   d_calib(1,:,j) = d_calib(1,:,j) - sd%s_jump(:,j) * inv_gain
        if (allocated(sd%s_sl))     d_calib(1,:,j) = d_calib(1,:,j) - sd%s_sl(:,j,0)
        if (allocated(sd%s_orb))    d_calib(1,:,j) = d_calib(1,:,j) - sd%s_orb(:,j,0)
        if (allocated(sd%s_zodi))   d_calib(1,:,j) = d_calib(1,:,j) - sd%s_zodi(:,j,0)
@@ -1326,6 +1327,9 @@ contains
        if (tod%output_n_maps > 6 .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j,0)
        ! instrument specific
        if (tod%output_n_maps > 7 .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain
+       ! jumps
+       if (tod%output_n_maps > 8 .and. allocated(sd%s_jump)) d_calib(9,:,j) = sd%s_jump(:,j) * inv_gain
+
 !!$       if (tod%output_n_maps > 8) then
 !!$          do i = 1, zodi_model%n_comps
 !!$             call get_s_tot_zodi(zodi_model, tod, j, scan, d_calib(8+i,:,j), pix_dynamic=sd%pix(:,j,:), exclude_static='all', comp=i)

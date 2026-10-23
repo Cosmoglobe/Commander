@@ -189,8 +189,9 @@ contains
  
      ! Initialize bandpass mean and proposal matrix
      call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
- 
+     
      ! Construct lookup tables
+     c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
      call c%precompute_lookups()
  
      ! Load the instrument file
@@ -270,17 +271,17 @@ contains
      character(len=6)    :: samptext, scantext
      character(len=512)  :: prefix, postfix, prefix4D, filename
      character(len=512), allocatable, dimension(:) :: slist
-     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
+     real(sp), allocatable, dimension(:)       :: sigma0
      real(sp), allocatable, dimension(:,:)     :: s_buf
      real(sp), allocatable, dimension(:,:,:)   :: d_calib
-     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
+     real(sp), allocatable, dimension(:,:,:,:) :: m_gain
      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-     real(sp),     allocatable, dimension(:,:)   :: s_jump, tod_gapfill, tod_orig
-     real(sp),     allocatable, dimension(:,:,:) :: jump_calib
+     real(sp),     allocatable, dimension(:,:)   :: tod_gapfill, tod_orig, s_jump_before
+     ! Old spider jump handling real(sp),     allocatable, dimension(:,:,:) :: jump_calib
      integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
      real(sp),     allocatable, dimension(:)     :: offset_level
-     class(comm_binmap), pointer                           :: jump_map
+     ! Old spider jump handling class(comm_binmap), pointer                 :: jump_map
      character(len=4)                            :: it_label
      logical(lgt)                                :: debug
      real(sp),    allocatable, dimension(:)      :: test_array
@@ -308,12 +309,14 @@ contains
      npix            = 12*nside**2
      self%output_n_maps = 3
      if (self%output_aux_maps > 0) then
-        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 9
      end if
 
      oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_SL,SD_INST,SD_NCORR])
-     ! Removed SD_JUMP and SD_ORB 
+            & SD_SKY,SD_BP,SD_NCORR,SD_JUMP])
+     ! Removed SD_ORB, spider doesn't really see this with a 15 day flight
+     ! Removed SD_INST, no instrument corrections at this time
+     ! Removed SD_SL, we are not using it, and without extra plumbing this will crash when correct_sl = .false., like now
      
      call int2string(chain, ctext)
      call int2string(iter, samptext)
@@ -357,7 +360,7 @@ contains
 
      ! Prepare intermediate data structures
      binmap => comm_binmap(self, .true., sample_rel_bandpass)
-     jump_map => comm_binmap(self, .true., sample_rel_bandpass)  
+     ! Old jump map handling jump_map => comm_binmap(self, .true., sample_rel_bandpass)  
      if (sample_abs_bandpass .or. sample_rel_bandpass) then
         allocate(chisq_S(self%ndet,size(delta,3)))
         chisq_S = 0.d0
@@ -386,7 +389,7 @@ contains
 !!$        end if
 
         ! REMOVE JUMPS ----------------------------------
-        allocate(s_jump(sd%ntod, sd%ndet))
+        ! Note that sd%S_JUMP keeps track of detector jump correction amplitude (in raw TOD units)
         allocate(jumps(sd%ntod, sd%ndet))
         allocate(tod_gapfill(sd%ntod, sd%ndet))
         allocate(test_array(sd%ntod))
@@ -413,9 +416,9 @@ contains
               call expand_offset_list(              &
                  & self%scans(i)%d(j)%offset_range, &
                  & self%scans(i)%d(j)%offset_level, &
-                 & s_jump(:,j))
+                 & sd%s_jump(:,j))
            else
-              s_jump(:,j) = 0
+              sd%s_jump(:,j) = 0
            end if
            
            ! Retrieve jump flags from previous run, if they exist
@@ -428,7 +431,7 @@ contains
          ! Scanning for jumps
          if (.true.) then
             call jump_scan(                                 &
-            & sd%tod(:,j) - sd%s_sky(:,j,0,1) - s_jump(:,j), &
+            & sd%tod(:,j) - sd%s_sky(:,j,0,1) - sd%s_jump(:,j), &
             & sd%flag(:,j),                              &
             & jumps(:,j),                                &
             & offset_range,                              &
@@ -468,12 +471,12 @@ contains
               call expand_offset_list(                &
                   & self%scans(i)%d(j)%offset_range,  &
                   & self%scans(i)%d(j)%offset_level,  & 
-                  & s_jump(:,j))
+                  & sd%s_jump(:,j))
            end if
 
            ! Create gap-less and jump subtracted TOD, called 'tod_gapfill'
            call gap_fill_linear(           &
-              & sd%tod(:,j) - s_jump(:,j), &
+              & sd%tod(:,j) - sd%s_jump(:,j), &
               & sd%flag(:,j),              &
               & tod_gapfill(:,j),          &
               & handle,                    &
@@ -488,7 +491,7 @@ contains
               call tod2file(trim(adjustl(chaindir))//'/tod_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',         sd%tod(:,j))
               call tod2file(trim(adjustl(chaindir))//'/flag_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',        sd%flag(:,j))
               call tod2file(trim(adjustl(chaindir))//'/s_sky_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_sky(:,j,0,1))
-              call tod2file(trim(adjustl(chaindir))//'/s_jump_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',      s_jump(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_jump_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',      sd%s_jump(:,j))
               call tod2file(trim(adjustl(chaindir))//'/tod_gapfill_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt', tod_gapfill(:,j))
               call tod2file(trim(adjustl(chaindir))//'/s_tot_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_tot(:,j,0,1))
            end if
@@ -508,9 +511,12 @@ contains
       ! spider_harald branch had: call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
       ! Subtract the jumps before passing to sample_n_corr
       tod_orig = sd%tod
-      sd%tod = sd%tod - s_jump
+      sd%tod = sd%tod - sd%s_jump
+      ! Need to modify the sd%mask argument to include the jump sd%flag field as well
+      where (iand(sd%flag, 1) /= 0) sd%mask = 0
       call sample_n_corr(self, sd, handle, dospike=.true.) ! Spike finding currently not working anyways
-      sd%tod = tod_orig
+      ! Keep the sd%tod array modified (jump subtracted) for the next few steps. 
+      ! We will return it to tod_orig later
 
       !   sd%n_corr(:,:) = 0.0
         
@@ -525,6 +531,8 @@ contains
 
       ! Use n_corr to find jumps
         if ((iter==1) .and. .true.) then
+         s_jump_before = sd%s_jump                 ! take a copy before stage 2
+
          do j = 1, sd%ndet
             ! call tod2file(trim(dir_name)//'res_test_'//trim(it_text)//'.txt', tod_gapfill(:,j)-s_sky(:,j))
             if (.not. self%scans(i)%d(j)%accept) cycle
@@ -542,7 +550,7 @@ contains
             call expand_offset_list( &
                & offset_range,       &
                & offset_level,       &
-               & s_jump(:,j))
+               & sd%s_jump(:,j))
 
             ! call tod2file(trim(dir_name)//'s_jump_test_'//trim(it_text)//'.txt', s_jump(:,j))
             ! call tod2file(trim(dir_name)//'flag_after_test_'//trim(it_text)//'.txt', flag(:,j))
@@ -565,7 +573,7 @@ contains
             call expand_offset_list(              &
                & self%scans(i)%d(j)%offset_range, &
                & self%scans(i)%d(j)%offset_level, &
-               & s_jump(:,j))
+               & sd%s_jump(:,j))
 
             ! Add jump flags to persistent list
             if (allocated(jumpflag_range)) then
@@ -585,7 +593,17 @@ contains
             if (allocated(offset_range))   deallocate(offset_range)
             
          end do
+
+         ! n_corr still contains the offsets stage 2 just moved into s_jump; remove them
+         sd%n_corr = sd%n_corr - (sd%s_jump - s_jump_before)
+         deallocate(s_jump_before)
+
+         ! Exclude the newly flagged jump regions from the noise fit and chisq
+         where (iand(sd%flag, 1) /= 0) sd%mask = 0
       end if
+      
+        ! Subtract the stage 2 jumps to sd%tod
+        sd%tod = tod_orig - sd%s_jump
 
         ! Compute noise spectrum parameters
         call sample_noise_psd(self, sd, handle, chaindir)
@@ -606,23 +624,22 @@ contains
  
         ! Compute binned map
         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-        ! Original spider_harald method: call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
 
-        ! Subtract the jumps before passing to sample_n_corr
-        tod_orig = sd%tod
-        sd%tod = sd%tod - s_jump
-        call compute_calibrated_data(self, i, sd, d_calib)
+        ! Reallocate sd%tod the original values. Do it before compute_calibrated_data because it will subtract the jumps itself
         sd%tod = tod_orig
         deallocate(tod_orig)
 
+        ! Original spider_harald method: call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
+        ! Now there is jump subtraction inside compute_calibrated_data
+        call compute_calibrated_data(self, i, sd, d_calib)
 
-        allocate(jump_calib(1, sd%ntod, sd%ndet))
-        jump_calib(1,:,:) = s_jump 
+        ! Old spider jump handling allocate(jump_calib(1, sd%ntod, sd%ndet))
+        ! Old spider jump handling jump_calib(1,:,:) = sd%s_jump 
 
 
         ! Bin TOD
-        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib,    binmap)
-        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, jump_calib, jump_map) 
+        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+        ! Old spider jump handling call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, jump_calib, jump_map) 
 
         ! Update scan list
         call wall_time(t2)
@@ -637,7 +654,7 @@ contains
         ! Clean up
         call dealloc_scan_data(sd)
         deallocate(d_calib)
-        deallocate(s_jump, jumps, tod_gapfill, jump_calib, test_array)
+        deallocate(jumps, tod_gapfill, test_array) ! Old spider jump handling jump_calib
 
      end do
 
@@ -648,7 +665,7 @@ contains
  
      ! Solve for maps
      call synchronize_binmap(binmap, self)
-     call synchronize_binmap(jump_map, self) 
+     ! Old spider jump handling call synchronize_binmap(jump_map, self) 
 
      if (sample_rel_bandpass) then
         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S)
@@ -657,7 +674,7 @@ contains
      end if
      map_out%map = binmap%outmaps(1)%p%map
 
-     call finalize_binned_map(self, jump_map, rms_out, 1.d6) 
+     ! Old spider jump handling call finalize_binned_map(self, jump_map, rms_out, 1.d6) 
 
      ! Sample bandpass parameters
      if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -674,13 +691,14 @@ contains
      if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
      if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
      if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-     call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
+     if (self%output_n_maps > 8) call binmap%outmaps(9)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix))
+     ! Old spider jump map handling
+     ! call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
 
      ! Clean up
      call deallocate_binmap(binmap)
-     call deallocate_binmap(jump_map) 
+     ! Old spider jump handling call deallocate_binmap(jump_map) 
      if (allocated(slist)) deallocate(slist)
-     deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then
         do i = 1, self%ndet
            do h = 1, self%nhorn
