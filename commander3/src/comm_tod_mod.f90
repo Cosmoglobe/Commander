@@ -805,6 +805,8 @@ contains
     integer(i4b) :: i, j, k, l, ierr
     integer(i4b), allocatable, dimension(:) :: pix, psi
 
+    if (self%nscan == 0) return
+    
     !write(*,*) "xyz1", self%myid
     
     ! Construct observed pixel array

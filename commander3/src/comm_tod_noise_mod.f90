@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono)
+  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono, globalmono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -67,14 +67,15 @@ contains
     logical(lgt),                       intent(in), optional :: dospike
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
+    logical(lgt),                       intent(in), optional :: globalmono
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_, globalmono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu
 
-    real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s
+    real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s, globmono
     character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
@@ -90,8 +91,9 @@ contains
 
     call timer%start(TOD_NCORR, self%band)
 
-    nomono_ = .false.; if (present(nomono)) nomono_ = nomono
-    onlymono_ = .false.; if (present(onlymono)) onlymono_ = onlymono
+    nomono_     = .false.; if (present(nomono))     nomono_     = nomono
+    onlymono_   = .false.; if (present(onlymono))   onlymono_   = onlymono
+    globalmono_ = .false.; if (present(globalmono)) globalmono_ = globalmono
 
     scan     = sd%scan
     ntod     = sd%ntod
@@ -178,9 +180,12 @@ contains
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
 
-       ! Remove monopole if requested by user
-       if (nomono_) d_prime = d_prime -  sum(d_prime*sd%mask(:,i))/sum(sd%mask(:,i))
-
+       ! Remove monopole if requested by user; store if it should be reintroduced
+       if (nomono_ .or. globalmono_) then
+          globmono = sum(d_prime*sd%mask(:,i)) / sum(sd%mask(:,i))
+          d_prime  = d_prime - globmono
+       end if
+       
 !!$       ! Output power spectrum of signal-subtracted gap-filled TOD to disk
 !!$       !if (.true. .and. mod(self%scanid(scan),1000) == 1 .and. i == 1) then
 !!$       if (self%scanid(scan) == 482 .and. i == 1) then
@@ -232,7 +237,7 @@ contains
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
           call timer%stop(TOT_FFT)
 
-          if (nomono_) then
+          if (nomono_ .or. globalmono_) then
              dv(0)    = 0.d0
           else if (trim(self%operation) == "sample") then
              dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
@@ -267,9 +272,15 @@ contains
           !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
        end if
 
-       if (.false. .and. mod(self%scanid(scan),1000) == 1) then
+       ! Add global monopole band if user requests a global monopole
+       if (globalmono_) then
+          sd%n_corr(:,i) = sd%n_corr(:,i) + globmono
+          cycle
+       end if
+       
+       !if (.true.) then
        !if (.true. .and. self%scanid(scan) == 5013) then
-       !if (.false.) then
+       if (.false.) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
           open(65,file=trim(filename),status='REPLACE',recl=1024)
           do j = 1, ntod
@@ -279,7 +290,6 @@ contains
           close(65)
           !stop
        end if
-
     end do
     deallocate(dt, dv)
     deallocate(d_prime)

@@ -329,7 +329,7 @@ program commander
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 0) then
+      if (cpar%sample_signal_amplitudes .and. iter == 2) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
@@ -348,15 +348,15 @@ program commander
      call timer%stop(TOT_CLS)
 
      
-     if (iter > 1) then
-     !if (iter > 3) then
-        do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
-              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            end if
-        end do
-     end if
+!!$     if (iter > 1) then
+!!$     !if (iter > 3) then
+!!$        do i = 1, cpar%mcmc_num_samp_groups
+!!$            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+!!$              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+!!$              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+!!$            end if
+!!$        end do
+!!$     end if
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
@@ -372,7 +372,10 @@ program commander
      if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
      !if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+           if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+           else if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
               if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
               call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
             else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
@@ -383,8 +386,14 @@ program commander
               call sample_specind_mh_pol(cpar%outdir, cpar, handle, handle_noise, i, cpar%mcmc_samp_group_pol(i), iter)
             end if
         end do
-        ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
+
+        ! Sample map domain calibration factors
+        call sample_all_gains(cpar, iter, handle)
+
+        if (mod(iter-1,3) == 0) then
+           ! Do CG group sampling
+           call sample_all_amps_by_CG(cpar, handle, handle_noise)
+        end if
      end if
   end if
      

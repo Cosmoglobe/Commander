@@ -697,8 +697,8 @@ contains
           call init_scan_data(self, i, oper_line, TODMASK_NCORR, sd, handle=handle)
 
           ! Sample correlated noise
-          if (sample_ncorr) then
-             call sample_n_corr(self, sd, handle)
+          if (.false. .and. sample_ncorr) then
+             call sample_n_corr(self, sd, handle, globalmono=.true.)
           else
              call sample_n_corr(self, sd, handle, onlymono=.true.)
           end if
@@ -793,7 +793,7 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          call sample_n_corr(self, sd, handle)
+          call sample_n_corr(self, sd, handle, globalmono=.true.)
           if (sample_xi_n) then
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.

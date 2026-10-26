@@ -1039,7 +1039,7 @@ contains
                if (cpar%myid_chain == 0) then
                   delta = rand_gauss(handle) * c%theta_steplen(j,l)
                   do pol = 1, c%theta(j)%p%info%nmaps
-                     if ((polarization .and. i == 1) .or. (.not. polarization .and. i > 1)) cycle
+                     if ((polarization .and. pol == 1) .or. (.not. polarization .and. pol > 1)) cycle
                      c%theta_pixreg(1,pol,j) = c%theta_pixreg(1,pol,j) + delta 
                   end do
 
@@ -1211,19 +1211,23 @@ contains
 
          call revert_CG_amps(cpar, 4)
 
-         chisq_prop = 0d0
-!!$         if (l  == Cstep) then
+!!$         chisq_prop = 0d0
+!!$         !if (l  == Cstep) then
+!!$         !   call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+!!$         !        & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
+!!$         !else
 !!$            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-!!$                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
-!!$         else
-            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
-                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+!!$                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 !!$         end if
-
+!!$
+!!$         if (cpar%myid_chain == 0) then
+!!$           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+!!$         end if
          if (cpar%myid_chain == 0) then
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+           write(*,*) '| Chisq reverted back to ', chisq_old
          end if
 
+         
        else
          recompute_diffuse_precond = .true.
          ! Converge well before next proposal
@@ -1234,9 +1238,10 @@ contains
 !!$            call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
 !!$                 & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:), exclude_comps=exclude)
 !!$         else
+         if (trim(cpar%mcmc_update_cg_groups(l)) /= 'none') then
             call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
                  & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
-!!$         end if
+         end if
          call store_buffer(4) 
          chisq_old = chisq_prop
          if (cpar%myid_chain == 0) then
