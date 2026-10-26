@@ -600,14 +600,13 @@ contains
              end do
           end if
        end if
+       ! =============================
 
-
-       ! Spline rolloff for Tbol conv./deconv. later on
+       ! Spline rolloff for Tbol deconv. later on
        if (trim(self%noise_psd_model) == 'spline') then
           if (.not. allocated(self%rolloff_filter)) allocate(self%rolloff_filter(self%ndet,self%nscan))
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             !call spline_rolloff(self, sd, j)
              call self%spline_rolloff(sd, j)
           end do
        end if
@@ -1838,7 +1837,7 @@ module subroutine estimate_hfi_4K_lines_tod(self, sd, i_det, chaindir)
        if (ierr /= 0) then
           deallocate(ATA, ATd, row, y, x)
           write(*,*) 'Error: 4K cholesky decomposition failed - scan ', self%scanid(scan)
-          self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:) = 0.
+          self%cooler_4K_lines_profile(i_det,scan)%coeffs(ind,:) = 0.d0
           return
        end if
 

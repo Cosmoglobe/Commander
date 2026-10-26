@@ -243,7 +243,7 @@ contains
           N = N + 1
        end do
        if (N > 0) floor = min(floor, S/N)
-       floor = 1.05d0 * floor
+       floor = 1.05d0 * floor ! just for safety, as done with the 0.99 factor in sigma0
 
        do i = 1, NSPLINE
           if (nu(i) < 80.d0) cycle

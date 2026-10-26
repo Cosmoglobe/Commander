@@ -60,10 +60,12 @@ module comm_tod_noise_psd_mod
      logical(lgt), allocatable, dimension(:)    :: P_lognorm         ! true = lognorm prior; false = Gaussian prior
      logical(lgt)                               :: apply_filter      ! If we should apply the spline filter to the noise output
      type(spline_type)                          :: modulation_filter ! The filter multiplied to the output noise
+     real(sp)                                   :: filter_mean       ! USed with the spline model to rescale chisq
    contains
      procedure(eval_noise_psd_full), deferred :: eval_full
      procedure(eval_noise_psd_corr), deferred :: eval_corr
      procedure :: init_common
+     procedure :: eval_filter
   end type comm_noise_psd
 
   abstract interface
@@ -238,6 +240,22 @@ contains
     self%sigma0_preproc = 0.0
   end subroutine
   
+  function eval_filter(self, nu)
+    implicit none
+    class(comm_noise_psd), intent(in)      :: self
+    real(sp),              intent(in)      :: nu
+    real(sp) :: eval_filter
+
+    eval_filter = 1.0
+    if (self%apply_filter) then
+       if (nu >= self%modulation_filter%x(1) .and. &
+         & nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
+          eval_filter = real(splint(self%modulation_filter, dble(nu)), sp)
+       end if
+    end if
+
+  end function eval_filter
+
   function constructor_white(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
     ! 
     ! Constructor for basic white noise PSD object, where
@@ -813,11 +831,11 @@ contains
     type(planck_rng),           optional, intent(inout) :: handle ! pass it to Gibb sample the nodes
     real(sp), dimension(0:),    optional, intent(in)    :: freqmask
 
-    integer(i4b) :: i, j, n, nbin, n_dec, n_min
+    integer(i4b) :: i, j, n, nbin, n_dec, n_min, cnt, nfilter
     real(sp) :: thr, dx_lin, wn_level, slope_lowf, f_nu, thr_bin
     logical(lgt) :: check
-    real(dp) :: nu 
-    real(sp), allocatable, dimension(:,:) :: bin_spec_full_range
+    real(dp) :: m, nu 
+    real(sp), allocatable, dimension(:,:) :: bin_spec_full_range, filter
     real(sp),     allocatable, dimension(:) :: xbin, pbin
     integer(i4b), allocatable, dimension(:) :: nbins
 
@@ -842,6 +860,29 @@ contains
     if (nbin < 2) stop 'update_spline: less than 2 bins'
 
 
+    !! Define wn for modulation filter
+    wn_level = 0.d0; cnt = 0
+    do i = 1, n
+       if (x(i) >= 2.d0 .and. x(i) <= 10.d0) then
+          wn_level = wn_level + y(i)
+          cnt = cnt+1
+       end if
+    end do
+
+    wn_level = wn_level/cnt
+    m = 0.d0
+    do i = 1, nbin
+       if (xbin(i) >= 10.d0) then ! compute every slope between 10Hz sample and the next ones
+          m = max(m, (log10(wn_level) - log10(pbin(i)))/(log10(xbin(i)) - log10(10.d0)) )
+       end if
+    end do
+
+    do i = 1, nbin
+       if (xbin(i) >= 10.d0) then ! define filter after 10Hz
+         pbin(i) = pbin(i) * (xbin(i) / 10.d0)**m
+       end if 
+    end do
+
     ! Gibbs ssample the bins from the conditional posterior
     if (present(handle)) then
        do i = 1, nbin
@@ -861,7 +902,7 @@ contains
     do i = 1, nbin
        if (xbin(i) < thr .and. pbin(i) < wn_level) pbin(i) = pbin(i) + wn_level
     end do
-    ! Extend to low frequencies using the slope between first two bins. 
+    ! Extend to low frequencies using the slope between first two bins. (maybe do it on more bins?)
     ! Instead, at high frequencies it's fine to just go straight
     slope_lowf = (log10(pbin(2)) - log10(pbin(1))) / (log10(xbin(2)) - log10(xbin(1)))
     slope_lowf = min(slope_lowf, 0.0) ! can only increase to low frequencies
@@ -875,6 +916,20 @@ contains
     call free_spline(self%spline_profile)
     call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp), linear=.false.)
     deallocate(bin_spec_full_range)
+
+    ! Define modulation filter
+    nfilter = 1000
+    allocate(filter(nfilter,2)) ! defining filter on finer grid
+    filter(:,2) = 1.d0
+    do i = 1, nfilter
+       filter(i,1) = x(1) + (x(n) - x(1))*real(i-1,sp)/real(nfilter-1,sp)
+       if (filter(i,1) >= 10.d0) filter(i,2) = (10.d0/filter(i,1))**m
+    end do
+    self%apply_filter = .true.
+    call free_spline(self%modulation_filter)
+    call spline(self%modulation_filter, real(filter(:,1),dp), real(filter(:,2),dp), linear=.true.)
+    self%filter_mean = sum(filter(:,2))/nfilter
+    deallocate(filter)
 
     ! Resetting the white noise level on the lowest point
     do i = 1, n
@@ -952,13 +1007,7 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_spline_full
 
-    eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
-
-    if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_spline_full = eval_noise_psd_spline_full * splint(self%modulation_filter, dble(nu))
-      end if
-    end if
+    eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 * self%eval_filter(nu) + self%eval_corr(nu) ! Pcorr is already filtered
 
   end function eval_noise_psd_spline_full
 
@@ -980,14 +1029,12 @@ contains
 
     real(sp) :: nu_, p
 
-    nu_ = log10(max(nu, real(10.d0**self%spline_profile%x(1), sp))) ! Avoid evaluation below the spline domain
+    nu_ = log10(nu)
     p = 10**(splint(self%spline_profile, dble(nu_))) - self%pcorr_offset
-    eval_noise_psd_spline_corr = max(p, 1.e-3 * self%pcorr_offset)  ! P_corr is strictly positive
+    eval_noise_psd_spline_corr = max(p, 1.e-3 * self%pcorr_offset)  ! set P_corr strictly positive
 
     if(self%apply_filter) then
-      if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_spline_corr = eval_noise_psd_spline_corr * splint(self%modulation_filter, dble(nu))
-      end if
+        eval_noise_psd_spline_corr = eval_noise_psd_spline_corr * self%eval_filter(nu)
     end if
 
   end function eval_noise_psd_spline_corr
@@ -1008,7 +1055,7 @@ contains
 
     integer(i4b) :: i, k, km, n, nm, nlog, nlin, nedge, nout, cnt
     integer(i4b) :: n_all, n_ok
-    real(sp)     :: s_all, s_ok
+    real(sp)     :: s_all, s_ok ! for doing checks on spin mask (e.g. 857 channel)
     real(dp)     :: logmin, logthr, s_ps, s_logx
     real(dp),     allocatable, dimension(:) :: edges, sum_ps, sum_logx
     integer(i4b), allocatable, dimension(:) :: n_out
@@ -1060,7 +1107,7 @@ contains
              end if
           end if
 
-          if (freqmask(km) == 0.) cycle
+          if (freqmask(km) == 0.d0) cycle
        end if
        s_ps = s_ps + real(ps(i),dp)
        s_logx = s_logx + log10(real(x(i),dp))
