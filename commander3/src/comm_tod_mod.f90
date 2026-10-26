@@ -1297,7 +1297,6 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       scalars(1) = 0.1d0 ! REMOVE THIS!! HKE
        
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
