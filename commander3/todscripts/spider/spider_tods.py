@@ -46,7 +46,11 @@ def main():
 
     parser.add_argument('--freqs', type=int, nargs='+', default=spider.freqs, help='which spider frequencies to operate on')
 
-    parser.add_argument('--chunks', type=int, nargs=2, default=[255, 2084], help='the data chunks to operate on')
+    parser.add_argument('--chunks', type=int, nargs=2, default=[255, 2088], help='the data chunks to operate on')
+
+    parser.add_argument('--default_scalars', type=float, nargs=3, default=[0.001, 0.15, -2], help="default scalars for Commander 'oof' model: sigma0, fknee, alpha. Gain is read in by --gain-file")
+
+    parser.add_argument('--gain-file', type=str, default='/mn/stornext/u3/sureng/spider_tools/analysis/config/bolotables/cal_fwhm_29.txt', help='SPIDER-style bolotable with a cal column (ADU / uK_CMB per detector)') 
 
     parser.add_argument('--no-compress', action='store_true', default=False, help='Produce uncompressed data output')
 
@@ -58,7 +62,7 @@ def main():
 
     args = parser.parse_args()
 
-    args.version = 4
+    args.version = 5
 
     U = sa.Unifile(default_latest=True, flight=1)
 
@@ -73,10 +77,24 @@ def main():
 
     U = sa.Unifile(default_latest=True, flight=1)    
 
+    # Grab every chunk from the start (inclusive) to the end (exclusive)
     chunks = range(args.chunks[0], args.chunks[1])
-    dicts = {90:manager.dict(), 150:manager.dict()}
+    dicts = {90:manager.dict(), 150:manager.dict()} # ?
 
+    # Grab all the good SPIDER detectors in lists per frequency 
     args.dets = {90:list(U.good_channels(['X2', 'X4', 'X6'])), 150:list(U.good_channels(['X1', 'X3', 'X5']))}
+
+    # Generate the default gains per detector from the SPIDER bolotable
+    # We save this in args because that is already being broadcasted to all processes
+    args.gains = read_bolotable_gains(args.gain_file)
+
+    # Check for missing detectors. Very pythonic lol
+    missing = [det for freq in args.freqs for det in args.dets[freq] if det not in args.gains]
+
+    # If any are missing, report it to the user. This shouldn't happen in practice
+    if missing:
+        raise ValueError(str(len(missing)) + ' detectors have no gain in ' \
+                         + args.gain_file)
 
     args.comp_array = ['huffman']
 
@@ -99,8 +117,34 @@ def main():
     pool.close()
     pool.join()
 
-    if((args.chunks[0] == 255 and args.chunks[1] == 2084) or args.produce_filelist):
+    # Partial runs shouldn't automatically make a filelist
+    if((args.chunks[0] == 255 and args.chunks[1] == 2088) or args.produce_filelist):
         comm_tod.make_filelists()
+
+def block_reshape(x, ds, nsamps):
+    # Drop any remainder samples and reshape by adding a downsample dimension
+    x = np.asarray(x)
+    return x[:nsamps*ds].reshape((nsamps, ds) + x.shape[1:])
+
+def read_bolotable_gains(filename):
+    with open(filename) as f:
+        header = f.readline()
+
+    # grab the columns index from the file
+    columns = [c.strip() for c in header.split(':', 1)[1].split(',')]
+    cal_col = columns.index('cal')
+
+    # Iterate over the elements and save them in a gains dict, with the commander gain convention and units
+    gains = {}
+    for det, cal in np.genfromtxt(filename, dtype=str, usecols=(0, cal_col), comments='#', ndmin=2):
+        cal = float(cal)
+        if np.isfinite(cal) and cal != 0:
+            # convert the gains from uK / ADU to -ADU / K
+            # This makes gains a positive quantity, to match the sign flipped TOD
+            gains[det] = -1e6 / cal
+            
+
+    return gains
 
 def make_chunk(comm_tod, freq, chunk, args):
 
@@ -114,7 +158,7 @@ def make_chunk(comm_tod, freq, chunk, args):
         return
 
     U = sa.Unifile(default_latest=True, flight=1)
-    Um = sa.UnifileMap(default_latest=True, flight=1)
+    Um = sa.UnifileMap(default_latest=True, flight=1) # ? Probably just Um can do all of this
     chunkdict = U.event_partition('time_chunk_10min')[chunk]
 
     prefix = 'common'
@@ -132,7 +176,7 @@ def make_chunk(comm_tod, freq, chunk, args):
         mbangs.append(0)
 
     comm_tod.add_field(prefix + '/det', spider.detlist_name(freq))
-    comm_tod.add_field(prefix + '/mbang', mbangs)
+    comm_tod.add_field(prefix + '/mbang', mbangs) #? what is this
     comm_tod.add_field(prefix + '/polang', polangs)
 
     # now do the parts in the per chunk subdirectory
@@ -162,67 +206,101 @@ def make_chunk(comm_tod, freq, chunk, args):
     for det in args.dets[freq]:
 
         prefix = str(chunk).zfill(6) + '/' + det
+
+        # Read in the detector gain to add to the scalar list
+        gain = args.gains[det]
+        scalars = [gain, *args.default_scalars]
         
-        # pix and psi
+        # Read in detector pointing for this chunk
         try:
             lon, lat, psi= Um.get_det_coords(det, coord='G', **chunkdict)
         except ValueError as e:
-            print('Value error in ', freq, chunk, det)
+            print('No det pointing + psi in: ', freq, chunk, det)
             # add fake, completely flagged data to fill the chunk
             fake_data = np.ones(nsamps)
             comm_tod.add_field(prefix + '/pix', fake_data, compArray)
             comm_tod.add_field(prefix + '/psi', fake_data, compArray)
             comm_tod.add_field(prefix + '/tod', fake_data)
             comm_tod.add_field(prefix + '/flag', fake_data, compArray)
-            comm_tod.add_field(prefix + '/scalars', [0,0,0,0])
+            comm_tod.add_field(prefix + '/scalars', scalars)
 
             continue
 
 
-        #psi_dec = sig.decimate(psi, args.downsample)
-        psi_dec = psi[::args.downsample]
+        # Need to restimate effective beam ? FIX
+        ########################################################################
+        # psi: can't naively average. Need to handle blocks straddling ±180°
+        # First, make each angle psi a point on the unit circle: cos(psi) + i sin(psi)
+        psi_ucirc = np.exp(1j*np.deg2rad(psi))
 
+        # Block reshape the psi's to get ready to average
+        psi_ucirc_block = block_reshape(psi_ucirc, args.downsample, nsamps)
+
+        # Average down, convert back to degrees. np.angle runs arctan2(Im z, Re z)
+        psi_mean = np.rad2deg(np.angle(psi_ucirc_block.mean(axis=1)))
+
+        # SPIDER TOD seems to use a different convention for PSI than Commander. Possibly IAU instead of COSMO
+        psi_dec = -1* psi_mean
         psi_rad = np.deg2rad(psi_dec)
+
+        # rewrap from 0 to 2 pi
         psi_rad[psi_rad<=0] += 2*np.pi 
 
+        # There is a chance that psi is zero, which when wrapped will be 2*np.pi, which may be problematic if digitized
+        psi_rad = np.clip(psi_rad, 0, 2*np.pi*(1 - 1e-12))
         comm_tod.add_field(prefix + '/psi', psi_rad, psiArray)
 
-        #lat_down = sig.decimate(lat_gal, args.downsample)
-        #lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
-        lat_down = lat[::args.downsample]
-        lon_down = lon[::args.downsample]
+        ########################################################################
+        # pix: average the pointing unit vectors. First generate them
+        vec = hp.ang2vec(lon, lat, lonlat=True)
 
-        pix = hp.ang2pix(spider.nside, lon_down, lat_down, lonlat=True)
+        # Block reshape and average
+        vec_mean = block_reshape(vec, args.downsample, nsamps).mean(axis=1)
+
+        # convert to pix using healpy and the default SPIDER nside of 512
+        pix = hp.vec2pix(spider.nside, vec_mean[:, 0], vec_mean[:, 1], vec_mean[:, 2])
+
         comm_tod.add_field(prefix + '/pix', pix, compArray)
 
-
-        #TOD
-        #tod = sig.decimate(U.getdata(det, product='dcclean08', **chunkdict), args.downsample)
+        ########################################################################
+        # TOD: First load the TOD and subtract stepstitch
         tod = U.getdata(det, product='dcclean08', **chunkdict)
         stepstitch = U.getdata(det, product='stepstitch07', **chunkdict)
-
         tod = tod - stepstitch
-        tod = tod[::args.downsample]
-        tod = tod - np.mean(tod)
 
+        # Block reshape and average
+        tod = block_reshape(tod, args.downsample, nsamps).mean(axis=1)
+
+        # Mean subtract to remove chunk-to-chunk offsets. Add a negative sign because
+        # SPIDER detector data is inversely related to the sky
+        tod = -1.*(tod - np.mean(tod))
         comm_tod.add_field(prefix + '/tod', tod)
 
-        # flag
-        flag = U.getdata(det, product='flag_comb08', **chunkdict)
+        ########################################################################
+        # flag: Same flags and masks as SPIDER's own mapmaking (get_tot_flag with
+        # dcclean08 + stepstitch07). These already contain the stepstitch07 
+        # flags, so that product's flag is not read separately.
+        flag_comb = U.getdata(det, product='flag_comb08', **chunkdict)
         flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
-        flag_stepstitch = U.getdata(det + '_flag', product='stepstitch07', **chunkdict)
+
+        # Generate binary flags 
+
+        # Use all 0-28 bits but the 23rd bit, which is xjump_reset. 
+        # This bit marks where a correction was made earlier in the analysis
+        flag_comb_binary = (np.asarray(flag_comb).astype(np.uint64) & np.uint64(0x1F7FFFFF)) != 0
         
-        flag_tot = np.where(np.bitwise_and(np.uint64(flag + 2**32*flag_extra) ,35180601409535) == 0, 0, 1)
-               
- 
-        #downsample flag by taking bitwise or of each n entries
-        #nsplit = np.split(flag_tot, args.downsample)
-        #flag_downsampled = np.bitwise_or.reduce(nsplit, 0)
-        flag_downsampled = flag_tot[::args.downsample]
+        # Use all 0-12 bits 
+        flag_extra_binary = (np.asarray(flag_extra).astype(np.uint64) & np.uint64(0x1FFF)) != 0
+        flag_tot = (flag_comb_binary | flag_extra_binary).astype(np.uint8)
+
+        # Downsample by reshaping and taking the max per group of args.downsample
+        flag_downsampled = block_reshape(flag_tot, args.downsample, nsamps).max(axis=1)
         comm_tod.add_field(prefix + '/flag', flag_downsampled, compArray)
 
-        # scalars
-        scalars = [1, 1, 0.1, -2] # gain, sigma0, fknee, alpha
+        ########################################################################
+        # scalars: Add the default scalar for both frequencies, for all chunks 
+        # and detectors
+
         comm_tod.add_field(prefix + '/scalars', scalars)
 
         U.raw_close()

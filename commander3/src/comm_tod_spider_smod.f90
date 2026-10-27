@@ -125,16 +125,6 @@ contains
        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
     end if
 
-    ! Define detector partners
-    !   do i = 1, c%ndet
-    !      if (mod(i,2) == 1) then
-    !         c%partner(i) = i+1
-    !      else
-    !         c%partner(i) = i-1
-    !      end if
-    !      c%horn_id(i) = (i+1)/2
-    !   end do
-
     ! Define detector partners for SPIDER mux layout
     ! A/B - pairs are located in alternating rows. E.g., x1r01c09 and x1r02c09 are a pair.
     do i = 1, c%ndet

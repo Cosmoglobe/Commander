@@ -1316,9 +1316,12 @@ contains
        if (trim(tod%noise_psd_model) == 'white') then
           self%d(i)%N_psd => comm_noise_psd_white(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == 'oof') then
-          xi_n(1) =  0.10 ! (Old) AKARI
-          xi_n(2) =  0.02 ! (Old) AKARI
-          xi_n(3) = -2.00 ! (Old) AKARI
+          ! SPIDER uses scalars in the TOD files. AKARI doesn't want to I guess? SRG
+          if (trim(tod%tod_type) /= 'SPIDER') then
+             xi_n(1) =  0.10 ! (Old) AKARI
+             xi_n(2) =  0.02 ! (Old) AKARI
+             xi_n(3) = -2.00 ! (Old) AKARI
+          end if
           self%d(i)%N_psd => comm_noise_psd_oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
           xi_n(1) =  0.10  ! sigma0. Using same as for oof.
