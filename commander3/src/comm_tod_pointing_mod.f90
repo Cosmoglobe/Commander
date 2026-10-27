@@ -87,7 +87,7 @@ contains
            cycle
         end if
 
-        eff = 1.0 !tod%pol_sign(d) * tod%pol_eff(d)
+        eff = tod%pol_eff(d)  ! Read polarization efficiency.
         do h = 1, sd%nhorn          ! Loop over horns
            hp = h; if (sd%nhorn == 1) hp = 0
            do i = 1, tod%scans(scan)%ntod ! Loop over time samples
