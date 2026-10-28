@@ -2829,7 +2829,6 @@ contains
        do h = 1, self%nhorn
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%pix(h)%p,  sd%pix(:,j,h))
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(d)%psi(h)%p,  sd%psi(:,j,h))
-       end do
 !!$          if (minval(psi) .eq. 0) then
 !!$            !write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
 !!$            psi(:,i) = psi(:, i) + 1
