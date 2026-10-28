@@ -70,6 +70,10 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     for i, idx in enumerate(glitch_idx):
         if idx + window > len(result):
             continue
+
+        # subtract a median from when the glitch starts until 1 min after
+        result[idx:idx + window] -= np.median(result[idx:idx + window])
+
         label = glitch_labels[i]
         model = glitch_model_func(seconds[:window], glitch_amps[i], glitch_type=label)
 
@@ -93,12 +97,13 @@ def stacking(result, glitch_idx, glitch_labels, glitch_amps, seconds):
     for t in types:
         if rows[t]:
             final_stack[t] = np.median(np.vstack(rows[t]), axis=0)
+            final_stack[t] /= np.max(final_stack[t])  # normalize the stacked average to have a max of 1
         else:
             final_stack[t] = None
+            continue
 
         if g.PLOTS:
             plt.plot(seconds[:window], final_stack[t], label=t)
-            # plt.plot(seconds[:window], final_stack[glitch_type], label=glitch_type)
             plt.title("Stacked Average")
             plt.xlabel("Time (s)")
             plt.ylabel("Amplitude")
@@ -120,9 +125,19 @@ def glitch_model(seconds, *params):
 
     return model / np.max(model)  # normalize the glitch model to have a max of 1
 
-def glitch_estimation(seconds, stack):
-    tau_guess = np.geomspace(seconds[-1], seconds[1], 8)
-    amp_guess = np.linspace(np.max(stack), np.max(stack) * 1e-8, 8)
+def glitch_estimation(seconds, stack, glitch_type, glitch_params=None):
+    # tau_guess = np.geomspace(seconds[-1], seconds[1], 8)
+    # amp_guess = np.linspace(np.max(stack), np.max(stack) * 1e-8, 8)
+
+    if glitch_params is None:
+        glitch_params = _load_glitch_params()["143-2a"][glitch_type]
+
+    amp_guess = []
+    tau_guess = []
+    for amp_i in range(1, 9):
+        amp_guess.append(glitch_params[f"Amplitude{amp_i}"])
+        tau_guess.append(glitch_params[f"Tau{amp_i}"])
+
     p0 = np.concatenate([amp_guess, tau_guess])
     popt, _ = curve_fit(glitch_model, seconds, stack, p0=p0,
                         bounds=(0, np.inf), max_nfev=20000, sigma=g.SIGMA*np.ones_like(stack),
@@ -131,6 +146,52 @@ def glitch_estimation(seconds, stack):
     glitch_params = {'Amplitude' + str(i + 1): popt[i] for i in range(8)}
     glitch_params.update({'Tau' + str(i + 1): popt[i +8] for i in range(8)})
     return glitch_params
+
+def chi2_glitches(data):
+    chi2 = np.sum((data_i - (a_i * glitch_model(seconds, params) + offset_i) / sigma)**2)
+    return chi2
+
+def amp_matrix(glitch_type="short"):
+    # Create a matrix of amplitudes for each glitch type and each amplitude index
+    amp_matrix = np.zeros(8)
+    glitch_params = _load_glitch_params()["143-2a"][glitch_type]
+    for i in range(8):
+        amp_matrix[i] = glitch_params[f"Amplitude{i + 1}"]
+    return amp_matrix
+
+def design_matrix(glitch_type="short"):
+    # Create a design matrix for the glitch model
+    window = int(g.NSECS * g.SAMPRATE)
+    seconds = np.arange(window) / g.SAMPRATE
+    design_matrix = np.zeros((window, 8))
+    for i in range(2):
+        design_matrix[:, i] = np.exp(-seconds / _load_glitch_params()["143-2a"][glitch_type][f"Tau{i + 1}"])
+    return design_matrix
+
+def solve_for_amplitudes(data, eta):
+    T = design_matrix()
+    N = np.eye(T.shape[0]) * g.SIGMA**2  # Assuming white noise with variance SIGMA^2
+    N_inv = np.linalg.inv(N)
+    T_transpose_N_inv = T.T @ N_inv
+    T_transpose_N_inv_T = T_transpose_N_inv @ T
+    T_transpose_N_inv_T_inv = np.linalg.inv(T_transpose_N_inv_T)
+
+    N_inv_data = N_inv @ data
+    T_transpose_N_inv_data = T.T @ N_inv_data
+
+    N_inv_12_eta = N_inv ** 0.5 @ eta
+    T_transpose_N_inv_12_eta = T.T @ N_inv_12_eta
+
+    amplitudes = T_transpose_N_inv_T_inv @ (T_transpose_N_inv_data + T_transpose_N_inv_12_eta)
+    return amplitudes
+
+def gibbs_sampler(data, nsamples=100):
+    amplitudes = []
+    for _ in range(nsamples):
+        eta = np.random.normal(0, 1, size=(int(g.NSECS * g.SAMPRATE),))
+        amp = solve_for_amplitudes(data, eta)
+        amplitudes.append(amp)
+    return np.array(amplitudes)
 
 if __name__ == "__main__":
     params = _load_glitch_params()
