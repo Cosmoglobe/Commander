@@ -37,17 +37,17 @@ contains
   !                   (2) = (1) + jumps
   !                   (3) = (2) + instrument-specific
   !                   (4) = (3) + spikes
-  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
+  subroutine init_scan_data(tod, scan, oper_, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
-    integer(i4b),         intent(in)              :: scan, oper, bitmask0
+    integer(i4b),         intent(in)              :: scan, oper_, bitmask0
     class(comm_scandata), intent(inout)           :: sd    
     integer(i4b),         intent(in),    optional :: det
     integer(i4b),         intent(in),    optional :: nonlin_level
     integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
 
-    integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl, oper
     integer(i4b) :: n, nfft
     real(sp),     allocatable, dimension(:)   :: dt
     complex(spc), allocatable, dimension(:)   :: dv
@@ -55,6 +55,7 @@ contains
     call timer%start(TOD_ALLOC, tod%band)
 
     ! Initialize defaults and check dependencies
+    oper        = oper_
     sd%scan     = scan
     sd%oper     = oper
     sd%ntod     = tod%scans(scan)%ntod
@@ -67,6 +68,10 @@ contains
     nonlin_lvl  = 100; if (present(nonlin_level)) nonlin_lvl = nonlin_level
     spur_lvl    = 100; if (present(spur_level))   spur_lvl = spur_level
     
+    ! Set flags that depend on other flags being set
+    ! SD_MASK assumes you also asked for SD_IND 
+    if(btest(oper, SD_MASK) .and. .not. btest(oper, SD_IND)) oper = oper + 2**SD_IND
+
     ! Allocate data structures
     ntod  = sd%ntod
     ndet  = sd%ndet

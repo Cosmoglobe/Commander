@@ -31,10 +31,9 @@ contains
      class(comm_tod),      intent(in)    :: tod
      class(comm_scandata), intent(inout) :: sd
  
-     integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
+     integer(i4b) :: i, j, k, d, h, p, scan, ndet
 
      scan  = sd%scan
-     nmaps = tod%nmaps
      ndet  = sd%ndet
 
      do j = 1, ndet ! Loop over detectors
@@ -63,8 +62,8 @@ contains
      class(comm_tod),      intent(in)             :: tod
      class(comm_scandata), intent(inout)          :: sd
  
-     integer(i4b) :: i, j, k, d, h, hp, p, nmaps, scan, ndet
-     logical(lgt) :: do_gain, do_bp
+     integer(i4b) :: i, j, k, d, h, hp, p, scan, ndet
+     logical(lgt) :: do_gain, do_bp, pol
      real(sp)     :: s, eff
 
      do_gain = btest(sd%oper,SD_GAIN) .and. allocated(tod%pixcache%map_gain)
@@ -75,8 +74,8 @@ contains
      ! s = T + eff*(Q * cos(2*psi) + U * sin(2*psi))
      ! T - temperature; Q, U - Stoke's parameters
      scan  = sd%scan
-     nmaps = tod%nmaps
      ndet  = sd%ndet
+     pol = tod%info%pol
 
      do j = 1, ndet ! Loop over detectors
         d = sd%det(j)
@@ -97,7 +96,7 @@ contains
                  cycle
               end if
               do k = 1, sd%nbp ! Loop over bandpass models
-                 if (nmaps == 3) then
+                 if (pol) then
                     sd%s_sky(i,j,hp,k) = tod%pixcache%map_sky(1,p,d,k) + &
                          & eff*(tod%pixcache%map_sky(2,p,d,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
                          &      tod%pixcache%map_sky(3,p,d,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
@@ -113,11 +112,11 @@ contains
                  end if
 
                  if (do_bp) then
-                    if (nmaps == 3) then
+                    if (pol) then
                        s = tod%pixcache%map_sky(1,p,0,k) + eff * &
                             & (tod%pixcache%map_sky(2,p,0,k) * tod%pixcache%cos2psi(sd%psi(i,j,h)) + &
                             &  tod%pixcache%map_sky(3,p,0,k) * tod%pixcache%sin2psi(sd%psi(i,j,h)))
-                    else if (nmaps == 1) then
+                    else if (.not. pol) then
                        s = tod%pixcache%map_sky(1,p,0,k)
                     end if
                     sd%s_bp(i,j,hp,k) = sd%s_sky(i,j,hp,k) - s
@@ -135,7 +134,7 @@ contains
      integer(i4b),         intent(in)    :: bitmask0
      class(comm_scandata), intent(inout) :: sd
  
-     integer(i4b) :: i, j, k, d, h, p, nmaps, scan, ndet
+     integer(i4b) :: i, j, k, d, h, p, scan, ndet
 
      scan        = sd%scan
      ndet        = sd%ndet

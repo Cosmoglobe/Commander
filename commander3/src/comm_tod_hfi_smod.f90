@@ -853,9 +853,9 @@ contains
        if (self%nmaps > 1) then
           !call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2, correct_transfer=.true.)
           Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-          call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, Sfilename=Sfilename, mask=procmask2)
+          call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, Sfilename=Sfilename, mask=iand(self%pixcache%bitmask, TODMASK_BANDPASS))
        else
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2, correct_transfer=.true.)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=iand(self%pixcache%bitmask, TODMASK_BANDPASS), correct_transfer=.true.)
        end if
     else
        if(self%nmaps > 1) then

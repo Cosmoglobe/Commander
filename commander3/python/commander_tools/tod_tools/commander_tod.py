@@ -274,7 +274,7 @@ class commander_tod:
         outTheta, outPhi = hp.vec2ang(normal)
         return [float(outTheta[0]), float(outPhi[0])]
 
-    def finalize_chunk(self, pid, loadBalance=[0,0]):
+    def finalize_chunk(self, pid, ntod, loadBalance=[0,0]):
         if len(loadBalance) != 2:
             raise ValueError('Load Balancing numbers must be length 2')
         for key in self.huffDict.keys():
@@ -346,7 +346,7 @@ class commander_tod:
             self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
         except ValueError: #load field already exists because we are just adding the file to the filelist
             pass
-        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1])) + ' ' + str(ntod)
 
         # The scan's number of samples, for the filelist's 6th column. Commander3 currently reads
         # only the first five columns, but Commander4 uses it.

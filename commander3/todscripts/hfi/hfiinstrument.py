@@ -56,7 +56,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 7
+    version = 8
 
     rimo = fits.open(args.rimo)
     

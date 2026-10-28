@@ -563,7 +563,7 @@ end subroutine bin_differential_TOD
     class(comm_map),                      intent(inout) :: rms
     real(dp),                             intent(in)    :: scale
     real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
-    real(sp),        dimension(0:),       intent(in),    optional :: mask
+    integer(i4b),    dimension(0:),       intent(in),    optional :: mask
     logical(lgt),                         intent(in),    optional :: correct_transfer
 
 
@@ -643,7 +643,8 @@ end subroutine bin_differential_TOD
          if (present(chisq_S)) then
             ! TODO: compute inverse of chisq_S?
             do j = 1, ndet - 1
-               if (mask(tod%info%pix(i + 1)) == 0.) cycle
+               ! this compiles but crashes unfortunately.
+               if (mask(tod%pixcache%pix2ind(binmap%outmaps(k)%p%info%pix(i)) == 0)) cycle
                if (As_inv <= 0.d0) cycle
                chisq_S(j, 1) = chisq_S(j, 1) + bs_tot(1, 1 + j, i)**2/As_inv
                do k = 2, ndelta
@@ -774,6 +775,9 @@ end subroutine bin_differential_TOD
          A_inv(ndet+2,ndet+1) = A_tot(5, i)
 
          !if(tod%myid == 0 .and. i==0) write(*,*) "A for pix=", i
+         !do j=1, ndet+2
+         !   if(tod%myid == 0 .and. i ==0) write(*,*) A_inv(:, j)
+         !end do
 
          ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
@@ -1030,7 +1034,7 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
     real(dp),                             intent(in)    :: scale
     real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
     character(len=*),                     intent(in),    optional :: Sfilename
-    real(sp),        dimension(0:),       intent(in),    optional :: mask
+    integer(i4b),    dimension(0:),       intent(in),    optional :: mask
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
@@ -1140,7 +1144,9 @@ subroutine finalize_binned_map_nplus2_depol(tod, binmap, rms, scale, mask, corre
 
          if (present(chisq_S)) then
             do j = 1, ndet - 1
-               if (mask(tod%info%pix(i + 1)) == 0.) cycle
+               !write(*,*) binmap%outmaps(k)%p%info%pix(i), any(mask == binmap%outmaps(k)%p%info%pix(i))
+               ! This line compiles but crashes
+               if (mask(tod%pixcache%pix2ind(binmap%outmaps(k)%p%info%pix(i)) == 0)) cycle
                if (As_inv(nmaps + j, nmaps + j) <= 0.d0) cycle
                chisq_S(j, 1) = chisq_S(j, 1) + bs_tot(1, nmaps + j, i)**2/As_inv(nmaps + j, nmaps + j)
                do k = 2, ndelta
