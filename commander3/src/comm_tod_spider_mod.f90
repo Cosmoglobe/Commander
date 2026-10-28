@@ -45,7 +45,7 @@ module comm_tod_SPIDER_mod
       procedure     :: read_scan_inst     => read_scan_inst_SPIDER
       procedure     :: initHDF_inst       => initHDF_SPIDER
       procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
-      procedure     :: load_default_gains => load_default_gains_SPIDER
+      procedure     :: construct_jump_corr=> construct_jump_corr_SPIDER
    end type comm_SPIDER_tod
  
    interface comm_SPIDER_tod
@@ -211,6 +211,30 @@ module comm_tod_SPIDER_mod
      type(hdf_file),                      intent(in)     :: chainfile
      character(len=*),                    intent(in)     :: path
    end subroutine initHDF_SPIDER
+
+   module subroutine construct_jump_corr_SPIDER(self, sd, det)
+     ! 
+     ! Fills sd%s_jump with the step offsets found in previous Gibbs iterations,
+     ! and masks the samples around each jump (jumpflag_range) in sd%flag and sd%mask
+     !
+     ! Arguments:
+     ! ----------
+     ! self:      derived class (comm_SPIDER_tod)
+     !            SPIDER-specific TOD object
+     ! sd:        derived type (comm_scandata)
+     !            Scan data. s_jump, flag, and mask are updated
+     ! det:       int, optional
+     !            If present, only evaluate for this detector
+     !
+     ! Returns
+     ! ----------
+     ! None. Just updates sd
+     !
+     implicit none
+     class(comm_SPIDER_tod),              intent(in)          :: self
+     class(comm_scandata),                intent(inout)       :: sd
+     integer(i4b),                        intent(in), optional:: det
+   end subroutine construct_jump_corr_SPIDER
    
    module subroutine dumpToHDF_SPIDER(self, chainfile, path)
      ! 
@@ -234,24 +258,6 @@ module comm_tod_SPIDER_mod
      type(hdf_file),                      intent(in)     :: chainfile
      character(len=*),                    intent(in)     :: path
    end subroutine dumpToHDF_SPIDER
-
-   module subroutine load_default_gains_SPIDER(self)
-     !
-     ! Reads per-detector initial gains (raw TOD units per K_CMB) from the
-     ! instrument file and sets them as gain_def and gain for all scans
-     !
-     ! Arguments:
-     ! ----------
-     ! self:     derived class (comm_SPIDER_tod)
-     !           SPIDER-specific TOD object
-     !
-     ! Returns
-     ! ----------
-     ! None, but updates self
-     !
-     implicit none
-     class(comm_SPIDER_tod),              intent(inout)  :: self
-   end subroutine load_default_gains_SPIDER
 
    module subroutine write2file(filename, iter, param)
       implicit none

@@ -36,29 +36,57 @@ import scipy.stats as stats
 
 import spider_analysis as sa
 
+# One UnifileMap object per worker process. Building this takes ~25 sec so it's
+# better to do it once and hold it in memory
+UM = None
+def init_worker():
+    global UM
+    UM = sa.UnifileMap(default_latest=True, flight=1)
+    # Note that default_latest=True means whatever flagging product changes occur
+    # inside spider_analysis will be included here. Not dangerous for SPIDER-1 
+    # Since development there is done. But may be worth specifying the defaults
+    # For SPIDER-2 later.
+
 def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
+    parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), 
+                        help='path to output data structure you want to generate')
 
-    parser.add_argument('--num-procs', type=int, action='store', default=1, help='number of processes to use')
+    parser.add_argument('--num-procs', type=int, action='store', default=1, 
+                        help='number of processes to use')
 
-    parser.add_argument('--freqs', type=int, nargs='+', default=spider.freqs, help='which spider frequencies to operate on')
+    parser.add_argument('--freqs', type=int, nargs='+', default=spider.freqs, 
+                        help='which spider frequencies to operate on')
 
-    parser.add_argument('--chunks', type=int, nargs=2, default=[255, 2088], help='the data chunks to operate on')
+    parser.add_argument('--chunks', type=int, nargs=2, default=[255, 2088], 
+                        help='the data chunks to operate on')
 
-    parser.add_argument('--default_scalars', type=float, nargs=3, default=[0.001, 0.15, -2], help="default scalars for Commander 'oof' model: sigma0, fknee, alpha. Gain is read in by --gain-file")
+    parser.add_argument('--default_scalars', type=float, nargs=3, 
+                        default=[0.001, 0.15, -2], help="default scalars for "
+                        "Commander 'oof' model: sigma0, fknee, alpha. "
+                        "Gain is read in by --gain-file")
 
-    parser.add_argument('--gain-file', type=str, default='/mn/stornext/u3/sureng/spider_tools/analysis/config/bolotables/cal_fwhm_29.txt', help='SPIDER-style bolotable with a cal column (ADU / uK_CMB per detector)') 
+    parser.add_argument('--gain-file', type=str, default='/mn/stornext/u3/'
+                        'sureng/spider_tools/analysis/config/bolotables/'
+                        'cal_fwhm_29.txt', help='SPIDER-style bolotable with a '
+                        'cal column (ADU / uK_CMB per detector)') 
 
-    parser.add_argument('--no-compress', action='store_true', default=False, help='Produce uncompressed data output')
+    parser.add_argument('--no-compress', action='store_true', default=False, 
+                        help='Produce uncompressed data output')
 
-    parser.add_argument('--restart', action='store_true', default=False, help="restart from a previous run that didn't finish")
+    parser.add_argument('--restart', action='store_true', default=False, 
+                        help="restart from a previous run that didn't finish. " \
+                        "NOTE: Partially finished .h5 files will not be finished,"
+                        " and finished files will not be added to the filelist")
 
-    parser.add_argument('--produce-filelist', action='store_true', default=False, help='force the production of a filelist even if only some files are present')
+    parser.add_argument('--produce-filelist', action='store_true', default=False,
+                        help='force the production of a filelist even if only '
+                        'some files are present')
 
-    parser.add_argument('--downsample', action='store', type=int, default=5, help='downsampling factor to be used in the TODs')
+    parser.add_argument('--downsample', action='store', type=int, default=5, 
+                        help='downsampling factor to be used in the TODs')
 
     args = parser.parse_args()
 
@@ -72,14 +100,12 @@ def main():
 
     os.environ['OMP_NUM_THREADS'] = '1'
 
-    pool = mp.Pool(processes=args.num_procs)
-    manager = mp.Manager()
-
-    U = sa.Unifile(default_latest=True, flight=1)    
+    pool = mp.Pool(processes=args.num_procs, initializer=init_worker)
+    manager = mp.Manager()   
 
     # Grab every chunk from the start (inclusive) to the end (exclusive)
     chunks = range(args.chunks[0], args.chunks[1])
-    dicts = {90:manager.dict(), 150:manager.dict()} # ?
+    dicts = {90:manager.dict(), 150:manager.dict()}
 
     # Grab all the good SPIDER detectors in lists per frequency 
     args.dets = {90:list(U.good_channels(['X2', 'X4', 'X6'])), 150:list(U.good_channels(['X1', 'X3', 'X5']))}
@@ -157,26 +183,21 @@ def make_chunk(comm_tod, freq, chunk, args):
         print('Skipping existing file ' + comm_tod.outName)
         return
 
-    U = sa.Unifile(default_latest=True, flight=1)
-    Um = sa.UnifileMap(default_latest=True, flight=1) # ? Probably just Um can do all of this
-    chunkdict = U.event_partition('time_chunk_10min')[chunk]
+    chunkdict = UM.event_partition('time_chunk_10min')[chunk]
 
     prefix = 'common'
     
     fsamp =  args.fsamp / args.downsample
     comm_tod.add_field(prefix + '/fsamp', fsamp)
-
     comm_tod.add_field(prefix + '/nside', spider.nside)
 
     polangs = []
     mbangs = []
-
     for det in args.dets[freq]:
         polangs.append(0)
         mbangs.append(0)
-
     comm_tod.add_field(prefix + '/det', spider.detlist_name(freq))
-    comm_tod.add_field(prefix + '/mbang', mbangs) #? what is this
+    comm_tod.add_field(prefix + '/mbang', mbangs) # main beam angle. unused for SPIDER 
     comm_tod.add_field(prefix + '/polang', polangs)
 
     # now do the parts in the per chunk subdirectory
@@ -184,15 +205,16 @@ def make_chunk(comm_tod, freq, chunk, args):
     prefix = str(chunk).zfill(6) + '/common'
 
     comm_tod.add_field(prefix + '/satpos', [0,0,0])
-    #harald had numbers here for vsun, I'm not sure where they would get used 
-    #or where he got them from
+    # harald had numbers here for vsun, I'm not sure where they would get used 
+    # or where he got them from. Unnecessary because SPIDER-1 had a 16 day flight
+    # so it is pretty insensitive to the seasonal dipole variation
     comm_tod.add_field(prefix + '/vsun', [0,0,0])
 
-    time = U.get_time(**chunkdict)
+    time = UM.get_time(**chunkdict)
     comm_tod.add_field(prefix + '/time', time[0])
 
     #ntod 
-    nsamps = int(U.get_sample_count(**chunkdict) / args.downsample)
+    nsamps = int(UM.get_sample_count(**chunkdict) / args.downsample)
     comm_tod.add_field(prefix + '/ntod', nsamps)   
 
     if args.no_compress:
@@ -213,7 +235,7 @@ def make_chunk(comm_tod, freq, chunk, args):
         
         # Read in detector pointing for this chunk
         try:
-            lon, lat, psi= Um.get_det_coords(det, coord='G', **chunkdict)
+            lon, lat, psi= UM.get_det_coords(det, coord='G', **chunkdict)
         except ValueError as e:
             print('No det pointing + psi in: ', freq, chunk, det)
             # add fake, completely flagged data to fill the chunk
@@ -226,8 +248,6 @@ def make_chunk(comm_tod, freq, chunk, args):
 
             continue
 
-
-        # Need to restimate effective beam ? FIX
         ########################################################################
         # psi: can't naively average. Need to handle blocks straddling ±180°
         # First, make each angle psi a point on the unit circle: cos(psi) + i sin(psi)
@@ -264,8 +284,8 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         ########################################################################
         # TOD: First load the TOD and subtract stepstitch
-        tod = U.getdata(det, product='dcclean08', **chunkdict)
-        stepstitch = U.getdata(det, product='stepstitch07', **chunkdict)
+        tod = UM.getdata(det, product='dcclean08', **chunkdict)
+        stepstitch = UM.getdata(det, product='stepstitch07', **chunkdict)
         tod = tod - stepstitch
 
         # Block reshape and average
@@ -280,8 +300,8 @@ def make_chunk(comm_tod, freq, chunk, args):
         # flag: Same flags and masks as SPIDER's own mapmaking (get_tot_flag with
         # dcclean08 + stepstitch07). These already contain the stepstitch07 
         # flags, so that product's flag is not read separately.
-        flag_comb = U.getdata(det, product='flag_comb08', **chunkdict)
-        flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
+        flag_comb = UM.getdata(det, product='flag_comb08', **chunkdict)
+        flag_extra = UM.getdata(det, product='flag_extra02', **chunkdict)        
 
         # Generate binary flags 
 
@@ -303,7 +323,10 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         comm_tod.add_field(prefix + '/scalars', scalars)
 
-        U.raw_close()
+        UM.raw_close()
+
+    # Catch detectors with no pointing, close their UnifileMap too
+    UM.raw_close()
 
     comm_tod.finalize_chunk(chunk)
     comm_tod.finalize_file()

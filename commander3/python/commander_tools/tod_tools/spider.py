@@ -28,7 +28,7 @@ class spider(object):
     freqs = [90, 150]
     nside = 512
     npsi = 4096
-    fwhm = {90:41.4, 150:28.8} #in arcminutes
+    fwhm = {90:41.38, 150:28.81} #in arcminutes
 
 
     huffman = ['huffman', {'dictNum':1}]
@@ -55,11 +55,13 @@ class spider(object):
             #do something here
             pass
 
-        if version == 5:
-            #v4 plus a per-detector initial gain
-            for det in f.h5file.keys():
-                if det.startswith('x') and 'gain' not in f.h5file[det]:
-                    raise ValueError('Detector ' + det + ' is missing its gain in ' + spider.instrument_filename(version))
+        # A v5 exists that is just v4 + detector gains. After adding this to the 
+        # TOD scalars, this instrument file isn't needed anymore
+        # if version == 5:
+        #     #v4 plus a per-detector initial gain
+        #     for det in f.h5file.keys():
+        #         if det.startswith('x') and 'gain' not in f.h5file[det]:
+        #             raise ValueError('Detector ' + det + ' is missing its gain in ' + spider.instrument_filename(version))
 
-        if version > 5:
+        if version > 4:
             raise ValueError('Version ' + str(version) + ' of the spider instrument file has yet to be defined') 

@@ -351,6 +351,7 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
+     procedure                           :: construct_jump_corr
      procedure                           :: apply_nonlin_corr_inst
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
@@ -2330,6 +2331,26 @@ contains
     integer(i4b),         intent(in),   optional :: det
     sd%s_inst = 0.d0
   end subroutine construct_corrtemp_inst
+
+  subroutine construct_jump_corr(self, sd, det)
+    ! Construct the jump template sd%s_jump. Instrument-specific, 
+    ! the default is no jumps
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    ! 
+    ! sd:   comm_scandata object
+    !       Scan data, sd%s_jump is filled
+    ! det:  int
+    !       Optional detector index. If present, only evaluate for given detector
+    ! 
+    implicit none
+    class(comm_tod),        intent(in)              :: self
+    class(comm_scandata),   intent(inout)           :: sd
+    integer(i4b),           intent(in),    optional :: det
+    sd%s_jump = 0.
+  end subroutine
 
   subroutine coadd_horns(self, sd, det)
     ! Coadd horn TOD into effective TODs; store in 0-th column

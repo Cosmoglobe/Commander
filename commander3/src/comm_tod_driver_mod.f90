@@ -290,8 +290,8 @@ contains
     ! Construct jump correction template
     if (btest(oper,SD_JUMP)) then
        call timer%start(TOD_INSTCORR, tod%band)
-       sd%s_jump = 0. !Initialize with zero jumps. spider fills this later 
-       !call tod%construct_jump_corr(sd, det)
+       sd%s_jump = 0. !Initialize with zero jumps. Instrument hook fills them 
+       call tod%construct_jump_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
 
@@ -357,7 +357,6 @@ contains
     !    write(*,*) "before spurious, tod has nans"
     !  end if
     !end do
-
 
     ! Subtract spurious corrections from TOD according to spur_level
     call timer%start(TOD_INSTCORR, tod%band)
@@ -647,7 +646,7 @@ contains
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
-       call tod%downsample_tod(sd%s_orb(:,1,0), ext)
+       call tod%downsample_tod(sd%tod(:,1), ext)  ! Modified because not every experiment has s_orb
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
