@@ -211,5 +211,9 @@ class hfi(object):
             if f.h5file['857-1/sllmax'] == 0:
                 print('HFI instrument file has null sidelobes for 545 and 858')
 
-        if version > 7:
+        if version == 8:
+            if f.h5file['100-1a/polEff'][()] != 94.35:
+                print('HFI instrument file missing updated pol efficiencies')
+
+        if version > 8:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")
