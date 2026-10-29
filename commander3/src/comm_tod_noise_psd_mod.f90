@@ -860,28 +860,28 @@ contains
     if (nbin < 2) stop 'update_spline: less than 2 bins'
 
 
-    !! Define wn for modulation filter
-    wn_level = 0.d0; cnt = 0
-    do i = 1, n
-       if (x(i) >= 2.d0 .and. x(i) <= 10.d0) then
-          wn_level = wn_level + y(i)
-          cnt = cnt+1
-       end if
-    end do
-
-    wn_level = wn_level/cnt
-    m = 0.d0
-    do i = 1, nbin
-       if (xbin(i) >= 10.d0) then ! compute every slope between 10Hz sample and the next ones
-          m = max(m, (log10(wn_level) - log10(pbin(i)))/(log10(xbin(i)) - log10(10.d0)) )
-       end if
-    end do
-
-    do i = 1, nbin
-       if (xbin(i) >= 10.d0) then ! define filter after 10Hz
-         pbin(i) = pbin(i) * (xbin(i) / 10.d0)**m
-       end if 
-    end do
+!    !! Define wn for modulation filter
+!    wn_level = 0.d0; cnt = 0
+!    do i = 1, n
+!       if (x(i) >= 2.d0 .and. x(i) <= 10.d0) then
+!          wn_level = wn_level + y(i)
+!          cnt = cnt+1
+!       end if
+!    end do
+!
+!    wn_level = wn_level/cnt
+!    m = 0.d0
+!    do i = 1, nbin
+!       if (xbin(i) >= 10.d0) then ! compute every slope between 10Hz sample and the next ones
+!          m = max(m, (log10(wn_level) - log10(pbin(i)))/(log10(xbin(i)) - log10(10.d0)) )
+!       end if
+!    end do
+!
+!    do i = 1, nbin
+!       if (xbin(i) >= 10.d0) then ! define filter after 10Hz
+!         pbin(i) = pbin(i) * (xbin(i) / 10.d0)**m
+!       end if 
+!    end do
 
     ! Gibbs ssample the bins from the conditional posterior
     if (present(handle)) then
@@ -917,19 +917,19 @@ contains
     call spline(self%spline_profile, real(bin_spec_full_range(:,1),dp), real(bin_spec_full_range(:,2),dp), linear=.false.)
     deallocate(bin_spec_full_range)
 
-    ! Define modulation filter
-    nfilter = 1000
-    allocate(filter(nfilter,2)) ! defining filter on finer grid
-    filter(:,2) = 1.d0
-    do i = 1, nfilter
-       filter(i,1) = x(1) + (x(n) - x(1))*real(i-1,sp)/real(nfilter-1,sp)
-       if (filter(i,1) >= 10.d0) filter(i,2) = (10.d0/filter(i,1))**m
-    end do
-    self%apply_filter = .true.
-    call free_spline(self%modulation_filter)
-    call spline(self%modulation_filter, real(filter(:,1),dp), real(filter(:,2),dp), linear=.true.)
-    self%filter_mean = sum(filter(:,2))/nfilter
-    deallocate(filter)
+!    ! Define modulation filter
+!    nfilter = 1000
+!    allocate(filter(nfilter,2)) ! defining filter on finer grid
+!    filter(:,2) = 1.d0
+!    do i = 1, nfilter
+!       filter(i,1) = x(1) + (x(n) - x(1))*real(i-1,sp)/real(nfilter-1,sp)
+!       if (filter(i,1) >= 10.d0) filter(i,2) = (10.d0/filter(i,1))**m
+!    end do
+!    self%apply_filter = .true.
+!    call free_spline(self%modulation_filter)
+!    call spline(self%modulation_filter, real(filter(:,1),dp), real(filter(:,2),dp), linear=.true.)
+!    self%filter_mean = sum(filter(:,2))/nfilter
+!    deallocate(filter)
 
     ! Resetting the white noise level on the lowest point
     do i = 1, n
@@ -1007,7 +1007,8 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_spline_full
 
-    eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 * self%eval_filter(nu) + self%eval_corr(nu) ! Pcorr is already filtered
+    eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu) ! Pcorr is already filtered
+    !eval_noise_psd_spline_full = self%xi_n(SIGMA0)**2 * self%eval_filter(nu) + self%eval_corr(nu) ! Pcorr is already filtered
 
   end function eval_noise_psd_spline_full
 

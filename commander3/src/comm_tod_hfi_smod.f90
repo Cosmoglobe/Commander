@@ -362,7 +362,6 @@ contains
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
-    logical(lgt)        :: fit_4K_lines
     class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
     !type(comm_detdata)  :: dd
@@ -426,14 +425,14 @@ contains
        sample_adc            = .false. !iter  > 0 ! 3 !.true.
     else
        ! Do data selection, then start sampling
-       sample_gain           = iter > 1
-       make_dyn_mask         = iter == 1
-       sample_ncorr          = iter > 1 !.true.
-       sample_xi_n           = iter > 1 !.false.
+       sample_gain           = iter > 2
+       make_dyn_mask         = iter == 3
+       sample_ncorr          = iter > 4 !.true.
+       sample_xi_n           = iter > 5 !.false.
        select_data           = .false. !iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
     end if
-    fit_4K_lines          = .true. !iter > 2
+    self%fit_4K_lines          = .true. !iter > 2
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
 
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -568,7 +567,7 @@ contains
        call self%hfi_dark_correction(i, sd)       
 
        ! 4K lines estimation ==========
-       if (fit_4K_lines) then
+       if (self%fit_4K_lines) then
           if (trim(self%cooler_correction_domain) == 'time') then
              ! 4K Line corrections from TOD
              do j = 1, self%ndet
@@ -599,6 +598,16 @@ contains
                 call estimate_hfi_4K_lines_harm(self, sd, j, chaindir=chaindir)
              end do
           end if
+       else
+          ! In-paint flagged samples
+          do j = 1, self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             do k = 1, sd%ntod
+                if (iand(sd%flag(k,j), self%flag0) .ne. 0) then
+                   sd%tod(k,j) = self%scans(i)%d(j)%gain * sd%s_tot(k,j,0,1) + self%scans(i)%d(j)%N_psd%sigma0_preproc(1) * rand_gauss(handle)
+                end if
+             end do
+          end do
        end if
        ! =============================
 
@@ -1548,31 +1557,44 @@ contains
 
     ! 4K lines removal and/or in-painting
     if (nonlin_lvl > 2) then
-       if (trim(self%cooler_correction_domain) == 'time') then
-          do i = 1, self%ndet
-             d = i; if (present(det)) d = det
-             if (.not. self%scans(scan)%d(d)%accept) cycle
-             ! Correct 4K lines from TOD
-             call remove_hfi_4K_lines_tod(self, sd, i)
-             ! In-paint flagged samples with s_tot + white noise
-             do j = 1, sd%ntod
-                if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
-                   sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
-                end if
+       if (self%fit_4K_lines) then
+          if (trim(self%cooler_correction_domain) == 'time') then
+             do i = 1, self%ndet
+                d = i; if (present(det)) d = det
+                if (.not. self%scans(scan)%d(d)%accept) cycle
+                ! Correct 4K lines from TOD
+                call remove_hfi_4K_lines_tod(self, sd, i)
+                ! In-paint flagged samples with s_tot + white noise
+                do j = 1, sd%ntod
+                   if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                      sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(2) * rand_gauss(handle)
+                   end if
+                end do
              end do
-          end do
-       elseif (trim(self%cooler_correction_domain) == 'frequency') then
-          ! In-paint flagged samples with s_tot + white noise
+          elseif (trim(self%cooler_correction_domain) == 'frequency') then
+             ! In-paint flagged samples with s_tot + white noise
+             do i = 1, self%ndet
+                d = i; if (present(det)) d = det
+                if (.not. self%scans(scan)%d(d)%accept) cycle
+                do j = 1, sd%ntod
+                   if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
+                      sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(1) * rand_gauss(handle)
+                      end if
+                   end do
+                ! Correct 4K lines from PSD
+                call remove_hfi_4K_lines_harm(self, sd, i)
+             end do
+          end if
+       else
+          ! In-paint flagged samples
           do i = 1, self%ndet
              d = i; if (present(det)) d = det
              if (.not. self%scans(scan)%d(d)%accept) cycle
              do j = 1, sd%ntod
                 if (iand(sd%flag(j,i), self%flag0) .ne. 0) then
                    sd%tod(j,i) = self%scans(scan)%d(d)%gain * sd%s_tot(j,i,0,1) + self%scans(scan)%d(d)%N_psd%sigma0_preproc(1) * rand_gauss(handle)
-                   end if
-                end do
-             ! Correct 4K lines from PSD
-             call remove_hfi_4K_lines_harm(self, sd, i)
+                end if
+             end do
           end do
        end if
     end if

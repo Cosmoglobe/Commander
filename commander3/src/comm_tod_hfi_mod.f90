@@ -62,6 +62,7 @@ module comm_tod_hfi_mod
                                                    ! and also the order of in-painting <> 4K lines correction
      class(comm_4K_lines_), allocatable, dimension(:,:) :: cooler_4K_lines_profile ! (ndet,nscan) ! x TOD removal
      real(sp) :: f_spin
+     logical(lgt) :: fit_4K_lines
      type(planck_rng) :: handle
      real(dp), allocatable, dimension(:) :: nus_4K_lines ! (n_4K_lines)
      integer(i4b), allocatable, dimension(:,:) :: adu_range   ! (ndet,min/max)

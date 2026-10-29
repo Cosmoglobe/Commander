@@ -219,9 +219,9 @@ contains
        off         = 6 + 4*(det-1)
        if(binmap%solve_nplus2) off = 6 + 3*(det-2)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
-       if (trim(tod%noise_psd_model) == 'spline' .and. tod%scans(scan)%d(det)%N_psd%apply_filter) then
-          inv_sigmasq = inv_sigmasq/tod%scans(scan)%d(det)%N_psd%filter_mean ! Approximation used for chisq as well
-       end if
+!       if (trim(tod%noise_psd_model) == 'spline' .and. tod%scans(scan)%d(det)%N_psd%apply_filter) then
+!          inv_sigmasq = inv_sigmasq/tod%scans(scan)%d(det)%N_psd%filter_mean ! Approximation used for chisq as well
+!       end if
        !write(*,*) tod%myid, tod%scans(scan)%chunk_num, tod%scans(scan)%d(det)%label, inv_sigmasq
 
        ! polarization efficiency

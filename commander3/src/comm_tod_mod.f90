@@ -2748,78 +2748,78 @@ contains
     n           = 0
     g           = self%scans(scan)%d(det)%gain
 
-    ! For the spline model, now d**2/sigma0**2 is wrong, because the residuals have a white spectrum convolved with the
+    ! For the filtered spline model, now d**2/sigma0**2 is wrong, because the residuals have a white spectrum convolved with the
     ! modulation_filter. Two options:
     ! 1. The exact solution based on Parseval theorem: sum(d_t**2) = sum(ps) / N = sum[sigma0**2 * filter(f)] / N
     !    > FFT the residuals, compute filter-corrected chisq directly from Fourier coefficients (this allows to skip a FFT back)
     !    > Divide by sigma0**2
     ! 2. Approximate dividing by |filter|. This doesn't require any FFT. --It's the currently enabled option--
 
-    if (trim(self%noise_psd_model) == 'spline' .and. self%scans(scan)%d(det)%N_psd%apply_filter) then
-       if (.false.) then ! Option 1: EXACT
-          ntod = self%scans(scan)%ntod
-          nfft = 2*ntod
-          nf   = nfft/2 + 1
-          samprate = self%samprate
-          allocate(dt(nfft), dv(0:nf-1))
-          call sfftw_init_threads(err)
-          call sfftw_plan_with_nthreads(1)
-          call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-
-          dt = 0.d0; dv = 0.d0 
-          do i = 1, ntod
-             if (sd%mask(i,det) < 0.5) cycle
-             n     = n+1
-             dt(i) = sd%tod(i,det)
-             if (allocated(sd%s_tot))  dt(i) = dt(i) - g*sd%s_tot(i,det,0,1)
-             if (allocated(sd%s_spur)) dt(i) = dt(i) -   sd%s_spur(i,det)
-             if (allocated(sd%n_corr)) dt(i) = dt(i) -   sd%n_corr(i,det)
-          end do
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          call timer%start(TOT_FFT)
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          call timer%stop(TOT_FFT)
-
-          do i = 0, nf-1
-             nu = i*(samprate/2)/(nf-1)
-             ps = abs(dv(i))** 2 / (2*ntod) ! sigma0**2 * filter
-             ps = ps/2 ! dt is mirrored, the sum below is computed on 2*ntod terms
-
-             ! Parseval requires to take into account all 2*ntod coefficients
-             if (i==0 .or. i==nf-1) then
-                w = 1.d0
-             else
-                w = 2.d0
-             end if
-             filter = self%scans(scan)%d(det)%N_psd%eval_filter(nu)
-             chisq = chisq + w * ps / filter  ! build sum over d**2 without filter contribution
-          end do
-          deallocate(dt, dv)
-          call sfftw_destroy_plan(plan_fwd)
-       else ! Option 2: APPROXIMATION
-          do i = 1, self%scans(scan)%ntod
-             if (sd%mask(i,det) < 0.5) cycle
-             n     = n+1
-             d0    = sd%tod(i,det)
-             if (allocated(sd%s_tot))  d0 = d0 - g*sd%s_tot(i,det,0,1)
-             if (allocated(sd%s_spur)) d0 = d0 -   sd%s_spur(i,det)
-             if (allocated(sd%n_corr)) d0 = d0 -   sd%n_corr(i,det)
-             chisq = chisq + d0**2
-          end do
-          chisq = chisq / self%scans(scan)%d(det)%N_psd%filter_mean 
-       end if
-    else
+!    if (trim(self%noise_psd_model) == 'spline' .and. self%scans(scan)%d(det)%N_psd%apply_filter) then
+!       if (.false.) then ! Option 1: EXACT
+!          ntod = self%scans(scan)%ntod
+!          nfft = 2*ntod
+!          nf   = nfft/2 + 1
+!          samprate = self%samprate
+!          allocate(dt(nfft), dv(0:nf-1))
+!          call sfftw_init_threads(err)
+!          call sfftw_plan_with_nthreads(1)
+!          call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+!
+!          dt = 0.d0; dv = 0.d0 
+!          do i = 1, ntod
+!             if (sd%mask(i,det) < 0.5) cycle
+!             n     = n+1
+!             dt(i) = sd%tod(i,det)
+!             if (allocated(sd%s_tot))  dt(i) = dt(i) - g*sd%s_tot(i,det,0,1)
+!             if (allocated(sd%s_spur)) dt(i) = dt(i) -   sd%s_spur(i,det)
+!             if (allocated(sd%n_corr)) dt(i) = dt(i) -   sd%n_corr(i,det)
+!          end do
+!          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!          call timer%start(TOT_FFT)
+!          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!          call timer%stop(TOT_FFT)
+!
+!          do i = 0, nf-1
+!             nu = i*(samprate/2)/(nf-1)
+!             ps = abs(dv(i))** 2 / (2*ntod) ! sigma0**2 * filter
+!             ps = ps/2 ! dt is mirrored, the sum below is computed on 2*ntod terms
+!
+!             ! Parseval requires to take into account all 2*ntod coefficients
+!             if (i==0 .or. i==nf-1) then
+!                w = 1.d0
+!             else
+!                w = 2.d0
+!             end if
+!             filter = self%scans(scan)%d(det)%N_psd%eval_filter(nu)
+!             chisq = chisq + w * ps / filter  ! build sum over d**2 without filter contribution
+!          end do
+!          deallocate(dt, dv)
+!          call sfftw_destroy_plan(plan_fwd)
+!       else ! Option 2: APPROXIMATION
+!          do i = 1, self%scans(scan)%ntod
+!             if (sd%mask(i,det) < 0.5) cycle
+!             n     = n+1
+!             d0    = sd%tod(i,det)
+!             if (allocated(sd%s_tot))  d0 = d0 - g*sd%s_tot(i,det,0,1)
+!             if (allocated(sd%s_spur)) d0 = d0 -   sd%s_spur(i,det)
+!             if (allocated(sd%n_corr)) d0 = d0 -   sd%n_corr(i,det)
+!             chisq = chisq + d0**2
+!          end do
+!          chisq = chisq / self%scans(scan)%d(det)%N_psd%filter_mean 
+!       end if
+!    else
        do i = 1, self%scans(scan)%ntod
           if (sd%mask(i,det) < 0.5) cycle
           n     = n+1
-          !chisq = (sd%tod(i,det) - (g*sd%s_tot(i,det,0,1) + sd%s_spur(i,det) + sd%n_corr(i,det)))**2
+         !chisq = (sd%tod(i,det) - (g*sd%s_tot(i,det,0,1) + sd%s_spur(i,det) + sd%n_corr(i,det)))**2
           d0    = sd%tod(i,det)
           if (allocated(sd%s_tot))  d0 = d0 - g*sd%s_tot(i,det,0,1)
           if (allocated(sd%s_spur)) d0 = d0 -   sd%s_spur(i,det)
           if (allocated(sd%n_corr)) d0 = d0 -   sd%n_corr(i,det)
           chisq = chisq + d0**2
        end do
-    end if
+!    end if
 
     if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0 .or. n == 0) then
        if (present(absbp)) then
