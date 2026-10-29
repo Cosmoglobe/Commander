@@ -183,11 +183,11 @@ contains
        c%orb_4pi_beam    = .true.
     else if (c%freq(1:3) == "545") then
        c%chisq_threshold  = 1.d30
-       c%correct_sl       = .false.
+       c%correct_sl       = .true.
        c%orb_4pi_beam    = .false.
     else if (c%freq(1:3) == "857") then
        c%chisq_threshold  = 1.d30
-       c%correct_sl       = .false.
+       c%correct_sl       = .true.
        c%orb_4pi_beam    = .false.
     end if
 
