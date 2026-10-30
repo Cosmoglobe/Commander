@@ -104,8 +104,14 @@ contains
 
     subroutine get_jump_tod(self, tod)
       implicit none
+
+      ! Builds the staircase correction
       class(comm_tod_jump),               intent(in)     :: self
       real(sp),             dimension(:), intent(out)    :: tod
+
+      integer(i4b)                                       :: jump_idx, sample_idx
+
+      ! TODO: staircase stuff goes here
 
     end subroutine get_jump_tod
 
