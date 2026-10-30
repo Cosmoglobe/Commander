@@ -91,8 +91,8 @@ contains
       implicit none
 
       ! Refits the jump ampl. from the residual levels around each jump
-      class(comm_tod_jump),                intent(inout) :: self
-      real(sp),              dimension(:), intent(in)    :: tod
+      class(comm_tod_jump),               intent(inout) :: self
+      real(sp),             dimension(:), intent(in)    :: tod
 
       real(dp), allocatable, dimension(:) :: tod_dp, segment_levels, segment_values
       logical,  allocatable, dimension(:) :: good
@@ -106,13 +106,72 @@ contains
       implicit none
 
       ! Builds the staircase correction
-      class(comm_tod_jump),               intent(in)     :: self
-      real(sp),             dimension(:), intent(out)    :: tod
+      class(comm_tod_jump),               intent(in)   :: self
+      real(sp),             dimension(:), intent(out)  :: tod
 
-      integer(i4b)                                       :: jump_idx, sample_idx
+      integer(i4b)                                     :: jump_idx, sample_idx
 
       ! TODO: staircase stuff goes here
 
     end subroutine get_jump_tod
+
+    subroutine block_medians(samples, good, block_median)
+      implicit none
+
+      ! Computes a median for each block of samples
+      real(dp),             dimension(:), intent(in)  :: samples
+      logical,              dimension(:), intent(in)  :: good
+      real(dp),             dimension(:), intent(out) :: block_median
+
+      ! TODO: fill in.
+    end subroutine block_medians
+
+    subroutine step_filter(block_median, window_blocks, filter_score, step_difference)
+      implicit none
+
+      ! Assigns a score to the jump-candidates
+      real(dp),             dimension(:), intent(in)  :: block_median
+      integer(i4b),                       intent(in)  :: window_blocks
+      real(dp),             dimension(:), intent(out) :: filter_score
+      real(dp),             dimension(:), intent(out) :: step_difference
+
+      ! TODO: fill in
+    end subroutine step_filter
+
+    integer(i4b) function refine(samples, good, first_sample, last_sample, window_samples) result(best_sample)
+      implicit none
+
+      ! Refines (=determines) the accurate jump position
+      real(dp),             dimension(:), intent(in)  :: samples
+      logical,              dimension(:), intent(in)  :: good
+      integer(i4b),                       intent(in)  :: first_sample, last_sample, window_samples
+
+      ! TODO: fill in
+    end function refine
+
+    real(dp) function robust_noise_scale(values) result(noise_scale)
+      implicit none
+
+      ! Estimates the noise scale via median absolute deviation (mad)
+      real(dp),             dimension(:), intent(in)  :: values
+
+      logical,  allocatable, dimension(:) :: finite
+      real(dp), allocatable, dimension(:) :: finite_values, deviations
+      real(dp) :: center
+
+      ! TODO: Fill out
+    end function robust_noise_scale
+
+    real(dp) function median_values(values) result(median)
+      implicit none
+
+      real(dp),            dimension(:), intent(in)  :: values
+
+      real(dp), allocatable, dimension(:)  :: sorted_values
+      integer(i4b)                         :: n, middle
+
+      ! TODO: write equivalent to np.median here OR resuse the one in comm_utils and delete. 
+    end function median_values
+
 
 end module comm_tod_jump_mod
