@@ -31,6 +31,7 @@ module comm_tod_jump_mod
     integer(dp), allocatable, dimension(:)     :: jump_pos
     integer(dp), allocatable, dimension(:,:)   :: mask       ! (njump,2), start/stop
     real(sp),    allocatable, dimension(:)     :: jump_amp
+    integer(i4b) :: maxseg
   contains
     procedure :: find_jumps
     procedure :: sample_jump_amplitudes
@@ -54,11 +55,22 @@ contains
 
     subroutine find_jumps(self, tod, signal, flag, samprate)
       implicit none
-      class(comm_tod_jump),               intent(inout) :: self
-      real(sp),             dimension(:), intent(inout) :: tod
-      real(sp),             dimension(:), intent(in)    :: signal
-      integer(i4b),         dimension(:), intent(inout) :: flag
-      real(dp),                           intent(in)    :: samprate !KG NOTE: make sure to include this in the call for find_jumps.
+      
+      ! Detects jumps in the residual and stores their positions and amplitudes
+      class(comm_tod_jump),                intent(inout) :: self
+      real(sp),              dimension(:), intent(inout) :: tod
+      real(sp),              dimension(:), intent(in)    :: signal
+      integer(i4b),          dimension(:), intent(inout) :: flag
+      real(dp),                            intent(in)    :: samprate !KG NOTE: make sure to include this in the call for find_jumps.
+
+      ! KG: these follow the param names of Simons prototype
+      ! TODO: check that these are the names we want
+      real(sp), allocatable, dimension(:) :: resdidual
+      real(dp), allocatable, dimension(:) :: detection_work, bmed, filter_score, step_diff
+      logical,  allocatable, dimension(:) :: good
+      integer(i4b)                        :: n, nblock, iteration, scale_idx, block_idx
+      integer(i4b)                        :: sample_idx, window_blocks
+      real(dp)                            :: best_score, score, noise_scale, step_amp
 
       ! Perform matched filer
 
