@@ -30,6 +30,7 @@ module comm_tod_jump_mod
     integer(i4b) :: njump
     integer(dp), allocatable, dimension(:)     :: jump_pos
     integer(dp), allocatable, dimension(:,:)   :: mask       ! (njump,2), start/stop
+    real(sp),    allocatable, dimension(:)     :: jump_amp
   contains
     procedure :: find_jumps
     procedure :: sample_jump_amplitudes
@@ -51,12 +52,13 @@ contains
 
     end function constructor_jump
 
-    subroutine find_jumps(self, tod, signal, flag)
+    subroutine find_jumps(self, tod, signal, flag, samprate)
       implicit none
       class(comm_tod_jump),               intent(inout) :: self
       real(sp),             dimension(:), intent(inout) :: tod
       real(sp),             dimension(:), intent(in)    :: signal
       integer(i4b),         dimension(:), intent(inout) :: flag
+      real(dp),                           intent(in)    :: samprate !KG NOTE: make sure to include this in the call for find_jumps.
 
       ! Perform matched filer
 
