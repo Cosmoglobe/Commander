@@ -89,8 +89,16 @@ contains
 
     subroutine sample_jump_amplitudes(self, tod)
       implicit none
-      class(comm_tod_jump),               intent(inout) :: self
-      real(sp),             dimension(:), intent(in)    :: tod
+
+      ! Refits the jump ampl. from the residual levels around each jump
+      class(comm_tod_jump),                intent(inout) :: self
+      real(sp),              dimension(:), intent(in)    :: tod
+
+      real(dp), allocatable, dimension(:) :: tod_dp, segment_levels, segment_values
+      logical,  allocatable, dimension(:) :: good
+      integer(i4b)                        :: jump_idx, segment_start, segment_stop, n, maxseg
+
+      ! TODO: Refit function goes here
 
     end subroutine sample_jump_amplitudes
 
