@@ -2050,6 +2050,8 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+!!$       output(:,:,1) = output(:,:,1) - self%gain0(0) + 3.13e-02
+!!$       self%gain0(0) = 3.13e-02
        call read_hdf(chainfile, trim(adjustl(path))//'x_im', self%x_im(1:2))
        self%x_im(3) = self%x_im(2)
        self%x_im(4) = self%x_im(3)
@@ -2118,6 +2120,8 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:2+self%n_xi)
+!!$          self%scans(i)%d(j)%N_psd%xi_n(2)        = 0.1d0
+!!$          self%scans(i)%d(j)%N_psd%xi_n(3)        = -1.5d0
           !self%scans(i)%d(j)%N_psd%xi_n(1)        = self%scans(i)%d(j)%N_psd%xi_n(1) * 1d-2
           if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0

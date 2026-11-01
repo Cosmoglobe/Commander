@@ -103,6 +103,8 @@ contains
 
     if (trim(c%freq(1:3)) == '100' .or. trim(c%freq(1:3)) == '217') then
        c%num_emission_lines = 1 ! 12CO (+13CO)
+    else if (trim(c%freq(1:3)) == '353') then
+       c%num_emission_lines = 0 ! 12CO (+13CO)
     else
        c%num_emission_lines = 0 ! 12CO (+13CO)
     end if
@@ -292,7 +294,7 @@ contains
     !c%dynmask%apply_pixhist           = .true.
     !c%dynmask%apply_solar_mask        = .true.
     !c%dynmask%remove_isolated_samples = .true.
-    if (c%freq(1:3) /= "353") then
+    if (.true. .or. c%freq(1:3) /= "353") then
        c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
        c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
        !c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
@@ -360,7 +362,7 @@ contains
     integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, oper_minimal, skip_nonlin_, seed, oper_line
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n, sample_co
-    logical(lgt)        :: fit_4k_lines, sample_cray
+    logical(lgt)        :: fit_4k_lines, sample_cray, sample_abscal
     class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
     class(comm_linemap), pointer   :: linemap
@@ -408,6 +410,7 @@ contains
     if (.false.) then ! Debug
        ! Do data selection, then start sampling
        sample_gain           = .false. !iter  > 0 !.true.                 
+       sample_abscal         = sample_gain
        make_dyn_mask         = .false. ! iter == 1
        sample_ncorr          = .false. ! iter  > 0 !.true.
        sample_xi_n           = .false.
@@ -417,7 +420,8 @@ contains
        sample_cray           = .false.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = iter  > 2 !.true.                 
+       sample_gain           = iter  > 2 !.true.
+       sample_abscal         = sample_gain
        make_dyn_mask         = iter == 20
        sample_ncorr          = iter > 10 !.true.
        sample_xi_n           = iter > 15 
@@ -428,6 +432,7 @@ contains
     else
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
+       sample_abscal         = sample_gain
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 1 !.false.
@@ -436,10 +441,14 @@ contains
        sample_co             = self%num_emission_lines > 0
        sample_cray           = .false. ! iter  > 0.
     end if
-    if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") then
+    if (self%freq(1:3) == "353") then
+       sample_ncorr  = .false.
+       sample_xi_n   = .false.
+!!$       sample_abscal = .false.
+    else if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") then
        make_dyn_mask = .false.
-       !sample_ncorr  = .false.
-       !sample_xi_n   = .false.
+       sample_ncorr  = .false.
+       sample_xi_n   = .false.
     end if
 
 !!$    ! Disable ncorr until gain related effects are solved
@@ -669,9 +678,7 @@ contains
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (sample_gain) then
        ! TODO: Also sample non-linear gain response here?
-       call sample_calibration(self, 'abscal', oper_default, handle)
-!!$       call mpi_finalize(ierr)
-!!$       stop
+       if (sample_abscal) call sample_calibration(self, 'abscal', oper_default, handle)
        call sample_calibration(self, 'relcal', oper_default, handle)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
