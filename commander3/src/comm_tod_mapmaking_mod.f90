@@ -1013,11 +1013,11 @@ end subroutine bin_differential_TOD
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
-           else if (delta_r > delta_0*1000) then
-              write(*,*) '|      Solution is diverging, killing search'
-              finished = .true.
-              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
-              exit bicg
+           !!else if (delta_r > delta_0*1000) then
+           !!   write(*,*) '|      Solution is diverging, killing search'
+           !!   finished = .true.
+           !!   call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+           !!   exit bicg
            end if
            if (i==i_max) then
              if (tod%verbosity > 1) write(*,*) '|      Reached maximum number of iterations'
