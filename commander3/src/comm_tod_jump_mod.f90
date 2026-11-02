@@ -21,6 +21,8 @@
 !================================================================================
 module comm_tod_jump_mod
   use comm_param_mod
+  use comm_utils, only: median
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
   implicit none
 
   private
@@ -109,7 +111,8 @@ contains
       class(comm_tod_jump),               intent(in)   :: self
       real(sp),             dimension(:), intent(out)  :: jump_tod !TODO "stair" in Simons code, ok to change?
 
-      integer(i4b)                                     :: jump_idx, sample_idx
+      integer(i4b)                                     :: jump_idx
+      integer(dp)                                      :: sample_idx
 
       jump_tod = 0.0_sp
 
@@ -161,14 +164,19 @@ contains
     real(dp) function robust_noise_scale(values) result(noise_scale)
       implicit none
 
-      ! Estimates the noise scale via median absolute deviation (mad)
-      real(dp),             dimension(:), intent(in)  :: values
+      ! Estimates the noise scale using the scaled median absolute deviation (mad)
+      real(dp),              dimension(:), intent(in)  :: values
 
       logical,  allocatable, dimension(:) :: finite
-      real(dp), allocatable, dimension(:) :: finite_values, deviations
-      real(dp) :: center
+      real(dp), allocatable, dimension(:) :: finite_values
 
-      ! TODO: Fill out
+      noise_scale = 0.0_dp
+      finite = ieee_is_finite(values)
+      finite_values = pack(values, finite)
+      if (size(finite_values) == 0) return
+
+      noise_scale = 1.4826_dp * median(abs(finite_values - median(finite_values)))
+
     end function robust_noise_scale
 
 
