@@ -162,16 +162,5 @@ contains
       ! TODO: Fill out
     end function robust_noise_scale
 
-    real(dp) function median_values(values) result(median)
-      implicit none
-
-      real(dp),            dimension(:), intent(in)  :: values
-
-      real(dp), allocatable, dimension(:)  :: sorted_values
-      integer(i4b)                         :: n, middle
-
-      ! TODO: write equivalent to np.median here OR resuse the one in comm_utils and delete. 
-    end function median_values
-
 
 end module comm_tod_jump_mod
