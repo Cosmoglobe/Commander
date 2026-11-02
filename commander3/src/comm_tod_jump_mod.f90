@@ -28,6 +28,8 @@ module comm_tod_jump_mod
   private
   public comm_tod_jump
 
+  real(dp), parameter :: min_fraction = 0.4_dp
+
   type :: comm_tod_jump
     integer(i4b) :: njump
     integer(dp), allocatable, dimension(:)     :: jump_pos
@@ -67,7 +69,6 @@ contains
       integer(i4b),          dimension(:), intent(inout) :: flag
       real(dp),                            intent(in)    :: samprate !KG NOTE: make sure to include this in the call for find_jumps.
 
-      ! KG: these follow the param names of Simons prototype
       ! TODO: check that these are the names we want
       real(sp), allocatable, dimension(:) :: residual
       real(dp), allocatable, dimension(:) :: detection_work, bmed, filter_score, step_diff
@@ -157,16 +158,52 @@ contains
 
     end subroutine block_medians
 
-    subroutine step_filter(block_median, window_blocks, filter_score, step_difference)
+    subroutine step_filter(block_median, window_blocks, filter_score, step_diff)
       implicit none
 
-      ! Assigns a score to the jump-candidates
+      ! Assigns a score to the jump-candidates via a matched filter with a step func. 
       real(dp),             dimension(:), intent(in)  :: block_median
       integer(i4b),                       intent(in)  :: window_blocks
-      real(dp),             dimension(:), intent(out) :: filter_score
-      real(dp),             dimension(:), intent(out) :: step_difference
+      real(dp),             dimension(:), intent(out) :: filter_score, step_diff
+      
+      real(dp),     allocatable, dimension(:) :: cumulative_sum
+      integer(i4b), allocatable, dimension(:) :: cumulative_count
+      integer(i4b)                            :: nblock, block_idx, lo, hi, before_count, after_count
+      real(dp)                                :: before_mean, after_mean
 
-      ! TODO: fill in
+      nblock = size(block_median)
+      filter_score = ieee_value(0.0_dp, ieee_quiet_nan)
+      step_diff = ieee_value(0.0_dp, ieee_quiet_nan)
+      if (window_blocks <= 0) return
+
+      allocate(cumulative_sum(nblock + 1), cumulative_count(nblock + 1))
+      cumulative_sum(1) = 0.0_dp
+      cumulative_count(1) = 0
+
+      do block_idx = 1, nblock
+        cumulative_sum(block_idx + 1) = cumulative_sum(block_idx)
+        cumulative_count(block_idx + 1) = cumulative_count(block_idx)
+        if (ieee_is_finite(block_median(block_idx))) then
+          cumulative_sum(block_idx + 1) = cumulative_sum(block_idx + 1) + block_median(block_idx)
+          cumulative_count(block_idx + 1) = cumulative_count(block_idx + 1) + 1
+        end if
+      end do
+      
+      do block_idx = 1, nblock
+        lo = max(1_i4b, block_idx - window_blocks)
+        hi = min(nblock, block_idx + window_blocks - 1)
+        before_count = cumulative_count(block_idx) - cumulative_count(lo)
+        after_count = cumulative_count(hi + 1) - cumulative_count(block_idx)
+        if (real(before_count, dp) < min_fraction * window_blocks .or. &
+            real(after_count, dp) < min_fraction * window_blocks) cycle
+        
+        before_mean = (cumulative_sum(block_idx) - cumulative_sum(lo)) / real(before_count, dp)
+        after_mean = (cumulative_sum(hi + 1) - cumulative_sum(block_idx)) / real(after_count, dp)
+        step_diff(block_idx) = after_mean - before_mean
+
+        filter_score(block_idx) = step_diff(block_idx)/sqrt(1.0_dp/after_count + 1.0_dp/before_count)
+      end do
+
     end subroutine step_filter
 
     integer(i4b) function refine(samples, good, first_sample, last_sample, window_samples) result(best_sample)
