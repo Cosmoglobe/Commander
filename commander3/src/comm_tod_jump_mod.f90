@@ -102,17 +102,26 @@ contains
 
     end subroutine sample_jump_amplitudes
 
-    subroutine get_jump_tod(self, tod)
+    subroutine get_jump_tod(self, jump_tod)
       implicit none
 
-      ! Builds the staircase correction
+      ! Builds the staircase correction (jump_tod)
       class(comm_tod_jump),               intent(in)   :: self
-      real(sp),             dimension(:), intent(out)  :: tod
+      real(sp),             dimension(:), intent(out)  :: jump_tod !TODO "stair" in Simons code, ok to change?
 
       integer(i4b)                                     :: jump_idx, sample_idx
 
-      ! TODO: staircase stuff goes here
+      jump_tod = 0.0_sp
 
+      if (.not. allocated(self%jump_pos)) return
+      if (.not. allocated(self%jump_amp)) return
+
+      do jump_idx = 1, min(self%njump, size(self%jump_pos), size(self%jump_amp))
+        sample_idx = self%jump_pos(jump_idx)
+        if (sample_idx < 1 .or. sample_idx > size(jump_tod)) cycle
+
+        jump_tod(sample_idx:) = jump_tod(sample_idx:) + self%jump_amp(jump_idx)
+      end do
     end subroutine get_jump_tod
 
     subroutine block_medians(samples, good, block_median)
