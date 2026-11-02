@@ -560,9 +560,9 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             scalars   = np.array([gain, sigma0, fknee, alpha])
             ctod.add_field(prefix + '/scalars', scalars)
             
-            # average outer product - estimate of sattellite spinn axis
-            # used for load balancing. Set to zero for now
-            # outAng   = lfi.ring_outer_product(Theta, Phi)
+            # the spin axis, for the filelist's theta and phi (used for load balancing). Set to
+            # zero for now
+            # outAng   = ctod.pointing_plane_normal(Theta, Phi)
             outAng    = np.array([0,0])
             ctod.add_field(prefix + '/outP', outAng)
 

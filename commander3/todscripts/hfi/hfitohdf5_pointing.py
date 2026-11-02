@@ -403,9 +403,9 @@ def make_od(comm_tod, freq, od, args):
 
 
                 if len(pixels > 0):
-                    #compute average outer product
+                    #the spin axis, for the filelist's theta and phi (used for load balancing)
                     try:
-                        outAng = hfi.ring_outer_product(galTheta, galPhi)
+                        outAng = comm_tod.pointing_plane_normal(galTheta, galPhi)
                     except:
                         print('Outer product error:', galTheta, min(galTheta), max(galTheta))
                         print('od, pid', od, pid)

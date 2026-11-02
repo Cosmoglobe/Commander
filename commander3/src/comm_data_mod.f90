@@ -333,6 +333,12 @@ contains
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
+
+       ! just for janky sim
+       ! sets all bandpasses to be equal for all detectors 
+       !do j = 1, data(n)%ndet
+       !   data(n)%bp(j)%p => data(n)%bp(0)%p
+       !end do
        ! Set up bp pointers in the TOD object
        if (cpar%enable_TOD_analysis .and. data(n)%tod_type /= 'none') then
           allocate(data(n)%tod%bp(0:data(n)%ndet))

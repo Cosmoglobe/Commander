@@ -301,7 +301,8 @@ contains
     character(len=6)    :: samptext, scantext
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename, prefix_nplus2
     character(len=512), allocatable, dimension(:) :: slist
-    real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
+
+    real(sp), allocatable, dimension(:)       :: sigma0
     integer(i4b), allocatable, dimension(:)   :: op_list
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
@@ -317,7 +318,7 @@ contains
     sample_gain           = .true.
     sample_ncorr          = .true.
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0) .and. self%map_type /= 'nplus2'    ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   =      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
+    sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
@@ -490,7 +491,7 @@ contains
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
        call timer%stop(TOD_ALLOC, self%band)
        call compute_calibrated_data(self, i, sd, d_calib)
-       
+
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
@@ -518,7 +519,7 @@ contains
     call mpi_barrier(self%comm, ierr)
     call timer%stop(TOD_WAIT, self%band)
 
-    if (self%myid == 0) write(*,*) '|    --> Finalizing maps, bp'
+    if (self%myid == 0) write(*,*) '|    --> Finalizing maps, bp, rel_bp=', sample_rel_bandpass, ' abs_bp= ', sample_abs_bandpass
 
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
@@ -527,10 +528,10 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=iand(self%pixcache%bitmask, TODMASK_BANDPASS))
        map_out%map = binmap%outmaps(1)%p%map
     else if(self%map_type == 'nplus2') then
-       call finalize_binned_map_nplus2_depol(self, binmap, rms_out, 1.d6)
+       call finalize_binned_map_nplus2(self, binmap, rms_out, 1.d6)
        !Q+U maps
        map_out%map(:,2:3) = binmap%outmaps(1)%p%map(:,2:3)
        do i = 1, self%ndet
@@ -594,7 +595,6 @@ contains
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     if (allocated(chisq_S)) deallocate(chisq_S)
-    !deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -1216,9 +1216,7 @@ contains
 
     allocate(s_bin(0:nbin-1,tod%ndet,tod%nscan), s_sum(0:nbin-1,tod%ndet), nval(0:nbin-1))
 
-    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-         & SD_SKY,SD_BP,SD_SL,SD_ORB])
-    
+    oper = get_sd_operation_code([SD_BASE,SD_MASK,SD_TOD,SD_SKY,SD_SL,SD_ORB])
     ! Compute template per scan
     s_bin = 0.d0
     do i = 1, tod%nscan
@@ -1229,8 +1227,6 @@ contains
        !TODO: convert this correction to the same infrastructure that gets used in other projects. Ideally, the 1Hz spike would be
        !applied with oper = SD_SPIKE, but currently isn't and used sd_inst with spur_lvl > 2
        call init_scan_data(tod, i, oper, TODMASK_PROC, sd)
-
-       !call init_scan_data_singlehorn(sd, tod, i, map_sky, m_gain, procmask, procmask2)
 
        call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))
@@ -1247,8 +1243,6 @@ contains
                 sd%tod(k,j) = 0.0
                 stop
              end if
-             !res(k) = 1/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j) + &
-             !     & sd%s_sl(k,j) + sd%s_orb(k,j))
              res(k) = sd%tod(k,j)/tod%scans(i)%d(j)%gain - (sd%s_sky(k,j,0,1) + &
                   & sd%s_sl(k,j,0) + sd%s_orb(k,j,0))
           end do
@@ -1409,7 +1403,6 @@ contains
     type(hdf_file) :: h5_file
     type(comm_scandata) :: sd
     real(dp), allocatable, dimension(:,:)     :: m_buf
- !   real(sp), allocatable, dimension(:)       :: procmask
     real(sp), allocatable, dimension(:,:)     :: tod
 
     call timer%start(TOD_ALLOC, self%band)
@@ -1503,7 +1496,6 @@ contains
 
      call timer%stop(TOD_ALLOC, self%band)
 
-     !deallocate(procmask)
 
    end subroutine preprocess_L1_to_L2
 

@@ -2922,9 +2922,9 @@ contains
     class(comm_scandata), intent(inout)          :: sd
     integer(i4b),         intent(in),   optional :: det
 
-    integer(i4b) :: i, j, d, h, scan, dsamp, ntod
-    real(dp)     :: spinrate, dpsi, psi0
-    
+    integer(i4b) :: i, j, d, h, r_int, scan, dsamp, ntod
+    real(dp)     :: spinrate, dpsi, psi0, r
+
     scan = sd%scan
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
@@ -2958,6 +2958,8 @@ contains
    elsewhere (sd%psi > self%npsi)
       sd%psi = sd%psi - self%npsi
    end where
+
+   
 
    ! if on-the-fly tod sim mode, we will now overwrite psi with 0.3 rpm
    if (.not. self%on_the_fly_tod_sim) return

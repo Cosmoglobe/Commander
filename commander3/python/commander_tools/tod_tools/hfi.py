@@ -24,12 +24,13 @@ import commander_tools.tod_tools.commander_instrument as inst
 import os
 import numpy as np
 import healpy as hp
-import random
-import math
-class hfi(object):   
+class hfi(object):
  
-    freqs = [100, 143, 217, 353, 545, 857]
-    dets = {100:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b'], 143:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5', '6', '7'], 217:['1', '2', '3', '4', '5a', '5b', '6a', '6b', '7a', '7b', '8a', '8b'], 353:['1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', '7', '8'], 545:['1', '2', '4'], 857:['1', '2', '3', '4']}
+    freqs = [100, 143, 217, 353, 545, 857, 'DRK']
+    dets = {100:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b'], 143:['1a', '1b', '2a', '2b', '3a', '3b', '4a', '4b', '5', '6', '7'], 217:['1', '2', '3', '4', '5a', '5b', '6a', '6b', '7a', '7b', '8a', '8b'], 353:['1', '2', '3a', '3b', '4a', '4b', '5a', '5b', '6a', '6b', '7', '8'], 545:['1', '2', '4'], 857:['1', '2', '3', '4'], 'DRK':['1', '2']}
+    # popcorn noise channels
+    #dets = {143:['8'], 545:['3']}
+
     npsi = 4096
     ntodsigma = 100
     nsides = {100:1024, 143:2048, 217:2048, 353:2048, 545:2048, 857:2048}
@@ -61,12 +62,22 @@ class hfi(object):
 
     #polarization efficiencies from https://www.aanda.org/articles/aa/pdf/2010/12/aa13054-09.pdf appendix B
 
-    pol_effs = {'100-1a': 94.7, '100-1b':94.3, '100-2a':96.2, '100-2b':90.2, '100-3a':90.1, '100-3b':93.4, '100-4a':95.7, '100-4b':92.3,
-                    '143-1a':83.3, '143-1b':84.6, '143-2a':87.5, '143-2b':89.3, '143-3a':83.9, '143-3b':89.9, '143-4a':93.1, '143-4b':92.8, '143-5':6.6, '143-6':4.4, '143-7':1.7, '143-8':1.6,
-                    '217-1':4.0, '217-2':2.1, '217-3':4.1, '217-4':3.8, '217-5a':95.0, '217-5b':95.2, '217-6a':94.9, '217-6b':95.4, '217-7a':94.0, '217-7b':93.7, '217-8a':94.2, '217-8b':94.1,
-                    '353-1':3.4, '353-2':4.8, '353-3a':88.7, '353-3b':92.0, '353-4a':87.0, '353-4b':91.4, '353-5a':84.4, '353-5b':87.4, '353-6a':87.3, '353-6b':88.5, '353-7':8.1, '353-8':7.9,
+    #pol_effs = {'100-1a': 94.7, '100-1b':94.3, '100-2a':96.2, '100-2b':90.2, '100-3a':90.1, '100-3b':93.4, '100-4a':95.7, '100-4b':92.3,
+    #                '143-1a':83.3, '143-1b':84.6, '143-2a':87.5, '143-2b':89.3, '143-3a':83.9, '143-3b':89.9, '143-4a':93.1, '143-4b':92.8, '143-5':6.6, '143-6':4.4, '143-7':1.7, '143-8':1.6,
+    #                '217-1':4.0, '217-2':2.1, '217-3':4.1, '217-4':3.8, '217-5a':95.0, '217-5b':95.2, '217-6a':94.9, '217-6b':95.4, '217-7a':94.0, '217-7b':93.7, '217-8a':94.2, '217-8b':94.1,
+    #                '353-1':3.4, '353-2':4.8, '353-3a':88.7, '353-3b':92.0, '353-4a':87.0, '353-4b':91.4, '353-5a':84.4, '353-5b':87.4, '353-6a':87.3, '353-6b':88.5, '353-7':8.1, '353-8':7.9,
+    #                '545-1':4.7, '545-2':5.7, '545-3':5.3, '545-4':5.9,
+    #                '857-1':7.8, '857-2':6.3, '857-3':8.6, '857-4':6.3}
+
+    # these pol efficiencies are from npipe https://arxiv.org/pdf/2007.04997
+    # for 100-353, but from the older paper for ones npipe doesn't measure
+    pol_effs = {'100-1a': 94.35, '100-1b':96.98, '100-2a':96.03, '100-2b':89.74, '100-3a':89.56, '100-3b':93.23, '100-4a':93.88, '100-4b':92.02,
+                    '143-1a':85.55, '143-1b':86.43, '143-2a':87.35, '143-2b':88.97, '143-3a':86.03, '143-3b':88.69, '143-4a':91.75, '143-4b':93.72, '143-5':7.52, '143-6':3.87, '143-7':3.06, '143-8':1.6,
+                    '217-1':2.34, '217-2':3.33, '217-3':1.23, '217-4':3.78, '217-5a':96.14, '217-5b':97.35, '217-6a':90.12, '217-6b':93.91, '217-7a':94.09, '217-7b':95.15, '217-8a':96.76, '217-8b':95.8,
+                    '353-1':0.23, '353-2':7.49, '353-3a':89.93, '353-3b':90.9, '353-4a':87.35, '353-4b':89.85, '353-5a':85.44, '353-5b':90.95, '353-6a':84.99, '353-6b':92.56, '353-7':5.31, '353-8':9.88,
                     '545-1':4.7, '545-2':5.7, '545-3':5.3, '545-4':5.9,
                     '857-1':7.8, '857-2':6.3, '857-3':8.6, '857-4':6.3}
+
 
     
     def __init__():
@@ -163,26 +174,6 @@ class hfi(object):
     def instrument_filename(version):
         return 'HFI_instrument_v' + str(version) + '.h5'
 
-    @staticmethod
-    def ring_outer_product(theta, phi):
-        outAng = [0, 0]
-        nsamps = min(100, len(theta))
-        pair1 = random.sample(range(len(theta)), nsamps)
-        pair2 = random.sample(range(len(theta)), nsamps)
-        vecs = hp.pixelfunc.ang2vec(theta, phi)
-        for a1, a2 in zip(pair1, pair2):
-            crossP = np.cross(vecs[a1], vecs[a2])
-            if(crossP[0] < 0):
-                crossP *= -1
-            theta1, phi1 = hp.vec2ang(crossP)
-            if(not math.isnan(theta1) and not math.isnan(phi1)):
-                outAng[0] += theta1/nsamps
-                outAng[1] += phi1/nsamps
-            else:
-                outAng[0] += outAng[0]/nsamps
-                outAng[1] += outAng[1]/nsamps
-        return outAng
-
     def freq2dets(self, freq):
         return self.dets[freq]
 
@@ -205,10 +196,24 @@ class hfi(object):
 
         if version == 4:
             try:
-                if f.h5file['143-2a/polEff'] != 87.5:
+                if f.h5file['143-2a/polEff'][0] != 87.5:
                     print('HFI instrument file has wrong polarization efficiencies')
+                    print(f.h5file['143-2a/polEff'][0])
             except (IOError):
                 print('HFI instrument file is missing polarization efficiencies')
+        if version == 5:
+            print('Version 5 includes Tbol. ') #from https://www.aanda.org/articles/aa/full_html/2016/10/aa25844-15/T9.html
 
-        if version > 4:
+        if version == 6:
+            print('Version 6 includes updated far sidelobe beams, 4pi beams and main beams. ')
+
+        if version == 7:
+            if f.h5file['857-1/sllmax'] == 0:
+                print('HFI instrument file has null sidelobes for 545 and 858')
+
+        if version == 8:
+            if f.h5file['100-1a/polEff'][()] != 94.35:
+                print('HFI instrument file missing updated pol efficiencies')
+
+        if version > 8:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")
