@@ -468,18 +468,18 @@ contains
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
-           if (cpar%myid == 0) then
+          if (cpar%myid == 0) then
              write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
-               & data(i)%tod_freq, ' Gibbs samples'
-           end if
-           cycle
+                  & data(i)%tod_freq, ' Gibbs samples'
+          end if
+          cycle
        end if
-
+       
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
           write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
-
+       
        ! Set up EE l=2-subtracted CMB map for absolute gain calibration
        c => compList
        do while (associated(c))
@@ -492,8 +492,8 @@ contains
           end select
           c => c%nextComp()
        end do
-
-
+       
+       
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -507,7 +507,7 @@ contains
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
-                   !if (.true. .or. mod(iter,2) == 0) then
+                      !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
@@ -541,20 +541,25 @@ contains
                 delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
              end do
           end if
+          
+          do j = 0, ndet
+             data(i)%bp(j)%p%delta = delta(j,:,k)
 
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
+             !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+             
+             call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+             if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
+                !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+                call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+             end if
+          end do
 
-                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+          ! Set map-level calibration factor to 1; these should be absorbed by the TOD-level gain
+          data(i)%gain = 1.d0
 
-                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
-                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
-                end if
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)
-
+          ! Update mixing matrices for curreent band
+          call update_mixing_matrices(i, update_F_int=.true.)
+          
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
