@@ -596,7 +596,7 @@ contains
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call self%scans(i)%d(j)%jump%find_jumps(sd%tod(:,j), &
-                  & real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j,0,1), sd%flag(:,j))
+                  & real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j,0,1), sd%flag(:,j), self%samprate)
           end do
        end if
        
