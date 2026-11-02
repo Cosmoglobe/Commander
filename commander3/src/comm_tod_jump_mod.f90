@@ -127,17 +127,33 @@ contains
 
         jump_tod(sample_idx:) = jump_tod(sample_idx:) + self%jump_amp(jump_idx)
       end do
+
     end subroutine get_jump_tod
 
     subroutine block_medians(samples, good, block_size, block_median)
       implicit none
 
-      ! Computes a median for each block of samples
+      ! Computes a median for each block with enough good samples
       real(dp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
+      integer(i4b),                       intent(in)  :: block_size
       real(dp),             dimension(:), intent(out) :: block_median
       
-      
+      real(dp), allocatable, dimension(:) :: block_values
+      integer(i4b)                        :: block_idx, first_sample, last_sample
+
+      block_median = ieee_value(0.0_dp, ieee_quiet_nan)
+      if (block_size <= 0) return
+
+      do block_idx = 1, size(block_median)
+        first_sample = (block_idx - 1) * block_size + 1
+        last_sample = block_idx * block_size
+        block_values = pack(samples(first_sample:last_sample), good(first_sample:last_sample))
+
+        if (size(block_values) > 0 .and. size(block_values) >= block_size / 2) then
+          block_median(block_idx) = median(block_values)
+        end if
+      end do
 
     end subroutine block_medians
 
