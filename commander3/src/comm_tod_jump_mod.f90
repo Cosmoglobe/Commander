@@ -22,7 +22,7 @@
 module comm_tod_jump_mod
   use comm_param_mod
   use comm_utils, only: median
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
   implicit none
 
   private
@@ -33,6 +33,7 @@ module comm_tod_jump_mod
     integer(dp), allocatable, dimension(:)     :: jump_pos
     integer(dp), allocatable, dimension(:,:)   :: mask       ! (njump,2), start/stop
     real(sp),    allocatable, dimension(:)     :: jump_amp
+    integer(i4b) :: block_size
     integer(i4b) :: maxseg
   contains
     procedure :: find_jumps
@@ -52,6 +53,7 @@ contains
       class(comm_tod_jump), pointer           :: c
 
       allocate(c)
+      c%block_size = 64_i4b !TODO: I've asked Simon if this should be changeable
 
     end function constructor_jump
 
@@ -67,7 +69,7 @@ contains
 
       ! KG: these follow the param names of Simons prototype
       ! TODO: check that these are the names we want
-      real(sp), allocatable, dimension(:) :: resdidual
+      real(sp), allocatable, dimension(:) :: residual
       real(dp), allocatable, dimension(:) :: detection_work, bmed, filter_score, step_diff
       logical,  allocatable, dimension(:) :: good
       integer(i4b)                        :: n, nblock, iteration, scale_idx, block_idx
@@ -127,15 +129,16 @@ contains
       end do
     end subroutine get_jump_tod
 
-    subroutine block_medians(samples, good, block_median)
+    subroutine block_medians(samples, good, block_size, block_median)
       implicit none
 
       ! Computes a median for each block of samples
       real(dp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
       real(dp),             dimension(:), intent(out) :: block_median
+      
+      
 
-      ! TODO: fill in.
     end subroutine block_medians
 
     subroutine step_filter(block_median, window_blocks, filter_score, step_difference)
