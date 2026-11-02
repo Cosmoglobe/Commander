@@ -210,11 +210,38 @@ contains
       implicit none
 
       ! Refines (=determines) the accurate jump position
+      ! Sample of the largest |median after - median before| in [first_sample, last_sample]
       real(dp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
       integer(i4b),                       intent(in)  :: first_sample, last_sample, window_samples
+      
+      real(dp), allocatable, dimension(:) :: before_values, after_values
+      integer(i4b)                        :: candidate_sample, before_window_start, after_window_end
+      real(dp)                            :: step_diff, best_diff
+      
+      best_sample = first_sample
+      best_diff = -1.0_dp
+      if (window_samples <= 0) return
+      
+      do candidate_sample = max(first_sample, 2_i4b),&           ! to make sure at least one sample is in 'before'
+                            min(last_sample, size(samples) - 1)  ! incl. of last_sample, accounted for in the call
+        before_window_start = max(1_i4b, candidate_sample - window_samples)
+        after_window_end = min(size(samples), candidate_sample + window_samples - 1)
 
-      ! TODO: fill in
+        before_values = pack(samples(before_window_start:candidate_sample - 1), &
+                             good(before_window_start:candidate_sample - 1))
+        after_values = pack(samples(candidate_sample:after_window_end), &
+                            good(candidate_sample:after_window_end))
+        
+        if (size(before_values) < 2 .or. size(after_values) < 2) cycle
+
+        step_diff = abs(median(after_values) - median(before_values))
+        if (step_diff > best_diff) then
+          best_sample = candidate_sample
+          best_diff = step_diff
+        end if
+      end do
+    
     end function refine
 
     real(dp) function robust_noise_scale(values) result(noise_scale)
