@@ -443,7 +443,7 @@ contains
           end if
 
           if (data(i)%info%myid == 0) then
-            write(*,*) 'My delta is ', delta
+            write(*,*) 'My delta is ', delta(:,:,k)
           end if
 
           do j = 0, ndet

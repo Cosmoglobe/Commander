@@ -227,6 +227,7 @@ contains
       else
           constructor%compressed_tod  = .false.
       end if
+      constructor%reload_tod      = .true.
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
@@ -323,7 +324,7 @@ contains
       call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      call constructor%precompute_lookups()
+      if (.not. constructor%reload_TOD) call constructor%precompute_lookups()
 
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -462,6 +463,17 @@ contains
 
 
       call timer%start(TOD_ALLOC, self%band)
+
+      if (self%reload_TOD) then
+         do i = 1, self%nscan
+            call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i),&
+                 & self%ndet, self%label, self%nhorn, self%ndiode, self%diode_names)
+         end do
+  
+         ! Construct lookup tables
+         call self%precompute_lookups()
+      end if
+
 
       ! Toggle optional operations
       sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
@@ -1067,6 +1079,27 @@ contains
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)
+
+    if (self%reload_TOD) then
+       do i = self%nscan, 1, -1
+          do j = self%ndet, 1, -1
+             if (allocated(self%scans(i)%d(j)%flag))  deallocate(self%scans(i)%d(j)%flag)
+             if (j == 1) then
+                do k = self%nhorn, 1, -1
+                   if (allocated(self%scans(i)%d(j)%pix(k)%p)) deallocate(self%scans(i)%d(j)%pix(k)%p)
+                   if (allocated(self%scans(i)%d(j)%psi(k)%p)) deallocate(self%scans(i)%d(j)%psi(k)%p)
+                end do
+             end if
+             if (allocated(self%scans(i)%d(j)%psi)) deallocate(self%scans(i)%d(j)%psi)
+             if (allocated(self%scans(i)%d(j)%pix)) deallocate(self%scans(i)%d(j)%pix)
+             if (allocated(self%scans(i)%d(j)%zdiode)) deallocate(self%scans(i)%d(j)%zdiode)
+             if (allocated(self%scans(i)%d(j)%diode)) deallocate(self%scans(i)%d(j)%diode)
+             if (allocated(self%scans(i)%d(j)%ztod))  deallocate(self%scans(i)%d(j)%ztod)
+             if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
+          end do
+       end do
+    end if
+
 
     call timer%stop(TOD_TOT, self%band)
 

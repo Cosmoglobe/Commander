@@ -33,7 +33,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, read_hdf_scan_data
 
 
   ! Structure for individual detectors
@@ -88,6 +88,7 @@ module comm_tod_mod
      character(len=512) :: noise_psd_model  
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
+     logical(lgt) :: reload_tod !< deallocate and re-read TOD and pointing each iteration
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: L2_exist
@@ -328,6 +329,8 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
     self%baseline_order  = -1
+    self%reload_TOD          = .false. ! Store in memory by default
+
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -713,8 +716,10 @@ contains
     call update_status(status, "aaa")
     if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
        do i = 1, self%nscan
-          call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-               & detlabels, self%nhorn, self%ndiode, self%diode_names)
+          if (.not. self%reload_TOD) then
+              call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
+                   & detlabels, self%nhorn, self%ndiode, self%diode_names)
+          end if
 
 !!$       do j = 1, self%ndet
 !!$          deallocate(self%scans(i)%d(j)%zdiode1,self%scans(i)%d(j)%zdiode2,self%scans(i)%d(j)%zdiode3,self%scans(i)%d(j)%zdiode4)
