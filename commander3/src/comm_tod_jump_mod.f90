@@ -206,36 +206,36 @@ contains
 
     end subroutine step_filter
 
-    integer(i4b) function refine(samples, good, first_sample, last_sample, window_samples) result(best_sample)
+    integer(i4b) function refine(samples, good, lo, hi, window_samples) result(best_sample)
       implicit none
 
       ! Refines (=determines) the accurate jump position
-      ! Sample of the largest |median after - median before| in [first_sample, last_sample]
       real(dp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
-      integer(i4b),                       intent(in)  :: first_sample, last_sample, window_samples
+      integer(i4b),                       intent(in)  :: lo, hi, window_samples
       
-      real(dp), allocatable, dimension(:) :: before_values, after_values
+      real(dp), allocatable, dimension(:) :: before, after
       integer(i4b)                        :: candidate_sample, before_window_start, after_window_end
       real(dp)                            :: step_diff, best_diff
       
-      best_sample = first_sample
+      best_sample = max(lo, 2_i4b)
       best_diff = -1.0_dp
       if (window_samples <= 0) return
-      
-      do candidate_sample = max(first_sample, 2_i4b),&           ! to make sure at least one sample is in 'before'
-                            min(last_sample, size(samples) - 1)  ! incl. of last_sample, accounted for in the call
+     
+      ! Searches candidate positions in [lo, hi) to match the Python behaviour  
+      ! Starts at sample 2 to make sure at least one sample is in 'before'
+      do candidate_sample = max(lo, 2_i4b), min(hi - 1, size(samples) - 1)  
         before_window_start = max(1_i4b, candidate_sample - window_samples)
         after_window_end = min(size(samples), candidate_sample + window_samples - 1)
 
-        before_values = pack(samples(before_window_start:candidate_sample - 1), &
-                             good(before_window_start:candidate_sample - 1))
-        after_values = pack(samples(candidate_sample:after_window_end), &
-                            good(candidate_sample:after_window_end))
+        before = pack(samples(before_window_start:candidate_sample - 1), &
+                      good(before_window_start:candidate_sample - 1))
+        after = pack(samples(candidate_sample:after_window_end), &
+                     good(candidate_sample:after_window_end))
         
-        if (size(before_values) < 2 .or. size(after_values) < 2) cycle
+        if (size(before) < 2 .or. size(after) < 2) cycle
 
-        step_diff = abs(median(after_values) - median(before_values))
+        step_diff = abs(median(after) - median(before))
         if (step_diff > best_diff) then
           best_sample = candidate_sample
           best_diff = step_diff
