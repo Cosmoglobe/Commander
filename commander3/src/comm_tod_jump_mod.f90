@@ -35,6 +35,7 @@ module comm_tod_jump_mod
     integer(dp), allocatable, dimension(:)     :: jump_pos
     integer(dp), allocatable, dimension(:,:)   :: mask       ! (njump,2), start/stop
     real(sp),    allocatable, dimension(:)     :: jump_amp
+    real(dp),    allocatable, dimension(:)     :: scales_s
     integer(i4b) :: block_size
     integer(i4b) :: maxseg
   contains
@@ -55,7 +56,11 @@ contains
       class(comm_tod_jump), pointer           :: c
 
       allocate(c)
-      c%block_size = 64_i4b !TODO: I've asked Simon if this should be changeable
+      c%njump = 0_i4b
+      c%maxseg = 0_i4b ! this will get set in-code by the samprate
+      allocate(c%jump_pos(0), c%jump_amp(0), c%mask(0,2))
+      c%block_size = 64_i4b            !TODO: I've asked Simon if this should be changeable
+      c%scales_s = [240.0_dp, 60.0_dp] !TODO: Same for this!
 
     end function constructor_jump
 
@@ -77,6 +82,7 @@ contains
       integer(i4b)                        :: sample_idx, window_blocks
       real(dp)                            :: best_score, score, noise_scale, step_amp
 
+      self%maxseg = int(maxval(self%scales_s) * samprate, i4b) ! placeholder, need to think about the structure
       ! Perform matched filer
 
       ! Count number of detections
@@ -92,20 +98,65 @@ contains
       
     end subroutine find_jumps
 
-    subroutine sample_jump_amplitudes(self, tod)
+    subroutine sample_jump_amplitudes(self, residual)
       implicit none
 
       ! Refits the jump ampl. from the residual levels around each jump
       class(comm_tod_jump),               intent(inout) :: self
-      real(sp),             dimension(:), intent(in)    :: tod
+      real(sp),             dimension(:), intent(in)    :: residual
 
-      real(dp), allocatable, dimension(:) :: tod_dp, segment_levels, segment_values
-      logical,  allocatable, dimension(:) :: good
-      integer(i4b)                        :: jump_idx, segment_start, segment_stop, n, maxseg
+      real(dp),     allocatable, dimension(:) :: seg_levels, seg_values
+      logical,      allocatable, dimension(:) :: good
+      integer(i4b), allocatable, dimension(:) :: edges
+      integer(i4b)                            :: seg_idx, jump_idx, seg_start, seg_stop, n, maxseg
 
-      ! TODO: Refit function goes here
+      n = size(residual)
 
-    end subroutine sample_jump_amplitudes
+      ! Resize the jump_amp array to match the current number of jumps
+      if (size(self%jump_amp) /= self%njump) then
+        deallocate(self%jump_amp)
+        allocate(self%jump_amp(self%njump))
+      end if
+
+      self%jump_amp = 0.0_sp
+      if (self%njump == 0) return
+      
+      maxseg = self%maxseg
+      allocate(good(n), seg_levels(self%njump + 1), edges(self%njump + 2))
+      good = ieee_is_finite(residual)
+      seg_levels = ieee_value(0.0_dp, ieee_quiet_nan)
+
+      edges(1) = 1
+      edges(2:self%njump + 1) = int(self%jump_pos(1:self%njump), i4b)
+      edges(self%njump + 2) = n + 1
+
+      do seg_idx = 1, self%njump + 1
+        seg_start = edges(seg_idx)
+        seg_stop = edges(seg_idx + 1)
+
+        ! First segment measured at its end, the rest are measured at their start
+        if (seg_idx == 1) then
+          seg_start = max(seg_start, seg_stop - maxseg)
+        else
+          seg_stop = min(seg_stop, seg_start + maxseg)
+        end if
+        
+        seg_values = pack(residual(seg_start:seg_stop - 1), &
+                          good(seg_start:seg_stop - 1))
+
+        ! At least two samples are needed to estimate the level
+        if (size(seg_values) >= 2) then
+          seg_levels(seg_idx) = median(seg_values)
+        end if
+      end do
+
+      do jump_idx = 1, self%njump
+        ! The ampl. is zero if either of the neighbouring levels are invalid
+        if (ieee_is_finite(seg_levels(jump_idx)) .and. ieee_is_finite(seg_levels(jump_idx + 1))) then
+          self%jump_amp(jump_idx) = real(seg_levels(jump_idx + 1) - seg_levels(jump_idx), sp)
+        end if
+      end do
+
 
     subroutine get_jump_tod(self, jump_tod)
       implicit none
