@@ -36,6 +36,7 @@ module comm_tod_hfi_mod
   use comm_tod_crosstalk_mod
   use comm_tod_Tbol_mod
   use comm_tod_mapmaking_mod
+  use comm_tod_linemap_mod
   use comm_tod_cgmap_mod
   use comm_tod_pixhist_mod
   use comm_tod_adc_binfit_mod
@@ -68,11 +69,12 @@ module comm_tod_hfi_mod
      procedure     :: dumpToHDF_inst          => dumpToHDF_hfi
      procedure     :: construct_corrtemp_inst => construct_corrtemp_hfi
      procedure     :: apply_nonlin_corr_inst  => apply_nonlin_corr_hfi
+     procedure     :: init_tod_line_emission  => init_tod_line_emission_hfi
 
      procedure, private     :: stitch_hfi_dc_level
      procedure, private     :: hfi_dark_correction
      procedure, private     :: estimate_hfi_4k_lines
-     procedure, private     :: remove_hfi_4k_lines
+     !procedure, private     :: remove_hfi_4k_lines
      procedure, private     :: deconvolve_rolloff
      procedure, private     :: fill_gaps
      procedure, private     :: sample_adc_and_baselines
@@ -596,6 +598,22 @@ interface
     class(comm_hfi_tod),                  intent(inout) :: self
   end subroutine compute_adu_range
 
+  module subroutine init_tod_line_emission_hfi(self)
+    !
+    ! Initialize line emission, must be called after both tod and bandpasses 
+    ! have been initialized
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                     intent(inout) :: self
+  end subroutine init_tod_line_emission_hfi
+
+  
 end interface
 
 end module comm_tod_hfi_mod

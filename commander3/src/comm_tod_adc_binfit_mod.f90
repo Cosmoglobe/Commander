@@ -35,7 +35,7 @@ module comm_tod_adc_binfit_mod
   type :: comm_adc_binfit
      integer(i4b)       :: comm, myid, npar_adc
      character(len=128) :: label
-     character(len=2048) :: datadir, outdir
+     character(len=2048) :: outdir
      integer(i4b)       :: min_adu, max_adu, min_coadd, max_coadd, ncoadd, nbit
      integer(i4b), allocatable, dimension(:,:) :: param_adc ! (code, width, global mod/local)
      real(dp),   allocatable, dimension(:) :: p ! (npar_adc)
@@ -70,7 +70,7 @@ module comm_tod_adc_binfit_mod
   
 interface
 
-  module function constructor_adc_binfit(comm, datadir, outdir, label, nbit, min_adu, max_adu, ncoadd) result (c)
+  module function constructor_adc_binfit(comm, outdir, label, nbit, min_adu, max_adu, ncoadd) result (c)
     ! ====================================================================
     ! Sets up an adc correction object that maps 
     !
@@ -93,7 +93,7 @@ interface
     !    and the actual correction tables
     ! ====================================================================
     implicit none
-    character(len=*),       intent(in) :: label, datadir, outdir
+    character(len=*),       intent(in) :: label, outdir
     integer(i4b),           intent(in) :: comm, nbit, min_adu, max_adu, ncoadd
     class(comm_adc_binfit), pointer    :: c
   end function constructor_adc_binfit

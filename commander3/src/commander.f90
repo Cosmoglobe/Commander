@@ -37,6 +37,8 @@ program commander
 
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
+  type(comm_map),     pointer :: rms  => null()
+  type(comm_map),     pointer :: mask => null()
   class(comm_comp),   pointer :: c1   => null()
 
   !----------------------------------------------------------------------------------
@@ -90,7 +92,7 @@ program commander
   call MPI_Init(ierr)
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
-
+  
 !!$  adc => comm_adc_binfit(MPI_COMM_WORLD, "data", "chains", "100-1a", 16, 32376, 33163, 40)
 !!$  call mpi_finalize(ierr)
 !!$  stop
@@ -114,6 +116,22 @@ program commander
   end if
   if (cpar%myid == cpar%root) call wall_time(t2)
 
+!!$  info => comm_mapinfo(mpi_comm_world, 1024, 3000, 2, .false.)
+!!$  m => comm_map(info, "map_line.fits")
+!!$  rms => comm_map(info, "rms_line.fits")
+!!$  mask => comm_map(info, "/mn/stornext/u3/hke/data_hfi/data/mask_common_dx12_n1024_TQU.fits")
+!!$
+!!$    do j = 1, 2
+!!$       call m%subtract_mono_dipole(mask=mask, col=j)
+!!$    end do
+!!$
+!!$  call m%wiener_filter(rms, spin0=.true.)
+!!$  call m%writeFITS("wiener.fits")
+!!$
+!!$  call mpi_finalize(ierr)
+!!$  stop
+
+  
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
@@ -304,74 +322,80 @@ program commander
         end do
         
       
-      call timer%stop(TOT_ZODI_SAMP)
-   end if
+        call timer%stop(TOT_ZODI_SAMP)
+     end if
    
-   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
+     if (mod(iter+1,modfact) == 0 .and. iter > 1) then
 
-     ! Sample linear parameters with CG search; loop over CG sample groups
-     !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 0) then
+        ! Sample linear parameters with CG search; loop over CG sample groups
+        !call output_FITS_sample(cpar, 1000+iter, .true.)
+        if (cpar%sample_signal_amplitudes) then
 
-        ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
+           ! Do CG group sampling
+           call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
-        ! Perform joint alm-Cl Metropolis move
+           ! Perform joint alm-Cl Metropolis move
+           call timer%start(TOT_CLS)
+           do i = 1, 3
+              if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
+           end do
+           call timer%stop(TOT_CLS)
+        end if
+     
+        ! Sample power spectra
         call timer%start(TOT_CLS)
-        do i = 1, 3
-           if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
-        end do
+        if (cpar%sample_powspec) call sample_powspec(handle, ok)
         call timer%stop(TOT_CLS)
-     end if
-     
-     ! Sample power spectra
-     call timer%start(TOT_CLS)
-     if (cpar%sample_powspec) call sample_powspec(handle, ok)
-     call timer%stop(TOT_CLS)
 
      
-     if (iter > 1) then
-     !if (iter > 3) then
-        do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
-              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            end if
-        end do
-     end if
+!!$     if (iter > 1) then
+!!$     !if (iter > 3) then
+!!$        do i = 1, cpar%mcmc_num_samp_groups
+!!$            if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+!!$              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+!!$              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+!!$            end if
+!!$        end do
+!!$     end if
 
-     ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
-        call timer%start(TOT_SPECIND)
-        call sample_nonlin_params(cpar, iter, handle, handle_noise)
-        call timer%stop(TOT_SPECIND)
+        ! Sample non-linear parameters
+        if (iter > 1 .and. cpar%sample_specind) then
+           call timer%start(TOT_SPECIND)
+           call sample_nonlin_params(cpar, iter, handle, handle_noise)
+           call timer%stop(TOT_SPECIND)
 
-        ! Do CG group sampling
+           ! Do CG group sampling
+           call sample_all_amps_by_CG(cpar, handle, handle_noise)
+        end if
+        !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
+
+        if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
+           !if (iter > 3) then
+           do i = 1, cpar%mcmc_num_samp_groups
+              if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+                 call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              else if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
+                 call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
+              else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+                 if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
+                 call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+              else
+                 if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
+                 call sample_specind_mh_pol(cpar%outdir, cpar, handle, handle_noise, i, cpar%mcmc_samp_group_pol(i), iter)
+              end if
+           end do
+        end if
+     
+        ! Sample map domain calibration factors
+        call sample_all_gains(cpar, iter, handle)
+
         call sample_all_amps_by_CG(cpar, handle, handle_noise)
      end if
-     !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
-
-     if (iter > 1 .and. cpar%mcmc_num_samp_groups > 0) then
-     !if (iter > 3) then
-        do i = 1, cpar%mcmc_num_samp_groups
-            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
-              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
-            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
-              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            else
-              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
-              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
-            end if
-        end do
-        ! Do CG group sampling
-        call sample_all_amps_by_CG(cpar, handle, handle_noise)
-     end if
-  end if
      
      ! Output sample to disk
-  call timer%start(TOT_OUTPUT)
+     call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
 
@@ -444,18 +468,18 @@ contains
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
-           if (cpar%myid == 0) then
+          if (cpar%myid == 0) then
              write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
-               & data(i)%tod_freq, ' Gibbs samples'
-           end if
-           cycle
+                  & data(i)%tod_freq, ' Gibbs samples'
+          end if
+          cycle
        end if
-
+       
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
           write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
-
+       
        ! Set up EE l=2-subtracted CMB map for absolute gain calibration
        c => compList
        do while (associated(c))
@@ -468,8 +492,8 @@ contains
           end select
           c => c%nextComp()
        end do
-
-
+       
+       
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -483,7 +507,7 @@ contains
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
-                   !if (.true. .or. mod(iter,2) == 0) then
+                      !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
@@ -517,20 +541,25 @@ contains
                 delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
              end do
           end if
+          
+          do j = 0, ndet
+             data(i)%bp(j)%p%delta = delta(j,:,k)
 
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
+             !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+             
+             call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+             if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
+                !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+                call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+             end if
+          end do
 
-                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+          ! Set map-level calibration factor to 1; these should be absorbed by the TOD-level gain
+          data(i)%gain = 1.d0
 
-                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
-                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
-                end if
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)
-
+          ! Update mixing matrices for curreent band
+          call update_mixing_matrices(i, update_F_int=.true.)
+          
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)

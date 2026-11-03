@@ -55,30 +55,32 @@ contains
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
     character(len=6) :: pstring
-
+    
     logical(lgt), dimension(:,:), allocatable :: correlations
     character(len=512), allocatable, dimension(:) :: list_4k_lines
 
     call timer%start(TOD_INIT, id_abs)
-    
+
     ! Allocate object
     allocate(c)
 
     ! Initialize parameters needed for general initialization
     c%nhorn           = 1
-    c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now    
+    c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nmaps           = info%nmaps
     c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    !c%noise_psd_model = 'oof'       ! Not fitted parameters yet
-    c%noise_psd_model = 'spline'
+    c%noise_psd_model = 'oof'       ! Not fitted parameters yet
+    !c%active_cr_types = [1,2,3]     ! Activate three classes of cosmic rays (short, long, slow)
+    !c%noise_psd_model = 'spline'
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
-    
+
     ! Initialize instrument-specific parameters
+
     c%reload_TOD        = .true.
     c%compressed_tod    = .true.
-    c%correct_sl        = .true.
+    !c%correct_sl        = .true.
     c%correct_orb       = .true.
     c%correct_S_crosstalk = .false.
     c%correct_N_crosstalk = .false.
@@ -89,68 +91,58 @@ contains
     c%ntime           = 1
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
-    c%n_cray_temps    = 3
     c%ndiode          = 1
     nmaps_beam        = 3
     pol_beam          = .true.
     c%nside_beam      = 512
     c%nside_pixhist   = 64
     c%sol_elong_range = cpar%zs_sol_elong
-    
+
     ! Set up noise PSD type and priors
     c%freq            = cpar%ds_label(id_abs)
-    if (c%noise_psd_model == 'spline') then
-       c%n_xi            = 13 !94 ! {sigma0, spline nodes}
-       allocate(c%xi_n_P_uni(c%n_xi,2))
-       allocate(c%xi_n_P_rms(c%n_xi))
-       allocate(c%xi_n_nu_fit(c%n_xi,2))
 
-       c%xi_n_P_uni(1,:)  = [10.d0, 3000.d0]  ! Sigma0
-       c%xi_n_P_rms(1)    = 50.d0
-       c%xi_n_nu_fit(1,:) = [10.d0, 90.d0]
-       do i = 2, c%n_xi
-          c%xi_n_P_uni(i,:)  = [-6.d0, 12.d0]
-          c%xi_n_P_rms(i)    = 6.d0
-          c%xi_n_nu_fit(i,:) = [0.d0, 90.d0]
-       end do
+    if (trim(c%freq(1:3)) == '100' .or. trim(c%freq(1:3)) == '217') then
+       c%num_emission_lines = 1 ! 12CO (+13CO)
+    else if (trim(c%freq(1:3)) == '353') then
+       c%num_emission_lines = 0 ! 12CO (+13CO)
     else
-       c%n_xi            = 3
-       !c%noise_psd_model = 'white'       ! Using white noise until we get better estimates of the actual noise PSD
-       allocate(c%xi_n_P_uni(c%n_xi,2))
-       allocate(c%xi_n_P_rms(c%n_xi))
-       allocate(c%xi_n_nu_fit(c%n_xi,2))
-
-       c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
-       c%xi_n_P_uni(2,:)  = [0.001d0, 1d0]  ! fknee
-       c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
-       !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
-       !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
-       c%xi_n_nu_fit(1,:) = [0.5d0, 5d0] 
-       c%xi_n_nu_fit(2,:) = [0.001d0, 0.5d0]
-       c%xi_n_nu_fit(3,:) = [0.001d0, 0.5d0]
-       !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
-       !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
-       c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+       c%num_emission_lines = 0 ! 12CO (+13CO)
     end if
+
+    !c%noise_psd_model = 'white'       ! Using white noise until we get better estimates of the actual noise PSD
+    c%n_xi            = 3
+    allocate(c%xi_n_P_uni(c%n_xi,2))
+    allocate(c%xi_n_P_rms(c%n_xi))
+    allocate(c%xi_n_nu_fit(c%n_xi,2))
+
+    c%xi_n_P_uni(1,:)  = [10d0, 300d0]  ! Sigma0
+    c%xi_n_P_uni(2,:)  = [0.001d0, 1d0]  ! fknee
+    c%xi_n_P_uni(3,:)  = [-2.5d0, -0.5d0]   ! alpha
+    !c%xi_n_P_uni(4,:)  = [ 0.5d0,  4.0d0]  ! fknee
+    !c%xi_n_P_uni(5,:)  = [-1.5d0, -0.5d0]   ! alpha
+    c%xi_n_nu_fit(1,:) = [0.5d0, 5d0] 
+    c%xi_n_nu_fit(2,:) = [0.001d0, 0.5d0]
+    c%xi_n_nu_fit(3,:) = [0.001d0, 0.5d0]
+    !c%xi_n_nu_fit(4,:) = [0.001d0, 10d0]
+    !c%xi_n_nu_fit(5,:) = [0.001d0, 10d0]
+    c%xi_n_P_rms       = [10.d0, 0.1d0, 0.1d0] ! [sigma0, fknee, alpha]; sigma0 is not used
     c%f_spin           = 1./60.                 ! Planck spin frequency in Hz
-    
+
     !c%xi_n_P_rms      = [-1.d0] ! [sigma0]; sigma0 is not used
-    c%n_cray_temps    = 3
     c%ndiode = 1
 
     ! Initialize common parameters
     !call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    c%samprate_lowres = 1.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
+    c%samprate_lowres = 18.  ! Lowres samprate in Hz;  10 times lower than the intrinsic HFI rate for now
     c%nhorn           = 1
-    c%rawtod_dp       = .true.
     c%compressed_tod  = .true.
-    c%correct_sl      = .true.
+    !c%correct_sl      = .true.
     c%correct_orb     = .true.
     c%apply_inst_corr = .true.
     c%correct_Tbol    = .true.
-    c%orb_4pi_beam    = .true.
+    !c%orb_4pi_beam    = .true.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
     c%nmaps           = info%nmaps
@@ -166,33 +158,42 @@ contains
     c%nside_beam      = 512
     c%nside_pixhist   = 64
 
-    c%gain_samprate    = 1.d0 / 3600.d0 * 100.d0 ! Gain smoothing stiffness
-        
     ! Channel specific parameters
-    if (c%freq(1:3) == "100" .or. c%freq(1:3) == "143".or. c%freq(1:3) == "217" .or. c%freq(1:3) == "353") then
-       c%chisq_threshold  = 1.d30  ! 120d0
+    if (c%freq(1:3) == "100") then
+       c%chisq_threshold  = 200d0
        c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "143") then
+       c%chisq_threshold  = 300d0
+       c%sigma0_threshold = 1.d30  !100.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "217") then
+       c%chisq_threshold  = 500d0
+       c%sigma0_threshold = 1.d30  !100.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
+    else if (c%freq(1:3) == "353") then
+       c%chisq_threshold  = 1000.d0
+       c%sigma0_threshold = 1000.d0
+       c%accept_threshold = 0.8d0
+       c%correct_sl       = .true.
+       c%orb_4pi_beam    = .true.
     else if (c%freq(1:3) == "545") then
-       c%chisq_threshold  = 1.d30  ! 120d0
-       c%sigma0_threshold = 1.d30  !100.d0
-       c%accept_threshold = 0.8d0
-       c%orb_4pi_beam     = .false.
+       c%chisq_threshold  = 1.d30
        c%correct_sl       = .false.
+       c%orb_4pi_beam    = .false.
     else if (c%freq(1:3) == "857") then
-       c%xi_n_P_uni(1,:)  = [10d0, 3000d0]  ! Sigma0
-       c%chisq_threshold  = 1.d30  ! 120d0
-       c%sigma0_threshold = 1.d30  !100.d0
-       c%accept_threshold = 0.8d0
-       c%orb_4pi_beam     = .false.
+       c%chisq_threshold  = 1.d30
        c%correct_sl       = .false.
-    else
-       write(*,*) "Specify HFI defaults"
-       call mpi_finalize(ierr)
-       stop
+       c%orb_4pi_beam    = .false.
     end if
-    
+
+
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
 
@@ -215,49 +216,51 @@ contains
           end if
        end do
     end do
-    
+
     ! Read the actual TOD
     call c%read_tod(c%label)
-    
+
     ! Initialize bandpass mean and proposal matrix
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    !if (.not. c%reload_TOD) then
-       c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
-       !call c%precompute_lookups()
-    !end if
-
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+    if (.not. c%reload_TOD) call c%precompute_lookups()
+    
     ! Allocate and initialize bolometer transfer functions
     if (c%correct_Tbol) allocate(c%Tbol(c%ndet))
-    
+
     ! Load the instrument file
     call c%load_instrument_file(c%nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Collect Sun velocities from all scans
     call c%collect_v_sun
-    
+
     ! Allocate sidelobe convolution data structures
-    if (c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
-    !allocate(c%orb_dp)
-    c%orb_dp => comm_orbdipole(c%mbeam)  
-    !c%orb_dp => comm_orbdipole(comm=c%comm)
+    if(c%correct_sl) allocate(c%slconv(c%ndet,c%nhorn), c%orb_dp)
+
+    allocate(c%orb_dp)
+    if (c%orb_4pi_beam) then
+       c%orb_dp => comm_orbdipole(c%mbeam)  ! HKE: Removed mbeam for now due to crash; should be fixed
+    else
+       c%orb_dp => comm_orbdipole(comm=c%comm)
+    end if
 
     ! Initialize all baseline corrections to zero
     do i = 1, c%nscan
-       do j = 1, c%ndet
-          c%scans(i)%d(j)%baseline = 0.d0
-       end do
+      do j = 1, c%ndet
+       c%scans(i)%d(j)%baseline = 0.d0
+      end do
     end do
 
     ! Allocate modulation phase
     allocate(c%mod_phase(c%ndet,c%nscan))
     c%mod_phase = 1.0
-   
+
     ! initialize crosstalk class
     if (c%correct_N_crosstalk) then
        allocate(correlations(c%ndet, c%ndet))
-       correlations = .true.    
+       correlations = .true.
 
        !  allocate(c%xtalk)
        c%xtalk => comm_crosstalk(correlations)
@@ -266,7 +269,7 @@ contains
     ! Pre-initialize ADC object
     allocate(c%adc(c%ndet))
     allocate(c%adu_range(c%ndet,2))
-    
+
     ! Read 4k_lines frequencies
     allocate(c%nus_4k_lines(c%n_4k_lines))
     allocate(list_4k_lines(c%n_4k_lines))
@@ -291,7 +294,7 @@ contains
     !c%dynmask%apply_pixhist           = .true.
     !c%dynmask%apply_solar_mask        = .true.
     !c%dynmask%remove_isolated_samples = .true.
-    if (c%freq(1:3) /= "353") then
+    if (.true. .or. c%freq(1:3) /= "353") then
        c%dynmask%threshold_extreme      = 20.0  ! in units of white noise sigma
        c%dynmask%threshold_singlesamp   =  5.0  ! in units of residual sigma
        !c%dynmask%threshold_excessRMS(1) =  1.5  ! in units of residual sigma
@@ -299,7 +302,7 @@ contains
        !c%dynmask%threshold_excessRMS(2) =  2.0  ! in units of residual sigma
        !c%dynmask%window_excessRMS(2)    =   50  ! window size in number of samples
     end if
-    
+
     call timer%stop(TOD_INIT, id_abs)
 
   end function constructor_hfi
@@ -356,33 +359,30 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, skip_nonlin_, seed
+    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, oper_minimal, skip_nonlin_, seed, oper_line
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
-    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n
-    logical(lgt)        :: fit_4k_lines
+    logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n, sample_co
+    logical(lgt)        :: fit_4k_lines, sample_cray, sample_abscal
     class(comm_binmap), pointer   :: binmap
     type(comm_scandata) :: sd
+    class(comm_linemap), pointer   :: linemap
     !type(comm_detdata)  :: dd
     character(len=4)    :: ctext, myid_text
-    character(len=6)    :: samptext, scantext, itertext, dettext
+    character(len=6)    :: samptext, scantext, itertext
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),              dimension(9)       :: flag_threshold
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi, sigma0, freqmask
-    real(sp), allocatable, dimension(:)       :: d_prime
+!    real(sp), allocatable, dimension(:)       :: d_prime
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    !real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
     class(comm_cgmap), pointer :: cgmap
-    
+
     ! file for saving tods
     type(hdf_file) :: tod_file
 
-    call int2string(iter, ctext)
-    call update_status(status, "tod_start"//ctext)
-    call timer%start(TOD_TOT, self%band)
-    
     if (self%first_call) then
        seed = rand_uni(handle) * 100000000
        call rand_init(self%handle, seed)
@@ -397,70 +397,86 @@ contains
        ! Construct lookup tables
        call self%precompute_lookups()
     end if
-    
+
     call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
     
-    call update_status(status, "tod_read"//ctext)
-    
+    call int2string(iter, ctext)
+    call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
+
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     if (.false.) then ! Debug
        ! Do data selection, then start sampling
        sample_gain           = .false. !iter  > 0 !.true.                 
-       make_dyn_mask         = iter == 1
-       sample_ncorr          = iter  > 0 !.true.
-       sample_xi_n      = .false.
-       select_data           = iter == 1
+       sample_abscal         = sample_gain
+       make_dyn_mask         = .false. ! iter == 1
+       sample_ncorr          = .false. ! iter  > 0 !.true.
+       sample_xi_n           = .false.
+       select_data           = .false. !iter == 1
        sample_adc            = .false. !.false. !iter  > 1 !.true.
+       sample_co             = self%num_emission_lines > 0
+       sample_cray           = .false.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
-       sample_gain           = iter  > 2 !.true.                 
+       sample_gain           = iter  > 2 !.true.
+       sample_abscal         = sample_gain
        make_dyn_mask         = iter == 20
        sample_ncorr          = iter > 10 !.true.
        sample_xi_n           = iter > 15 
-       select_data           = iter == 25 ! self%first_call  
+       select_data           = .false. ! self%first_call  
        sample_adc            = .false. !iter  > 0 ! 3 !.true.
+       sample_co             = self%num_emission_lines > 0
+       sample_cray           = .false. ! iter  > 0
     else
        ! Do data selection, then start sampling
        sample_gain           = iter > 1
+       sample_abscal         = sample_gain
        make_dyn_mask         = iter == 1
        sample_ncorr          = iter > 1 !.true.
        sample_xi_n           = iter > 1 !.false.
-       select_data           = .false. !iter == 1 ! self%first_call  
+       select_data           = iter == 1 ! self%first_call  
        sample_adc            = .false. !iter  > 0 !.true.
+       sample_co             = self%num_emission_lines > 0
+       sample_cray           = .false. ! iter  > 0.
     end if
-    fit_4k_lines          = .true. !iter > 2
-    if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") make_dyn_mask = .false.
+    if (self%freq(1:3) == "353") then
+       sample_ncorr  = .false.
+       sample_xi_n   = .false.
+!!$       sample_abscal = .false.
+    else if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") then
+       make_dyn_mask = .false.
+       sample_ncorr  = .false.
+       sample_xi_n   = .false.
+    end if
 
+!!$    ! Disable ncorr until gain related effects are solved
+!!$    sample_ncorr          = .false.
+!!$    sample_xi_n           = .false.
+    
+    fit_4k_lines          = .false. !iter > 2
     sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
     output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     dec_wn                = 2 ! Decimation factor for sigma0; 2 corresponds to 45Hz
-    skip_nonlin_ = 100
-
-    if (sample_ncorr) then
-       if (self%correct_sl) then
-          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR,SD_SL])
-       else
-          oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
-       end if
-       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    if (fit_4k_lines) then
+       skip_nonlin_ = 4
     else
-       if (self%correct_sl) then
-           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
-       else
-           oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-               & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-       end if
-       !oper_default = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-       !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+       skip_nonlin_ = 3
     end if
-    
+
+    oper_minimal = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_NCORR])
+    oper_default = oper_minimal
+    !if (sample_ncorr)    oper_default = add_sd_operation_code(oper_default, SD_NCORR)
+    if (self%correct_sl) oper_default = add_sd_operation_code(oper_default, SD_SL)
+    if (sample_cray)     oper_default = add_sd_operation_code(oper_default, SD_CRAY)
+    if (sample_co) then
+       oper_line    = oper_default
+       oper_default = add_sd_operation_code(oper_default, SD_LINE)
+    end if
+
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -468,10 +484,10 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0) then
+    if (self%output_aux_maps > 0 .or. .true.) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
-    if (output_zodi_comps) self%output_n_maps = 8 + zodi_model%n_comps
+    if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -481,15 +497,8 @@ contains
 
     ! Initialize index-based sky map and mask
     call self%pixcache%init_map_mask(map_in, self%bitmask, map_gain=map_gain)
+    if (sample_co) call self%pixcache%init_line_emission(self%map_line, self%line_ratio)
     call update_status(status, "tod_cache"//ctext)
-
-    !init procmask
-    if (sample_rel_bandpass .or. sample_abs_bandpass) then
-       allocate(m_buf(0:npix-1,1), procmask2(0:npix-1))
-       call self%procmask%bcast_fullsky_map(m_buf)
-       procmask2 = real(m_buf(:,1),sp)
-       deallocate(m_buf)
-    end if
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -517,19 +526,19 @@ contains
        if (.not. associated(self%adc(1)%p)) then
           call self%compute_adu_range
           do i = 1, self%ndet
-             self%adc(i)%p => comm_adc_binfit(self%comm, self%datadir, self%outdir, self%label(i), 16, &
+             self%adc(i)%p => comm_adc_binfit(self%comm, self%outdir, self%label(i), 16, &
                   & self%adu_range(i,1), self%adu_range(i,2), 40)
           end do
        end if
 
        ! Sample ADC parameters -- MUST BE FOLLOWED BY BASELINE SAMPLER
        ! HKE: Comment out for now
-       !do i = 1, self%ndet
-       !   call self%sample_adc_and_baselines(handle, i)
-       !end do
+!!$       do i = 1, self%ndet
+!!$          call self%sample_adc_and_baselines(handle, i)
+!!$       end do
        call update_status(status, "tod_adc"//ctext)
     end if
-!!$    
+    
     ! Fit per-chunk low-level non-linearity parameters
     do i = 1, self%nscan ! Disable for now
        ! Skip scan if no accepted data
@@ -541,8 +550,30 @@ contains
 !        end do
 !        close(58)
 
-       ! Apply only ADC corrections
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, nonlin_level=1)
+       call init_scan_data(self, i, oper_minimal, TODMASK_NCORR, sd, nonlin_level=0)
+
+       ! Subtract A/B detector crosstalk
+        ! Not implemented yet
+
+       ! Detect bright CRs that affect the baseline
+       if (sample_cray) then
+          do j = 1, 1 !self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             if (self%scans(i)%d(j)%cray%first_call) then
+                call self%scans(i)%d(j)%cray%detect_bright_events(sd%tod(:,j), &
+                     & real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j,0,1), &
+                     & self%scans(i)%d(j)%N_psd%sigma0)
+             end if
+          end do
+       end if
+          
+       call timer%start(TOD_NONLIN, self%band)
+       if (self%correct_N_crosstalk) then
+          ! estimate A/B detector crosstalk coeficients
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
+       end if
 
        ! Estimate modulation baselines; and set modulation phase
        if (self%first_call .and. trim(self%init_from_HDF) == 'none') then
@@ -552,49 +583,38 @@ contains
           call sample_hfi_baselines(sd, self, i, handle)
        end if
        call demodulate_tod(sd, self, i)
-       
-       ! Estimate pre-deconvolution white noise rms
-       call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_preproc=.true.)
-    !   do j = 1, self%ndet
-    !      if (.not. self%scans(i)%d(j)%accept) cycle
-    !      !call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
-    !   end do
-          
 
+       ! Estimate pre-deconvolution white noise rms
+       do j = 1, self%ndet
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          !call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn, sigma0_out=self%scans(i)%d(j)%N_psd%sigma0_preproc)
+          call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
+       end do
        ! Deconvolve high-frequency roll-off
-!!$<<<<<<< HEAD
-!!$       !do j = 1, self%ndet
-!!$       !   if (.not. self%scans(i)%d(j)%accept) cycle
-!!$       !   call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
-!!$       !end do
-!!$       
-!!$       if (.false. .and. .not. self%first_call) then
-!!$          call int2string(iter, itertext)
-!!$          call int2string(self%scanid(i), scantext)
-!!$||||||| 523aba3c
 !!$       do j = 1, self%ndet
 !!$          if (.not. self%scans(i)%d(j)%accept) cycle
 !!$          call deconvolve_rolloff(self, sd%tod(:,j), i, j, sd%s_tot(:,j), sd%mask(:,j), sd%flag(:,j), handle)
 !!$       end do
-!!$       
-!!$       if (.false. .and. .not. self%first_call) then
-!!$          call int2string(iter, itertext)
-!!$          call int2string(self%scanid(i), scantext)
-!!$=======
-       if (.true.) then
+       
+       if (.false. .and. .not. self%first_call) then
+          call int2string(iter, itertext)
+          call int2string(self%scanid(i), scantext)
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call deconvolve_rolloff(self, sd, j)!,&
-                  !& ps_output = itertext // '_' // scantext)
+             ! fill gaps and deconvolve rolloff
+             !call fill_gaps(self, sd%tod(:,j), handle, i, j, sd%mask(:,j), sd%s_tot(:,j,0,1), sd%pix(:,:,1),nomono=.true.,filling='white')!,&
+                            !& ps_output = 'init_' // itertext // '_' // scantext)
+             call deconvolve_rolloff(self, sd, j) !sd%tod(:,j), i, j, sd%s_tot(:,j,0,1), sd%mask(:,j), nomono=.true.)!,&
+                                     !& ps_output = itertext // '_' // scantext)
           end do
        end if
        call timer%stop(TOD_NONLIN, self%band)
 
-       ! Fix dc level jumps 
+       ! Fix dc level jumps
        call self%stitch_hfi_dc_level(i, sd)
-
+       
        ! Dark bolometer drift correction
-       call self%hfi_dark_correction(i, sd)       
+       call self%hfi_dark_correction(i, sd)
 
        ! 4k Line corrections
        if (fit_4k_lines) then
@@ -602,15 +622,19 @@ contains
              if (.not. self%scans(i)%d(j)%accept) cycle
              call estimate_hfi_4k_lines(self, sd, j)
           end do
+          !call self%estimate_hfi_4k_lines(i, sd)
        end if
 
-       ! Initialize spline noise model
-       if (self%noise_psd_model == 'spline') then
-          do j = 1, self%ndet
-             if (self%scans(i)%d(j)%accept) call update_spline_noise_psd(self,sd,i,j)
-          end do
-          if (self%myid==0) write(*,*) '|  Number of spline noise model parameters:', self%scans(i)%d(1)%N_psd%npar
+       call timer%start(TOD_NONLIN, self%band)
+       if (self%correct_N_crosstalk) then
+          ! estimate A/B detector crosstalk coeficients
+          ! HKE: Commenting out for now, as the interface needs to be generalized to support AKARI
+          !call self%xtalk%estimate_crosstalk_matrix(sd)
+          !call self%xtalk%remove_crosstalk_signal(sd)
        end if
+
+       ! Subtract A/B detector crosstalk
+        ! Not implemented yet
 
        ! Clean up
        call dealloc_scan_data(sd)
@@ -619,53 +643,115 @@ contains
     call mpi_barrier(self%comm, ierr) ! Improve timing information
     call timer%stop(TOD_WAIT, self%band)
 
-    call update_status(status, "tod_nonlin"//ctext)
 
-    ! Fit global timestream contaminants 
+!!$    call update_status(status, "tod_nonlin"//ctext)
+
+    ! Fit global timestream contaminants
 
     ! Subtract cosmic ray contribution
-    !do j=1, self%ndet
-
-    !  call init_det_data_singlehorn(dd, self, j)
-
-    !  call self%cray(j)%p%build_cray_templates()
-
-    !  do i=1, self%nscan
-    !    call populate_sd_from_dd(sd, dd, i, j)
-
-    !    call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
-
-    !    call dealloc_scan_data(sd)
-    !  end do
-
-    !  call dd%dealloc
-    !end do
+!!$    do j=1, self%ndet
+!!$
+!!$      call init_det_data_singlehorn(dd, self, j)
+!!$
+!!$      call self%cray(j)%p%build_cray_templates()
+!!$
+!!$      do i=1, self%nscan
+!!$        call populate_sd_from_dd(sd, dd, i, j)
+!!$
+!!$        call self%cray(j)%p%fit_cray_amplitudes(sd%tod(j,:), sd%s_inst(j, :))
+!!$
+!!$        call dealloc_scan_data(sd)
+!!$      end do
+!!$
+!!$      call dd%dealloc
+!!$    end do
 
     ! Estimate ADC corrections
     !    Not implemented yet
 
     ! Fit bolometer transfer function parameters?
-    !    Not implemented yet     
+    !    Not implemented yet
+
 
     ! NOW Sample high level tod components that require cleaned data
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (sample_gain) then
        ! TODO: Also sample non-linear gain response here?
-       call sample_calibration(self, 'abscal', oper_default, handle)
+       if (sample_abscal) call sample_calibration(self, 'abscal', oper_default, handle)
        call sample_calibration(self, 'relcal', oper_default, handle)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.true.)
        !call sample_calibration(self, 'deltaG', oper_default, handle, smooth=.false.)
-       !call sample_calibration(self, 'total', oper_default, handle, smooth=.false.)
        call update_status(status, "tod_calib"//ctext)
     end if
+
+    ! Sample CO line emission
+    if (sample_co) then
+       
+       !call binmap%init(self, .true., .false., nplus2=.false.)
+       linemap => comm_linemap(self)
+
+       ! Fit higher-level corrections
+       if (self%myid == 0) write(*,*) '   --> Sampling CO line emission'
+       call update_status(status, "tod_co1"//ctext)
+       do i = 1, self%nscan
+
+          ! Skip scan if no accepted data
+          if (.not. any(self%scans(i)%d%accept)) cycle
+          call wall_time(t1)
+
+          ! Prepare data
+          call init_scan_data(self, i, oper_line, TODMASK_NCORR, sd, handle=handle)
+
+          ! Sample correlated noise
+          if (.false. .and. sample_ncorr) then
+             call sample_n_corr(self, sd, handle, globalmono=.true.)
+          else
+             call sample_n_corr(self, sd, handle, onlymono=.true.)
+          end if
+          
+          ! Compute calibrated TOD for mapmaking
+          allocate(d_calib(1,sd%ntod, sd%ndet))
+          d_calib = 0.d0
+          do j = 1, self%ndet
+             d_calib(1,:,j) = (sd%tod(:,j)-sd%n_corr(:,j))/self%scans(i)%d(j)%gain - &
+                  & sd%s_tot(:,j,0,1)
+          end do
+
+          ! Bin TOD
+          call bin_linemap(self, i, sd%pix(:,:,1), sd%flag, &
+               & d_calib(1,:,:), linemap)
+
+          ! Clean up
+          call dealloc_scan_data(sd)
+          deallocate(d_calib)
+       end do
     
-    ! Create pixel histograms
-    !if (self%first_call) call compute_tod_pixhist(self)
-    !call update_status(status, "tod_hist"//ctext)
+       ! Sample line ratios and maps
+       call synchronize_linemap(linemap, self)
+       call sample_line_ratios(self, linemap, .true.)
+       !call sample_line_ratios_amp2(self, linemap)
+       !call sample_line_scaling(self, linemap)
+       !call sample_line_ratios(self, linemap)
+       call finalize_linemap(self, linemap)
+       call deallocate_linemap(linemap)
+
+       ! Update lookup table
+       call self%pixcache%init_line_emission(self%map_line, self%line_ratio)
+       call self%map_line%writeFITS(trim(prefix)//'linemap'//trim(postfix))
+       call self%rms_line%writeFITS(trim(prefix)//'linerms'//trim(postfix))
+       call update_status(status, "tod_co2")
+    end if
+!!$    call mpi_finalize(ierr)
+!!$    stop
     
+!!$    ! Create pixel histograms
+!!$    if (self%first_call) call compute_tod_pixhist(self)
+!!$    call update_status(status, "tod_hist"//ctext)
+
     ! Prepare intermediate data structures
     !call binmap%init(self, .true., .false., nplus2=.false.)
+    !call binmap%init(self, .true., sample_rel_bandpass, nplus2=.false.)
     binmap => comm_binmap(self, .true., sample_rel_bandpass, nplus2=.false.)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
@@ -690,19 +776,20 @@ contains
 
        ! Prepare data
        call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, handle=handle)
-       
+
        ! Create dynamic mask
        if (make_dyn_mask) then
           ! Estimate sigma0 for masking
           if (trim(self%init_from_HDF) == 'none') then
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
-          
+
           ! Create mask
           do j = 1, sd%ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              call self%dynmask%create(sd, j)
           end do
+
 
           call dealloc_scan_data(sd)
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -713,13 +800,12 @@ contains
 
        ! Sample correlated noise
        if (sample_ncorr) then
-          call sample_n_corr(self, sd, handle)
+          call sample_n_corr(self, sd, handle, globalmono=.true.)
           if (sample_xi_n) then
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.
              call create_spin_freqmask(real(self%samprate,sp), self%f_spin, self%f_spin/10., 3.0, freqmask) ! Spin harmonics
              !call create_spin_freqmask(real(self%samprate,sp), 10., 1., 85., freqmask) ! 4K harmonics
-             
              call sample_noise_psd(self, sd, handle, chaindir, freqmask=freqmask)
              !call sample_noise_psd(self, sd, handle, chaindir)
              deallocate(freqmask)
@@ -727,9 +813,11 @@ contains
              call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
           end if
        else
+          call sample_n_corr(self, sd, handle, onlymono=.true.)
           call sample_noise_psd(self, sd, handle, chaindir, only_sigma0=.true., dec_wn=dec_wn)
        end if
-       
+
+
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -739,6 +827,15 @@ contains
        ! Select data
        if (select_data) then
           call remove_bad_data(self, i, sd%flag)
+
+          ! Count number of unmasked samples outside the processing mask; for ADC sampling
+          do j = 1, sd%ndet
+             if (self%scans(i)%d(j)%accept) then
+                self%scans(i)%d(j)%nsamp_unmasked = sum(sd%mask(:,j))
+             else
+                self%scans(i)%d(j)%nsamp_unmasked = 0
+             end if
+          end do
        end if
 
        ! Compute chisquare for bandpass fit
@@ -749,23 +846,18 @@ contains
        d_calib = 0.d0
        call compute_calibrated_data(self, i, sd, d_calib)
 
-       ! Bin TOD
-       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
-       ! Feed CG mapmaker calibrated and cleaned data
-       !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+!!$       if (self%scanid(i) == 500) then
+!!$          open(58,file='res'//samptext//'.dat', recl=1024)
+!!$          do j = 1, sd%ntod
+!!$             write(58,*) j, sd%tod(j,1), sd%n_corr(j,1), d_calib(1,j,1), d_calib(2,j,1), 1-(sd%flag(j,1)/maxval(sd%flag(:,1))), self%psi(sd%psi(j,1,1))*RAD2DEG, self%psi(sd%psi(j,2,1))*RAD2DEG, self%psi(sd%psi(j,3,1))*RAD2DEG, self%psi(sd%psi(j,4,1))*RAD2DEG
+!!$          end do
+!!$          close(58)
+!!$       end if
 
       ! output tod for debugging
        ! for some reason the first iteration is outputing as "tod_"
-       !if (mod(self%scanid(i),5000) == 0 .and. allocated(sd%n_corr)) then
-       if (mod(self%scanid(i),5000) == 0) then
-          do j = 1, sd%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
-             sd%tod(:,j)    = sd%tod(:,j) / self%scans(i)%d(j)%gain
-             !sd%n_corr(:,j) = sd%n_corr(:,j) / self%scans(i)%d(j)%gain             
-          end do
-
-
+       !if (self%scanid(i) == 6528 .or. self%scanid(i) == 6605) then
+       if (.false. .and. mod(self%scanid(i),6000) == 0) then
           call int2string(self%scanid(i), scantext)
 
           write(*,*) '| Writing tod to hdf'
@@ -774,15 +866,19 @@ contains
           call write_hdf(tod_file, '/calib',    d_calib(1,:,:))
           call write_hdf(tod_file, '/res',      d_calib(2,:,:))
           call write_hdf(tod_file, '/flag',     sd%flag)
-          !call write_hdf(tod_file, '/n_corr',   sd%n_corr)
           call write_hdf(tod_file, '/orb',      sd%s_orb)
           call write_hdf(tod_file, '/psi',      sd%psi)
-          call write_hdf(tod_file, '/pix',      sd%pix)
           call write_hdf(tod_file, '/s_tot',    sd%s_tot)
           call write_hdf(tod_file, '/mask',     sd%mask)
           call close_hdf_file(tod_file)
         end if
-       
+
+       ! Bin TOD
+       call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+
+       ! Feed CG mapmaker calibrated and cleaned data
+       !call cgmap%load_data(i, self, sd, d_calib(1,:,:))
+
        ! Update scan list
        call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -802,18 +898,14 @@ contains
     call mpi_barrier(self%comm, ierr) ! Improve timing information
     call timer%stop(TOD_WAIT, self%band)
     call update_status(status, "tod_postloop"//ctext)
-    
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
     if (select_data) then
        ! Remove data based on a gliding RMS window cut for each of the listed
        ! criteria
-
-       !if (trim(self%noise_psd_model) /= 'spline') then
-          !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
-          !call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
-       !else
-          !                                  half-window  [chisq, sigma0, xi_n,  base,  base1, base2]
-          !call remove_tod_outliers_spline(self, 100,      [5.,    5.,     9.,    0.,    5.,    5.   ])
-       !end if
+       !                           half-window  [chisq, sigma0, fknee, alpha, base, base1, base2]
+       !call remove_tod_outliers(self, 100,      [5.,    5.,     5.,    5.,    0.,   5.,    5.   ])
        
        if (self%symm_flags) then
           ! Remove partners for rejected scans
@@ -825,7 +917,7 @@ contains
              end do
           end do
        end if
-          
+
        do i = 1, self%nscan
           do j = 1, self%ndet
              if (.not. self%scans(i)%d(j)%accept) self%scans(i)%d(j)%nsamp_unmasked = 0
@@ -834,13 +926,13 @@ contains
     end if
     call update_status(status, "tod_outlier"//ctext)
 
-    
+
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
     if (make_dyn_mask) then
        call self%dynmask%report
        call update_status(status, "tod_dynstats"//ctext)
     end if
-    
+
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
 
@@ -860,7 +952,7 @@ contains
     else
        if(self%nmaps > 1) then
           call finalize_binned_map(self, binmap, rms_out, 1.d0)
-       else 
+       else
          call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
        end if
     end if
@@ -872,7 +964,7 @@ contains
        call sample_bp(self, handle, chisq_S, delta)
        self%bp_delta = delta(:,:,1)
     end if
-   
+
     ! Output maps to disk
     call timer%start(TOD_WRITE)
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
@@ -895,7 +987,7 @@ contains
     !call cgmap%solve(map_out)
     !call dealloc_cgmap(cgmap)
     !call map_out%writeFITS(trim(prefix)//'cgmap'//trim(postfix))
-    
+
     ! Clean up
     call deallocate_binmap(binmap)
     call update_status(status, "tod_binmap4"//ctext)
@@ -907,7 +999,7 @@ contains
           end do
        end do
     end if
-    
+
     if (self%reload_TOD) then
        call self%pixcache%dealloc
        do i = self%nscan, 1, -1
@@ -927,14 +1019,12 @@ contains
        end do
     end if
 
-    ! Parameter to check if this is first time routine has been called
-    if (allocated(procmask2)) deallocate(procmask2)
-    if (allocated(chisq_S)) deallocate(chisq_S)
+    ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
     call timer%stop(TOD_TOT, self%band)
-    
+
   end subroutine process_HFI_tod
 
   module subroutine load_instrument_hfi(self, instfile, band)
@@ -950,7 +1040,7 @@ contains
     !    the open file handle for the instrument file
     ! band : int
     !    the index of the current detector
-    ! 
+    !
     ! Returns : None
     implicit none
     class(comm_hfi_tod),                 intent(inout) :: self
@@ -959,7 +1049,7 @@ contains
 
     integer(i4b) :: j
     real(dp), allocatable, dimension(:) :: par
-    
+
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'polEff', self%pol_eff(band))
     self%pol_eff(band) = self%pol_eff(band) * 0.01d0 ! Stored as percentage in the instrument file for now
 
@@ -976,21 +1066,21 @@ contains
 
 
   module subroutine sample_hfi_baselines(self, tod, scan, handle, subtract_s_tot)
-    ! 
+    !
     ! Estimates baselines for MODULATED data, separate for odd and even samples
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_scandata)
     !           HFI-specific TOD object
     ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
+    !             contains TOD-specific information
     ! scan:     scan ID
     ! handle:   planck_rng derived type
     !           Healpix definition for random number generation
     !           so that the same sequence can be resumed later on from that same
     !           point
-    !           
+    !
     !
     ! Returns
     ! ----------
@@ -1003,16 +1093,16 @@ contains
     integer(i4b),                         intent(in)    :: scan
     type(planck_rng),                     intent(inout) :: handle
     logical(lgt),                         intent(in), optional :: subtract_s_tot
-    
+
     real(dp) :: eta, A1, A2, x, b1, b2, sgn
     integer(i4b) :: i, j
     logical(lgt) :: sub_s
 
     call timer%start(TOD_BASELINE, self%band)
-    
+
     sub_s = .true.; if (present(subtract_s_tot)) sub_s = subtract_s_tot
-    
-    
+
+
     ! tod%scans(scan)%d(i)%gain - the gain constant over a scan [real number]
     ! sd = self --- self%s_tot - sky signal model
     ! self%s_tot(self%ntod, self%ndet) - how s_tot structured
@@ -1021,13 +1111,13 @@ contains
     do i = 1, tod%ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        sgn = tod%mod_phase(i,scan)
-       
+
        ! Odd samples
        A1 = 0.d0; b1 = 0
        do j = 1, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A1 = A1 + 1.d0
-          b1 = b1 + self%tod_dp(j,i)
+          b1 = b1 + self%tod(j,i)
           if (sub_s) b1 = b1 - sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i,0,1)
           !if (tod%scanid(scan) == 1151) write(58,*) j, self%tod(j,i), sgn, tod%scans(scan)%d(i)%gain, self%s_tot(j,i,0,1)
        end do
@@ -1039,14 +1129,14 @@ contains
        end if
        tod%scans(scan)%d(i)%baseline1  = b1/A1 + rand_gauss(handle)/sqrt(A1)
        !write(*,*) 'Ab1', tod%scanid(scan), i, b1, real(A1,sp), real(rand_gauss(handle)/sqrt(A1),sp)
-       
+
        ! Even samples
        !if (tod%scanid(scan) == 1151) write(58,*)
        A2 = 0.d0; b2 = 0.d0
        do j = 2, self%ntod, 2
           if (self%mask(j,i) == 0) cycle
           A2 = A2 + 1.d0
-          b2 = b2 + self%tod_dp(j,i)
+          b2 = b2 + self%tod(j,i)
           if (sub_s) b2 = b2 + sgn*tod%scans(scan)%d(i)%gain * self%s_tot(j,i,0,1)
           !if (tod%scanid(scan) == 1151) write(58,*) j, self%tod(j,i), sgn, tod%scans(scan)%d(i)%gain, self%s_tot(j,i,0,1)
        end do
@@ -1055,35 +1145,35 @@ contains
        if (A2 == 0.d0) then
           tod%scans(scan)%d(i)%accept = .false.
           cycle
-       end if       
+       end if
        tod%scans(scan)%d(i)%baseline2  = b2/A2 + rand_gauss(handle)/sqrt(A2)
        !write(*,*) 'Ab2', tod%scanid(scan), i, b2, real(A2,sp), real(rand_gauss(handle)/sqrt(A2),sp)
-       
+
        !write(*,'(a,i8,3f16.3)') "baseline =", tod%scanid(scan), tod%scans(scan)%d(i)%baseline1, tod%scans(scan)%d(i)%baseline2, sgn
 
     end do
     !if (tod%scanid(scan) == 1151) close(58)
 
     call timer%stop(TOD_BASELINE, self%band)
-    
+
   end subroutine sample_hfi_baselines
 
   module subroutine set_modulation_phase(self, tod, scan)
-    ! 
+    !
     ! Estimates baselines for MODULATED data, separate for odd and even samples
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_scandata)
     !           HFI-specific TOD object
     ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
+    !             contains TOD-specific information
     ! scan:     scan ID
     ! handle:   planck_rng derived type
     !           Healpix definition for random number generation
     !           so that the same sequence can be resumed later on from that same
     !           point
-    !           
+    !
     !
     ! Returns
     ! ----------
@@ -1095,20 +1185,20 @@ contains
     class(comm_scandata),                 intent(in)    :: self
     class(comm_hfi_tod),                  intent(inout) :: tod
     integer(i4b),                         intent(in)    :: scan
-    
+
     real(dp) :: mu1, mu2, n
     integer(i4b) :: i, j
-    
+
     do i = 1, tod%ndet
-       if (.not. tod%scans(scan)%d(i)%accept) cycle       
-       
+       if (.not. tod%scans(scan)%d(i)%accept) cycle
+
        mu1 = 0.d0; n = 0.d0
        do j = 1, self%ntod-1, 2
           if (iand(self%flag(j,  i), tod%flag0) .ne. 0) cycle
           if (iand(self%flag(j+1,i), tod%flag0) .ne. 0) cycle
           if (self%pix(j,i,1) > 0.48*tod%info%npix .and. self%pix(j,i,1) < 0.52*tod%info%npix) then
-             mu1 = mu1 + (self%tod_dp(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
-                       & (self%tod_dp(j+1,i)-tod%scans(scan)%d(i)%baseline2)
+             mu1 = mu1 + (self%tod(j,  i)-tod%scans(scan)%d(i)%baseline1) - &
+                       & (self%tod(j+1,i)-tod%scans(scan)%d(i)%baseline2)
              n   = n  + 1.d0
           end if
        end do
@@ -1119,25 +1209,29 @@ contains
        else
           mu1 = mu1/n
        end if
-       
+
        ! saving the phase to the tod object
        if (mu1 < 0.) then
           tod%mod_phase(i,scan) = -1
        end if
-    end do
 
+       if (associated(tod%scans(scan)%d(i)%cray)) then
+          call tod%scans(scan)%d(i)%cray%set_mod_phase(nint(tod%mod_phase(i,scan)))
+       end if
+    end do
+    
   end subroutine set_modulation_phase
 
   module subroutine demodulate_tod(self, tod, scan)
-    ! 
+    !
     ! Demodulate HFI TOD
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_scandata)
     !           HFI-specific TOD object
     ! tod:      comm_tod derived type
-    !             contains TOD-specific information         
+    !             contains TOD-specific information
     ! scan:     Scan ID
     !
     ! Returns
@@ -1149,7 +1243,7 @@ contains
     class(comm_hfi_tod),                          intent(in)    :: tod
     integer(i4b),                                 intent(in)    :: scan
 
-    integer(i4b) :: i, j, d
+    integer(i4b) :: i, j, k1, k2, d
     real(sp)     :: sgn
 
 !!$    open(58,file='tod_adc.dat')
@@ -1157,23 +1251,68 @@ contains
 !!$       write(58,*) j, self%tod(j,1)
 !!$    end do
 !!$    close(58)
-    
+
     do i = 1, self%ndet
        d = self%det(i)
-       if (.not. tod%scans(scan)%d(d)%accept) cycle       
+       if (.not. tod%scans(scan)%d(d)%accept) cycle
        sgn = tod%mod_phase(d,scan)
+
+!!$       if (i == 1) then
+!!$          open(58,file='glitch1.dat')
+!!$          do j = 1, self%ntod
+!!$             write(58,*) j, self%tod(j,1)
+!!$          end do
+!!$          close(58)
+!!$       end if
+
+       
+       ! Apply CR baseline corrections
+       if (associated(tod%scans(scan)%d(d)%cray)) then
+          do j = 1, tod%scans(scan)%d(d)%cray%n
+             if (tod%scans(scan)%d(d)%cray%event_list(j)%p%type == -1) then
+                k1 =    tod%scans(scan)%d(d)%cray%event_start(j)
+                k2 = k1+tod%scans(scan)%d(d)%cray%event_length(j)-1
+                self%tod(k1:k2,i) =  self%tod(k1:k2,i) - &
+                     & tod%scans(scan)%d(d)%cray%event_list(j)%p%T_base
+             end if
+          end do
+       end if
+
+!!$       if (i == 1) then
+!!$          open(58,file='glitch2.dat')
+!!$          do j = 1, self%ntod
+!!$             write(58,*) j, self%tod(j,1)
+!!$          end do
+!!$          close(58)
+!!$       end if
        
        ! Subtract baselines and flip sign of every other sample
        do j = 1, self%ntod
            if (mod(j,2) == 1) then
-              self%tod(j,i) =  sgn*(self%tod_dp(j,i) - tod%scans(scan)%d(d)%baseline1)
+              self%tod(j,i) =  sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline1)
               !self%tod(j,i) =  (self%tod(j,i) - tod%scans(scan)%d(i)%baseline1)
            else
-              self%tod(j,i) = -sgn*(self%tod_dp(j,i) - tod%scans(scan)%d(d)%baseline2)
+              self%tod(j,i) = -sgn*(self%tod(j,i) - tod%scans(scan)%d(d)%baseline2)
               !self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
        end do
        !if (sgn < 0.) self%tod(:,i) = -self%tod(:,i)
+
+       if (associated(tod%scans(scan)%d(d)%cray)) then
+          do j = 1, tod%scans(scan)%d(d)%cray%n
+             if (tod%scans(scan)%d(d)%cray%event_list(j)%p%type == -1) then
+                k1 = tod%scans(scan)%d(d)%cray%event_list(j)%p%mask(1)
+                k2 = tod%scans(scan)%d(d)%cray%event_list(j)%p%mask(2)
+                self%tod(k1:k2,i) = 0.
+             end if
+          end do
+          
+!!$          open(58,file='glitch3.dat')
+!!$          do j = 1, self%ntod
+!!$             write(58,*) j, self%tod(j,1)
+!!$          end do
+!!$          close(58)
+       end if
        
     end do
 
@@ -1182,42 +1321,42 @@ contains
 !!$       write(58,*) j, self%tod(j,1), self%mask(j,1)
 !!$    end do
 !!$    close(58)
-    
+
   end subroutine demodulate_tod
 
   module subroutine compute_adu_range(self)
-    ! 
+    !
     ! Computes ADU range over all scans and unmasked samples; for ADC correction
     ! Must be called after dynamic mask definition
     !
     ! Arguments:
     ! ----------
     ! self:      comm_tod derived type
-    !             contains TOD-specific information         
+    !             contains TOD-specific information
     ! Returns
     ! ----------
     !   None, but updates tod%adu_range
     !
     implicit none
     class(comm_hfi_tod),                  intent(inout) :: self
-    
+
     integer(i4b) :: i, j, ntod, scan, ierr, oper
     type(comm_scandata) :: sd
-    
+
     oper = get_sd_operation_code([SD_BASE,SD_TOD])
 
     do i = 1, self%ndet
        self%adu_range(i,:) = [40*2**16,0]
     end do
-    
+
     do scan = 1, self%nscan
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
           call init_scan_data(self, scan, oper, -1, sd, nonlin_level=0)
           do j = 1, sd%ntod
              if (iand(sd%flag(j,i), self%flag0) .eq. 0) then
-                self%adu_range(i,1) = min(self%adu_range(i,1), nint(sd%tod_dp(j,i)))
-                self%adu_range(i,2) = max(self%adu_range(i,2), nint(sd%tod_dp(j,i)))
+                self%adu_range(i,1) = min(self%adu_range(i,1), nint(sd%tod(j,i)))
+                self%adu_range(i,2) = max(self%adu_range(i,2), nint(sd%tod(j,i)))
              end if
           end do
           call dealloc_scan_data(sd)
@@ -1230,7 +1369,7 @@ contains
          & MPI_INTEGER, MPI_MAX, self%comm, ierr)
     self%adu_range(:,1) = self%adu_range(:,1) / 40 - 16 ! Add a little buffer
     self%adu_range(:,2) = self%adu_range(:,2) / 40 + 16
-    
+
     if (self%myid == 0) then
        write(*,*) '  ADU range       min        max        n_ADU'
        do i = 1, self%ndet
@@ -1240,15 +1379,15 @@ contains
 
 !!$    call mpi_finalize(i)
 !!$    stop
-    
+
   end subroutine compute_adu_range
 
 
-  
+
   module subroutine read_tod_inst_HFI(self, file)
-    ! 
+    !
     ! Reads HFI-specific common fields from TOD fileset
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_HFI_tod)
@@ -1264,11 +1403,11 @@ contains
     class(comm_HFI_tod),                 intent(inout)          :: self
     type(hdf_file),                      intent(in),   optional :: file
   end subroutine read_tod_inst_HFI
-  
+
   module subroutine read_scan_inst_HFI(self, file, slabel, detlabels, scan)
-    ! 
+    !
     ! Reads HFI-specific scan information from TOD fileset
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_HFI_tod)
@@ -1295,9 +1434,9 @@ contains
   end subroutine read_scan_inst_HFI
 
   module subroutine initHDF_HFI(self, chainfile, path)
-    ! 
+    !
     ! Initializes HFI-specific TOD parameters from existing chain file
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_HFI_tod)
@@ -1344,9 +1483,13 @@ contains
        do i = 1, self%nscan
           k = self%scanid(i)
           if (.not. self%scans(i)%d(j)%accept) cycle
-          self%scans(i)%d(j)%baseline1 = base(k,j,1) 
-          self%scans(i)%d(j)%baseline2 = base(k,j,2) 
+          self%scans(i)%d(j)%baseline1 = base(k,j,1)
+          self%scans(i)%d(j)%baseline2 = base(k,j,2)
           self%mod_phase(j,i)          = phase(k,j)
+
+          if (associated(self%scans(i)%d(j)%cray)) then
+             call self%scans(i)%d(j)%cray%set_mod_phase(nint(self%mod_phase(j,i)))
+          end if
        end do
     end do
 
@@ -1361,15 +1504,15 @@ contains
 !!$       end do
 !!$       deallocate(Q)
 !!$    end if
-    
+
     deallocate(base, phase)
 
   end subroutine initHDF_HFI
-  
+
   module subroutine dumpToHDF_hfi(self, chainfile, path)
-    ! 
+    !
     ! Writes instrument-specific TOD parameters to existing chain file
-    ! 
+    !
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_tod)
@@ -1489,45 +1632,58 @@ contains
     type(planck_rng),            optional, intent(inout) :: handle
     integer(i4b),                optional, intent(in)    :: det
 
-    integer(i4b) :: i, j, d, scan
+    integer(i4b) :: i, j, k1, k2, d, scan
 
     scan = sd%scan
 
-    ! Apply ADC corrections to raw self%tod_dp
-    if (nonlin_lvl > 0 .and. associated(self%adc(1)%p)) then
+    ! Apply ADC corrections to raw self%tod
+    if (associated(self%adc(1)%p)) then
        do i = 1, self%ndet
-          d = i; if (present(det)) d = det
-          if (.not. self%scans(scan)%d(d)%accept) cycle
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             write(*,*) trim(self%outdir)//'/adc_before.dat'
-             open(58,file=trim(self%outdir)//'/adc_before.dat')
-             do j = 1, sd%ntod
-                write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
-             end do
-             close(58)
-          end if
-          !call self%adc(d)%p%Q2As(92.)
-          !call self%adc(d)%p%As2F
-          call self%adc(d)%p%adc_correct(sd%tod_dp(:,i), &
-               & iand(sd%flag(:,i), self%flag0) .eq.0, self%mod_phase(i,scan))
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             open(58,file=trim(self%outdir)//'/adc_after.dat')
-             do j = 1, sd%ntod
-                write(58,*) j, sd%tod_dp(j,i), and(sd%flag(j,i), self%flag0)
-             end do
-             close(58)
-          end if
+          if (.not. self%scans(scan)%d(i)%accept) cycle
+          call self%adc(i)%p%Q2As(92.)
+          call self%adc(i)%p%As2F
+!          call self%adc(i)%p%adc_correct(self%scanid(scan), i, sd%tod(:,i), &
+!               & self%scans(scan)%d(i)%N_psd%sigma0, &
+!               & mask=iand(sd%flag(:,i), self%flag0) .eq.0)
        end do
     end if
-
-    ! Demodulate TOD; convert from double precision (sd%tod_dp) to single precision (sd%tod)
+    
+    ! Demodulate TOD
     if (nonlin_lvl > 1) then
        !if (present(handle)) call sample_hfi_baselines(sd, self, scan, handle)
        call demodulate_tod(sd, self, scan)
     end if
+
+!!$    open(58,file="raw.dat")
+!!$    do i = 1, sd%ntod
+!!$       if (mod(i,2) == 1) then
+!!$          sd%tod(i,2) = sd%tod(i,2) - self%scans(scan)%d(2)%gain * sd%s_tot(i,2,0,1)
+!!$       else
+!!$          sd%tod(i,2) = sd%tod(i,2) + self%scans(scan)%d(2)%gain * sd%s_tot(i,2,0,1)
+!!$       end if
+!!$    end do
+!!$    sd%tod(1::2,2) = sd%tod(1::2,2) - sum(sd%tod(1:100:2,2))/50.
+!!$    sd%tod(2::2,2) = sd%tod(2::2,2) - sum(sd%tod(2:100:2,2))/50.
+!!$    do i = 1, self%ndet
+!!$       do j = 1, self%scans(scan)%d(i)%cray%n
+!!$          if (self%scans(scan)%d(i)%cray%event_list(j)%p%type == -1) then
+!!$             k1 = self%scans(scan)%d(i)%cray%event_list(j)%p%mask(1)
+!!$             k2 = self%scans(scan)%d(i)%cray%event_list(j)%p%mask(2)
+!!$             sd%tod(k1:k2,i) = 0.
+!!$          end if
+!!$       end do
+!!$    end do
+!!$
+!!$    do i = 1, sd%ntod
+!!$       write(58,*) i, sd%tod(i,1),  iand(sd%flag(i,1), self%flag0)
+!!$    end do
+!!$    close(58)
+!!$    stop
+!!$    return
+
     
     ! In-paint flagged samples with s_tot + white noise
-    if (nonlin_lvl > 2) then
+    if (.false. .and.  nonlin_lvl > 2) then
        do i = 1, self%ndet
           d = i; if (present(det)) d = det
           if (.not. self%scans(scan)%d(d)%accept) cycle
@@ -1538,51 +1694,45 @@ contains
           end do
        end do
     end if
-        
+
     ! Deconvolve high-frequency roll-off
     if (nonlin_lvl > 2) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          call deconvolve_rolloff(self, sd, i)
+          !call deconvolve_rolloff(self, sd, i) !sd%tod(:,i), scan, i, sd%s_tot(:,i), sd%mask(:,i), sd%flag(:,i), handle)
        end do
     end if
     
-    ! Correct 4k lines (re-estimate after gain sampling)
-    if (nonlin_lvl > 3) then
+    ! Correct 4k lines
+    if (.true. .and. nonlin_lvl > 3) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          call remove_hfi_4k_lines(self, sd, i)
+          !call remove_hfi_4k_lines(self, scan, i, sd%tod(:,i), sd%s_tot(:,i))
+          !call estimate_hfi_4k_lines(self, sd, i)
        end do
     end if
-    
+
     ! Deconvolve regularized bolometer transfer function
     if (nonlin_lvl > 4) then
        do i = 1, self%ndet
           if (.not. self%scans(scan)%d(i)%accept) cycle
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             open(58,file='tod_before.dat')
-             do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i)
-             end do
-             close(58)
-          end if
+!!$          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+!!$             open(58,file='tod_before.dat')
+!!$             do j = 1, sd%ntod
+!!$                write(58,*) j, sd%tod(j,i)
+!!$             end do
+!!$             close(58)
+!!$          end if
           call self%Tbol(i)%p%convolve("preproc", "convolve", sd%tod(:,i), sd%plan_fwd, sd%plan_back)
-          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
-             open(58,file='tod_after.dat')
-             do j = 1, sd%ntod
-                write(58,*) j, sd%tod(j,i)
-             end do
-             close(58)
-          end if
+!!$          if (self%myid == 0 .and. sd%scan == 1 .and. i == 1) then
+!!$             open(58,file='tod_after.dat')
+!!$             do j = 1, sd%ntod
+!!$                write(58,*) j, sd%tod(j,i)
+!!$             end do
+!!$             close(58)
+!!$          end if
        end do
     end if
-
-   ! At the end, update spline noise model nodes
-   if (.true. .and. self%noise_psd_model == 'spline') then
-      do i = 1, self%ndet
-         if (self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
-      end do
-   end if
 
   end subroutine apply_nonlin_corr_hfi
 
@@ -1637,14 +1787,18 @@ contains
     !  ----------
     !  self: comm_tod object
     !
-    !  sd: comm_scandata object
-    !       scan data
+    !  scan: int
+    !       scan number
     !  i_det: int
     !       detector id
-    !  apply_mask: logaical
-    !              apply mask to residuals
+    !  tod: real(sp) array
+    !       tod of the scan
+    !  s_sub: real(sp) array
+    !         sky signal template
+    !  mask: real(sp) array
+    !        mask array
     !  ps_output: character array
-    !             output filename    
+    !             output filename
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
@@ -1656,239 +1810,350 @@ contains
     integer(i4b) :: i0, i1, nsub, maxiter, n_f0, n_sig
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: apply_mask_
-    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain, wn
-    real(sp)     :: A_fit, f0_fit, sigma_fit
-    real(sp),     allocatable, dimension(:)   :: dt, d_prime
-    real(sp),     allocatable, dimension(:)   :: ps_flat, ps_spikes, W
-    complex(spc), allocatable, dimension(:)   :: dv, dv_4K
-    real(sp),     allocatable, dimension(:,:) :: ps, sub_ps, profile
+    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
+    real(sp)     :: A_fit, f0_fit, sigma_fit, wn
+    real(sp),     allocatable, dimension(:)   :: dt, dt_res, d_prime, ratio
+    complex(spc), allocatable, dimension(:)   :: dv, dv_res
+    real(sp),     allocatable, dimension(:,:) :: ps, ps_res, sub_ps, profile
 
     apply_mask_ = .false.; if (present(apply_mask)) apply_mask_ = apply_mask
-    
+
     scan     = sd%scan
     ntod     = self%scans(scan)%ntod
     nomp     = 1
     samprate = self%samprate
     nfft     = 2 * ntod
     n        = nfft / 2 + 1
-    wn       = abs(self%scans(scan)%d(i_det)%N_psd%sigma0)**2!_preproc)**2
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    write(*,*) 'HKE: wn not defined'
+    wn = 0.d0
+    stop
 
-    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
-    allocate(ps_flat(1:n-1), ps_spikes(1:n-1), W(1:n-1))
-    if (present(ps_output)) allocate(dv_4K(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-
-    ! FFT
-    gain = self%scans(scan)%d(i_det)%gain
-    allocate(d_prime(ntod))
-    d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
-
-    ! Output starting res tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
-       open(58,file='res_tod_4k_' // ps_output // '_before.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) l, d_prime(l), sd%mask(l,i_det)
-       end do
-       close(58)
-    end if
-
-    if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
-    dt(1:ntod)           = d_prime
-    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-    call timer%stop(TOT_FFT)
-    do l = 1, n-1
-       ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l))** 2 / ntod
-    end do
-    deallocate(d_prime)
-    ps_flat   = ps(:,2)
-    ps_spikes = 1.d-12
-    if (present(ps_output)) dv_4K = dv
-    
-    ! Output starting noise power spectrum
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
-       open(58,file='res_ps_4k_' // ps_output // '_before.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) ps(l,1), ps(l,2)
-       end do
-       close(58)
-    end if
-
-
-    dnu = 0.03 ! Hz (size of freq window around each spike)
-    maxiter = 1 ! Can be extended to iterative correction
-    n_f0 = 50; n_sig = 100
-    do i = 1, self%n_4k_lines
-       fmin = self%nus_4k_lines(i) - dnu
-       fmax = self%nus_4k_lines(i) + dnu
-
-       ! Find window
-       i0 = 1
-       do while (i0 < ntod .and. ps(i0,1) < fmin)
-          i0 = i0 + 1
-       end do
-       i1 = i0 + 1
-       do while (i1 < ntod .and. ps(i1,1) < fmax)
-          i1 = i1 + 1
-       end do
-       nsub = i1 - i0 + 1
-       if(nsub < 5) cycle ! too small window
-       
-       if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) then
-          deallocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)
-       end if
-       
-       self%cooler_4k_lines(i,i_det,scan)%p%window = nsub
-       allocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(nsub,2))
-       allocate(sub_ps(nsub,2), profile(nsub,2))
-       sub_ps(:,1) = ps(i0:i1,1)
-       sub_ps(:,2) = ps(i0:i1,2)
-       profile(:,1) = sub_ps(:,1)
-       profile(:,2) = 1.d-12
-       self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2) = 1.d-12
-       peak_val = maxval(sub_ps(:,2))
-
-       if (.true.) then
-          ! Gaussian fit
-          ! Iterative cleaning loop
-          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%A_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%A_fit(maxiter))
-          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%f0_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%f0_fit(maxiter))
-          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit(maxiter))
-          do j = 1, maxiter
-             ! 1. baseline_estimation
-             if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%baseline)) then 
-                deallocate(self%cooler_4k_lines(i,i_det,scan)%p%baseline)
-             end if
-             call self%cooler_4k_lines(i,i_det,scan)%p%estimate_4k_baseline(sub_ps)
-
-             ! 2. residual = sub_ps - baseline
-             sub_ps(:,2) = sub_ps(:,2) - self%cooler_4k_lines(i,i_det,scan)%p%baseline
-
-             ! 3. amplitude linear fit
-             call self%cooler_4k_lines(i,i_det,scan)%p%A_lin_fit(sub_ps,j,n_f0,n_sig)
-             A_fit = self%cooler_4k_lines(i,i_det,scan)%p%A_fit(j)
-             f0_fit = self%cooler_4k_lines(i,i_det,scan)%p%f0_fit(j)
-             sigma_fit = self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit(j)
-           
-             ! 4. subtract gaussian fit
-             sub_ps(:,2) = sub_ps(:,2) + self%cooler_4k_lines(i,i_det,scan)%p%baseline
-             do k = 1, nsub
-                profile(k,2) = profile(k,2) + A_fit * exp(-0.5 * ((profile(k,1) - f0_fit)/sigma_fit)**2)
-                sub_ps(k,2)  = sub_ps(k,2)  - A_fit * exp(-0.5 * ((sub_ps(k,1) - f0_fit)/sigma_fit)**2)
-                sub_ps(k,2) = max(wn/10,sub_ps(k,2)) ! avoid too strong correction
-             end do
-
-             ! 5. tolerance check?
-      
-          end do
-       else
-          ! Delta correction
-          do j = 1, maxiter
-             peak_val = maxval(sub_ps(:,2))
-             do k = 1, nsub
-                if (sub_ps(k,2)>=peak_val) then
-                   profile(k,2) = profile(k,2) + peak_val
-                   sub_ps(k,2) = wn
-                end if
-             end do
-          end do
-        end if
-
-
-       ! Save line profile
-       self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,1) = profile(:,1)
-       self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2) = self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2) + profile(:,2)
-       deallocate(profile)
-
-       ps_spikes(i0:i1) = self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2)
-       ps_flat(i0:i1) = sub_ps(:,2)
-       deallocate(sub_ps)
-    end do
-
-    ! Wiener filter
-    W = ps_flat / (ps_flat + ps_spikes)
-    dv(1:n-1) = dv(1:n-1) * W
-    do l = 1, n-1
-       ps(l,1) = l*(samprate/2)/(n-1)
-       ps(l,2) = abs(dv(l))** 2 / ntod
-    end do
-    deallocate(W)
-
-    ! Output 4K_lines tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
-       dv_4K = dv_4K - dv
-       do l = 1, n-1
-          ps_spikes(l) = abs(dv_4K(l))** 2 / ntod
-       end do
-
-       call timer%start(TOT_FFT)
-       call sfftw_execute_dft_c2r(plan_back, dv_4K, dt)
-       call timer%stop(TOT_FFT)
-
-       dt  = dt / nfft
-
-       open(58,file='4k_lines_tod_' // ps_output // '.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) l, dt(l)
-       end do
-       close(58)
-
-
-       open(58,file='4k_lines_ps_' // ps_output // '.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) ps(l,1), ps_spikes(l)
-       end do
-       close(58)
-       deallocate(dv_4k)
-    end if
-
-    deallocate(ps_flat, ps_spikes)
-
-    ! FFT back to TOD
-    call timer%start(TOT_FFT)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    call timer%stop(TOT_FFT)
-
-    dt  = dt / nfft
-    sd%tod(:,i_det) = dt(1:ntod)+ gain * sd%s_tot(:,i_det,0,1)
-    do i = 1, ntod
-       if (sd%mask(i,i_det) == 0) then
-          sd%tod(i,i_det) = sd%tod(i,i_det) + sqrt(wn) * rand_gauss(self%handle)
-       end if
-    end do
-
-    ! Output corrected res tod
-    if (present(ps_output) .and. mod(self%scanid(scan),5000)==0) then
-       open(58,file='res_tod_4k_' // ps_output // '_after.dat', recl=1024)
-       do l = 1, ntod
-          write(58,*) l, sd%tod(l,i_det)
-       end do
-       close(58)
-    end if
-
-
-    ! Output corrected noise power spectrum
-    if (present(ps_output)) then
-       open(58,file=ps_output // '_corrected.dat', recl=1024)
-       do l = 1, n-1
-          write(58,*) ps(l,1), ps(l,2)
-       end do
-       close(58)
-    end if
-
-    sd%tod(:,i_det) = sd%tod(:,i_det) + gain * sd%s_tot(:,i_det,0,1)
-
-    deallocate(dt, dv, ps)
-    call sfftw_destroy_plan(plan_fwd)
-    call sfftw_destroy_plan(plan_back)
+!!$    call sfftw_init_threads(err)
+!!$    call sfftw_plan_with_nthreads(nomp)
+!!$
+!!$    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+!!$    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+!!$
+!!$    ! FFT
+!!$    gain = self%scans(scan)%d(i_det)%gain
+!!$    allocate(d_prime(ntod))
+!!$    d_prime = sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)
+!!$
+!!$    if (present(ps_output)) then
+!!$       open(58,file=ps_output // '_start_tod.dat', recl=1024)
+!!$       do l = 1, ntod
+!!$          write(58,*) l, d_prime(l), sd%tod(l,i_det), gain*sd%s_tot(l,i_det,0,1)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$
+!!$
+!!$    if (apply_mask_) d_prime = d_prime * sd%mask(:,i_det)
+!!$    dt(1:ntod)           = d_prime
+!!$    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$    call timer%start(TOT_FFT)
+!!$    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!!$    call timer%stop(TOT_FFT)
+!!$    do l = 1, n-1
+!!$       ps(l,1) = l*(samprate/2)/(n-1)
+!!$       ps(l,2) = abs(dv(l))** 2 / ntod
+!!$    end do
+!!$    deallocate(d_prime)
+!!$    ! Output starting noise power spectrum
+!!$    if (present(ps_output)) then
+!!$       open(58,file=ps_output // '_start.dat', recl=1024)
+!!$       do l = 1, n-1
+!!$          write(58,*) ps(l,1), ps(l,2)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$
+!!$
+!!$    dnu = 0.03 ! Hz (size of freq window around each spike)
+!!$    maxiter = 1 ! Can be extended to iterative correction
+!!$    n_f0 = 50; n_sig = 100
+!!$    do i = 1, self%n_4k_lines
+!!$       fmin = self%nus_4k_lines(i) - dnu
+!!$       fmax = self%nus_4k_lines(i) + dnu
+!!$
+!!$       ! Find window
+!!$       i0 = 1
+!!$       do while (i0 < ntod .and. ps(i0,1) < fmin)
+!!$          i0 = i0 + 1
+!!$       end do
+!!$       i1 = i0 + 1
+!!$       do while (i1 < ntod .and. ps(i1,1) < fmax)
+!!$          i1 = i1 + 1
+!!$       end do
+!!$       nsub = i1 - i0 + 1
+!!$       if(nsub < 5) cycle ! too small window
+!!$
+!!$       if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) then
+!!$          deallocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)
+!!$          deallocate(self%cooler_4k_lines(i,i_det,scan)%p%A_fit)
+!!$          deallocate(self%cooler_4k_lines(i,i_det,scan)%p%f0_fit)
+!!$          deallocate(self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit)
+!!$       end if
+!!$
+!!$       self%cooler_4k_lines(i,i_det,scan)%p%window = nsub
+!!$       allocate(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(nsub,2))
+!!$       allocate(sub_ps(nsub,2), profile(nsub,2), ratio(nsub))
+!!$       sub_ps(:,1) = ps(i0:i1,1)
+!!$       sub_ps(:,2) = ps(i0:i1,2)
+!!$       profile(:,1) = sub_ps(:,1)
+!!$       profile(:,2) = 0.d0
+!!$       peak_val = maxval(sub_ps(:,2))
+!!$
+!!$       if (.true.) then
+!!$          ! Gaussian fit
+!!$          ! Iterative cleaning loop
+!!$          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%A_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%A_fit(maxiter))
+!!$          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%f0_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%f0_fit(maxiter))
+!!$          if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit)) allocate(self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit(maxiter))
+!!$          do j = 1, maxiter
+!!$             ! 1. baseline_estimation
+!!$             if (allocated(self%cooler_4k_lines(i,i_det,scan)%p%baseline)) then
+!!$                deallocate(self%cooler_4k_lines(i,i_det,scan)%p%baseline)
+!!$             end if
+!!$             call self%cooler_4k_lines(i,i_det,scan)%p%estimate_4k_baseline(sub_ps)
+!!$
+!!$          ! 2. residual = sub_ps - baseline
+!!$          sub_ps(:,2) = sub_ps(:,2) - self%cooler_4k_lines(i,i_det,scan)%p%baseline
+!!$
+!!$             ! 3. amplitude linear fit
+!!$             call self%cooler_4k_lines(i,i_det,scan)%p%A_lin_fit(sub_ps,j,n_f0,n_sig)
+!!$             A_fit = self%cooler_4k_lines(i,i_det,scan)%p%A_fit(j)
+!!$             f0_fit = self%cooler_4k_lines(i,i_det,scan)%p%f0_fit(j)
+!!$             sigma_fit = self%cooler_4k_lines(i,i_det,scan)%p%sigma_fit(j)
+!!$
+!!$             ! 4. subtract gaussian fit
+!!$             sub_ps(:,2) = sub_ps(:,2) + self%cooler_4k_lines(i,i_det,scan)%p%baseline
+!!$             do k = 1, nsub
+!!$                profile(k,2) = profile(k,2) + A_fit * exp(-0.5 * ((profile(k,1) - f0_fit)/sigma_fit)**2)
+!!$                sub_ps(k,2)  = sub_ps(k,2)  - A_fit * exp(-0.5 * ((sub_ps(k,1) - f0_fit)/sigma_fit)**2)
+!!$                sub_ps(k,2) = max(wn/10,sub_ps(k,2)) ! avoid too strong correction
+!!$             end do
+!!$
+!!$             ! 5. tolerance check?
+!!$
+!!$          end do
+!!$       else
+!!$          ! Delta correction
+!!$          do j = 1, maxiter
+!!$             peak_val = maxval(sub_ps(:,2))
+!!$             do k = 1, nsub
+!!$                if (sub_ps(k,2)>=peak_val) then
+!!$                   profile(k,2) = profile(k,2) + peak_val
+!!$                   sub_ps(k,2) = wn
+!!$                end if
+!!$             end do
+!!$          end do
+!!$        end if
+!!$
+!!$       ! Save line profile
+!!$       self%cooler_4k_lines(i,i_det,scan)%p%spike_profile = profile
+!!$       deallocate(profile)
+!!$
+!!$       ! Correct power spectrum
+!!$       ratio = ps(i0:i1,2)/sub_ps(:,2) ! Compute shrinking factor of the peak to correct complex fourier terms
+!!$       ps(i0:i1,2) = sub_ps(:,2)
+!!$       do k = 1, nsub
+!!$          ratio(k) = sqrt(abs(ratio(k)))
+!!$       end do
+!!$       dv(i0:i1) = dv(i0:i1) / ratio
+!!$       deallocate(sub_ps, ratio)
+!!$    end do
+!!$
+!!$    ! Wiener filter
+!!$    W = ps_flat / (ps_flat + ps_spikes)
+!!$    dv(1:n-1) = dv(1:n-1) * W
+!!$    do l = 1, n-1
+!!$       ps(l,1) = l*(samprate/2)/(n-1)
+!!$       ps(l,2) = abs(dv(l))** 2 / ntod
+!!$    end do
+!!$    deallocate(W)
+!!$
+!!$    ! Output 4K_lines tod
+!!$    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
+!!$       dv_4K = dv_4K - dv
+!!$       do l = 1, n-1
+!!$          ps_spikes(l) = abs(dv_4K(l))** 2 / ntod
+!!$       end do
+!!$
+!!$       call timer%start(TOT_FFT)
+!!$       call sfftw_execute_dft_c2r(plan_back, dv_4K, dt)
+!!$       call timer%stop(TOT_FFT)
+!!$
+!!$       dt  = dt / nfft
+!!$
+!!$       open(58,file='4k_lines_tod_' // ps_output // '.dat', recl=1024)
+!!$       do l = 1, n-1
+!!$          write(58,*) l, dt(l)
+!!$       end do
+!!$       close(58)
+!!$
+!!$
+!!$       open(58,file='4k_lines_ps_' // ps_output // '.dat', recl=1024)
+!!$       do l = 1, n-1
+!!$          write(58,*) ps(l,1), ps_spikes(l)
+!!$       end do
+!!$       close(58)
+!!$       deallocate(dv_4k)
+!!$    end if
+!!$
+!!$    deallocate(ps_flat, ps_spikes)
+!!$
+!!$    ! FFT back to TOD
+!!$    call timer%start(TOT_FFT)
+!!$    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!!$    call timer%stop(TOT_FFT)
+!!$
+!!$    dt  = dt / nfft
+!!$    sd%tod(:,i_det) = dt(1:ntod)+ gain * sd%s_tot(:,i_det,0,1)
+!!$    do i = 1, ntod
+!!$       if (sd%mask(i,i_det) == 0) then
+!!$          sd%tod(i,i_det) = sd%tod(i,i_det) + sqrt(wn) * rand_gauss(self%handle)
+!!$       end if
+!!$    end do
+!!$
+!!$    ! Output corrected res tod
+!!$    if (present(ps_output) .and. mod(self%scanid(scan),6000)==0) then
+!!$       open(58,file='res_tod_4k_' // ps_output // '_after.dat', recl=1024)
+!!$       do l = 1, ntod
+!!$          write(58,*) l, sd%tod(l,i_det)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$
+!!$    ! Output corrected noise power spectrum
+!!$    if (present(ps_output)) then
+!!$       open(58,file=ps_output // '_corrected.dat', recl=1024)
+!!$       do l = 1, n-1
+!!$          write(58,*) ps(l,1), ps(l,2)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$
+!!$    deallocate(dt, dv, ps)
+!!$    call dfftw_destroy_plan(plan_fwd)
+!!$    call dfftw_destroy_plan(plan_back)
 
   end subroutine estimate_hfi_4k_lines
+
+!!$  module subroutine remove_hfi_4k_lines(self, scan, i_det, tod, s_sub, mask)
+!!$    !  Apply HFI instrument-specific corrections from 4k lines
+!!$    !
+!!$    !  Arguments:
+!!$    !  ----------
+!!$    !  self: comm_tod object
+!!$    !
+!!$    !  scan: int
+!!$    !       scan number
+!!$    !  i_det: int
+!!$    !       detector id
+!!$    !  tod: real(sp) array
+!!$    !       tod of the scan
+!!$    !  s_sub: real(sp) array
+!!$    !         sky signal template
+!!$    !  mask: real(sp) array
+!!$    !        mask array
+!!$    implicit none
+!!$    class(comm_hfi_tod),               intent(inout) :: self
+!!$    integer(i4b),                      intent(in)    :: scan, i_det
+!!$    real(sp), dimension(1:),           intent(inout) :: tod
+!!$    real(sp), dimension(1:), optional, intent(in)    :: s_sub, mask
+!!$
+!!$    integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err
+!!$    integer(i4b) :: i0, i1, nsub
+!!$    integer*8    :: plan_fwd, plan_back
+!!$    real(sp)     :: samprate, fmin, fmax, dnu, peak_val, gain
+!!$    real(sp),     allocatable, dimension(:)   :: dt, ratio, d_prime
+!!$    complex(spc), allocatable, dimension(:)   :: dv
+!!$    real(sp),     allocatable, dimension(:,:) :: ps, sub_ps
+!!$
+!!$    ntod = self%scans(scan)%ntod
+!!$    nomp     = 1
+!!$    samprate = self%samprate
+!!$    nfft     = 2 * ntod
+!!$    n        = nfft / 2 + 1
+!!$
+!!$    call sfftw_init_threads(err)
+!!$    call sfftw_plan_with_nthreads(nomp)
+!!$
+!!$    allocate(dt(nfft), dv(0:n-1), ps(1:n-1,2))
+!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+!!$    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+!!$
+!!$    ! FFT
+!!$    gain = self%scans(scan)%d(i_det)%gain
+!!$    allocate(d_prime(ntod))
+!!$    d_prime = tod
+!!$    if (present(s_sub)) d_prime = d_prime - gain * s_sub
+!!$    if (present(mask))  d_prime = d_prime * mask
+!!$    dt(1:ntod)           = d_prime
+!!$    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$    call timer%start(TOT_FFT)
+!!$    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!!$    call timer%stop(TOT_FFT)
+!!$    do l = 1, n-1
+!!$       ps(l,1) = l*(samprate/2)/(n-1)
+!!$       ps(l,2) = abs(dv(l))** 2 / ntod
+!!$    end do    
+!!$    deallocate(d_prime)
+!!$
+!!$
+!!$    dnu = 0.03 ! Hz (size of freq window around each spike)
+!!$    do i = 1, self%n_4k_lines
+!!$       fmin = self%nus_4k_lines(i) - dnu
+!!$       fmax = self%nus_4k_lines(i) + dnu
+!!$
+!!$       ! Find window
+!!$       i0 = 1
+!!$       do while (i0 < ntod .and. ps(i0,1) < fmin)
+!!$          i0 = i0 + 1
+!!$       end do
+!!$       i1 = i0 + 1
+!!$       do while (i1 < ntod .and. ps(i1,1) < fmax)
+!!$          i1 = i1 + 1
+!!$       end do
+!!$       nsub = i1 - i0 + 1
+!!$       if(nsub < 5) return ! too small window
+!!$
+!!$       allocate(sub_ps(nsub,2), ratio(nsub))
+!!$       sub_ps(:,1) = ps(i0:i1,1)
+!!$       sub_ps(:,2) = ps(i0:i1,2)
+!!$       peak_val = maxval(sub_ps(:,2))
+!!$
+!!$       do k = 1, nsub
+!!$          sub_ps(k,2)  = sub_ps(k,2) - self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(k,2)
+!!$          sub_ps(k,2) = max(1.d-3,sub_ps(k,2)) ! avoid too strong correction
+!!$       end do
+!!$
+!!$       ! Correct power spectrum
+!!$       ratio = ps(i0:i1,2)/sub_ps(:,2) ! Compute shrinking factor of the peak to correct complex fourier terms
+!!$       ps(i0:i1,2) = sub_ps(:,2)
+!!$       do k = 1, nsub
+!!$          ratio(k) = sqrt(abs(ratio(k)))
+!!$       end do
+!!$       dv(i0:i1) = dv(i0:i1) / ratio
+!!$       deallocate(sub_ps, ratio)
+!!$    end do
+!!$
+!!$    ! FFT back to TOD
+!!$    call timer%start(TOT_FFT)
+!!$    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!!$    call timer%stop(TOT_FFT)
+!!$
+!!$    dt  = dt / nfft
+!!$    tod = dt(1:ntod)
+!!$    if (present(s_sub)) tod = tod + gain * s_sub
+!!$    deallocate(dt, dv, ps)
+!!$    call dfftw_destroy_plan(plan_fwd)
+!!$    call dfftw_destroy_plan(plan_back)
+!!$ 
+!!$  end subroutine remove_hfi_4k_lines
 
   module subroutine remove_hfi_4k_lines(self, sd, i_det, apply_mask)
     !  Apply HFI instrument-specific corrections from 4k lines
@@ -1896,19 +2161,18 @@ contains
     !  Arguments:
     !  ----------
     !  self: comm_tod object
-    !  
+    !
     !  sd: comm_scandata object
     !      scan data
     !  i_det: int
     !       detector id
     !  apply_mask: logical
-    !              apply mask to residuals    
+    !              apply mask to residuals
     implicit none
     class(comm_hfi_tod),               intent(inout) :: self
     class(comm_scandata),              intent(inout) :: sd
     integer(i4b),                      intent(in)    :: i_det
     logical(lgt),            optional, intent(in)    :: apply_mask
-
     integer(i4b) :: i, j, k, l, n, ntod, nomp, nfft, err, scan
     integer(i4b) :: i0, i1, nsub
     integer*8    :: plan_fwd, plan_back
@@ -1959,7 +2223,7 @@ contains
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
        ps(l,2) = abs(dv(l))** 2 / ntod
-    end do    
+    end do
     deallocate(d_prime)
     ps_flat   = ps(:,2)
     ps_spikes = 1.d-12
@@ -1980,7 +2244,7 @@ contains
        end do
        nsub = i1 - i0 + 1
        if(nsub < 5) cycle ! too small window
-       if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) cycle 
+       if (.not. allocated(self%cooler_4k_lines(i,i_det,scan)%p%spike_profile)) cycle
 
        ps_spikes(i0:i1) = self%cooler_4k_lines(i,i_det,scan)%p%spike_profile(:,2)
        ps_flat(i0:i1) = ps_flat(i0:i1) - ps_spikes(i0:i1)
@@ -2017,10 +2281,11 @@ contains
     deallocate(dt, dv, ps)
     call sfftw_destroy_plan(plan_fwd)
     call sfftw_destroy_plan(plan_back)
- 
+
   end subroutine remove_hfi_4k_lines
 
-  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level)
+  
+  module subroutine deconvolve_rolloff(self, sd, i_det, ps_output, set_wn_level) !tod, scan, i_det, s_sub, mask, flag, handle, ps_output, set_wn_level)
     ! Deconvolves high frequency rolloff in noise spectrum
     !
     ! Arguments:
@@ -2070,7 +2335,7 @@ contains
 
     ! Prepare TOD residual
     d_prime = (sd%tod(:,i_det) - gain * sd%s_tot(:,i_det,0,1)) * sd%mask(:,i_det)
-    
+
     nomp     = 1
     samprate = self%samprate
     nfft     = 2 * ntod
@@ -2134,11 +2399,12 @@ contains
     deallocate(bin_spec)
 
     ! Gap fill tod with respect to flag array
-    do i = 1, ntod
-       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then 
-          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
-       end if
-    end do
+    ! HKE: Shouldn't be done here, but rather in the main routine
+!!$    do i = 1, ntod
+!!$       if (iand(sd%flag(i,i_det), self%flag0) .ne. 0) then
+!!$          sd%tod(i,i_det) = gain * sd%s_tot(i,i_det,0,1) + sigma_0 * rand_gauss(self%handle)
+!!$       end if
+!!$    end do
 
     ! Deconvolve high-frequency rolloff
     allocate(ps(1:n-1,2))
@@ -2147,7 +2413,7 @@ contains
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
     call timer%stop(TOT_FFT)
-       
+
     do l = 1, n-1
        ps(l,1) = l*(samprate/2)/(n-1)
        if (ps(l,1) > 75.d0) then
@@ -2157,10 +2423,10 @@ contains
        end if
        !ps(l,2) = abs(dv(l)) ** 2 / ntod
     end do
-    
+
     call timer%start(TOT_FFT)
     call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    call timer%stop(TOT_FFT) 
+    call timer%stop(TOT_FFT)
 
     dt  = dt / nfft
     sd%tod(:,i_det) = dt(1:ntod)
@@ -2201,7 +2467,7 @@ contains
           end do
           self%scans(scan)%d(i_det)%N_psd%sigma0 = abs(sigma_0)
           deallocate(bin_spec)
-       end if    
+       end if
 
        deallocate(d_prime)
     end if
@@ -2209,8 +2475,8 @@ contains
 
     deallocate(dt, dv, ps)
     call free_spline(rolloff_filter)
-    call sfftw_destroy_plan(plan_fwd)
-    call sfftw_destroy_plan(plan_back)
+    call dfftw_destroy_plan(plan_fwd)
+    call dfftw_destroy_plan(plan_back)
 
   end subroutine deconvolve_rolloff
 
@@ -2416,7 +2682,7 @@ contains
 !          write(58,*) l, tod(l), s_sub(l), d_prime(l), gain, sigma_0
 !       end do
 !       close(58)
-       
+
        nomp     = 1 !omp_get_max_threads()
        samprate = self%samprate
        nfft     = 2 * ntod
@@ -2446,11 +2712,11 @@ contains
           write(58,*) ps(l,1), ps(l,2)
        end do
        close(58)
-       
+
 
        deallocate(dt, dv, ps)
-       call sfftw_destroy_plan(plan_fwd)
-       call sfftw_destroy_plan(plan_back)
+       call dfftw_destroy_plan(plan_fwd)
+       call dfftw_destroy_plan(plan_back)
     end if
 
     tod = d_prime + gain * s_sub
@@ -2483,20 +2749,13 @@ contains
 
     decimation = 45 ! Downsampling rate; MUST BE ODD, to explore both parities
 
-    if (self%correct_sl) then
-       oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK,SD_SL])
-    else
-       oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-            & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-    end if
-    !oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
-    !     & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
-    
+    oper = get_sd_operation_code([SD_TOT,SD_BASE,SD_IND,SD_MASK,SD_TOD,&
+         & SD_SKY,SD_BP,SD_ORB,SD_INST,SD_DARK])
+
     ! Count number of unmasked and decimated samples
     allocate(numsamp(self%nscan), sigma0(self%nscan))
     do i = 1, self%nscan
-       numsamp(i) = self%scans(i)%ntod / decimation
+       numsamp(i) = self%scans(i)%d(det)%nsamp_unmasked / decimation
        sigma0(i)  = self%scans(i)%d(det)%N_psd%sigma0
      end do
     ntot = sum(numsamp)
@@ -2509,13 +2768,13 @@ contains
           numsamp(i) = ind-1
           cycle
        end if
-       call init_scan_data(self, i, oper, TODMASK_PROC, sd, det=det, nonlin_level=0)
+       call init_scan_data(self, i, oper, TODMASK_PROC, sd, nonlin_level=0)
 
       gain    = self%scans(i)%d(det)%gain
       phase   = self%mod_phase(det,i)
       base1   = self%scans(i)%d(det)%baseline1
       base2   = self%scans(i)%d(det)%baseline2
-      
+
        ! Decimate data
        j = 0; k = decimation*j+1
        do while (k <= sd%ntod .and. j < numsamp(i))
@@ -2550,10 +2809,10 @@ contains
 !!$       write(58,*) i, tod(i), s_volt(i), tod(i)-s_volt(i)
 !!$    end do
 !!$    close(58)
-    
-    
+
+
     !write(*,*) self%myid, self%nscan, numsamp, ntot
-    
+
     !  Perform sampling
     if (self%myid == 0) then
        if (.true.) then
@@ -2576,14 +2835,14 @@ contains
     end if
 
     call mpi_bcast(self%adc(det)%p%p, self%adc(det)%p%npar_adc, MPI_REAL, 0, &
-         & self%comm, ierr)    
+         & self%comm, ierr)
 
     ! Update parameters
     call self%adc(det)%p%param2Q
 
     ! Clean up
     deallocate(s_volt, tod, sigma0, tod_corr)
-    
+
   contains
 
     function powell_chisq_adc_hfi(x)
@@ -2607,7 +2866,7 @@ contains
       real(dp)     :: chisq_sub, A, b
       real(sp)     :: baseline
       logical(lgt) :: output_ndof
-      real(dp), allocatable, dimension(:) :: p
+      real(sp), allocatable, dimension(:) :: p
 
       allocate(p(self%adc(det)%p%npar_adc))
       if (self%myid == 0) then
@@ -2615,7 +2874,7 @@ contains
          call mpi_bcast(flag, 1, MPI_INTEGER, 0, self%comm, ierr)
          p = x
       end if
-      call mpi_bcast(p, size(p), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+      call mpi_bcast(p, size(p), MPI_REAL, 0, self%comm, ierr)
       output_ndof = (flag == 2)
 
       ! Check priors
@@ -2624,37 +2883,37 @@ contains
          deallocate(p)
          return
       end if
-      
+
       ! Update ADC parameters; assume constant sigma0 for now
-      call self%adc(det)%p%param2Q(p)
-      call self%adc(det)%p%Q2As(92.)
-      call self%adc(det)%p%As2F
+!      call self%adc(det)%p%param2Q(p)
+!      call self%adc(det)%p%Q2As(92.)
+!      call self%adc(det)%p%As2F
 
 !!$      if (self%myid == 0 .and. det==1) then
 !!$         call int2string(self%myid, id)
 !!$         open(58,file='adc_reddata_'//trim(self%adc(det)%p%label)//'_id'//id//'.dat', recl=1024)
 !!$      end if
-      
+
       ! Evaluate chisq
       chisq_sub = 0.d0
-      k2 = 0 
+      k2 = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
          if (.not. self%scans(i)%d(det)%accept) cycle
          n = numsamp(i); k1 = k2+1; k2 = k2+n
-         
+
          ! Apply ADC to voltages
          do j = 1, n
             !tod_corr(j) = splint(self%adc(det)%p%F, real(s_volt(k1+j-1),dp))
             tod_corr(j) = self%adc(det)%p%invF(nint(tod(k1+j-1)))
          end do
-         
+
 !!$         if (self%myid == 0 .and. det==1) then
 !!$            do j = 1, n
-!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), s_volt(k1+j-1), tod_corr(j)-s_volt(k1+j-1), (tod_corr(j)-s_volt(k1+j-1))/sigma0(i), sigma0(i)
+!!$               write(58,*) k1+j-1, tod(k1+j-1), tod_corr(j), tod(k1+j-1)-tod_corr(j), (tod(k1+j-1)-tod_corr(j))/sigma0(i), sigma0(i)
 !!$            end do
 !!$         end if
-         
+
          ! Compute chisq
          do j = 1, n
             chisq_sub = chisq_sub + (tod_corr(j)-s_volt(k1+j-1))**2/sigma0(i)**2
@@ -2662,17 +2921,93 @@ contains
       end do
 
 !!$      if (self%myid == 0 .and. det==1) close(58)
-      
+
       call mpi_reduce(chisq_sub, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
       if (output_ndof) then
          call mpi_reduce(ntot, ndof_tot, 1, MPI_INTEGER8, MPI_SUM, 0, self%comm, ierr)
          if (self%myid == 0) ndof = ndof_tot
       end if
 
-      !if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
+      if (self%myid == 0) write(*,*) 'adc chisq =', chisq, ', p = ',  real(p,sp)
 
     end function chisq_adc_hfi
 
   end subroutine sample_adc_and_baselines
-  
+
+  module subroutine init_tod_line_emission_hfi(self)
+    !
+    ! Initialize line emission, must be called after both tod and bandpasses 
+    ! have been initialized
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_hfi_tod),                     intent(inout) :: self
+
+    integer(i4b) :: i, j
+    real(dp)     :: scale
+    class(comm_mapinfo), pointer :: info
+
+    if (trim(self%freq(1:3)) == '100') then
+       scale = 1.d0
+    else if (trim(self%freq(1:3)) == '217') then
+       scale = 2.d0
+    else if (trim(self%freq(1:3)) == '353') then
+       scale = 3.d0
+    end if
+    
+    ! Initialize emission line data structures
+    allocate(self%line_ratio(self%num_emission_lines,self%ndet))
+    allocate(self%line_ratio_prior(2,self%num_emission_lines,self%ndet))
+    allocate(self%label_line(self%num_emission_lines))
+    allocate(self%nu_line(self%num_emission_lines))
+    info => comm_mapinfo(self%info%comm, self%info%nside, 3*self%info%nside, self%num_emission_lines, .false.)
+    self%map_line => comm_map(info)
+    self%rms_line => comm_map(info)
+    if (self%info%nside == 1024) then
+       self%mask_line => comm_map(info, "/mn/stornext/u3/hke/data_hfi/data/mask_common_dx12_n1024_TQU.fits")
+    else if (self%info%nside == 2048) then
+       self%mask_line => comm_map(info, "/mn/stornext/u3/hke/data_hfi/data/mask_common_dx12_n2048_TQU.fits")
+    else
+       write(*,*) 'HFI line Nside not supported = ', self%info%nside
+       stop
+    end if
+    allocate(self%line_ref_map(self%num_emission_lines))
+    if (self%num_emission_lines == 1) then
+       self%label_line = ["12CO_J=1-0"]  ! Label
+       self%nu_line    = scale*[115.27d9]  ! Reference frequency in GHz
+       if (self%info%nside == 1024) then
+          self%line_ref_map(1)%p => comm_map(info, "/mn/stornext/u3/hke/data_hfi/lambda_wco_dht2001_n1024_masked.fits")
+       else
+          self%line_ref_map(1)%p => comm_map(info, "/mn/stornext/u3/hke/data_hfi/lambda_wco_dht2001_n2048_masked.fits")
+       end if
+    else if (self%num_emission_lines == 2) then
+       self%label_line = ["12CO_J=1-0", "13CO_J=1-0"]  ! Label
+       self%nu_line    = scale*[115.27d9, 110.20d9]  ! Reference frequency in GHz
+       self%line_ref_map(1)%p => comm_map(info, "/mn/stornext/u3/hke/data_hfi/lambda_wco_dht2001_n1024_masked.fits")
+       self%line_ref_map(2)%p => comm_map(info, "/mn/stornext/u3/hke/data_hfi/GRS_13CO_MOM0_1_1024_fwhm9.5arcmin_masked.fits")
+    end if
+    do j = 1, self%ndet
+       do i = 1, self%num_emission_lines
+          self%line_ratio(i,j)       = self%bp(j)%p%lineAmp_RJ(self%nu_line(i))
+          self%line_ratio_prior(1,i,j) =      self%line_ratio(i,j)
+          if (i == 1) then
+             self%line_ratio_prior(2,i,j) = 1d-1*self%line_ratio(i,j)
+          else
+             self%line_ratio_prior(2,i,j) = 1d-2*self%line_ratio(i,j)
+          end if
+       end do
+       if (self%myid == 0) write(*,*) ' Line ratios = ', self%line_ratio(:,j), j
+    end do
+       !self%label_line = ["CO_J=1-0", "CO_J=1-0"]  ! Label
+       !self%nu_line    = [115.27]  ! Reference frequency in GHz
+       !self%line_ratio(2,:) = [1., 1.1, 0.9, 0.6]
+       !self%line_ratio(1,:) = [1., 0.8, 1.1, 1.3]
+    
+  end subroutine init_tod_line_emission_hfi
+
 end submodule comm_tod_hfi_smod

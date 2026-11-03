@@ -35,7 +35,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code, read_hdf_scan_data
+  public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code, read_hdf_scan_data, add_sd_operation_code
 
   type :: comm_tod_pixcache
      integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
@@ -56,6 +56,7 @@ module comm_tod_mod
 
      real(sp),     allocatable, dimension(:,:,:,:) :: map_sky  ! Index-based sky map (nmaps,nobs,0:ndet, nbp)
      real(sp),     allocatable, dimension(:,:,:)   :: map_gain ! Index-based sky map for gain
+     real(sp),     allocatable, dimension(:,:)   :: map_line ! Index-based line emission map, summed over components (nobs,ndet)
      integer(i4b), allocatable, dimension(:)   :: bitmask  ! Index-based bitmask
    contains
      procedure :: expand_storage
@@ -64,6 +65,7 @@ module comm_tod_mod
      procedure :: get_ind_range
      procedure :: precomp_aux
      procedure :: init_map_mask
+     procedure :: init_line_emission
      procedure :: dealloc => deallocate_pixcache
   end type comm_tod_pixcache
 
@@ -85,6 +87,7 @@ module comm_tod_mod
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
      class(comm_tod_spike), pointer :: spike                             ! Spike object
+     class(comm_tod_cray),  pointer :: cray                              ! Cosmic ray object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -193,8 +196,8 @@ module comm_tod_mod
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
-     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
+     integer(i4b), allocatable, dimension(:) :: active_cr_types   ! integer list of cosmic ray base types to fit
+     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
      integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -207,6 +210,13 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
      character(len=16), allocatable, dimension(:) :: incl_objctr
+     integer(i4b) :: num_emission_lines
+     real(dp),          allocatable, dimension(:)   :: nu_line
+     character(len=16), allocatable, dimension(:)   :: label_line
+     real(dp),          allocatable, dimension(:,:) :: line_ratio
+     real(dp), allocatable, dimension(:,:,:) :: line_ratio_prior      
+     class(comm_map),   pointer :: map_line, rms_line, mask_line      ! Line emission maps, rms, and mono+dipole mask
+     class(map_ptr), allocatable, dimension(:) :: line_ref_map
      class(comm_orbdipole),    pointer :: orb_dp
      class(comm_tod_pixcache), pointer :: pixcache
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -292,7 +302,6 @@ module comm_tod_mod
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_S     ! Signal crosstalk object, (ndet x ndet) matrix
      class(comm_crosstalk), allocatable, dimension(:)     :: crosstalk_N     ! Noise crosstalk object, (ndet x ndet) matrix
      class(Tbol_ptr),    allocatable, dimension(:)     :: Tbol     ! Bolometer transfer function 
-     class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      !class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -354,6 +363,8 @@ module comm_tod_mod
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
      procedure                           :: construct_spike_corr
+     procedure                           :: construct_line_emission_template
+     procedure                           :: construct_cray_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -376,6 +387,7 @@ module comm_tod_mod
      procedure                           :: get_s_static
      procedure                           :: coadd_horns
      procedure                           :: compute_powspec
+     procedure                           :: init_tod_line_emission
   end type comm_tod
   
   abstract interface
@@ -418,6 +430,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_sl          ! Sidelobe correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_objctr      ! Object-centric signal (solar, Moon, Earth, zodi..)
      real(sp),     allocatable, dimension(:,:,:,:) :: s_sky         ! Stationary sky signal [ntod,ndet,hmax+1,nbp]
+     real(sp),     allocatable, dimension(:,:,:)   :: s_line        ! TOD line emission signal (ntod,ndet,hmax+1)
      real(sp),     allocatable, dimension(:,:,:)   :: s_orb         ! Orbital dipole
      real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
      real(sp),     allocatable, dimension(:,:,:,:) :: s_calib       ! Custom calibrator
@@ -426,6 +439,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
      real(sp),     allocatable, dimension(:,:)     :: s_spike       ! Spike correction [ntod,ndet]
+     real(sp),     allocatable, dimension(:,:)     :: s_cray        ! Cosmic ray correction [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
@@ -492,6 +506,13 @@ interface
     real(sp),                                 intent(in), optional :: scale
   end subroutine init_map_mask
 
+  module subroutine init_line_emission(self, map_line, line_ratio)
+    implicit none
+    class(comm_tod_pixcache),                 intent(inout) :: self
+    class(comm_map), pointer,                 intent(in)    :: map_line
+    real(dp),        dimension(:,:),          intent(in)    :: line_ratio
+  end subroutine init_line_emission
+
   module subroutine deallocate_pixcache(self)
     implicit none
     class(comm_tod_pixcache), intent(inout) :: self
@@ -547,7 +568,7 @@ contains
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
 
-    integer(i4b) :: i, ndelta, ierr, unit
+    integer(i4b) :: i, j, ndelta, ierr, unit
     real(sp)     :: elon
     character(len=512) :: datadir, solar_init
 
@@ -591,6 +612,7 @@ contains
     self%correct_N_crosstalk = .false.
     self%max_npole_Tbol      = 0
     self%reload_TOD          = .false. ! Store in memory by default
+    self%num_emission_lines  = 0
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
     self%rawtod_dp       = .false.
@@ -761,14 +783,6 @@ contains
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
 
-    ! Init cosmic ray template removal
-    if(self%n_cray_temps > 0) then 
-      allocate(self%cray(self%ndet))
-      do i = 1, self%ndet
-        self%cray(i)%p => comm_cray(self%n_cray_temps)
-      end do
-    end if
-
   end subroutine tod_constructor
 
   
@@ -791,6 +805,8 @@ contains
     integer(i4b) :: i, j, k, l, ierr
     integer(i4b), allocatable, dimension(:) :: pix, psi
 
+    if (self%nscan == 0) return
+    
     !write(*,*) "xyz1", self%myid
     
     ! Construct observed pixel array
@@ -1292,7 +1308,7 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       scalars(1) = 0.1d0 ! REMOVE THIS!! HKE
+       !scalars(1) = 2d-3 ! REMOVE THIS!! HKE
        
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
@@ -1422,6 +1438,12 @@ contains
 !!$             self%d(i)%tod = buffer_sp(1:m)
 !!$          end if
 !!$       end if
+
+       ! Init cosmic ray template removal
+       if (allocated(tod%active_cr_types)) then
+          self%d(i)%cray => comm_tod_cray(tod%freq, i, scan, tod%active_cr_types, tod%samprate)
+       end if
+       
     end do
     deallocate(buffer_sp)
 
@@ -1988,6 +2010,11 @@ contains
     call map%writeMapToHDF(chainfile, path, 'map')
     call rms%writeMapToHDF(chainfile, path, 'rms')
 
+    if (associated(self%map_line)) then
+       call self%map_line%writeMapToHDF(chainfile, path, 'map_line')
+       call self%map_line%writeMapToHDF(chainfile, path, 'rmd_line')
+    end if
+    
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 
@@ -2023,6 +2050,8 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+!!$       output(:,:,1) = output(:,:,1) - self%gain0(0) + 3.13e-02
+!!$       self%gain0(0) = 3.13e-02
        call read_hdf(chainfile, trim(adjustl(path))//'x_im', self%x_im(1:2))
        self%x_im(3) = self%x_im(2)
        self%x_im(4) = self%x_im(3)
@@ -2030,6 +2059,16 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+      if (hdf_group_exists(chainfile, trim(adjustl(path))//'polEff')) then
+         call read_hdf(chainfile, trim(adjustl(path))//'polEff',  self%pol_eff)
+      else
+         write(*,*) 'polEff field not in existing chain, keeping default'
+      end if
+      if (hdf_group_exists(chainfile, trim(adjustl(path))//'polang')) then
+         call read_hdf(chainfile, trim(adjustl(path))//'polang',  self%polang)
+      else
+         write(*,*) 'polang field not in existing chain, keeping default'
+      end if
        if (self%map_solar_allocated .eqv. .true.) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
@@ -2058,8 +2097,10 @@ contains
          & self%comm, ierr)
     call mpi_bcast(self%bp_delta, size(self%bp_delta), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
-!    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
-!         & self%comm, ierr)
+    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+        & self%comm, ierr)
+    call mpi_bcast(self%pol_eff, size(self%pol_eff), MPI_REAL, 0, &
+        & self%comm, ierr)
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
@@ -2091,6 +2132,8 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:2+self%n_xi)
+!!$          self%scans(i)%d(j)%N_psd%xi_n(2)        = 0.1d0
+!!$          self%scans(i)%d(j)%N_psd%xi_n(3)        = -1.5d0
           !self%scans(i)%d(j)%N_psd%xi_n(1)        = self%scans(i)%d(j)%N_psd%xi_n(1) * 1d-2
           if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
@@ -2236,10 +2279,10 @@ contains
 
     do j = 1, sd%ndet
        d = j; if (present(det)) d = det
-       if (.not. self%scans(sd%scan)%d(d)%accept) cycle
+       if (.not. self%scans(sd%scan)%d(d)%accept) cycle 
        do h = 1, nhorn
           hp = h; if (nhorn == 1) hp = 0
-          ! Evaluate sidelobe signal on sparse grid
+         ! Evaluate sidelobe signal on sparse grid
           do i = 1, ntod/subsamp !TODO: determine a good subsampling factor. 10? 50?
              k = subsamp*(i-1) + 1
              pix_      = self%pixcache%ind2sl(self%pixcache%pix2ind(sd%pix(k,d,h)))
@@ -2267,6 +2310,36 @@ contains
     call free_spline(my_spline)
 
   end subroutine construct_sl_template
+
+  subroutine construct_line_emission_template(self, sd, det)
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
+    real(dp)     :: psi_, unwrap, x0, x1
+    real(dp), dimension(:), allocatable :: sub_sl, x_sl
+    type(spline_type) :: my_spline
+
+    ntod    = sd%ntod
+    ndet    = sd%ndet; if (present(det)) ndet = 1
+    nhorn   = self%nhorn
+
+    sd%s_line = 0.
+    do j = 1, sd%ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(sd%scan)%d(d)%accept) cycle
+       do h = 1, nhorn
+          hp = h; if (nhorn == 1) hp = 0
+          do k = 1, ntod
+             pix_              = self%pixcache%pix2ind(sd%pix(k,d,h))
+             sd%s_line(k,j,hp) = self%pixcache%map_line(pix_,d)
+          end do
+       end do
+    end do
+
+  end subroutine construct_line_emission_template
 
 
 !!$  !construct a sidelobe template in the time domain
@@ -2470,7 +2543,38 @@ contains
     end do
 
   end subroutine construct_spike_corr
-  
+
+  subroutine construct_cray_corr(self, sd, det)
+    ! construct cosmc ray correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output cosmic ray template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ndet, scan
+
+    scan         = sd%scan
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%cray%generate(sd%s_cray(:,j))
+    end do
+
+  end subroutine construct_cray_corr
+
   
   subroutine output_scan_list(self, slist)
     implicit none
@@ -3362,6 +3466,21 @@ contains
     integer(i4b),                        intent(in)    :: band
   end subroutine load_instrument_inst
 
+  subroutine init_tod_line_emission(self)
+    !
+    ! Initialize line emission, must be called after both tod and bandpasses 
+    ! have been initialized
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_tod),                     intent(inout) :: self
+  end subroutine init_tod_line_emission
+  
   
   subroutine dumpToHDF_inst(self, chainfile, path)
     ! 
@@ -3728,5 +3847,12 @@ contains
     integer(i4b)             :: oper
     oper = sum(2**op_list)
   end function get_sd_operation_code  
-   
+
+  function add_sd_operation_code(old_oper, new_oper) result(oper)
+    implicit none
+    integer(i4b), intent(in) :: old_oper, new_oper
+    integer(i4b)             :: oper
+    oper = old_oper + 2**new_oper
+  end function add_sd_operation_code
+
 end module comm_tod_mod

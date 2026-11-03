@@ -1985,6 +1985,8 @@ contains
                    end if
                 end if
              end if
+
+             !if (self%x%info%myid == 0) write(*,*) self%F_mean(i,l,:)
              
              cycle
           end if
@@ -2868,6 +2870,10 @@ contains
              ! need to only take alms from polarizations with lmax > 0
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
              if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+!!$                ! Must be removed
+!!$                do p = 2, self%theta(i)%p%info%nmaps
+!!$                   self%theta(i)%p%alm(:,p) = self%theta(i)%p%alm(:,1)
+!!$                end do
                 call self%theta(i)%p%Y_scalar
              else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
                 info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
