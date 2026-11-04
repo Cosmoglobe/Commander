@@ -81,7 +81,7 @@ contains
       real(dp), allocatable, dimension(:) :: block_median, filter_score, step_diff
       logical,  allocatable, dimension(:) :: good
       integer(i4b)                        :: n, nblock, iteration, scale_idx, block_idx
-      integer(i4b)                        :: sample_idx, best_block_idx, window_blocks
+      integer(i4b)                        :: sample_idx, best_block_idx, width
       integer(i4b)                        :: hi, lo, jump_idx, other_idx
       integer(dp)                         :: pos_temp
       real(dp)                            :: best_score, score, noise_scale, step_amp
@@ -118,8 +118,9 @@ contains
         step_amp = 0.0_dp
 
         do scale_idx = 1, size(self%scales_s)
-          window_blocks = max(4_i4b, int(self%scales_s(scale_idx) * samprate, i4b) / self%block_size)
-          call step_filter(block_median, window_blocks, filter_score, step_diff)
+          width = max(4_i4b, int(self%scales_s(scale_idx) * samprate, i4b) / self%block_size)
+          if (2_i4b * width > nblock) cycle
+          call step_filter(block_median, width, filter_score, step_diff)
 
           ! scores the candidates
           noise_scale = robust_noise_scale(filter_score)
@@ -235,7 +236,8 @@ contains
           self%jump_amp(jump_idx) = real(seg_levels(jump_idx + 1) - seg_levels(jump_idx), sp)
         end if
       end do
-
+    
+    end subroutine sample_jump_amplitudes
 
     ! Builds the staircase correction (jump_tod)
     subroutine get_jump_tod(self, jump_tod)
@@ -289,11 +291,11 @@ contains
     end subroutine block_medians
 
     ! Assigns a score to the jump-candidates via a matched filter with a step func. 
-    subroutine step_filter(block_median, window_blocks, filter_score, step_diff)
+    subroutine step_filter(block_median, width, filter_score, step_diff)
       implicit none
 
       real(dp),             dimension(:), intent(in)  :: block_median
-      integer(i4b),                       intent(in)  :: window_blocks
+      integer(i4b),                       intent(in)  :: width
       real(dp),             dimension(:), intent(out) :: filter_score, step_diff
       
       real(dp),     allocatable, dimension(:) :: cumulative_sum
@@ -304,7 +306,7 @@ contains
       nblock = size(block_median)
       filter_score = ieee_value(0.0_dp, ieee_quiet_nan)
       step_diff = ieee_value(0.0_dp, ieee_quiet_nan)
-      if (window_blocks <= 0) return
+      if (width <= 0) return
 
       allocate(cumulative_sum(nblock + 1), cumulative_count(nblock + 1))
       cumulative_sum(1) = 0.0_dp
@@ -320,12 +322,12 @@ contains
       end do
       
       do block_idx = 1, nblock
-        lo = max(1_i4b, block_idx - window_blocks)
-        hi = min(nblock, block_idx + window_blocks - 1)
+        lo = max(1_i4b, block_idx - width)
+        hi = min(nblock, block_idx + width - 1)
         before_count = cumulative_count(block_idx) - cumulative_count(lo)
         after_count = cumulative_count(hi + 1) - cumulative_count(block_idx)
-        if (real(before_count, dp) < min_fraction * window_blocks .or. &
-            real(after_count, dp) < min_fraction * window_blocks) cycle
+        if (real(before_count, dp) < min_fraction * width .or. &
+            real(after_count, dp) < min_fraction * width) cycle
         
         before_mean = (cumulative_sum(block_idx) - cumulative_sum(lo)) / real(before_count, dp)
         after_mean = (cumulative_sum(hi + 1) - cumulative_sum(block_idx)) / real(after_count, dp)
