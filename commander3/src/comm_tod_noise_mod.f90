@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono, globalmono)
+  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono, globalmono, project_phasebin)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -68,6 +68,7 @@ contains
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
     logical(lgt),                       intent(in), optional :: globalmono
+    logical(lgt),                       intent(in), optional :: project_phasebin
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
     integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
