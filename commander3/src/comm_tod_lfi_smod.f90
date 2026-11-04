@@ -141,13 +141,6 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    write(*,*) "Should be setting reload_TOD to true here1", res%reload_TOD
-    res%reload_TOD              = .true.
-    write(*,*) "Should be setting reload_TOD to true here2", res%reload_TOD
-    res%correct_sl              = .true.
-    res%apply_inst_corr         = .true.
-    res%orb_4pi_beam            = .true.
-    res%use_dpc_adc             = .false.
 
     res%use_dpc_gain_modulation = .true.
     res%symm_flags              = .true.
@@ -165,6 +158,11 @@ contains
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
     if (res%enable_tod_simulations) res%chisq_threshold = 1d6
+    res%reload_TOD              = .true.
+    res%correct_sl              = .true.
+    res%apply_inst_corr         = .true.
+    res%orb_4pi_beam            = .true.
+    res%use_dpc_adc             = .false.
 
     ! Choose absolute bandpass sampling
     if (trim(res%freq) == '030') then
@@ -671,8 +669,6 @@ contains
 
     call timer%start(TOD_ALLOC, self%band)
 
-    write(*,*) "Is reload_TOD true?" , self%reload_TOD
-
     if (self%reload_TOD) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i),&
@@ -941,6 +937,27 @@ contains
 
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
+
+    if (self%reload_TOD) then
+       do i = self%nscan, 1, -1
+          do j = self%ndet, 1, -1
+             if (allocated(self%scans(i)%d(j)%flag))  deallocate(self%scans(i)%d(j)%flag)
+             do k = self%nhorn, 1, -1
+                if (allocated(self%scans(i)%d(j)%pix(k)%p)) deallocate(self%scans(i)%d(j)%pix(k)%p)
+                if (allocated(self%scans(i)%d(j)%psi(k)%p)) deallocate(self%scans(i)%d(j)%psi(k)%p)
+             end do
+             if (allocated(self%scans(i)%d(j)%psi)) deallocate(self%scans(i)%d(j)%psi)
+             if (allocated(self%scans(i)%d(j)%pix)) deallocate(self%scans(i)%d(j)%pix)
+             if (allocated(self%scans(i)%d(j)%zdiode)) deallocate(self%scans(i)%d(j)%zdiode)
+             if (allocated(self%scans(i)%d(j)%diode)) deallocate(self%scans(i)%d(j)%diode)
+             if (allocated(self%scans(i)%d(j)%ztod))  deallocate(self%scans(i)%d(j)%ztod)
+             if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
+          end do
+       end do
+      self%compressed_tod = .true.
+      self%ndiode          = 4
+      deallocate(self%ind2pix,self%ind2sl,self%ind2ang,self%ind2vec,self%pix2ind)
+    end if
 
     call update_status(status, "tod_end"//ctext)
     call timer%stop(TOD_TOT, self%band)
@@ -1885,25 +1902,6 @@ contains
        call mpi_barrier(self%comm, ierr)
     end if
 
-    if (self%reload_TOD) then
-       write(*,*) "Trying to unload TODs"
-       do i = self%nscan, 1, -1
-          do j = self%ndet, 1, -1
-             if (allocated(self%scans(i)%d(j)%flag))  deallocate(self%scans(i)%d(j)%flag)
-             do k = self%nhorn, 1, -1
-                if (allocated(self%scans(i)%d(j)%pix(k)%p)) deallocate(self%scans(i)%d(j)%pix(k)%p)
-                if (allocated(self%scans(i)%d(j)%psi(k)%p)) deallocate(self%scans(i)%d(j)%psi(k)%p)
-             end do
-             if (allocated(self%scans(i)%d(j)%psi)) deallocate(self%scans(i)%d(j)%psi)
-             if (allocated(self%scans(i)%d(j)%pix)) deallocate(self%scans(i)%d(j)%pix)
-             if (allocated(self%scans(i)%d(j)%zdiode)) deallocate(self%scans(i)%d(j)%zdiode)
-             if (allocated(self%scans(i)%d(j)%diode)) deallocate(self%scans(i)%d(j)%diode)
-             if (allocated(self%scans(i)%d(j)%ztod))  deallocate(self%scans(i)%d(j)%ztod)
-             if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
-             write(*,*) "Better be false", allocated(self%scans(i)%d(j)%tod)
-          end do
-       end do
-    end if
 
     call timer%stop(TOD_ALLOC, self%band)
 

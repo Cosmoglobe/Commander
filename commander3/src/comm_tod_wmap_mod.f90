@@ -502,16 +502,16 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       split = .false.
-      if (self%output_aux_maps > 0) then
-         if (self%first_call) then
-           self%output_n_maps = 3
-           split = .false.
-         else
-           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
-           if (mod(iter-1,20) == 0)  self%output_n_maps = 8
-           !! if (mod(iter-1,100) == 0) split = .true.
-         end if
-      end if
+      !if (self%output_aux_maps > 0) then
+      !   if (self%first_call) then
+      !     self%output_n_maps = 3
+      !     split = .false.
+      !   else
+      !     if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+      !     if (mod(iter-1,20) == 0)  self%output_n_maps = 8
+      !     !! if (mod(iter-1,100) == 0) split = .true.
+      !   end if
+      !end if
 
       if (sample_rel_bandpass) then
         self%nout = self%output_n_maps + self%n_bp_prop
@@ -1098,6 +1098,7 @@ contains
              if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
           end do
        end do
+       deallocate(self%ind2pix,self%ind2sl,self%ind2ang,self%ind2vec,self%pix2ind)
     end if
 
 

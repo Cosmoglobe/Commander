@@ -329,7 +329,7 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
     self%baseline_order  = -1
-    self%reload_TOD          = .false. ! Store in memory by default
+    self%reload_TOD = .false.
 
 
     if (trim(self%tod_type)=='SPIDER') then
@@ -876,9 +876,6 @@ contains
     allocate(self%d(ndet), buffer_sp(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
-       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
-       end if
        allocate(xi_n(tod%n_xi))
 
        field                = detlabels(i)
@@ -915,91 +912,12 @@ contains
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
-!!$          open(58,file='noise.dat')
-!!$          nu = 0.001d0 
-!!$          do while (.true.)
-!!$             write(58,*) nu, self%d(i)%N_psd%eval_full(nu)
-!!$             nu = nu * 1.2d0
-!!$             if (nu > tod%samprate) exit
-!!$          end do
-!!$          close(58)
-!!$          stop
-
        end if
        deallocate(xi_n)
 
-       ! Read Huffman coded data arrays
-       if (nhorn == 2 .and. i == 1) then
-         ! For a single DA, this is redundant, so we are loading 4 times the
-         ! necessary pointing (and flags) information. Strictly speaking, this
-         ! would involve needing to have a self%pixA and self%pixB attribute for
-         ! WMAP only and not allocate self%d(i)%pix(j)
-         do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
-         end do
-       else if (nhorn .ne. 2) then
-         do j = 1, nhorn
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-         end do
-       end if
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+
 
        ! Get compressed diode array sizes
-!!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
-!!$          call get_hdf_vlen_ext(file, slabel // '/' // trim(field) // '/diodes', self%zext(i,:))
-!!$       end if
-
-!!$       if(ndiode == 1) then
-!!$         if (tod%compressed_tod) then
-!!$            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-!!$         else
-!!$            allocate(self%d(i)%tod(m))
-!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$            if (tod%halfring_split == 2 )then
-!!$               self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$            else
-!!$               self%d(i)%tod = buffer_sp(1:m)
-!!$            end if
-!!$         end if
-!!$       else ! ndiode > 1 per tod
-!!$          if(tod%compressed_tod == .false.) then
-!!$             
-!!$          else
-!!$          end if
-!!$          if (tod%compressed_tod) then
-!!$             !allocate(self%d(i)%zdiode(ndiode))
-!!$             !call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
-!!$             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode1, self%d(i)%zdiode2, self%d(i)%zdiode3, self%d(i)%zdiode4)
-!!$             
-!!$             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-!!$          else
-!!$             ! HKE: This array should have the ordering switched
-!!$             allocate(self%d(i)%diode(ndiode, m))
-!!$             do k = 1, ndiode
-!!$                
-!!$                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-!!$                if (tod%halfring_split == 2 )then
-!!$                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-!!$                else
-!!$                   self%d(i)%diode(k, :) = buffer_sp(1:m)
-!!$                end if
-!!$             end do
-!!$          end if
-!!$       end if
-
-!!$       if (tod%compressed_tod) then
-!!$          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
-!!$       else
-!!$          allocate(self%d(i)%tod(m))
-!!$          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$          if (tod%halfring_split == 2 )then
-!!$             self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$          else
-!!$             self%d(i)%tod = buffer_sp(1:m)
-!!$          end if
-!!$       end if
     end do
     deallocate(buffer_sp)
 
@@ -1132,6 +1050,27 @@ contains
              end do
           end if
        end if
+       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       end if
+
+       ! Read Huffman coded data arrays
+       if (nhorn == 2 .and. i == 1) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
+         do j = 1, nhorn 
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
+         end do
+       else if (nhorn .ne. 2) then
+         do j = 1, nhorn
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+         end do
+       end if
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
     end do
     if (allocated(buffer_sp)) deallocate(buffer_sp)
 
