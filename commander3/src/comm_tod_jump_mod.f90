@@ -28,7 +28,9 @@ module comm_tod_jump_mod
   private
   public comm_tod_jump
 
-  real(dp), parameter :: min_fraction = 0.4_dp
+  real(dp),     parameter :: min_fraction = 0.4_dp
+  real(dp),     parameter :: detection_threshold = 5.0_dp
+  integer(i4b), parameter :: max_jumps = 10_i4b ! Safe-guard, more than 10 jumps can indicate a drift instead
 
   type :: comm_tod_jump
     integer(i4b) :: njump
@@ -64,44 +66,121 @@ contains
 
     end function constructor_jump
 
+    ! Detects jumps in the residual and stores their positions and amplitudes
     subroutine find_jumps(self, tod, signal, flag, samprate)
       implicit none
       
-      ! Detects jumps in the residual and stores their positions and amplitudes
       class(comm_tod_jump),                intent(inout) :: self
       real(sp),              dimension(:), intent(inout) :: tod
       real(sp),              dimension(:), intent(in)    :: signal
       integer(i4b),          dimension(:), intent(inout) :: flag
-      real(dp),                            intent(in)    :: samprate !KG NOTE: make sure to include this in the call for find_jumps.
+      real(dp),                            intent(in)    :: samprate
 
       ! TODO: check that these are the names we want
-      real(sp), allocatable, dimension(:) :: residual
-      real(dp), allocatable, dimension(:) :: detection_work, bmed, filter_score, step_diff
+      real(sp), allocatable, dimension(:) :: residual, residual_work
+      real(dp), allocatable, dimension(:) :: block_median, filter_score, step_diff
       logical,  allocatable, dimension(:) :: good
       integer(i4b)                        :: n, nblock, iteration, scale_idx, block_idx
-      integer(i4b)                        :: sample_idx, window_blocks
+      integer(i4b)                        :: sample_idx, best_block_idx, window_blocks
+      integer(i4b)                        :: hi, lo, jump_idx, other_idx
+      integer(dp)                         :: pos_temp
       real(dp)                            :: best_score, score, noise_scale, step_amp
 
-      self%maxseg = int(maxval(self%scales_s) * samprate, i4b) ! placeholder, need to think about the structure
-      ! Perform matched filer
-
-      ! Count number of detections
+      ! Clear the previous jump solution
       self%njump = 0
+      deallocate(self%jump_pos, self%jump_amp, self%mask)
+      allocate(self%jump_pos(0), self%jump_amp(0), self%mask(0,2))
 
-      ! Store jump inidices in self%jump_pos
+      self%maxseg = int(maxval(self%scales_s) * samprate, i4b)
+      
+      n = size(tod)
+      allocate(residual(n), residual_work(n), good(n))
+      residual = tod - signal
+      good = ieee_is_finite(residual) ! ignores non-finite residual values
+      if (.not. any(good)) return
 
-      ! Identidy bad range; store in self%mask
+      ! Centers the residual and creates a work-copy 
+      residual_work  = residual - median(pack(residual, good))
+      
+      !! Perform matched filter
+      if (self%block_size <= 0_i4b) return
+      nblock = n / self%block_size
+      if (nblock == 0) return
+      allocate(block_median(nblock), filter_score(nblock), step_diff(nblock))
+      
+      do iteration = 1, max_jumps
+        ! recomputes block-medians after subtracting any previously found jumps
+        call block_medians(residual_work, good, self%block_size, block_median)
 
-      ! Correct tod
+        best_score = 0.0_dp
+        best_block_idx = 0
+        sample_idx = 0
+        step_amp = 0.0_dp
+
+        do scale_idx = 1, size(self%scales_s)
+          window_blocks = max(4_i4b, int(self%scales_s(scale_idx) * samprate, i4b) / self%block_size)
+          call step_filter(block_median, window_blocks, filter_score, step_diff)
+
+          ! scores the candidates
+          noise_scale = robust_noise_scale(filter_score)
+          if (.not. ieee_is_finite(noise_scale)) cycle
+          if (noise_scale <= 0.0_dp) cycle
+          
+          do block_idx = 1, nblock
+            if (.not. ieee_is_finite(filter_score(block_idx))) cycle
+
+            score = abs(filter_score(block_idx)) / noise_scale
+            if (score > best_score) then
+              best_score = score
+              best_block_idx = block_idx
+              step_amp = step_diff(block_idx)
+            end if
+          end do
+        end do
+        
+        ! stop searching if none of the candidates reaches the threshold
+        if (best_score < detection_threshold) exit
+        
+        ! each iter finds and refines *one* jump then updates residual_work
+        lo = (best_block_idx - 2) * self%block_size + 1 ! TODO: double check that I got hte indexing right
+        hi = best_block_idx * self%block_size + 1
+        sample_idx = refine(residual_work, good, lo, hi, 2_i4b * self%block_size)
+        
+        ! Jump indicies are stored in self%jump_pos, amplitudes in self%jump_amp
+        self%njump = self%njump + 1_i4b
+        self%jump_pos = [self%jump_pos, int(sample_idx, dp)]
+        self%jump_amp = [self%jump_amp, real(step_amp, sp)]
+
+        residual_work(sample_idx:) = residual_work(sample_idx:) - real(step_amp, sp)
+      
+      end do
+      
+      ! Sorts the detected pos. and refits amplitudes using the full residual 
+      do jump_idx = 1, self%njump - 1
+        do other_idx = jump_idx + 1, self%njump
+          if (self%jump_pos(other_idx) < self%jump_pos(jump_idx)) then
+            pos_temp = self%jump_pos(jump_idx)
+            self%jump_pos(jump_idx) = self%jump_pos(other_idx)
+            self%jump_pos(other_idx) = pos_temp
+          end if
+        end do
+      end do
+
+      call self%sample_jump_amplitudes(residual)
+
+
+      ! Identify bad range; store in self%mask
+      ! TODO: I need to check with HK or someone else about this. 
 
       ! Update flag array
+      ! TODO: Same as above.
       
     end subroutine find_jumps
 
+    ! Refits the jump ampl. from the residual levels around each jump
     subroutine sample_jump_amplitudes(self, residual)
       implicit none
 
-      ! Refits the jump ampl. from the residual levels around each jump
       class(comm_tod_jump),               intent(inout) :: self
       real(sp),             dimension(:), intent(in)    :: residual
 
@@ -158,10 +237,10 @@ contains
       end do
 
 
+    ! Builds the staircase correction (jump_tod)
     subroutine get_jump_tod(self, jump_tod)
       implicit none
 
-      ! Builds the staircase correction (jump_tod)
       class(comm_tod_jump),               intent(in)   :: self
       real(sp),             dimension(:), intent(out)  :: jump_tod !TODO "stair" in Simons code, ok to change?
 
@@ -182,11 +261,11 @@ contains
 
     end subroutine get_jump_tod
 
+    ! Computes a median for each block with enough good samples
     subroutine block_medians(samples, good, block_size, block_median)
       implicit none
 
-      ! Computes a median for each block with enough good samples
-      real(dp),             dimension(:), intent(in)  :: samples
+      real(sp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
       integer(i4b),                       intent(in)  :: block_size
       real(dp),             dimension(:), intent(out) :: block_median
@@ -209,10 +288,10 @@ contains
 
     end subroutine block_medians
 
+    ! Assigns a score to the jump-candidates via a matched filter with a step func. 
     subroutine step_filter(block_median, window_blocks, filter_score, step_diff)
       implicit none
 
-      ! Assigns a score to the jump-candidates via a matched filter with a step func. 
       real(dp),             dimension(:), intent(in)  :: block_median
       integer(i4b),                       intent(in)  :: window_blocks
       real(dp),             dimension(:), intent(out) :: filter_score, step_diff
@@ -257,11 +336,11 @@ contains
 
     end subroutine step_filter
 
+    ! Refines (=determines) the accurate jump position
     integer(i4b) function refine(samples, good, lo, hi, window_samples) result(best_sample)
       implicit none
 
-      ! Refines (=determines) the accurate jump position
-      real(dp),             dimension(:), intent(in)  :: samples
+      real(sp),             dimension(:), intent(in)  :: samples
       logical,              dimension(:), intent(in)  :: good
       integer(i4b),                       intent(in)  :: lo, hi, window_samples
       
@@ -295,10 +374,10 @@ contains
     
     end function refine
 
+    ! Estimates the noise scale using the scaled median absolute deviation (mad)
     real(dp) function robust_noise_scale(values) result(noise_scale)
       implicit none
 
-      ! Estimates the noise scale using the scaled median absolute deviation (mad)
       real(dp),              dimension(:), intent(in)  :: values
 
       logical,  allocatable, dimension(:) :: finite
