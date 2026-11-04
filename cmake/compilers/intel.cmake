@@ -68,7 +68,7 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 		"-O3"
 		"-xHost" 
-		"-fpe0"
+		"-fpe3"
 		"-fPIC"
 		#"-fp-model=strict"
 		"-traceback" 

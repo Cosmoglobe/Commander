@@ -141,6 +141,9 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
+    write(*,*) "Should be setting reload_TOD to true here1", res%reload_TOD
+    res%reload_TOD              = .true.
+    write(*,*) "Should be setting reload_TOD to true here2", res%reload_TOD
     res%correct_sl              = .true.
     res%apply_inst_corr         = .true.
     res%orb_4pi_beam            = .true.
@@ -255,7 +258,7 @@ contains
     call res%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    call res%precompute_lookups()
+    if (.not. res%reload_TOD) call res%precompute_lookups()
 
     ! allocate LFI specific instrument file data
     res%nbin_spike      = nint(res%samprate*sqrt(3.d0))
@@ -668,6 +671,18 @@ contains
 
     call timer%start(TOD_ALLOC, self%band)
 
+    write(*,*) "Is reload_TOD true?" , self%reload_TOD
+
+    if (self%reload_TOD) then
+       do i = 1, self%nscan
+          call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i),&
+               & self%ndet, self%label, self%nhorn, self%ndiode, self%diode_names)
+       end do
+  
+       ! Construct lookup tables
+       call self%precompute_lookups()
+    end if
+
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
@@ -747,8 +762,8 @@ contains
     end if
 
 
-    ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
-    if (.not. self%sample_L1_par .and. self%ndiode > 1) then
+    ! Pre-process L1 data into L2 data if requested
+    if (.not. self%sample_L1_par .and. self%reload_TOD) then
        call self%preprocess_L1_to_L2(map_sky, procmask)
        self%ndiode = 1
        self%compressed_tod = .false.
@@ -1784,18 +1799,8 @@ contains
     character(len=512) :: filename
     type(hdf_file) :: h5_file
     real(dp), allocatable, dimension(:,:)     :: m_buf
- !   real(sp), allocatable, dimension(:)       :: procmask
     real(sp), allocatable, dimension(:,:)     :: tod
 
-!    npix = 12*self%nside**2
-
-    ! Distribute processing masks
-!!$    allocate(m_buf(0:npix-1,self%nmaps), procmask(0:npix-1))
-!!$    call self%procmask%bcast_fullsky_map(m_buf); procmask  = m_buf(:,1)
-!!$    deallocate(m_buf)
-    
-    !unit = getlun()
-    !open(unit, file=trim(self%L2file), form='unformatted')
 
     call timer%start(TOD_ALLOC, self%band)
 
@@ -1830,31 +1835,9 @@ contains
        end do
        if (i == 1) call update_status(status, "read in scans")
 
-!!$       ! Find effective TOD length
-!!$       if (self%halfring_split == 0) then
-!!$          m = get_closest_fft_magic_number(n)
-!!$       else if (self%halfring_split == 1 .or. self%halfring_split == 2) then
-!!$          m = get_closest_fft_magic_number(n/2)
-!!$       else 
-!!$          write(*,*) "Unknown halfring_split value in read_hdf_scan"
-!!$          stop
-!!$       end if
-!!$       if (real(m-n,dp)/real(n,dp) > 0.001d0) then
-!!$          write(*,*) 'Warning: More than 0.1% of scan', self%scanid(i), ' removed by FFTW cut'
-!!$       end if
-!!$
-!!$       if (m /= n) write(*,*) 'ERROR', self%scanid(i), m, n
        
        ! Free up old arrays
        do j = 1, self%ndet
-!!$          if (.not. self%scans(i)%d(j)%accept) cycle 
-!!$
-!!$          allocate(self%scans(i)%d(j)%tod(m))
-!!$          if (self%halfring_split == 2) then
-!!$             self%scans(i)%d(j)%tod = tod(m+1:2*m,j)
-!!$          else
-!!$             self%scans(i)%d(j)%tod = tod(1:m,j)
-!!$          end if
           if (allocated(self%scans(i)%d(j)%ztod))   deallocate(self%scans(i)%d(j)%ztod)
           if (allocated(self%scans(i)%d(j)%diode))  deallocate(self%scans(i)%d(j)%diode)
           if (allocated(self%scans(i)%d(j)%zdiode)) then
@@ -1902,9 +1885,28 @@ contains
        call mpi_barrier(self%comm, ierr)
     end if
 
+    if (self%reload_TOD) then
+       write(*,*) "Trying to unload TODs"
+       do i = self%nscan, 1, -1
+          do j = self%ndet, 1, -1
+             if (allocated(self%scans(i)%d(j)%flag))  deallocate(self%scans(i)%d(j)%flag)
+             do k = self%nhorn, 1, -1
+                if (allocated(self%scans(i)%d(j)%pix(k)%p)) deallocate(self%scans(i)%d(j)%pix(k)%p)
+                if (allocated(self%scans(i)%d(j)%psi(k)%p)) deallocate(self%scans(i)%d(j)%psi(k)%p)
+             end do
+             if (allocated(self%scans(i)%d(j)%psi)) deallocate(self%scans(i)%d(j)%psi)
+             if (allocated(self%scans(i)%d(j)%pix)) deallocate(self%scans(i)%d(j)%pix)
+             if (allocated(self%scans(i)%d(j)%zdiode)) deallocate(self%scans(i)%d(j)%zdiode)
+             if (allocated(self%scans(i)%d(j)%diode)) deallocate(self%scans(i)%d(j)%diode)
+             if (allocated(self%scans(i)%d(j)%ztod))  deallocate(self%scans(i)%d(j)%ztod)
+             if (allocated(self%scans(i)%d(j)%tod))   deallocate(self%scans(i)%d(j)%tod)
+             write(*,*) "Better be false", allocated(self%scans(i)%d(j)%tod)
+          end do
+       end do
+    end if
+
     call timer%stop(TOD_ALLOC, self%band)
 
-     !deallocate(procmask)
 
   end subroutine preprocess_L1_to_L2
 

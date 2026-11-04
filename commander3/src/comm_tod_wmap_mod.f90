@@ -227,7 +227,7 @@ contains
       else
           constructor%compressed_tod  = .false.
       end if
-      constructor%reload_tod      = .true.
+      constructor%reload_TOD      = .true.
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.

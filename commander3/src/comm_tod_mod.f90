@@ -88,7 +88,7 @@ module comm_tod_mod
      character(len=512) :: noise_psd_model  
      character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
-     logical(lgt) :: reload_tod !< deallocate and re-read TOD and pointing each iteration
+     logical(lgt) :: reload_TOD !< deallocate and re-read TOD and pointing each iteration
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: L2_exist
@@ -702,17 +702,6 @@ contains
             & detlabels, self%nhorn, self%ndiode, self%diode_names)
     end do
     call update_status(status, "qqq")
-!!$    if (self%ndiode > 1 .and. self%compressed_tod) then
-!!$       ! Pre-allocate diode arrays, to avoid memory fragmenation
-!!$       do i = 1, self%nscan
-!!$          do j = 1, self%ndet
-!!$             allocate(self%scans(i)%d(j)%zdiode(self%ndiode))
-!!$             do k = 1, self%ndiode
-!!$                allocate(self%scans(i)%d(j)%zdiode(k)%p(self%scans(i)%zext(j,k)))
-!!$             end do
-!!$          end do
-!!$       end do
-!!$    end if
     call update_status(status, "aaa")
     if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
        do i = 1, self%nscan
@@ -721,9 +710,6 @@ contains
                    & detlabels, self%nhorn, self%ndiode, self%diode_names)
           end if
 
-!!$       do j = 1, self%ndet
-!!$          deallocate(self%scans(i)%d(j)%zdiode1,self%scans(i)%d(j)%zdiode2,self%scans(i)%d(j)%zdiode3,self%scans(i)%d(j)%zdiode4)
-!!$       end do
 
           do det = 1, self%ndet
              if (allocated(self%scans(i)%d(det)%tod)) then
