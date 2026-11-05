@@ -412,11 +412,11 @@ contains
        sample_gain           = .false. !iter  > 0 !.true.                 
        sample_abscal         = sample_gain
        make_dyn_mask         = .false. ! iter == 1
-       sample_ncorr          = .false. ! iter  > 0 !.true.
+       sample_ncorr          = .true. ! iter  > 0 !.true.
        sample_xi_n           = .false.
        select_data           = .false. !iter == 1
        sample_adc            = .false. !.false. !iter  > 1 !.true.
-       sample_co             = self%num_emission_lines > 0
+       sample_co             = .false. !self%num_emission_lines > 0
        sample_cray           = .false.
     else if (trim(self%init_from_HDF) == 'none') then
        ! Initialize slowly if not HDF init
@@ -801,6 +801,7 @@ contains
        ! Sample correlated noise
        if (sample_ncorr) then
           call sample_n_corr(self, sd, handle, globalmono=.true.)
+          !call sample_n_corr(self, sd, handle, n_phasebin=10)
           if (sample_xi_n) then
              allocate(freqmask(0:sd%ntod/2))
              freqmask = 1.

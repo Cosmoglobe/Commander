@@ -27,7 +27,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono, globalmono, project_phasebin)
+  subroutine sample_n_corr(self, sd, handle, freqmask, dospike, nomono, onlymono, globalmono, n_phasebin)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -68,15 +68,15 @@ contains
     logical(lgt),                       intent(in), optional :: nomono
     logical(lgt),                       intent(in), optional :: onlymono
     logical(lgt),                       intent(in), optional :: globalmono
-    logical(lgt),                       intent(in), optional :: project_phasebin
+    integer(i4b),                       intent(in), optional :: n_phasebin
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads, j1, j2
-    integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin
+    integer(i4b) :: nfft, nbuff, j_end, j_start, ndof, scan, nbin, ierr
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_, onlymono_, globalmono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu, dnu
 
-    real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s, globmono
+    real(dp)     :: power, fft_norm, var1, var2, logbin, nu1, nu2, ps_d, ps_s, globmono, spinrate
     character(len=6) :: stext
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt
@@ -84,7 +84,9 @@ contains
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2, ps
     integer(i4b), allocatable, dimension(:) :: bin_count
     real(sp),     allocatable, dimension(:) :: bin_sum
-    real(sp),     allocatable, dimension(:,:) :: bin_spec 
+    real(sp),     allocatable, dimension(:,:) :: bin_spec
+    real(sp),     allocatable, dimension(:) :: mu_phase, t_phase, n_phase
+    type(spline_type) :: phasebin
     
     ! Splined PSD params
     ! real(sp)     :: threshold
@@ -128,6 +130,25 @@ contains
        if (allocated(sd%s_tot))  d_prime = d_prime - gain * sd%s_tot(:,i,0,1)
        if (allocated(sd%s_spur)) d_prime = d_prime - sd%s_spur(:,i)
 
+       ! Subtract phase binned average
+       if (present(n_phasebin)) then
+          spinrate = 1.d0/60.d0
+          call self%phase_bin(d_prime, sd%mask(:,i), spinrate, n_phasebin, phasebin)
+          do j = 1, ntod
+             d_prime(j) = d_prime(j) - splint(phasebin, mod((j-1)/self%samprate,1.d0/spinrate))
+          end do
+
+!!$          open(58,file='phasebin.dat')
+!!$          do j = 1, 1000
+!!$             write(58,*) (j-1)*60.d0/1000.d0,splint(phasebin, (j-1)*60.d0/1000.d0)
+!!$          end do
+!!$          close(58)
+!!$          call mpi_finalize(ierr)
+!!$          stop
+          
+          !call free_spline(phasebin)
+       end if
+       
        if (self%noise_psd_model == 'spline' .and. self%scans(scan)%d(i)%accept) call update_spline_noise_psd(self,sd,scan,i)
        sigma_0  = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        N_wn     = sigma_0**2
@@ -229,7 +250,7 @@ contains
        pcg_converged = pcg_converged .and. var1 < var2
 
        if (.not. pcg_converged) then
-          !write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
+          write(*,*) 'Ncorr PCG failed,   scan = ', self%scanid(scan), i, ', RMS ratio = ', sqrt(var1/var2)
 
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
@@ -270,7 +291,7 @@ contains
           dt             = dt / nfft
           sd%n_corr(:,i) = dt(1:ntod) 
        else
-          !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), ', RMS ratio = ', sqrt(var1/var2)
+          !write(*,*) 'Ncorr PCG accepted, scan = ', self%scanid(scan), i, ', RMS ratio = ', sqrt(var1/var2)
        end if
 
        ! Add global monopole band if user requests a global monopole
@@ -278,19 +299,28 @@ contains
           sd%n_corr(:,i) = sd%n_corr(:,i) + globmono
           cycle
        end if
+
+       ! Add phase binned average
+       if (present(n_phasebin)) then
+          do j = 1, ntod
+             sd%n_corr(j,i) = sd%n_corr(j,i) + splint(phasebin, mod((j-1)/self%samprate,1.d0/spinrate))
+          end do
+       end if
        
        !if (.true.) then
-       !if (.true. .and. self%scanid(scan) == 5013) then
+       !if (.true. .and. self%scanid(scan) == 3500) then
        if (.false.) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_', self%scanid(scan), '_', i, '_',trim(self%freq),'.dat' 
           open(65,file=trim(filename),status='REPLACE',recl=1024)
           do j = 1, ntod
              !write(65, '(i8,6(E15.6E3))') j, n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), ncorr2(j)
-             write(65, '(i8,7(E15.6E3))') j, d_prime(j), sd%n_corr(j,i), (d_prime(j)-sd%n_corr(j,i))/sigma_0, sd%mask(j,i)
+             write(65, '(i8,7(E15.6E3))') j, d_prime(j), splint(phasebin, mod((j-1)/self%samprate,1.d0/spinrate)), sd%n_corr(j,i), (d_prime(j)-sd%n_corr(j,i))/sigma_0, sd%mask(j,i)
           end do
           close(65)
           !stop
        end if
+
+       call free_spline(phasebin)
     end do
     deallocate(dt, dv)
     deallocate(d_prime)
@@ -325,7 +355,7 @@ contains
     real(dp),     allocatable, dimension(:) :: invNcorr, invM
     integer(i4b), allocatable, dimension(:) :: u
 
-    n_iter    = 30
+    n_iter    = 300
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5

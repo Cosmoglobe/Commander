@@ -388,6 +388,7 @@ module comm_tod_mod
      procedure                           :: coadd_horns
      procedure                           :: compute_powspec
      procedure                           :: init_tod_line_emission
+     procedure                           :: phase_bin
   end type comm_tod
   
   abstract interface
@@ -3855,4 +3856,87 @@ contains
     oper = old_oper + 2**new_oper
   end function add_sd_operation_code
 
+  subroutine phase_bin(self, tod, mask, spinrate, n_spline, phasebin)
+    implicit none
+    class(comm_tod),                  intent(in)  :: self     ! Main TOD object
+    real(sp),          dimension(1:), intent(in)  :: tod      ! TOD to be binned
+    real(sp),          dimension(1:), intent(in)  :: mask     ! Exclusion mask
+    real(dp),                         intent(in)  :: spinrate ! in Hz
+    integer(i4b),                     intent(in)  :: n_spline ! Number of spline nodes
+    type(spline_type),                intent(out) :: phasebin ! Output spline
+    
+    integer(i4b) :: i, j, k, b, n_pad, start, end
+    real(dp)     :: dt_spin, dt_samp, dt_spline, t, w
+    real(dp),     allocatable, dimension(:) :: x, y, n
+
+    n_pad     = 0.3*n_spline
+    start     = -n_pad+1        ! Force spline to be periodic by padding+wrapping
+    end       = n_spline+n_pad
+    dt_spin   = 1.d0 / spinrate       ! Period of telescope motion
+    dt_spline = dt_spin / n_spline    ! Time between each spline node
+    dt_samp   = 1.d0 / self%samprate  ! Sample rate
+    
+    allocate(x(start:end), y(start:end), n(start:end))
+
+    ! Initialize time array
+    do i = start, end
+       x(i) = (i-0.5d0)*dt_spline
+    end do
+
+    ! Bin tod
+    y = 0.d0
+    n = 0.d0
+    t = 0.d0
+    do i = 1, size(tod)
+       if (mask(i) < 0.5d0) cycle
+       t    = t + dt_samp
+       b    = max(min(mod(nint(t/dt_spline), n_spline) + 1, n_spline),1)
+       y(b) = y(b) + tod(i)
+       n(b) = n(b) + 1.d0
+    end do
+
+    ! Normalize to get average
+    where (n > 0)
+       y = y/n
+    end where
+
+    ! Fill in padding
+    do i = -n_pad+1, 0
+       y(i) = y(i+n_spline)
+    end do
+    do i = n_spline+1, n_spline+n_pad
+       y(i) = y(i-n_spline)
+    end do
+    
+    ! Fill gaps through linear interpolation
+    do i = start, end
+       if (y(i) /= 0.d0) cycle
+       ! Search left for nearest non-zero neighbor
+       j = i
+       do while (y(j) == 0.d0 .and. j > start)
+          j = j-1
+       end do
+       ! Search right for nearest non-zero neighbor
+       k = i
+       do while (y(k) == 0.d0 .and. k < end)
+          k = k+1
+       end do
+       if (j == start) then
+          w = 0.d0 ! All weight on rightmost point
+       else if (k == end) then
+          w = 1.d0 ! All weight on leftmost point
+       else
+          w = real(i-j,dp) / real(k-j,dp) ! Linear interpolation
+       end if
+       y(i) = (1.d0-w) * y(j) + w * y(k)
+    end do
+
+    ! Spline
+    call spline(phasebin, x, y)
+
+    ! Clean up
+    deallocate(x, y, n)
+
+  end subroutine phase_bin
+  
 end module comm_tod_mod
