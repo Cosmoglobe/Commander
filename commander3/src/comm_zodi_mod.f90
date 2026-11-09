@@ -1467,10 +1467,17 @@ contains
       real(dp)     :: t1, t2
       real(sp),     allocatable, dimension(:)   :: s_zodi
       real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
+      character(len=*),   :: static
 
       ntod  = size(s_zodi_tot)
       ncomp = zodi_model%n_comps
       band  = tod%id
+
+      if (present(exclude_static)) then
+        static = static
+      else
+        static = ''
+      end if
 
       ! Initialize
       s_zodi_tot = 0.
@@ -1489,7 +1496,7 @@ contains
       call wall_time(t2)
       
       ! Add solar component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. associated(tod%map_solar) .and. trim(exclude_static) /= 'solar') then
+      if (trim(static) /= 'all' .and. associated(tod%map_solar) .and. trim(static) /= 'solar') then
          do h = 1, tod%nhorn 
             do i = 1, ntod
                j    = tod%scans(scan)%d(det)%pix_sol(i,h)
@@ -1503,7 +1510,7 @@ contains
       return
 
       ! Add Moon component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'moon') then
+      if (trim(static) /= 'all' .and. trim(static) /= 'moon') then
          do h = 1, tod%nhorn 
             do i = 1, ntod
                j    = tod%scans(scan)%d(det)%pix_moon(i,h)
@@ -1516,7 +1523,7 @@ contains
       end if
 
       ! Add Earth component by Healpix map lookup
-      if (trim(exclude_static) /= 'all' .and. trim(exclude_static) /= 'earth') then
+      if (trim(static) /= 'all' .and. trim(static) /= 'earth') then
          do h = 1, tod%nhorn 
             do i = 1, ntod
                j = max(min(int(tod%scans(scan)%d(det)%earth_elon(i,h)/(pi/NBIN_EARTH_ELON)),NBIN_EARTH_ELON),1)
