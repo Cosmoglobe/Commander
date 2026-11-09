@@ -181,7 +181,7 @@ contains
     if (present(noisefile)) then
        self%N_map     => comm_map(info, noisefile)
     else if (present(map)) then
-       self%N_map => comm_map(info)
+       if (.not. associated(self%N_map)) self%N_map => comm_map(info)
        if (map%info%nmaps == 3) then
            self%N_map%map(:,1:3) = map%map
            self%N_map%map(:,4)   = 0

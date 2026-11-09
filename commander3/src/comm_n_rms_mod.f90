@@ -162,7 +162,7 @@ contains
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       self%rms0     => comm_map(info)
+       if (.not. associated(self%rms0)) self%rms0     => comm_map(info)
        self%rms0%map = map%map
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')

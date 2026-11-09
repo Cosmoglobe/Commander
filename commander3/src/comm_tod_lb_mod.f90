@@ -121,7 +121,7 @@ contains
     c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
     c%nmaps           = info%nmaps
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-       c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+       c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs))
     else
        c%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
     end if
