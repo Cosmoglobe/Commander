@@ -69,7 +69,8 @@ def matched_filter(res, glitch_params=None):
     res = np.asarray(res, dtype=float)
     glitch_model = templates.glitch_model_func(np.arange(0, g.NSECS, 1 / g.SAMPRATE), 1,
                                                glitch_params=glitch_params)
-    template_norm = np.linalg.norm(glitch_model)
+    # make the matched filter zero mean and normalized
+    template_norm = np.linalg.norm(glitch_model - np.mean(glitch_model))
     if len(res) < len(glitch_model):
         raise ValueError("The TOD must be longer than the glitch template")
 
@@ -81,8 +82,7 @@ def matched_filter(res, glitch_params=None):
                                                                           fft_length), fft_length)
     score = correlation[len(glitch_model) - 1:len(res)] / (g.SIGMA * template_norm)
 
-    peak_indices, _ = find_peaks(score, height=g.CUT_OFF, distance=max(1, int(0.05 * g.SAMPRATE)))
-    glitch_idx = peak_indices
+    glitch_idx, _ = find_peaks(score, height=g.CUT_OFF, distance=max(1, int(0.05 * g.SAMPRATE)))
     # print(f"Glitch indices: {(glitch_idx[glitch_idx < 1000])}")
 
     return glitch_idx, score

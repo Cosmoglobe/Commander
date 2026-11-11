@@ -6,8 +6,9 @@ import globals as g
 import matplotlib.pyplot as plt
 import numpy as np
 import templates as templates
+import os
 
-nsecs = 120 # 2 mins of data
+nsecs = 60 * 60 # 1 hour of data
 seconds = np.arange(0, nsecs, 1 / g.SAMPRATE)  # 1 hour of data at 180.3737 Hz
 
 res = np.random.normal(0, g.SIGMA, len(seconds))  # white noise
@@ -34,7 +35,11 @@ for glitch_i, glitch_idx in enumerate(glitch_indices):
         res[glitch_idx:] += glitch_model[:len(res) - glitch_idx]
 
 # save simulations
-np.save(f"{g.DATA_PATH}143-2a_simulations.npy", res)
+np.save(f"{g.DATA_PATH}143-2a_simulations_{nsecs}.npy", res)
+# order and save glitch_types
+glitch_types = glitch_types[np.argsort(glitch_indices)]
+np.save(f"{g.DATA_PATH}143-2a_simulations_{nsecs}_types.npy", glitch_types)
+np.save(f"{g.DATA_PATH}143-2a_simulations_{nsecs}_indices.npy", glitch_indices)
 
 plot_window = 1000  # number of samples to plot
 plt.figure(figsize=(10, 5))
@@ -52,20 +57,9 @@ for i in range(0, len(res), plot_window):
         plt.text(seconds[i:i + plot_window][glt - i], res[i:i + plot_window][glt - i], glt_lbl,
                  fontsize=8, color='red', rotation=45)
 
-        # DEBUG
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #          templates.glitch_model_func(glitch_time, 1, band="143-2a", glitch_type="short"),
-        #          alpha=0.5, label="Glitch model (short)")
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #                  templates.glitch_model_func(glitch_time, 1, band="143-2a", 
-        #                                              glitch_type="long"), alpha=0.5,
-        #                                              label="Glitch model (long)")
-        # plt.plot(seconds[glt - i:glt - i + g.NSECS * 180],
-        #                  templates.glitch_model_func(glitch_time, 1, band="143-2a", 
-                                                    #  glitch_type="slow"), alpha=0.5,
-                                                    #  label="Glitch model (slow)")
-
     if g.PLOTS:
+        if not os.path.exists(f"{g.FIGURES_PATH}sims/{nsecs}/"):
+            os.makedirs(f"{g.FIGURES_PATH}sims/{nsecs}/")
         if i > 0:
             break
         plt.xlim(seconds[i], seconds[i + plot_window])
@@ -73,5 +67,5 @@ for i in range(0, len(res), plot_window):
         plt.ylabel("Amplitude")
         plt.title("Glitch Simulation")
         plt.legend()
-        plt.savefig(f"{g.FIGURES_PATH}sims/{i}_{i+plot_window}.png")
+        plt.savefig(f"{g.FIGURES_PATH}sims/{nsecs}/{i}_{i+plot_window}.png")
         plt.close()

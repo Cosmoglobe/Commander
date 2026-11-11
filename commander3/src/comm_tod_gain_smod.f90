@@ -942,8 +942,7 @@ contains
      inv_N_wn2(1:nscan)            = inv_N_wn
      inv_N_wn2(2*nscan:nscan+1:-1) = inv_N_wn
 
-     nomp = OMP_GET_THREAD_NUM()
-     if(nomp == 0) nomp = 1
+     nomp = 1   ! The FFT has only 2*nscan points, too few to gain from threads.
      call dfftw_init_threads(err)
      call dfftw_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
