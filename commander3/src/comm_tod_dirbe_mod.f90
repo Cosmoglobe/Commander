@@ -137,6 +137,7 @@ contains
       nmaps_beam                  = 1
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
+      c%nside_sl        = nside_beam
 
       ! Get detector labels
       call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", c%label)

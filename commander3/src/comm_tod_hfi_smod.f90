@@ -52,7 +52,7 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_HFI_tod),     pointer    :: c
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, mmax
     logical(lgt) :: pol_beam
     character(len=6) :: pstring
     
@@ -92,8 +92,8 @@ contains
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
     c%ndiode          = 1
-    nmaps_beam        = 3
-    pol_beam          = .true.
+    nmaps_beam        = 1
+    pol_beam          = .false.
     c%nside_beam      = 512
     c%nside_pixhist   = 64
     c%sol_elong_range = cpar%zs_sol_elong
@@ -143,18 +143,15 @@ contains
     !c%orb_4pi_beam    = .true.
     c%symm_flags      = .true.
     c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
-    c%nmaps           = info%nmaps
-    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     c%ntime           = 1
     c%n_4k_lines      = num_tokens(cpar%ds_tod_4k_lines(id_abs), "," )
     c%max_npole_Tbol  = 7
     !TODO: set the number of dark bolometers to be correct
     c%ndark           = 1
 
-    nmaps_beam        = 3
-    pol_beam          = .true.
     c%nside_beam      = 512
     c%nside_pixhist   = 64
+
 
     ! Channel specific parameters
     if (c%freq(1:3) == "100") then
@@ -163,32 +160,38 @@ contains
        c%accept_threshold = 0.8d0
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .true.
+       c%nside_sl         = 512
     else if (c%freq(1:3) == "143") then
        c%chisq_threshold  = 300d0
        c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .true.
+       c%nside_sl         = 512
     else if (c%freq(1:3) == "217") then
        c%chisq_threshold  = 500d0
        c%sigma0_threshold = 1.d30  !100.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .true.
+       c%nside_sl         = 512
     else if (c%freq(1:3) == "353") then
        c%chisq_threshold  = 1000.d0
        c%sigma0_threshold = 1000.d0
        c%accept_threshold = 0.8d0
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .true.
+       c%nside_sl         = 512
     else if (c%freq(1:3) == "545") then
        c%chisq_threshold  = 1.d30
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .false.
+       c%nside_sl         = 64
     else if (c%freq(1:3) == "857") then
        c%chisq_threshold  = 1.d30
        c%correct_sl       = .true.
        c%orb_4pi_beam    = .false.
+       c%nside_sl         = 64
     end if
 
 
@@ -357,7 +360,7 @@ contains
     type(map_ptr),       dimension(1:),       intent(inout), optional :: map_gain       ! (ndet)
 
     real(dp)            :: t1, t2
-    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, oper_minimal, skip_nonlin_, seed, oper_line
+    integer(i4b)        :: i, j, k, h, l, ierr, ndelta, nside, npix, nmaps, dec_wn, oper_default, oper_minimal, skip_nonlin_, seed, oper_line, mmax
     logical(lgt)        :: select_data, output_scanlist, output_zodi_comps
     logical(lgt)        :: sample_gain, sample_ncorr, sample_abs_bandpass, sample_rel_bandpass, sample_zodi, sample_adc, make_dyn_mask, sample_xi_n, sample_co
     logical(lgt)        :: fit_4k_lines, sample_cray
@@ -436,8 +439,10 @@ contains
        sample_co             = self%num_emission_lines > 0
        sample_cray           = .false. ! iter  > 0.
     end if
+    mmax = 100
     if (self%freq(1:3) == "545" .or. self%freq(1:3) == "857") then
        make_dyn_mask = .false.
+       mmax = 50
        !sample_ncorr  = .false.
        !sample_xi_n   = .false.
     end if
@@ -496,11 +501,12 @@ contains
        call timer%start(TOD_SL_PRE, self%band)
        if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
+
           !TODO: figure out why this is rotated
           call map_in(i,1)%p%YtW()  ! Compute sky a_lms
           self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+               & self%myid_inter, self%comm_inter, map_in(i,1)%p%info%nside, &
+               & mmax, 1, mmax, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
        call timer%stop(TOD_SL_PRE, self%band)
     end if

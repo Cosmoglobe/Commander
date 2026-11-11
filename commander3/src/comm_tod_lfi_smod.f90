@@ -151,6 +151,7 @@ contains
     nmaps_beam                = 3
     pol_beam                  = .true.
     c%nside_beam              = nside_beam
+    c%nside_sl                = nside_beam
     c%correct_sl              = .true.
     c%correct_orb             = .true.
     c%apply_inst_corr         = .true.

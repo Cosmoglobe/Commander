@@ -152,6 +152,7 @@ contains
       nmaps_beam                  = 1
       pol_beam                    = .false.
       c%nside_beam      = nside_beam
+      c%nside_sl        = nside_beam
 
       ! Get detector labels
       if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then

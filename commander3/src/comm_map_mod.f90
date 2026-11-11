@@ -1154,7 +1154,7 @@ subroutine tod2file_dp3(filename,d)
     lmax  = self%info%lmax; if (present(lmax_file)) lmax = lmax_file
     nmaps = 1 
     nalm = (lmax+1)**2
-    
+   
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1))
     if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms, opt=.true.)
@@ -1955,7 +1955,6 @@ subroutine tod2file_dp3(filename,d)
         alm = 1.d0 / sqrt(2.d0) * dcmplx(self%alm(ind,:), self%alm(ind2,:))
       end if 
     end if
-
 
   end subroutine get_alm_TEB
 

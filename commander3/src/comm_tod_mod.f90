@@ -316,7 +316,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:) :: mod_phase  ! Modulation phase (ndet,nscan)
 
      character(len=128)                                :: tod_type
-     integer(i4b)                                      :: nside_beam
+     integer(i4b)                                      :: nside_beam, nside_sl
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
      real(dp)                                          :: accept_threshold ! Required fraction of unflagged data in a detscan in order to be accepted 
@@ -925,7 +925,6 @@ contains
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
 
-
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
@@ -942,13 +941,14 @@ contains
 
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
+
     if(lmax_sl > 0) then
-      self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
+      self%slinfo => comm_mapinfo(comm_chain, self%nside_sl, lmax_sl, nmaps_beam, pol_beam)
     end if
 
     if(lmax_beam > 0) then
-       !self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
-       self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, 1, .false.)
+       self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+       !self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, 1, .false.)
     end if
 
     do i = 1, self%ndet

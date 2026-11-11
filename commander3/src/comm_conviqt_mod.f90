@@ -67,7 +67,6 @@ contains
     complex(spc), allocatable, dimension(:,:) :: alm
     real(dp) :: theta, phi
 
-
     allocate(constructor)
     constructor%lmax  = lmax
     constructor%mmax  = min(beam%info%mmax,lmax)
@@ -80,6 +79,22 @@ contains
     constructor%myid  = myid_shared
     nalm_tot          = (lmax+1)*(lmax+2)/2
 
+    !write(*,*) "conviqt_constructor", nside, lmax, nmaps, bmax
+
+    if(beam%info%mmax > lmax) then
+        write(*,*) "mmax > lmax in comm_conviqt mod. This will crash"
+        stop
+    end if
+
+    if(bmax > lmax) then
+        write(*,*) "bmax > lmax in comm_conviqt mod. This will crash"
+        stop
+    end if
+
+    if(bmax > nside) then
+        write(*,*) "bmax > nside in comm_conviqt_mod. This will crash"
+        stop
+    end if
 
     !current optimization levels:
     !0 - no optimization
@@ -97,11 +112,10 @@ contains
     end do
 
 
-    constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, nmaps==3)
+    constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, map%info%pol)
  
     !Set up shared beam
     nalm = count(constructor%info%lm(2,:) >= 0)  
-
 
     allocate(ind(nalm), alm(nmaps,nalm))
     alm = 0
@@ -111,6 +125,7 @@ contains
        m = constructor%info%lm(2,i)
        if (m < 0) cycle
        call beam%info%lm2i(l,m,k)
+
        if (k == -1) cycle
        ind(j) = (l-1)*l/2 + l + m + 1
        if (m == 0) then
@@ -260,9 +275,10 @@ contains
           marray(:,-j) = mout(:,2)
 
        end if
-      if(map%info%myid == 0 .and. .false.) then
-        write(*,*) 'Sharp  execute, m=', j, sum(mout(:,1:2)), sum(alm(:,1:2))
-      end if
+      !if(map%info%myid == 0) then
+      !if(isnan(sum(mout(:,1:2)))) then
+      !  write(*,*) 'Sharp  execute, m=', j, sum(mout(:,1:2)), sum(alm(:,1:2)), self%info%np, self%info%nalm, map%info%myid
+      !end if
       
     end do
 
@@ -286,6 +302,12 @@ contains
       call dfftw_execute_dft_c2r(fft_plan, dv, dt)
       call timer%stop(TOT_FFT)
 
+      !do j = 1, self%bmax
+      !  if(map%info%myid == 0) then
+      !    write(*,*) i, self%psisteps, dt, dv
+      !    stop
+      !  end if
+      !end do
       self%c%a(self%info%pix(i)+1,:) = real(dt(1:self%psisteps),sp)
 
     end do
@@ -309,13 +331,18 @@ contains
 
     integer(i4b) :: i, ineg, j, l, m
     real(dp)     :: spinsign, mfac, sqrt_two
-    complex(dpc) :: v1, v2, alm_b(3), alm_s(3), almc
+    complex(dpc) :: v1, v2, almc
+    complex(dpc), dimension(:), allocatable :: alm_b, alm_s
+
+    allocate(alm_b(self%nmaps), alm_s(self%nmaps))
 
     spinsign = 1; if (m_b /= 0) spinsign = -1
     sqrt_two = sqrt(2.d0)
 
     alm = 0.d0
     do i = 0, self%info%nalm-1
+        alm_s = 0.d0
+        alm_b = 0.d0
         l  = self%info%lm(1,i)
         m  = self%info%lm(2,i)
         if (m < 0) cycle ! Do negative m at the same time as positive m
@@ -325,7 +352,15 @@ contains
 
         j = (l-1)*l/2 + l + m_b + 1
         alm_b = self%alm_beam%a(:,j)
-        call map%get_alm_TEB( l, m,   .true., alm_s)
+        if(self%nmaps == 3) then
+            call map%get_alm_TEB( l, m,   .true., alm_s)
+        else if(self%nmaps == 1) then
+            call map%get_alm(l, m, 1, .true., alm_s(1))
+        else
+            write(*,*) "wrong nmaps in conviqt get_alms"
+            stop
+        end if
+        !if(m == 0) write(*,*) l, m, alm_s, i
         !if (l == 0 .and. m == 0) write(*,*) alm_b, alm_s
         v1 = sum(      alm_s *alm_b)
         !THIS WAS THE LINE THAT WAS WRONG
@@ -354,6 +389,8 @@ contains
            end if
         end if
      end do
+
+     deallocate(alm_b, alm_s)
 
   end subroutine get_alms
 
