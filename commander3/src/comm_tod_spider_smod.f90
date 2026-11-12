@@ -248,7 +248,7 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-    real(sp),     allocatable, dimension(:,:)   :: tod_gapfill, tod_orig, s_jump_before
+    real(sp),     allocatable, dimension(:,:)   :: tod_gapfill, s_jump_before
     ! Old spider jump handling real(sp),     allocatable, dimension(:,:,:) :: jump_calib
     integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
     real(sp),     allocatable, dimension(:)     :: offset_level
@@ -356,7 +356,7 @@ contains
 
        ! Prepare data
        ! call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
-       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd, spur_level=1)
+       call init_scan_data(self, i, oper_default, TODMASK_NCORR, sd)
 
        ! Calling Simulation Routine
 !!$        if (self%enable_tod_simulations) then
@@ -370,6 +370,7 @@ contains
        allocate(jumps(sd%ntod, sd%ndet))
        allocate(tod_gapfill(sd%ntod, sd%ndet))
        allocate(test_array(sd%ntod))
+       s_jump_before = sd%s_jump ! jumps already subtracted from sd%tod by init_scan_data
 
        debug = .false.
 
@@ -397,7 +398,7 @@ contains
           ! Scanning for jumps
           if (.true.) then
              call jump_scan(                                 &
-                & sd%tod(:,j) - sd%s_sky(:,j,0,1) - sd%s_jump(:,j), &
+                & sd%tod(:,j) - sd%s_sky(:,j,0,1),           &
                 & sd%flag(:,j),                              &
                 & jumps(:,j),                                &
                 & offset_range,                              &
@@ -438,11 +439,15 @@ contains
                 & self%scans(i)%d(j)%offset_range,  &
                 & self%scans(i)%d(j)%offset_level,  &
                 & sd%s_jump(:,j))
+
+             ! Keep sd%tod = raw TOD - s_jump: subtract only the jumps found from this iteration
+             sd%tod(:,j) = sd%tod(:,j) - (sd%s_jump(:,j) - s_jump_before(:,j))
+
           end if
 
           ! Create gap-less and jump subtracted TOD, called 'tod_gapfill'
           call gap_fill_linear(           &
-             & sd%tod(:,j) - sd%s_jump(:,j), &
+             & sd%tod(:,j),               &
              & sd%flag(:,j),              &
              & tod_gapfill(:,j),          &
              & handle,                    &
@@ -462,17 +467,14 @@ contains
           end if
        end do
 
+       deallocate(s_jump_before)
+       
        ! Sample correlated noise
        !  HFI branch originally just had: call sample_n_corr(self, sd, handle)
        ! spider_harald branch had: call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-       ! Subtract the jumps before passing to sample_n_corr
-       tod_orig = sd%tod
-       sd%tod = sd%tod - sd%s_jump
        ! Need to modify the sd%mask argument to include the jump sd%flag field as well
        where (iand(sd%flag, 1) /= 0) sd%mask = 0
        call sample_n_corr(self, sd, handle, dospike=.true.) ! Spike finding currently not working anyways
-       ! Keep the sd%tod array modified (jump subtracted) for the next few steps.
-       ! We will return it to tod_orig later
 
        if (debug) then
           do j = 1, sd%ndet
@@ -499,10 +501,10 @@ contains
                 & it_label,                &
                 & chaindir)
 
-             call expand_offset_list( &
-                & offset_range,       &
-                & offset_level,       &
-                & sd%s_jump(:,j))
+            !  call expand_offset_list( &
+            !     & offset_range,       &
+            !     & offset_level,       &
+            !     & sd%s_jump(:,j))
 
              ! call tod2file(trim(dir_name)//'s_jump_test_'//trim(it_text)//'.txt', s_jump(:,j))
              ! call tod2file(trim(dir_name)//'flag_after_test_'//trim(it_text)//'.txt', flag(:,j))
@@ -545,16 +547,14 @@ contains
 
           end do
 
-          ! n_corr still contains the offsets stage 2 just moved into s_jump; remove them
+          ! Stage 2 moved offsets from n_corr into s_jump; remove them from n_corr and sd%tod
           sd%n_corr = sd%n_corr - (sd%s_jump - s_jump_before)
+          sd%tod    = sd%tod    - (sd%s_jump - s_jump_before)
           deallocate(s_jump_before)
 
           ! Exclude the newly flagged jump regions from the noise fit and chisq
           where (iand(sd%flag, 1) /= 0) sd%mask = 0
        end if
-
-       ! Rebuild sd%tod from the original TOD minus all jumps (stages 1 and 2)
-       sd%tod = tod_orig - sd%s_jump
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd, handle, chaindir)
@@ -576,12 +576,8 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
 
-       ! Restore original sd%tod. compute_calibrated_data subtracts jumps before calculating
-       sd%tod = tod_orig
-       deallocate(tod_orig)
-
        ! Original spider_harald method: call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
-       ! Now there is jump subtraction inside compute_calibrated_data
+       ! sd%tod is already jump-subtracted. init_scan_data loads the new jumps found above
        call compute_calibrated_data(self, i, sd, d_calib)
 
        ! Old spider jump handling allocate(jump_calib(1, sd%ntod, sd%ndet))

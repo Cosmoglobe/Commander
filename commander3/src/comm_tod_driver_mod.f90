@@ -1302,7 +1302,6 @@ contains
        ! sky signal
        d_calib(1,:,j) = sd%tod(:,j) * inv_gain
        if (allocated(sd%n_corr))   d_calib(1,:,j) = d_calib(1,:,j) - sd%n_corr(:,j) * inv_gain
-       if (allocated(sd%s_jump))   d_calib(1,:,j) = d_calib(1,:,j) - sd%s_jump(:,j) * inv_gain
        if (allocated(sd%s_sl))     d_calib(1,:,j) = d_calib(1,:,j) - sd%s_sl(:,j,0)
        if (allocated(sd%s_orb))    d_calib(1,:,j) = d_calib(1,:,j) - sd%s_orb(:,j,0)
        if (allocated(sd%s_zodi))   d_calib(1,:,j) = d_calib(1,:,j) - sd%s_zodi(:,j,0)
