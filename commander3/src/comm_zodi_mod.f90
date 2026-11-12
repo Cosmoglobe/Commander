@@ -1467,14 +1467,14 @@ contains
       real(dp)     :: t1, t2
       real(sp),     allocatable, dimension(:)   :: s_zodi
       real(sp),     allocatable, dimension(:,:) :: s_scat_, s_therm_
-      character(len=*),   :: static
+      character(len=10)   :: static
 
       ntod  = size(s_zodi_tot)
       ncomp = zodi_model%n_comps
       band  = tod%id
 
       if (present(exclude_static)) then
-        static = static
+        static = exclude_static
       else
         static = ''
       end if
