@@ -37,17 +37,17 @@ contains
   !                   (2) = (1) + jumps
   !                   (3) = (2) + instrument-specific
   !                   (4) = (3) + spikes
-  subroutine init_scan_data(tod, scan, oper, bitmask0, sd, det, nonlin_level, spur_level, handle)
+  subroutine init_scan_data(tod, scan, oper_, bitmask0, sd, det, nonlin_level, spur_level, handle)
     implicit none
     class(comm_tod),      intent(inout)           :: tod
-    integer(i4b),         intent(in)              :: scan, oper, bitmask0
+    integer(i4b),         intent(in)              :: scan, oper_, bitmask0
     class(comm_scandata), intent(inout)           :: sd    
     integer(i4b),         intent(in),    optional :: det
     integer(i4b),         intent(in),    optional :: nonlin_level
     integer(i4b),         intent(in),    optional :: spur_level 
     type(planck_rng),     intent(inout), optional :: handle
 
-    integer(i4b) :: i, j, h, k, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl
+    integer(i4b) :: i, j, h, k, l, b, d, ntod, hmax, ndet, nhorn, nbp, nonlin_lvl, spur_lvl, oper
     integer(i4b) :: n, nfft
     real(sp),     allocatable, dimension(:)   :: dt
     complex(spc), allocatable, dimension(:)   :: dv
@@ -55,6 +55,7 @@ contains
     call timer%start(TOD_ALLOC, tod%band)
 
     ! Initialize defaults and check dependencies
+    oper        = oper_
     sd%scan     = scan
     sd%oper     = oper
     sd%ntod     = tod%scans(scan)%ntod
@@ -67,6 +68,10 @@ contains
     nonlin_lvl  = 100; if (present(nonlin_level)) nonlin_lvl = nonlin_level
     spur_lvl    = 100; if (present(spur_level))   spur_lvl = spur_level
     
+    ! Set flags that depend on other flags being set
+    ! SD_MASK assumes you also asked for SD_IND 
+    if(btest(oper, SD_MASK) .and. .not. btest(oper, SD_IND)) oper = oper + 2**SD_IND
+
     ! Allocate data structures
     ntod  = sd%ntod
     ndet  = sd%ndet
@@ -86,6 +91,7 @@ contains
     if (btest(oper,SD_ZODI) .and. tod%subtract_zodi)    allocate(sd%s_zodi  (ntod, ndet, 0:hmax))
     if (btest(oper,SD_OBJCTR))  allocate(sd%s_objctr(ntod, ndet, 0:hmax))
     if (btest(oper,SD_SKY))     allocate(sd%s_sky   (ntod, ndet, 0:hmax, nbp))
+    if (btest(oper,SD_LINE))    allocate(sd%s_line  (ntod, ndet, 0:hmax))
     if (btest(oper,SD_BP))      allocate(sd%s_bp    (ntod, ndet, 0:hmax, nbp))
     if (btest(oper,SD_TOT))     allocate(sd%s_tot   (ntod, ndet, 0:hmax, nbp))
     if (btest(oper,SD_GAIN))    allocate(sd%s_gain  (ntod, ndet, 0:hmax))
@@ -96,6 +102,7 @@ contains
     if (btest(oper,SD_SPIKE))   allocate(sd%s_spike (ntod, ndet))
     if (btest(oper,SD_DARK))    allocate(sd%dark    (ntod, tod%ndark))
     if (btest(oper,SD_SPUR))    allocate(sd%s_spur  (ntod, ndet))
+    if (btest(oper,SD_CRAY))    allocate(sd%s_cray  (ntod, ndet))
     call timer%stop(TOD_ALLOC, tod%band)
 
 
@@ -239,7 +246,14 @@ contains
        call timer%stop(TOD_SL_INT, tod%band)
     end if
 
-    ! Apply Tbol convolution to all optical components
+    ! Construct line emission template
+    if (btest(oper,SD_LINE)) then
+       call timer%start(TOD_PROJECT, tod%band)
+       call tod%construct_line_emission_template(sd, det)
+       call timer%stop(TOD_PROJECT, tod%band)
+    end if
+
+    ! Apply Tbol convolution to all optical components, except line emission
     if (tod%correct_Tbol) then
 !!$       if (tod%myid == 0 .and. scan == 1 .and. allocated(sd%s_sky)) then
 !!$          open(58,file='sky_before_Tbol.dat', recl=1024)
@@ -300,7 +314,14 @@ contains
        call tod%construct_spike_corr(sd, det)
        call timer%stop(TOD_INSTCORR, tod%band)
     end if
-    
+
+    ! Construct spike correction template
+    if (btest(oper,SD_CRAY)) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_cray_corr(sd, det)
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+
     ! Coadd optical components of total sky signal
     if (btest(oper,SD_TOT)) then
        sd%s_tot = 0.
@@ -321,7 +342,7 @@ contains
 
     ! Coadd horn signals into detector signals; store result in 0th horn-row
     if (nhorn > 1) call tod%coadd_horns(sd)
-
+    
     ! Add non-optical components into a net spurious component
     if (btest(oper,SD_SPUR)) then
        sd%s_spur = 0.
@@ -357,7 +378,6 @@ contains
     !  end if
     !end do
 
-
     ! Subtract spurious corrections from TOD according to spur_level
     call timer%start(TOD_INSTCORR, tod%band)
     do j = 1, ndet
@@ -369,7 +389,16 @@ contains
        if (spur_lvl > 3 .and. btest(oper,SD_SPIKE)) sd%tod(:,j) = sd%tod(:,j) - sd%s_spike(:,j)
     end do
     call timer%stop(TOD_INSTCORR, tod%band)
-   
+
+    ! Subtract TOD line emission; no Tbol since it's subtracted after nonlin
+    if (btest(oper,SD_LINE)) then
+       do j = 1, ndet
+          d = j; if (present(det)) d = det
+          if (.not. tod%scans(scan)%d(d)%accept) cycle
+          sd%tod(:,j) = sd%tod(:,j) - tod%scans(scan)%d(d)%gain * sd%s_line(:,j,0)
+       end do
+    end if
+    
     !do j = 1, ndet
     !  d = j; if (present(det)) d = det
     !  if (.not. tod%scans(scan)%d(d)%accept) cycle
@@ -407,6 +436,7 @@ contains
     if (allocated(sd%s_jump))        deallocate(sd%s_jump)
     if (allocated(sd%s_spike))       deallocate(sd%s_spike)
     if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
+    if (allocated(sd%s_line))        deallocate(sd%s_line)
     if (allocated(sd%s_inst))        deallocate(sd%s_inst)
     if (allocated(sd%s_gain))        deallocate(sd%s_gain)
     if (allocated(sd%dark))          deallocate(sd%dark)
@@ -673,7 +703,7 @@ contains
 !!$                end if
              else
                 s_buf(:,j) = sd%s_gain(:,j,0)
-                call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+                !call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
                 call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
              end if
           else if (trim(mode) == 'imbal' .and. tod%nhorn == 2) then
@@ -1315,7 +1345,7 @@ contains
           if (allocated(sd%s_bp))  d_calib(2,:,j) = d_calib(2,:,j) + sd%s_bp(:,j,0,1)
        end if
        ! ncorr
-       if (tod%output_n_maps > 2 .and. allocated(sd%n_corr)) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain
+       if (tod%output_n_maps > 2 .and. allocated(sd%n_corr)) d_calib(3,:,j) = (sd%n_corr(:,j)-sum(sd%n_corr(:,j)*sd%mask(:,j))/sum(sd%mask(:,j))) * inv_gain
        ! bandpass
        if (tod%output_n_maps > 3 .and. allocated(sd%s_bp))   d_calib(4,:,j) = sd%s_bp(:,j,0,1)
        ! orbital dipole

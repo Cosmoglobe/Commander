@@ -45,14 +45,13 @@ contains
     logical(lgt) :: flag_missing_
     if (self%fullsky) then
        ind = pix+1
-    else
+    else 
+       flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
        if (self%nobs == 0) then
           ind = 0
-          flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
           if (flag_missing_) ind = -1
        else
           ind = locate(self%ind2pix(1:self%nobs), pix)
-          flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
           if (flag_missing_) then
              if (.not. self%ind2pix(ind) == pix) then
                 write(*,*) "pix2ind", pix, ind, self%nobs, self%ind2pix(ind-1:ind+1)
@@ -312,6 +311,36 @@ contains
     
   end subroutine init_map_mask
 
+  module subroutine init_line_emission(self, map_line, line_ratio)
+    implicit none
+    class(comm_tod_pixcache),                 intent(inout) :: self
+    class(comm_map), pointer,                 intent(in)    :: map_line
+    real(dp),        dimension(:,:),          intent(in)    :: line_ratio
+
+    integer(i4b) :: i, j, k, l, ndet, nline
+    real(sp), allocatable, dimension(:,:) :: buffer
+
+    nline  = size(line_ratio,1)
+    ndet   = size(line_ratio,2)  
+
+    ! Allocate storage in first call
+    if (.not. allocated(self%map_line)) then
+       allocate(self%map_line(self%nobs,ndet))
+    end if
+
+    ! Distribute sky and (optionally) gain maps
+    allocate(buffer(nline,self%nobs))
+    call map_line%map2pix(self%ind2pix, buffer)
+    do i = 1, ndet
+       self%map_line(:,i) = 0.
+       do j = 1, nline
+          self%map_line(:,i) = self%map_line(:,i) + line_ratio(j,i) * buffer(j,:)
+       end do
+    end do
+    
+  end subroutine init_line_emission
+
+  
   module subroutine deallocate_pixcache(self)
     implicit none
     class(comm_tod_pixcache), intent(inout)          :: self
@@ -331,6 +360,7 @@ contains
     if (allocated(self%psi))          deallocate(self%psi)
     if (allocated(self%map_sky))      deallocate(self%map_sky)
     if (allocated(self%map_gain))     deallocate(self%map_gain)
+    if (allocated(self%map_line))     deallocate(self%map_line)
     if (allocated(self%bitmask))      deallocate(self%bitmask)
   end subroutine deallocate_pixcache
   

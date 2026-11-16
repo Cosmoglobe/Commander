@@ -464,12 +464,14 @@ contains
 
   end function SED2F
 
-  function lineAmp_RJ(self, nu)
+
+  function lineAmp_RJ(self, nu, uK_cmb)
     implicit none
 
-    class(comm_bp), intent(in) :: self
-    real(dp),       intent(in) :: nu
-    real(dp)                   :: lineAmp_RJ
+    class(comm_bp),           intent(in) :: self
+    real(dp),                 intent(in) :: nu
+    logical(lgt),   optional, intent(in) :: uK_CMB
+    real(dp)                             :: lineAmp_RJ
 
     integer(i4b) :: i
     real(dp)     :: x, tau
@@ -540,6 +542,8 @@ contains
 
     lineAmp_RJ = lineAmp_RJ * 1.d9 ! Convert to uK_ant / (K_ant km/s)
 
+    if (present(uK_cmb)) lineAmp_RJ = lineAmp_RJ * comp_a2t(nu)
+    
   end function lineAmp_RJ
 
 

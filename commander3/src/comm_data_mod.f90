@@ -333,12 +333,19 @@ contains
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
+
+       ! just for janky sim
+       ! sets all bandpasses to be equal for all detectors 
+       !do j = 1, data(n)%ndet
+       !   data(n)%bp(j)%p => data(n)%bp(0)%p
+       !end do
        ! Set up bp pointers in the TOD object
        if (cpar%enable_TOD_analysis .and. data(n)%tod_type /= 'none') then
           allocate(data(n)%tod%bp(0:data(n)%ndet))
           do j = 0, data(n)%ndet
              data(n)%tod%bp(j)%p => data(n)%bp(j)%p 
           end do
+          if (data(n)%tod%num_emission_lines > 0) call data(n)%tod%init_tod_line_emission
        end if
 
        ! Initialize dust extinction map

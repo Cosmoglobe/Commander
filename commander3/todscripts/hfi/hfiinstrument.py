@@ -56,7 +56,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 7
+    version = 8
 
     rimo = fits.open(args.rimo)
     
@@ -66,6 +66,8 @@ def main():
     tbol = Table.read(tbol_file,format='ascii')
 
     for freq in hfi.freqs:
+        if freq == 'DRK':
+            continue
         bandNo = rimo.index_of('BANDPASS_F' + str(freq))
         inst_file.add_hfi_bandpass(freq, rimo[bandNo].data.field('WAVENUMBER'), rimo[bandNo].data.field('TRANSMISSION'))
 

@@ -30,11 +30,12 @@ module comm_tod_DIRBE_mod
    !   process_DIRBE_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
+  use comm_utils
   use comm_tod_driver_mod
   use comm_tod_pixhist_mod
   use comm_tod_mapmaking_mod
   use comm_tod_dynmask_mod
-   implicit none
+  implicit none
 
    private
    public comm_dirbe_tod
@@ -447,9 +448,9 @@ contains
       call synchronize_binmap(binmap, self)
       if (sample_rel_bandpass) then
          if (self%nmaps > 1) then
-            call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+            call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=IAND(self%pixcache%bitmask, TODMASK_BANDPASS))
          else
-            call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
+            call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=IAND(self%pixcache%bitmask, TODMASK_BANDPASS))
          end if
       else
          if(self%nmaps > 1) then

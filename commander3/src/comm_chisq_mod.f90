@@ -40,7 +40,7 @@ contains
 
     integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
     integer(i4b), dimension(:), allocatable :: bandlist
-    real(dp)     :: t1, t2
+    real(dp)     :: t1, t2, t3, t4
     logical(lgt) :: lowres
     class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub, mask_tmp
     class(comm_mapinfo), pointer :: info, info_lowres
@@ -67,7 +67,8 @@ contains
       !                 If set, allows for polarization chi^2 only (true), or temperature only
       !                 (false). Otherwise, both are evaluated.
 
-
+    call wall_time(t1)
+    
     if (present(band_list)) then
       bandlist = band_list
       nbands = size(bandlist)
@@ -95,6 +96,7 @@ contains
 
           res => compute_residual(i)
 
+          call wall_time(t3)
           if (present(mask)) then
             if (size(mask) .ne. nbands) write(*,*) 'Need as many masks as bands'
             res%map = res%map * mask(i)%p%map
@@ -105,9 +107,11 @@ contains
             elsewhere
                mask_tmp%map = 1.d0
             end where
+            !if (data(1)%info%myid == 0 .and. res%info%nmaps == 3) write(*,*) 'mask', sum(mask_tmp%map(:,1)), sum(mask_tmp%map(:,2)), sum(mask_tmp%map(:,3))
             res%map = res%map * mask_tmp%map
             call deallocate_comm_map(mask_tmp)
-          end if
+         end if
+         call wall_time(t4)
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
              if (lowres_eval) then
@@ -165,6 +169,9 @@ contains
        if (present(ndof)) call mpi_allreduce(MPI_IN_PLACE, ndof, 1, MPI_INTEGER, MPI_SUM, comm, ierr)
     end if
 
+    call wall_time(t2)
+    !if (data(1)%info%myid == 0) write(*,*) 'chisq total =', t2-t1, ', mask = ', t4-t3
+    
   end subroutine compute_chisq
 
 

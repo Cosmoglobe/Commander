@@ -85,6 +85,8 @@ module comm_defs
   integer(i4b), parameter :: SD_OBJCTR   = 21
   integer(i4b), parameter :: SD_JUMP     = 22
   integer(i4b), parameter :: SD_SPIKE    = 23
+  integer(i4b), parameter :: SD_LINE     = 24
+  integer(i4b), parameter :: SD_CRAY     = 25
 
   !**************************************************
   !           Ephemeris definitions
