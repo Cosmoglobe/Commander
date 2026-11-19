@@ -36,6 +36,7 @@ F90SOURCES=hashtbl.f90 \
            spline_1d_mod.f90 \
            spline_2d_mod.f90 \
            invsamp_mod.f90 \
+           comm_zodi_solcentric_smod.f90\
            comm_mpi_mod.f90 \
            comm_system_backend.f90 \
            comm_system_mod.f90 \
@@ -136,6 +137,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_adc_binfit_mod.f90 comm_tod_adc_binfit_smod.f90 \
 	   comm_timing_mod.f90 \
 	   comm_tod_cray_mod.f90 \
+
 	   commander.f90
            #comm_tod_quiet_mod.f90 comm_tod_quiet_smod.f90 
 
@@ -284,6 +286,7 @@ comm_tod_bandpass_mod.o     : comm_tod_mod.o
 
 comm_zodi_comp_mod.o        : comm_param_mod.o comm_hdf_mod.o
 comm_zodi_mod.o             : comm_zodi_comp_mod.o comm_tod_mod.o comm_bp_mod.o comm_zodi_spline_mod.o
+comm_zodi_solcentric_smod.o      : comm_zodi_mod.o
 comm_tod_objctr_mod.o       : comm_tod_mod.o comm_utils.o comm_param_mod.o
 comm_tod_dynmask_mod.o      : comm_tod_mod.o comm_status_mod.o comm_param_mod.o
 comm_tod_lb_mod.o           : comm_tod_driver_mod.o

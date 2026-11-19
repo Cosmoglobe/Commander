@@ -21,11 +21,12 @@
 submodule (comm_tod_mod) comm_tod_pixcache_smod
 contains
 
-  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets, nside_zodi) result(c)
     implicit none
-    integer(i4b),             intent(in) :: nside, nside_sl, nmaps
-    logical(lgt),             intent(in) :: fullsky, equal_dets
-    class(comm_tod_pixcache), pointer    :: c
+    integer(i4b),             intent(in)           :: nside, nside_sl, nmaps
+    integer(i4b),             intent(in), optional :: nside_zodi
+    logical(lgt),             intent(in)           :: fullsky, equal_dets
+    class(comm_tod_pixcache), pointer              :: c
 
     allocate(c)
     c%nside        = nside
@@ -33,9 +34,16 @@ contains
     c%nmaps        = nmaps
     c%fullsky      = fullsky
     c%nmax         = 1
+    c%nmax_zodi    = 1
     c%nobs         = 0
+    c%nobs_zodi         = 0
     c%equal_dets   = equal_dets
     allocate(c%ind2pix(c%nmax))
+
+    if (present(nside_zodi)) then
+      c%nside_zodi   = nside_zodi
+      allocate(c%ind2pix_zodi(c%nmax_zodi))
+    end if
     
   end function constructor_tod_pixcache
 
@@ -317,5 +325,141 @@ contains
 !    deallocate(buffer)
     
   end subroutine init_map_mask
+
+  module function pix2ind_zodi(self, pix_solar, flag_missing) result(ind)
+    implicit none
+    class(comm_tod_pixcache), intent(in)           :: self
+    integer(i4b),             intent(in)           :: pix_solar
+    logical(lgt),             intent(in), optional :: flag_missing
+    integer(i4b)                                   :: ind
+    logical(lgt) :: flag_missing_
+    if (self%fullsky) then
+       ind = pix_solar+1
+    else
+       if (self%nobs_zodi == 0) then
+          ind = 0
+          flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
+          if (flag_missing_) ind = -1
+       else
+          ind = locate(self%ind2pix_zodi(1:self%nobs_zodi), pix_solar)
+          flag_missing_ = .true.; if (present(flag_missing)) flag_missing_ = flag_missing
+          if (flag_missing_) then
+             if (.not. self%ind2pix_zodi(ind) == pix_solar) then
+                write(*,*) "pix2ind_zodi", pix_solar, ind, self%nobs_zodi, self%ind2pix_zodi(ind-1:ind+1)
+                ind = -1
+             end if
+          end if
+       end if
+    end if
+  end function pix2ind_zodi
+
+ module subroutine add_pixels_zodi(self, pix_solar)  !uses solar_centric pointings
+    implicit none
+    class(comm_tod_pixcache),               intent(inout) :: self
+    integer(i4b),             dimension(:), intent(in)    :: pix_solar
+
+    integer(i4b) :: i, j, k, p, n
+    integer(i4b), allocatable, dimension(:) :: newpix, oldpix
+
+    if (self%fullsky) return
+
+    allocate(newpix(size(pix_solar)), oldpix(self%nobs_zodi))
+    newpix = pix_solar
+    oldpix = self%ind2pix_zodi(1:self%nobs_zodi)
+    call QuickSort_int(newpix)
+
+    ! Count unique pixels
+    n = 1
+    do p = 2, size(newpix)
+       if (newpix(p) /= newpix(p-1)) n = n+1
+    end do
+    call self%expand_storage_zodi(n)
+    
+    ! Merge new sorted list into existing
+    i = 1; j = 1; k = 1
+    do while (i <= self%nobs_zodi .and. j <= size(newpix))
+       if (oldpix(i) == newpix(j)) then
+          self%ind2pix_zodi(k) = oldpix(i)
+          i = i+1; j = j+1; k = k+1
+       else if (oldpix(i) < newpix(j)) then
+          self%ind2pix_zodi(k) = oldpix(i)
+          i = i+1; k = k+1
+       else if (oldpix(i) > newpix(j)) then
+          self%ind2pix_zodi(k) = newpix(j)
+          j = j+1; k = k+1
+       end if
+       ! Skip duplicates
+       if (j > size(newpix)) exit
+       if (j == 1) cycle
+       do while (newpix(j) == newpix(j-1))
+          j = j+1
+          if (j > size(newpix)) exit
+       end do
+    end do
+    
+    if (i <= self%nobs_zodi) then
+       ! Append left-over pixels in old array
+       self%ind2pix_zodi(k:k+self%nobs_zodi-i) = oldpix(i:self%nobs_zodi)
+       self%nobs_zodi = k+self%nobs_zodi-i
+    else if (j <= size(newpix)) then
+       ! Append left-over pixels in new array
+       do while (j <= size(newpix))
+          self%ind2pix_zodi(k) = newpix(j)
+          j = j+1; k = k+1
+          ! Skip duplicates
+          if (j > size(newpix)) exit
+          do while (newpix(j) == newpix(j-1))
+             j = j+1
+             if (j > size(newpix)) exit
+          end do
+       end do
+       self%nobs_zodi = k-1
+    else
+       ! No leftovers; just update nobs_zodi
+       self%nobs_zodi = k-1
+    end if    
+  end subroutine add_pixels_zodi
+
+  module subroutine expand_storage_zodi(self, n, trim_unused)
+    implicit none
+    class(comm_tod_pixcache), intent(inout)          :: self
+    integer(i4b),             intent(in),   optional :: n
+    logical(lgt),             intent(in),   optional :: trim_unused
+
+    integer(i4b), allocatable, dimension(:) :: buffer
+
+    allocate(buffer(self%nobs_zodi))
+    buffer    = self%ind2pix_zodi(1:self%nobs_zodi)
+    if (present(n)) then
+       self%nmax_zodi = self%nobs_zodi + n
+    else if (present(trim_unused)) then
+       self%nmax_zodi = self%nobs_zodi
+    else
+       self%nmax_zodi = 2*self%nobs_zodi
+    end if
+    deallocate(self%ind2pix_zodi)
+    allocate(self%ind2pix_zodi(self%nmax_zodi))
+    self%ind2pix_zodi(1:self%nobs_zodi) = buffer
+    deallocate(buffer)
+  end subroutine expand_storage_zodi
+
+  module subroutine init_map_zodi(self, start_time, end_time, timeslice, n_detectors)
+    implicit none
+    class(comm_tod_pixcache),         intent(inout) :: self
+    integer(i4b)                                    :: n_detectors
+    real(sp),                         intent(in)    :: start_time, end_time, timeslice 
+    !begin of the mission, end of the mission, time between one zodi lookup maps and the other, all in MJD
+
+    integer(i4b)                                    :: n_slices
+
+    ! Allocate storage in first call
+    if (.not. allocated(self%map_zodi)) then
+      n_slices = ((end_time - start_time)/timeslice) + 2 !start and end time + all slices in the middle, the last slice might be smaller !Angela: check whether this rounding is okay
+      allocate(self%map_zodi(self%nobs_zodi,n_slices,n_detectors))
+    end if
+
+    ! Distribute sky and (optionally) gain maps !Angela: this is done in init_map_mask, relevant also here?
+
+  end subroutine init_map_zodi
   
 end submodule comm_tod_pixcache_smod

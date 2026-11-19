@@ -8,7 +8,7 @@ module comm_zodi_mod
    private
    public initialize_zodi_mod, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emission_mbb
    public ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model, compute_zodi
-   public band_monopole, band_update_monopole
+   public band_monopole, band_update_monopole, update_zodi_lookups, get_zodi_from_lookups
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -21,9 +21,10 @@ module comm_zodi_mod
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
       character(len=24) :: phasefunc_type, bandpass_type
-      integer(i4b) :: n_comps, n_common_params, n_general_params, n_phase_params, numband
+      integer(i4b) :: n_comps, n_common_params, n_general_params, n_phase_params, numband, zodi_lookups_nside
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
+      real(sp)     :: zodi_timeslice
       real(dp)     :: nu_min_scatter, nu_max_thermal
       real(dp)     :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
@@ -62,7 +63,52 @@ module comm_zodi_mod
    real(dp), dimension(10) :: C1_K98 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
    real(dp), dimension(10) :: C2_K98 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
 
-   
+
+!Interface to use comm_zodi_solcentric_smod
+interface
+
+   module subroutine update_zodi_lookups(tod, zodi_model, start_time, end_time)
+      implicit none
+      class(comm_tod),        intent(inout)     :: tod
+      type(ZodiModel),        intent(in)        :: zodi_model
+      real(sp),               intent(in)        :: start_time, end_time
+   end subroutine update_zodi_lookups
+
+   module subroutine get_zodi_from_lookups(tod, pixels, scan, det, zodi_model, final_zodi)
+      implicit none
+      class(comm_tod),               intent(inout)    :: tod
+      integer(i4b),    dimension(:), intent(in)       :: pixels
+      integer(i4b),                  intent(in)       :: scan, det
+      type(ZodiModel),               intent(in)       :: zodi_model
+      real(sp),        dimension(:), intent(out)      :: final_zodi
+   end subroutine get_zodi_from_lookups
+
+   module subroutine solar_centered_to_ecliptic(time, obs_pos, vec_sol, vec_ecl)
+      implicit none
+      real(sp),               intent(in)        :: time
+      real(dp),               intent(in)        :: obs_pos(3), vec_sol(3) 
+      real(dp),               intent(inout)     :: vec_ecl(3)
+   end subroutine solar_centered_to_ecliptic
+
+   module subroutine ecliptic_to_solar_centered(time, obs_pos, vec_ecl, vec_sol)
+      implicit none
+      real(sp),               intent(in)        :: time
+      real(dp),               intent(in)        :: obs_pos(3), vec_ecl(3) 
+      real(dp),               intent(inout)     :: vec_sol(3)
+   end subroutine ecliptic_to_solar_centered
+
+   module subroutine compute_zodi_model(tod, det, vec_ecl, obs_pos, earth_pos, zodi_model, signal_zodi)
+      implicit none
+      class(comm_tod),        intent(inout)     :: tod
+      integer(i4b),           intent(in)        :: det
+      real(dp),               intent(in)        :: vec_ecl(3), obs_pos(3), earth_pos(3)
+      type(ZodiModel),        intent(in)        :: zodi_model
+      real(sp),               intent(inout)     :: signal_zodi
+   end subroutine compute_zodi_model
+
+end interface
+ 
+
 contains
   subroutine initialize_zodi_mod(cpar)
     implicit none
@@ -97,6 +143,8 @@ contains
     zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
     zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
     zodi_model%joint_mono       = cpar%zs_joint_mono
+    zodi_model%zodi_lookups_nside       = cpar%zs_lookups_nside
+    zodi_model%zodi_timeslice   = cpar%zs_timeslice
     
     if (trim(zodi_model%phasefunc_type) == 'K98') then
        zodi_model%n_phase_params   = 3*numband

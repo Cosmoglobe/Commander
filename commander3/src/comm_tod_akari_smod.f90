@@ -169,9 +169,10 @@ contains
       call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam)
-   !   c%pixcache_solar => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam) !Angela: change this
+      c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false., c%equal_det_bp_beam, cpar%zs_lookups_nside)
       call c%precompute_lookups()
+
+      !Angela: here c%pixcache%init_map_zodi???
 
       ! Load the instrument file
       call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -387,7 +388,6 @@ contains
          call close_hdf_file(tod_file)
          stop
       end if
-
 
       !------------------------------------
       ! Perform main sampling steps

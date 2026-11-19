@@ -37,10 +37,11 @@ module comm_tod_mod
   public comm_tod, comm_scan, comm_detscan, comm_scandata, comm_detdata, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps, comm_tod_pixcache, get_sd_operation_code
 
   type :: comm_tod_pixcache
-     integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi
+     integer(i4b) :: nside, nmaps, nside_lowres, nobs, nside_sl, nmax, npsi, nside_zodi, nobs_zodi, nmax_zodi
      logical(lgt) :: fullsky, equal_dets
      integer(i4b), allocatable, dimension(:)   :: ind2pix ! List of observed pixels
      integer(i4b), allocatable, dimension(:)   :: ind2pix_nest ! List of observed pixels in nested ordering
+     integer(i4b), allocatable, dimension(:)   :: ind2pix_zodi  ! List of observed pixels in solar-centric coordinates, useful for zodi evaluation
      integer(i4b), allocatable, dimension(:)   :: ind2sl  ! Sidelobe
                                                           ! Nside
      real(sp),     allocatable, dimension(:,:) :: ind2ang ! Pixel angles
@@ -55,6 +56,7 @@ module comm_tod_mod
 
      real(sp),     allocatable, dimension(:,:,:,:) :: map_sky  ! Index-based sky map (nmaps,nobs,0:ndet, nbp)
      real(sp),     allocatable, dimension(:,:,:)   :: map_gain ! Index-based sky map for gain
+     real(sp),     allocatable, dimension(:,:,:)   :: map_zodi ! Index-based sky map for solar-centric zodi (n_obs, n_timeslices, n_detectors)
      integer(i4b), allocatable, dimension(:)   :: bitmask  ! Index-based bitmask
    contains
      procedure :: expand_storage
@@ -63,6 +65,10 @@ module comm_tod_mod
      procedure :: get_ind_range
      procedure :: precomp_aux
      procedure :: init_map_mask
+     procedure :: pix2ind_zodi
+     procedure :: add_pixels_zodi
+     procedure :: expand_storage_zodi
+     procedure :: init_map_zodi
   end type comm_tod_pixcache
 
   interface comm_tod_pixcache
@@ -254,6 +260,8 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
+     real(sp)                                          :: global_min_mjd   !first MJD of the mission over all scans
+     real(sp)                                          :: global_max_mjd   !last MJD of the mission over all scans
      real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
      type(spline_type)                                 :: x_obs_spline(3), x_earth_spline(3) ! splines to compute observer and earth positions
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
@@ -433,11 +441,12 @@ module comm_tod_mod
 
   
 interface
-  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets) result(c)
+  module function constructor_tod_pixcache(nside, nside_sl, nmaps, fullsky, equal_dets, nside_zodi) result(c)
     implicit none
-    integer(i4b),             intent(in) :: nside, nside_sl, nmaps
-    logical(lgt),             intent(in) :: fullsky, equal_dets
-    class(comm_tod_pixcache), pointer    :: c
+    integer(i4b),             intent(in)           :: nside, nside_sl, nmaps
+    integer(i4b),             intent(in), optional :: nside_zodi
+    logical(lgt),             intent(in)           :: fullsky, equal_dets
+    class(comm_tod_pixcache), pointer              :: c
   end function constructor_tod_pixcache
 
   module function pix2ind(self, pix, flag_missing) result(ind)
@@ -482,6 +491,35 @@ interface
     type(map_ptr),       dimension(1:),       intent(in), optional :: map_gain
     real(sp),                                 intent(in), optional :: scale
   end subroutine init_map_mask
+
+  module function pix2ind_zodi(self, pix_solar, flag_missing) result(ind)
+    implicit none
+    class(comm_tod_pixcache), intent(in)           :: self
+    integer(i4b),             intent(in)           :: pix_solar
+    logical(lgt),             intent(in), optional :: flag_missing
+    integer(i4b)                                   :: ind
+  end function pix2ind_zodi
+
+  module subroutine add_pixels_zodi(self, pix_solar)
+    implicit none
+    class(comm_tod_pixcache),               intent(inout) :: self
+    integer(i4b),             dimension(:), intent(in)    :: pix_solar
+  end subroutine add_pixels_zodi
+
+  module subroutine expand_storage_zodi(self, n, trim_unused)
+    implicit none
+    class(comm_tod_pixcache), intent(inout)          :: self
+    integer(i4b),             intent(in),   optional :: n
+    logical(lgt),             intent(in),   optional :: trim_unused
+  end subroutine expand_storage_zodi
+
+  module subroutine init_map_zodi(self, start_time, end_time, timeslice, n_detectors)
+    implicit none
+    class(comm_tod_pixcache),         intent(inout) :: self
+    integer(i4b)                                    :: n_detectors
+    real(sp),                         intent(in)    :: start_time, end_time, timeslice 
+  end subroutine init_map_zodi
+
 end interface
 
   
@@ -792,11 +830,9 @@ contains
              !   self%pix2ind(pix(k)) = -1
              !end do
              if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
-             
-         !    if (trim(self%tod_type)=='AKARI') then
-         !      call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
-         !      if (associated(self%pixcache_solar)) call self%pixcache_solar%add_pixels(pix_solar)
-         !    end if
+            
+             call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+             if (associated(self%pixcache)) call self%pixcache%add_pixels_zodi(pix_solar)
 
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
@@ -827,16 +863,15 @@ contains
 !!$                   write(*,*) "pix = 46051400", self%pixcache%pix2ind(46051400)
 !!$                end if
                 
-         !       if (trim(self%tod_type)=='AKARI') then
-         !         call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, self%pix_solar_int(i, j))
-         !       end if
-
-         !       if (trim(self%tod_type)=='AKARI') then
-         !         call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
-         !         ! do k=2 .... is needed here as well ??
-         !         if (associated(self%pixcache_solar)) call self%pixcache_solar%add_pixels(pix_solar)
-         !       end if
-
+                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+                 do k = 2, self%scans(i)%ntod
+                   pix_solar(k)  = pix_solar(k-1)  + pix_solar(k)
+                   if (pix_solar(k) > 12*self%pixcache%nside_zodi**2-1) then
+                       write(*,*) "Error: pixel_solar number out of range for:"
+                       write(*,*) "pixel nr", pix_solar(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                   end if
+                end do
+                 if (associated(self%pixcache)) call self%pixcache%add_pixels_zodi(pix_solar)
              
                 if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
                 if (self%use_moon_point)  then
@@ -847,7 +882,7 @@ contains
              end do
          end do
       end if
-      deallocate(pix,psi, pix_solar)
+      deallocate(pix, psi, pix_solar)
    end do
    !write(*,*) "xyz2", self%myid, associated(self%pixcache)
     !self%nobs = count(self%pix2ind == -1)
@@ -880,6 +915,7 @@ contains
 
     if (associated(self%pixcache)) then
        call self%pixcache%expand_storage(trim_unused=.true.)
+       call self%pixcache%expand_storage_zodi(trim_unused=.true.)  !Angela: not sure about this
        !write(*,*) "final = 46051400", self%myid, self%pixcache%nobs
        call self%pixcache%precomp_aux(self%npsi)
     end if
@@ -3251,6 +3287,7 @@ contains
       real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
       real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
       real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
+      real(sp) :: local_min_mjd, local_max_mjd, current_min_mjd, current_max_mjd
       real(dp), allocatable :: time(:), x_obs(:, :), x_earth(:, :)
 
       allocate(x0_obs(3, self%nscan_tot), x1_obs(3, self%nscan_tot))
@@ -3346,9 +3383,27 @@ contains
          call spline_simple(self%x_earth_spline(i), time(1:n), x_earth(i, 1:n))
       end do
 
+      !Code to allocate pixcache%map_zodi Angela:check!!
+      local_min_mjd = self%scans(1)%t0(1)
+      local_max_mjd = self%scans(1)%t1(1)
+
+      do i = 2, self%nscan
+         current_min_mjd = self%scans(i)%t0(1)
+         current_max_mjd = self%scans(i)%t1(1)
+         local_min_mjd = min(current_min_mjd, local_min_mjd)
+         local_max_mjd = max(current_max_mjd, local_max_mjd)
+      end do
+
+      call mpi_allreduce(local_min_mjd, self%global_min_mjd, 1, MPI_REAL, MPI_MIN, self%comm, ierr)
+      if (ierr /= 0) write(*,*) "Error in precompute_zodi_lookups while doing mpi_allreduce of global_min_mjd"
+
+      call mpi_allreduce(local_max_mjd, self%global_max_mjd, 1, MPI_REAL, MPI_MAX, self%comm, ierr)
+      if (ierr /= 0) write(*,*) "Error in precompute_zodi_lookups while doing mpi_allreduce of global_max_mjd"
+
+      call self%pixcache%init_map_zodi(self%global_min_mjd, self%global_max_mjd, cpar%zs_timeslice, self%ndet)
+
       !allocate spectral quantities
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
-
       
       ! If zodi sampling is turned on we precompute lowres zodi lookups
       if (.not. cpar%sample_zodi) return

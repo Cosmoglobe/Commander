@@ -537,10 +537,10 @@ contains
       chisq_prev = 0.d0
       if (cpar%myid == cpar%root) then
          theta = theta_old/scale
-         chisq_old  = lnL_zodi(theta)
+         chisq_old  = lnL_zodi_lookups(theta)
       else
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
-         chisq_old  = lnL_zodi()
+         chisq_old  = lnL_zodi_lookups()
       end if
       if (cpar%zs_output_tod_res) then
          call mpi_finalize(ierr)
@@ -556,9 +556,9 @@ contains
          
       if (cpar%myid == cpar%root) then
          ! Perform search
-         call powell(theta, lnL_zodi, ierr, tolerance=1d-4)
+         call powell(theta, lnL_zodi_lookups, ierr, tolerance=1d-4)
          if (ierr /= 0) write(*,*) 'powell failed, ierr =', ierr
-         chisq_new = lnL_zodi(theta)
+         chisq_new = lnL_zodi_lookups(theta)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
 
@@ -581,7 +581,7 @@ contains
          do while (.true.)
              call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
              if (flag == 1) then 
-                 chisq_new = lnL_zodi()
+                 chisq_new = lnL_zodi_lookups()
              else
                  exit
               end if
@@ -752,6 +752,135 @@ contains
       end if
 
    end function
+
+   function lnL_zodi_lookups(p)
+      use healpix_types
+      implicit none
+      real(dp), dimension(:), intent(in), optional :: p
+      real(dp)                                     :: lnL_zodi_lookups
+
+      real(dp), allocatable :: theta(:)
+      real(dp) :: chisq, chisq_tot, t1, t2, t3, t4, mono
+      integer(i4b) :: i, j, k, h, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot, nhorn
+      logical(lgt) :: accept
+      character(len=4) :: scan_str
+      type(hdf_file) :: tod_file
+      real(sp), allocatable, dimension(:,:) :: s_zodi
+
+      call wall_time(t1)
+      
+      allocate(theta(npar))
+      if (cpar%myid_chain == 0) then
+         flag = 1
+         call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
+         theta = p*scale
+      end if
+      call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
+            
+      ! Check priors
+      if (cpar%myid_chain == 0) then
+         chisq_tot = get_chisq_priors(theta, samp_group)
+         accept    = chisq_tot < 1.d30
+      else
+         chisq_tot = 0.d0
+      end if
+      call mpi_bcast(accept, 1, MPI_LOGICAL, 0, data(1)%tod%comm, ierr)
+
+      if (.not. accept) then
+         deallocate(theta)
+         lnL_zodi_lookups = 1.d30
+         return
+      end if
+
+      call zodi_model%params_to_model(theta, samp_group)
+      if (cpar%myid_chain == 0) call print_zodi_model(theta, samp_group)
+
+      ndof = 0
+      do i = 1, numband
+
+         if (trim(data(i)%tod_type) == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
+         ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
+         if (chisq_tot >= 1.d30) exit
+
+         call update_zodi_lookups(data(i)%tod, zodi_model, data(i)%tod%global_min_mjd, data(i)%tod%global_max_mjd)
+
+         ndet = data(i)%tod%ndet
+         nscan = data(i)%tod%nscan
+         nhorn = data(i)%tod%nhorn
+
+         ! Get monopole
+         mono = band_monopole(i)
+         
+         ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+         do scan = 1, nscan
+            ! Skip scan if no accepted data
+            do j = 1, ndet
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 4) cycle ! No meaningful data; typically the whole scan is flagged
+
+               allocate(s_zodi(size(data(i)%tod%scans(scan)%d(j)%downsamp_tod),nhorn))
+               
+               call wall_time(t3)
+               do h = 1, nhorn
+                  call get_zodi_from_lookups(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
+                       & scan, j, zodi_model, s_zodi(:,h))
+               end do
+               call wall_time(t4)
+
+               if (nhorn > 1) then
+                  ! Coadd horns; store result in first column of s_zodi
+                  write(*,*) 'Multi-horn zodi fitting not yet implemented'
+                  stop
+               end if
+               
+               chisq = sum( &
+                    & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%gain * &
+                    & (data(i)%tod%scans(scan)%d(j)%downsamp_sky(:,1) + s_zodi(:,1) + mono))/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+               chisq_tot     = chisq_tot     + chisq
+               call wall_time(t4)
+               
+               ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               if (chisq_tot >= 1.d30) exit
+               
+               if (cpar%zs_output_tod_res) then
+                  call int2string(data(i)%tod%scanid(scan), scan_str)
+                  
+                  open(58,file=trim(cpar%outdir)//'/todres_'//trim(data(i)%tod%freq)//'_'//scan_str//'.dat', recl=2048)
+                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,1,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+                          &   - data(i)%tod%scans(scan)%d(j)%gain * &
+                          &     (data(i)%tod%scans(scan)%d(j)%downsamp_sky(k,1) &
+                          &   + s_zodi(k,1) &
+                          &   + mono)
+                  end do
+                  close(58)
+               end if
+               call wall_time(t3)
+
+               deallocate(s_zodi)
+            end do
+         end do
+      end do
+
+      ! Reduce chisq to root process
+      call mpi_reduce(chisq_tot, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
+      call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
+
+      call wall_time(t4)
+      
+      if (cpar%myid_chain == 0) then
+         lnL_zodi_lookups = chisq/ndof_tot
+         call wall_time(t2)
+
+         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,e11.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+         
+         write(*,*)
+         write(unit,*) chisq/ndof_tot, real(theta,sp)
+      end if
+
+   end function lnL_zodi_lookups
 
  end subroutine minimize_zodi_with_powell
 
