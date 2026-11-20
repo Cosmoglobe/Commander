@@ -72,16 +72,12 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
-#set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
 set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
-#set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
 set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
-#set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
 set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
-#set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
 #------------------------------------------------------------------------------
 # HDF5
@@ -104,23 +100,15 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 #------------------------------------------------------------------------------
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
-set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.6.2.tar.gz")
+#set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
+set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.7.0.tar.gz")
 # See https://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html for latest
 # versions
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
-#set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
-#set(healpix_md5 "540b243406596205a7a82434d99af41e")
-#set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
-#set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
-set(healpix_md5 "923d31845716014e38f34c4de59264e1")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.83/Healpix_3.83_2024Nov13.tar.gz/download")
+set(healpix_md5 "8eb74bc9b002c8c821dd42499138111b")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")

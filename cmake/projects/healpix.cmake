@@ -85,15 +85,18 @@ if(COMPILE_HEALPIX)
 	set(CFITSIO_ROOT
 		$ENV{CFITSIO_ROOT}
 		)
-	if(CFITSIO_ROOT AND NOT(HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-		list(APPEND healpix_configure_command 
-			"FITSDIR=$ENV{CFITSIO_ROOT}/lib"#${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-			)
-	else()
-		list(APPEND healpix_configure_command 
-			"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-			)
-	endif()
+  if(CFITSIO_ROOT AND NOT(HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+  	list(APPEND healpix_configure_command 
+  		"FITSDIR=$ENV{CFITSIO_ROOT}/lib64"#${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+  		)
+  else()
+  	list(APPEND healpix_configure_command 
+  		"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}64"
+  		)
+  endif()
+
+
+
 	list(APPEND healpix_configure_command 
 		#"${CMAKE_COMMAND}" "-E" "env" 
 		#"PATH=$ENV{PATH}"
@@ -178,17 +181,20 @@ if(COMPILE_HEALPIX)
 		${HEALPIX_INSTALL_PREFIX}/include
 		${HEALPIX_INSTALL_PREFIX}/include/libsharp
 		)
-	#include_directories("${CMAKE_INSTALL_PREFIX}/healpix/include")
-	#include_directories("${HEALPIX_INSTALL_PREFIX}/include")
-	#include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
+	include_directories("${CMAKE_INSTALL_PREFIX}/healpix/include")
+	include_directories("${HEALPIX_INSTALL_PREFIX}/include")
+	include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
-	#message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
-	#message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
+	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
+	message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
+  message(STATUS "HEALPix should be installed to: ${HEALPIX_INSTALL_PREFIX}")
+  message(STATUS "CFITSIO_INCLUDE_DIRS = ${CFITSIO_INCLUDE_DIRS}")
+  message(STATUS "CFITSIO ROOT = ${FITSINC}")
 else()
 	add_custom_target(healpix ALL "")
-	#message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
-	#message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
+	message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
+	message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 endif()
