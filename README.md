@@ -7,7 +7,7 @@
 
 ---
 
-| [Main features](#main-features) |  [Installation](#installation) | [Usage](#usage) | [License](#license) | [Projects](#projects) | [Citation](#citation) |
+| [Main features](#main-features) |  [Installation](#installation) | [Usage](#usage) | [License](#license) | [Releases](#releases)| [Projects](#projects) | [Funding](#funding) | [Citation](#citation) |
 
 ---
 
@@ -57,7 +57,7 @@ In addition you may want to install/update the following packages:
 
 Once CMake is installed, the `Commander3` installation procedure is quite simple and consists of the following steps:
 ```
-$ git clone https://github.com/hke/Commander.git
+$ git clone https://github.com/Cosmoglobe/Commander.git
 $ cd Commander
 $ mkdir build
 $ cd build
@@ -129,10 +129,31 @@ As stated previously, `Commander1` has not been officially released and is used 
 $ cd commander1
 $ make
 ```
-and then run the follwoing command:
+and then run the following command:
 ```
 $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.txt 2>&1 | tee chains_dir/slurm.txt
 ```
+
+---
+
+## Releases
+
+All Cosmoglobe papers are associated with a specific data and code release. All releases can be found [here](https://github.com/Cosmoglobe/Commander/releases) and are also listed below: 
+
+#### [Cosmoglobe DR2](https://github.com/Cosmoglobe/Commander/releases/tag/DR2.1) (Mar 17, 2026)
+>DR2.1 is the code used to run the final DIRBE run in early January 2026. It is the version used to produce the results in the [Cosmoglobe DR2 papers](https://www.cosmoglobe.uio.no/products/cosmoglobe-dr2.html).
+
+#### [DR1 Update](https://github.com/Cosmoglobe/Commander/releases/tag/DR1v2) (Jul 9, 2025)
+>Updated version of DR1 code that includes spurious mapmaking for WMAP, as well as minor bug fixes and conforming to Fortran standard.
+
+#### [Cosmoglobe DR2 (preliminary)](https://github.com/Cosmoglobe/Commander/releases/tag/DR2) (Jul 12, 2024)
+>Production code used for the DIRBE TOD-processing run for the initial set of Cosmoglobe DR2 papers.
+
+#### [Cosmoglobe DR1 ](https://github.com/Cosmoglobe/Commander/releases/tag/v1.0) (Mar 21, 2023)
+>Code associated with the publication [Cosmoglobe DR1 results. I. Improved Wilkinson Microwave Anisotropy Probe maps through Bayesian end-to-end analysis and Cosmoglobe Data Release 1.](https://arxiv.org/abs/2303.08095) and [Cosmoglobe Data Release 1](https://www.cosmoglobe.uio.no/products/cosmoglobe-dr1.html).
+
+#### [BeyondPlanck](https://github.com/Cosmoglobe/Commander/releases/tag/BP10) (Nov 19, 2021)
+>Code associated with the publication BeyondPlanck.
 
 ---
 
@@ -151,7 +172,7 @@ Commander framework is part of the following projects:
 
 ## Funding
 
-This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 819478 (ERC; Cosmoglobe), 772253 (ERC; bits2cosmology), 101165647 (ERC, Origins), and 101141621 (ERC, Commander). This work is also funded by the Research Council of Norway under grant agreement numbers 344934 (YRT; CosmoglobeHD), 360024 (YRT; OpenHFI), 351037 (FRIPRO; LiteBIRD-Norway) as well as grant agreement no. 776282 (COMPET-4; BeyondPlanck).
 
 <p align="center">
     <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">

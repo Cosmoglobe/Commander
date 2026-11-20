@@ -1094,18 +1094,6 @@ contains
     !load in the beam information
     call init_beam_templates(self, cpar, id, id_abs)
 
-    ! Update mixing matrix --  HKE: GAIN IS MISSING
-!!$    do i=1, self%nsrc
-!!$      do j=1, numband !self%nactive
-!!$         ja = self%b2a(j)
-!!$         if (ja == -1) cycle
-!!$          do k = 0, data(j)%ndet ! Only T for now
-!!$            self%src(i)%T(ja)%F(1,k) = self%src(i)%amp_precomp(self%b2a(j))
-!!$         end do
-!!$      end do
-!!$   end do
-
-
   end subroutine read_star_catalogue
 
 

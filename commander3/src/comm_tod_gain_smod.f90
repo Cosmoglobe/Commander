@@ -124,35 +124,6 @@ contains
 
    ! write(*,*) tod%scanid(scan_id), real(tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), real(tod%gain0(0) + tod%gain0(3) + tod%scans(scan_id)%d(3)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), '# deltagain'
 
-    !if (.false. .and. trim(tod%freq) == '030' .and. mod(tod%scanid(scan_id),100) == 0) then
-    if (.false.) then
-       call int2string(tod%scanid(scan_id), itext)
-       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
-       open(58,file='gain_delta_'//itext//'.dat', recl=1024)
-       write(58,*) "#", tod%scans(scan_id)%ntod, size(tod_arr), tod%gain0(0), tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
-       do i = 1, size(tod_arr)
-          write(58,*) i, r_fill(i), tod_arr(i,1), s_tot(i,1), mask(i,1)
-       end do
-       
-!!$       do i = ext(1), ext(2)
-!!$          write(58,*) i, residual(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       write(58,*)
-!!$       do i = 1, size(s_invsqrtN,1)
-!!$          write(58,*) i, s_invsqrtN(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_tot,1)
-!!$          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_tot,1)
-!!$          write(58,*) i, tod_arr(i, 1)
-!!$       end do
-       close(58)
-    end if
-
     deallocate(residual, r_fill)
 
   end subroutine calculate_gain_mean_std_per_scan
