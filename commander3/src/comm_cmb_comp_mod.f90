@@ -57,6 +57,8 @@ contains
     ! General parameters
     allocate(c)
     c%npar         = 0
+    allocate(c%poltype(1))
+    c%poltype  = 1
     call c%initDiffuse(cpar, id, id_abs)
     call c%initLmaxSpecind(cpar, id, id_abs)
 

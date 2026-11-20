@@ -237,29 +237,31 @@ contains
     end do
 
     ! Allocate mixing matrix for components with non-zero lmax_ind_mix
-    if (any(self%lmax_ind_mix(1:self%nmaps,:) /= 0)) then
-       do i = 1, numband
-          if (all(self%F_null(i,:))) cycle
-          info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
-               & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-          do j = 0, data(i)%ndet
-             if (j<=1) then
-               self%F(i,j)%p    => comm_map(info)
-               self%F_null(i,j) =  .false.
-             else
-               do k=1, j
-                 if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
-                     self%F(i,j)%p => self%F(i,k)%p
-                     self%F_null(i,j) =  .false.
-                     exit
-                 else if (k==j-1) then !if we got through the whole loop above
+    if (allocated(self%lmax_ind_mix)) then
+       if (any(self%lmax_ind_mix(1:self%nmaps,:) /= 0)) then
+          do i = 1, numband
+             if (all(self%F_null(i,:))) cycle
+             info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
+                  & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
+             do j = 0, data(i)%ndet
+                if (j<=1) then
                   self%F(i,j)%p    => comm_map(info)
                   self%F_null(i,j) =  .false.
+                else
+                  do k=1, j
+                    if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+                        self%F(i,j)%p => self%F(i,k)%p
+                        self%F_null(i,j) =  .false.
+                        exit
+                    else if (k==j-1) then !if we got through the whole loop above
+                     self%F(i,j)%p    => comm_map(info)
+                     self%F_null(i,j) =  .false.
+                   end if
+                  end do
                 end if
-               end do
-             end if
+             end do
           end do
-       end do
+       end if
     end if
     call update_status(status, "init_postmix")
 
@@ -1982,97 +1984,96 @@ contains
                    end if
                 end if
              end if
-          end if
-          
-          ! Loop over all pixels, computing mixing matrix for each
-          !allocate(theta_p(self%npar,self%nmaps))
-          call wall_time(t1)
-          write(*,*) i, l, shape(self%F), lbound(self%F, dim=1), lbound(self%F, dim=2), ubound(self%F, dim=1), ubound(self%F, dim=2), 'ehhloo'
-          if (.not. associated(self%F(i,l)%p)) write(*,*) 'about to segfault I bet!'
-          do j = 0, self%F(i,l)%p%info%np-1
-             if (self%latmask >= 0.d0) then
-                call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
-                lat = 0.5d0*pi-lat
-                if (abs(lat) < self%latmask) then
-                   self%F(i,l)%p%map(j,:) = 0.d0
-                   cycle
+          else
+             ! Loop over all pixels, computing mixing matrix for each
+             call wall_time(t1)
+             if (.not. associated(self%F(i,l)%p)) write(*,*) 'about to segfault I bet!'
+             do j = 0, self%F(i,l)%p%info%np-1
+                if (self%latmask >= 0.d0) then
+                   call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
+                   lat = 0.5d0*pi-lat
+                   if (abs(lat) < self%latmask) then
+                      self%F(i,l)%p%map(j,:) = 0.d0
+                      cycle
+                   end if
                 end if
-             end if
 
-             ! Initialize dust extinction
-             if (self%apply_dust_ext .and. associated(data(i)%A_ext)) then
-                A_ext = data(i)%A_ext%map(j,1)
-             else
-                A_ext = 1.d0
-             end if
-
-             
-             ! Temperature
-             if (.not. only_pol) then
-                if (self%npar > 0) then
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                ! Initialize dust extinction
+                if (self%apply_dust_ext .and. associated(data(i)%A_ext)) then
+                   A_ext = data(i)%A_ext%map(j,1)
                 else
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                   A_ext = 1.d0
                 end if
-             end if
-             
-             ! Polarization
-             if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
-                ! Stokes Q
-                if (self%npar == 0) then
-                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
-                else if (all(self%poltype < 2)) then
-                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
-                else
+
+                
+                ! Temperature
+                if (.not. only_pol) then
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
                    end if
                 end if
                 
-                ! Stokes U
-                if (self%npar == 0) then
-                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
-                else if (all(self%poltype < 3)) then
-                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
-                else
-                   if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
+                ! Polarization
+                if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
+                   ! Stokes Q
+                   if (self%npar == 0) then
+                      self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
+                   else if (all(self%poltype < 2)) then
+                      self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
-                   end if
-                end if
-             end if
-          
-             ! Compute derivative if requested
-             if (present(df) .and. l == 0) then
-                if (self%npar > 0) then
-                   do k = 1, nmaps
-                      if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
+                      if (self%npar > 0) then
+                         self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2) * A_ext
+                      else
+                         self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2) * A_ext
                       end if
-                   end do
-                else
-                   df(i)%p%map = 0.d0
+                   end if
+                   
+                   ! Stokes U
+                   if (self%npar == 0) then
+                      self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                   else if (all(self%poltype < 3)) then
+                      self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                   else
+                      if (self%npar > 0) then
+                         self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3) * A_ext
+                      else
+                         self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3) * A_ext
+                      end if
+                   end if
                 end if
-             end if
+             
+                ! Compute derivative if requested
+                if (present(df) .and. l == 0) then
+                   if (self%npar > 0) then
+                      do k = 1, nmaps
+                         if (k <= self%poltype(par)) then
+                            df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k) * A_ext
+                         end if
+                      end do
+                   else
+                      df(i)%p%map = 0.d0
+                   end if
+                end if
 
-          end do
-          !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
-                
-          ! Compute mixing matrix average; for preconditioning only
-          allocate(buffer(self%nmaps), buff2(self%nmaps))
-          do j = 1, min(self%nmaps, data(i)%info%nmaps)
-             self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
-          end do
-          buff2 = self%F_mean(i,l,:)
-          !call mpi_barrier(mpi_comm_world, ierr)
-          call mpi_allreduce(buff2, buffer, self%nmaps, &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-          self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
-          deallocate(buffer,buff2)
-    
+             end do
+             !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
+                   
+             ! Compute mixing matrix average; for preconditioning only
+             allocate(buffer(self%nmaps), buff2(self%nmaps))
+             do j = 1, min(self%nmaps, data(i)%info%nmaps)
+                self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
+             end do
+             buff2 = self%F_mean(i,l,:)
+             !call mpi_barrier(mpi_comm_world, ierr)
+             call mpi_allreduce(buff2, buffer, self%nmaps, &
+                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+             self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
+             deallocate(buffer,buff2)
+          end if
+
+   
        end do
        if (allocated(theta_p)) deallocate(theta_p)
     end do
