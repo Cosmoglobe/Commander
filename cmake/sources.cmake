@@ -77,14 +77,14 @@ set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
-set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
-set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
+set(fftw_url "https://fftw.org/fftw-3.3.11.tar.gz")
+set(fftw_md5 "40ec8d0447d03b8f01f8c90aa77bd16f")
 #------------------------------------------------------------------------------
 # HDF5
 #------------------------------------------------------------------------------
 # TODO: Think about inclusion of SZip and whether you need to download CMake version?
-set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
-set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
+set(hdf5_url "https://github.com/HDFGroup/hdf5/releases/download/hdf5_1.14.6/hdf5-1.14.6.tar.gz")
+set(hdf5_sha256 "e4defbac30f50d64e1556374aa49e574417c9e72c6b1de7a4ff88c4b1bea6e9b")
 # This version is CMake prepared by HDf Group
 #set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/CMake-hdf5-1.12.0.tar.gz")
 #set(hdf5_md5 "33ab3d5b9019ca468364d226e0ccdea6")
@@ -98,9 +98,6 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 #------------------------------------------------------------------------------
 # CFitsio
 #------------------------------------------------------------------------------
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
-#set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
 set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.7.0.tar.gz")
 # See https://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html for latest
 # versions
