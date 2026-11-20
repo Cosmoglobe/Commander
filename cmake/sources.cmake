@@ -65,9 +65,7 @@ set(libssh2_git_tag "42d37aa63129a1b2644bf6495198923534322d64")
 # need to specify command separately, othewise it won't work
 # TODO: switch to github version 7.74 <= probably better for security?
 # It seems that 7.74 is much better in terms of CMake support than version 7.69.
-#set(curl_url "https://github.com/curl/curl/releases/download/curl-7_69_0/curl-7.69.0.zip")
 set(curl_git_url "https://github.com/curl/curl.git")
-#set(curl_git_tag "e052859759b34d0e05ce0f17244873e5cd7b457b")
 set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
@@ -83,8 +81,8 @@ set(fftw_md5 "40ec8d0447d03b8f01f8c90aa77bd16f")
 # HDF5
 #------------------------------------------------------------------------------
 # TODO: Think about inclusion of SZip and whether you need to download CMake version?
-set(hdf5_url "https://github.com/HDFGroup/hdf5/releases/download/hdf5_1.14.6/hdf5-1.14.6.tar.gz")
-set(hdf5_sha256 "e4defbac30f50d64e1556374aa49e574417c9e72c6b1de7a4ff88c4b1bea6e9b")
+set(hdf5_url "https://github.com/HDFGroup/hdf5/releases/download/2.2.0/hdf5-2.2.0.tar.gz")
+set(hdf5_sha256 "1a1ab8209b35586fbc1aa279ba76d102130b95badcb20ca329587219112d8c16")
 # This version is CMake prepared by HDf Group
 #set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/CMake-hdf5-1.12.0.tar.gz")
 #set(hdf5_md5 "33ab3d5b9019ca468364d226e0ccdea6")
