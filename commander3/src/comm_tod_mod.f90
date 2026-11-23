@@ -863,15 +863,16 @@ contains
 !!$                   write(*,*) "pix = 46051400", self%pixcache%pix2ind(46051400)
 !!$                end if
                 
-                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix_solar(l)%p, pix_solar)
+                 !here pix_solar is still at its native nside                 
                  do k = 2, self%scans(i)%ntod
                    pix_solar(k)  = pix_solar(k-1)  + pix_solar(k)
-                   if (pix_solar(k) > 12*self%pixcache%nside_zodi**2-1) then
+                   if (pix_solar(k) > 12*self%nside**2-1) then
                        write(*,*) "Error: pixel_solar number out of range for:"
                        write(*,*) "pixel nr", pix_solar(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
                    end if
                 end do
-                 if (associated(self%pixcache)) call self%pixcache%add_pixels_zodi(pix_solar)
+                if (associated(self%pixcache)) call self%pixcache%add_pixels_zodi(pix_solar)
              
                 if (self%use_solar_point) call compute_solar_centered_pointing(self, i, j, pix, self%scans(i)%d(j)%pix_sol(:,l))
                 if (self%use_moon_point)  then

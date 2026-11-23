@@ -34,14 +34,14 @@ contains
     c%nmaps        = nmaps
     c%fullsky      = fullsky
     c%nmax         = 1
-    c%nmax_zodi    = 1
     c%nobs         = 0
-    c%nobs_zodi         = 0
     c%equal_dets   = equal_dets
     allocate(c%ind2pix(c%nmax))
 
     if (present(nside_zodi)) then
       c%nside_zodi   = nside_zodi
+      c%nobs_zodi    = 0
+      c%nmax_zodi    = 1
       allocate(c%ind2pix_zodi(c%nmax_zodi))
     end if
     
@@ -353,18 +353,35 @@ contains
     end if
   end function pix2ind_zodi
 
- module subroutine add_pixels_zodi(self, pix_solar)  !uses solar_centric pointings
+  module subroutine add_pixels_zodi(self, pix_solar)  !uses solar_centric pointings
     implicit none
     class(comm_tod_pixcache),               intent(inout) :: self
     integer(i4b),             dimension(:), intent(in)    :: pix_solar
 
-    integer(i4b) :: i, j, k, p, n
-    integer(i4b), allocatable, dimension(:) :: newpix, oldpix
+    integer(i4b) :: i, j, k, p, n, a, pix_nest, downg_divide 
+    integer(i4b), allocatable, dimension(:) :: newpix, oldpix, pix_downg
 
     if (self%fullsky) return
 
-    allocate(newpix(size(pix_solar)), oldpix(self%nobs_zodi))
-    newpix = pix_solar
+    !pix_solar are pointings at the native nside of the hdf files, 
+    !I want to store them with nside=nside_zodi so I have to downgrade them
+    allocate(pix_downg(size(pix_solar)))
+    if (self%nside /= self%nside_zodi) then !Angela:check that self%nside is the nside of pix_solar
+      if (self%nside > self%nside_zodi) then 
+        downg_divide = (self%nside/self%nside_zodi)**2
+        do a = 1, size(pix_solar)
+           call ring2nest(self%nside, pix_solar(a), pix_nest)
+           pix_nest = pix_nest/downg_divide 
+           call nest2ring(self%pixcache%nside_zodi, pix_nest, pix_downg(a)) 
+           !Angela: check whether this is ok or better to use vector space
+        end do
+      else 
+        write(*,*) "Error in pixcache%add_pixels_zodi: nside_zodi larger than nside."
+      end if
+    end if 
+
+    allocate(newpix(size(pix_downg)), oldpix(self%nobs_zodi))
+    newpix = pix_downg
     oldpix = self%ind2pix_zodi(1:self%nobs_zodi)
     call QuickSort_int(newpix)
 
@@ -418,6 +435,9 @@ contains
        ! No leftovers; just update nobs_zodi
        self%nobs_zodi = k-1
     end if    
+
+    deallocate(newpix, oldpix, pix_downg)
+
   end subroutine add_pixels_zodi
 
   module subroutine expand_storage_zodi(self, n, trim_unused)

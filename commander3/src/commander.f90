@@ -158,8 +158,6 @@ program commander
      end do
   end if
 
-  write(*,*) "Yay! line 161 of Commander"
-
   ! initialize zodi samp mod
   if (cpar%sample_zodi .and. cpar%include_tod_zodi) then 
       call initialize_zodi_samp_mod(cpar)
