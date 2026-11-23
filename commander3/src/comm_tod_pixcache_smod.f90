@@ -372,7 +372,7 @@ contains
         do a = 1, size(pix_solar)
            call ring2nest(self%nside, pix_solar(a), pix_nest)
            pix_nest = pix_nest/downg_divide 
-           call nest2ring(self%pixcache%nside_zodi, pix_nest, pix_downg(a)) 
+           call nest2ring(self%nside_zodi, pix_nest, pix_downg(a)) 
            !Angela: check whether this is ok or better to use vector space
         end do
       else 
