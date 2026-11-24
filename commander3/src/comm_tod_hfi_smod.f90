@@ -227,7 +227,7 @@ contains
     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    c%pixcache => comm_tod_pixcache(c%nside, c%nside_beam, c%nmaps, .false.)
+    c%pixcache => comm_tod_pixcache(c%nside, c%nside_sl, c%nmaps, .false.)
     if (.not. c%reload_TOD) call c%precompute_lookups()
     
     ! Allocate and initialize bolometer transfer functions
@@ -514,7 +514,7 @@ contains
           !TODO: figure out why this is rotated
           call map_in(i,1)%p%YtW()  ! Compute sky a_lms
           self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, map_in(i,1)%p%info%nside, &
+               & self%myid_inter, self%comm_inter, &
                & mmax, 1, mmax, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
        call timer%stop(TOD_SL_PRE, self%band)

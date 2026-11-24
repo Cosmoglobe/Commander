@@ -330,7 +330,7 @@ contains
            !TODO: figure out why this is rotated
            call map_in(i,1)%p%YtW()  ! Compute sky a_lms
            self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-                & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+                & self%myid_inter, self%comm_inter, &
                 & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
         end do
         call timer%stop(TOD_SL_PRE, self%band)

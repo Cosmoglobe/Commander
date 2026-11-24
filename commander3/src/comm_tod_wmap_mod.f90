@@ -499,10 +499,10 @@ contains
          do i = 1, self%ndet
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
             self%slconv(i,1)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+                 & self%myid_inter, self%comm_inter,&
                  & 100, 3, 100, self%slbeam(1)%p, map_in(i,1)%p, 2)
             self%slconv(i,2)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+                 & self%myid_inter, self%comm_inter,&
                  & 100, 3, 100, self%slbeam(3)%p, map_in(i,1)%p, 2)
                  ! lmax, nmaps, bmax, beam, map, optim
          end do

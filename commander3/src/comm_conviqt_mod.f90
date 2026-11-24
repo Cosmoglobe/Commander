@@ -28,7 +28,7 @@ module comm_conviqt_mod
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win, myid
+    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, comm, optim, psisteps, win, myid
     real(dp), allocatable, dimension(:)        :: lnorm
     type(shared_2d_sp) :: c
     !type(shared_1d_int) :: pixLookup
@@ -54,9 +54,9 @@ contains
 
   !Constructor
 
-  function constructor(myid_shared, comm_shared, myid_inter, comm_inter, nside, lmax, nmaps, bmax, beam, map, optim)
+  function constructor(myid_shared, comm_shared, myid_inter, comm_inter, lmax, nmaps, bmax, beam, map, optim)
     implicit none
-    integer(i4b),                 intent(in) :: nside, lmax, bmax, nmaps
+    integer(i4b),                 intent(in) :: lmax, bmax, nmaps
     integer(i4b),                 intent(in) :: myid_shared, comm_shared, myid_inter, comm_inter
     class(comm_map),              intent(in) :: beam, map
     integer(i4b),                 intent(in) :: optim ! desired optimization flags
@@ -71,15 +71,13 @@ contains
     constructor%lmax  = lmax
     constructor%mmax  = min(beam%info%mmax,lmax)
     constructor%bmax  = bmax
-    constructor%nside = nside
     constructor%nmaps = nmaps
-    constructor%npix  = 12*nside**2
     constructor%comm  = map%info%comm
     constructor%optim = optim
     constructor%myid  = myid_shared
     nalm_tot          = (lmax+1)*(lmax+2)/2
 
-    !write(*,*) "conviqt_constructor", nside, lmax, nmaps, bmax
+    !write(*,*) "conviqt_constructor", lmax, nmaps, bmax, beam%info%mmax, beam%info%nside, map%info%nside
 
     if(beam%info%mmax > lmax) then
         write(*,*) "mmax > lmax in comm_conviqt mod. This will crash"
@@ -88,11 +86,6 @@ contains
 
     if(bmax > lmax) then
         write(*,*) "bmax > lmax in comm_conviqt mod. This will crash"
-        stop
-    end if
-
-    if(bmax > nside) then
-        write(*,*) "bmax > nside in comm_conviqt_mod. This will crash"
         stop
     end if
 
@@ -111,9 +104,8 @@ contains
        constructor%lnorm(l) = 0.5d0*sqrt(4.d0*pi/(2.d0*l+1.d0))
     end do
 
+    constructor%info => comm_mapinfo(map%info%comm, beam%info%nside, lmax, nmaps, map%info%pol)
 
-    constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, map%info%pol)
- 
     !Set up shared beam
     nalm = count(constructor%info%lm(2,:) >= 0)  
 
@@ -143,8 +135,8 @@ contains
 
     ! Precompute convolution cube
     call init_shared_2d_sp(myid_shared, comm_shared, myid_inter, comm_inter, &
-         & [constructor%npix,constructor%psisteps], constructor%c)
-
+!         & [map%info%npix,constructor%psisteps], constructor%c)
+        & [constructor%info%npix,constructor%psisteps], constructor%c)
 
     call constructor%precompute_sky(map)
 
@@ -242,7 +234,7 @@ contains
     marray = 0
 
     allocate(alm(0:self%info%nalm-1, 2))
-    allocate(mout(0:self%info%np-1, 2))
+    allocate(mout(0:np-1, 2))
 
     ! Compute maps for each m
     do j=0, self%bmax
