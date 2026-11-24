@@ -153,6 +153,11 @@ contains
 
     real(dp) :: x, x_ref, beta, T
     
+    if (nu>self%nu_max .or. nu<self%nu_min) then
+      evalSED_mbb = 0.d0
+      return
+    end if 
+
     beta    = theta(1)
     T       = theta(2)
     x       = h*nu               / (k_b*T)

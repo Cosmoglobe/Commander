@@ -25,6 +25,8 @@ module comm_signal_mod
   use comm_cmb_relquad_comp_mod
   use comm_mbb_comp_mod
   use comm_mbbtab_comp_mod
+  use comm_admbbtab_comp_mod
+!   use comm_tsz_comp_mod
   use comm_powlaw_comp_mod
   use comm_curvature_comp_mod
   use comm_spindust_comp_mod
@@ -69,6 +71,8 @@ contains
           select case (trim(cpar%cs_type(i)))
           case ("cmb")
              c => comm_cmb_comp(cpar, ncomp, i)
+         !  case ("tsz")
+         !     c => comm_tsz_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
           case ("exponential")
@@ -91,6 +95,8 @@ contains
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("MBBtab")
              c => comm_MBBtab_comp(cpar, ncomp, i)
+          case ("adMBBtab")
+             c => comm_adMBBtab_comp(cpar, ncomp, i)
           case ("freefree")
              c => comm_freefree_comp(cpar, ncomp, i)
           case ("freefreeEM")
@@ -401,8 +407,9 @@ contains
 
   subroutine initPrecond(comm, samp_group, verbosity)
     implicit none
-    integer(i4b), intent(in) :: comm, samp_group
-    integer(i4b), intent(in), optional :: verbosity
+    type(MPI_Comm), intent(in) :: comm
+    integer(i4b),   intent(in) :: samp_group
+    integer(i4b),   intent(in), optional :: verbosity
     call initDiffPrecond(comm, samp_group)
     call initPtsrcPrecond(comm, samp_group, verbosity)
     call initTemplatePrecond(comm, samp_group)

@@ -31,13 +31,18 @@ contains
       integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count, ierr, group_idx
       real(dp), allocatable :: param_vec(:)
       character(len=128), allocatable :: labels(:)
+      character(len=:), allocatable :: msg
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
       implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
-            print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
+            msg =  "Error: invalid sampling method for zodi, must be one of: "
+            do i = 1 ,size(implemented_sampling_algorithms)
+              msg = msg//trim(adjustl(implemented_sampling_algorithms(i)))//", "
+            end do
+            print *, msg
             stop
          end if
       end if
@@ -544,6 +549,7 @@ contains
       end if
       if (cpar%zs_output_tod_res) then
          call mpi_finalize(ierr)
+         write(*,*) "Outputting zodi init params"
          stop
       end if
 
@@ -673,7 +679,7 @@ contains
                
                call wall_time(t3)
                do h = 1, nhorn
-                  call get_zodi_emission_mbb(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
+                  call get_zodi_emission(data(i)%tod, data(i)%tod%scans(scan)%d(j)%downsamp_pix(:,h), &
                        & scan, j, zodi_model, s_zodi(:,h))
                end do
                call wall_time(t4)

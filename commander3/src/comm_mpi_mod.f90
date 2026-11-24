@@ -20,10 +20,8 @@
 !================================================================================
 module comm_mpi_mod
   use healpix_types
-  !use mpi
+  use mpi_f08
   implicit none
-
-  include "mpif.h"
 
   integer(i4b), parameter :: MPI_BUF_SIZE = 10000
 
@@ -33,8 +31,9 @@ contains
   subroutine mpi_allreduce_buffer(oper, dim, comm, ierr, in_place, &
        & in_dp_1d, out_dp_1d, in_dp_2d, out_dp_2d, in_dp_3d, out_dp_3d)
     implicit none
-    integer,                        intent(in)              :: oper
-    integer(i4b),                   intent(in)              :: dim, comm
+    type(MPI_Op),                   intent(in)              :: oper
+    integer(i4b),                   intent(in)              :: dim
+    type(MPI_Comm),                 intent(in)              :: comm
     integer(i4b),                   intent(inout)           :: ierr
     logical(lgt),                   intent(in)              :: in_place
     real(dp),     dimension(:),     intent(in),    optional :: in_dp_1d

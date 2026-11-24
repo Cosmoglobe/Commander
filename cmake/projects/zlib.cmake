@@ -47,7 +47,8 @@ if(COMPILE_ZLIB)
 			zlib_src
 			DEPENDS						required_libraries
 			URL								"${zlib_url}"
-			URL_MD5						"${zlib_md5}"
+      URL_HASH SHA256   "${zlib_sha256}"
+      DOWNLOAD_EXTRACT_TIMESTAMP              TRUE
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${ZLIB_SOURCE_DIR}"

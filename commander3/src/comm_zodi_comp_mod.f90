@@ -19,7 +19,7 @@ module comm_zodi_comp_mod
    type :: ZodiComponentContainer
       integer(i4b) :: npar, start_ind
       class(ZodiComponent), allocatable :: c
-      character(len=32), allocatable :: labels(:)
+      character(len=128), allocatable :: labels(:)
    end type ZodiComponentContainer
 
    abstract interface

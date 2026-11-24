@@ -535,7 +535,7 @@ contains
                 self%npixreg(j,i) = 1
              else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='single_pix') then
                 self%pol_pixreg_type(j,i) = 2
-                if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                if (cpar%nside_smooth(self%smooth_scale(i)) < self%theta(i)%p%info%nside) then
                    self%npixreg(j,i) = 12*(cpar%nside_smooth(self%smooth_scale(i))**2)
                 else
                    self%npixreg(j,i) = 12*(self%theta(i)%p%info%nside**2)
@@ -1323,7 +1323,8 @@ contains
 
   module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     if (npre == 0) return
     
@@ -1340,7 +1341,7 @@ contains
 
   module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    type(MPI_Comm),              intent(in) :: comm
     integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
@@ -1441,7 +1442,8 @@ contains
 
   module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -1885,7 +1887,7 @@ contains
                       td%map(:,k) = t%map(:,k)
                    end do
                 end do
-                call t%dealloc(); deallocate(t)
+                if(associated(t)) call t%dealloc(); deallocate(t)
              end if
 
              ! if any polarization is local sampled. Only set theta using polarizations with local sampling
@@ -1947,7 +1949,7 @@ contains
        end if
 
        do l = 0, data(i)%ndet
-          
+
           if (self%F_null(i,l)) then
              ! Don't update null mixing matrices
              if (present(df)) df(i)%p%map = 0.d0
@@ -2018,7 +2020,7 @@ contains
              end if
              
              ! Polarization
-             if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
+             if (self%nmaps == 3 .and. data(i)%info%pol ) then
                 ! Stokes Q
                 if (self%npar == 0) then
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) * A_ext
@@ -2120,6 +2122,7 @@ contains
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
     info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, nmaps==3)
     m     => comm_map(info)
+
     if (present(amp_in)) then
        m%alm(:,1:nmaps) = amp_in(:,1:nmaps)
        !m%alm(:,1:nmaps) = amp_in
@@ -2127,10 +2130,6 @@ contains
        call self%x%alm_equal(m)
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    
-!!$    call m%Y()
-!!$    call m%writeFITS("test1.fits")
-
     
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -2146,15 +2145,10 @@ contains
           call m%YtW()
        end if
     end if
-!!$    call m%Y()
-!!$    call m%writeFITS("test2.fits")
 
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-!!$    call m%Y()
-!!$    call m%writeFITS("test3.fits")
 
-       
     ! Return correct data product
     if (alm_out_) then
        if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()
@@ -2778,8 +2772,18 @@ contains
 
        ! Output Sampled SED's
        if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
-         call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
-         
+         if (trim(self%type) == 'adMBBtab') then
+            if (self%nastrotab > 0) then 
+               call write_hdf(chainfile, trim(path)//'/adscale', self%adscale)
+               call write_hdf(chainfile, trim(path)//'/astrotab', self%astrotab)
+            end if 
+            if (self%ntab > 0) then 
+               call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+               call write_hdf(chainfile, trim(path)//'/nu_join', self%nu_join)
+            end if 
+         else
+            call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+         end if
 
          !!write the mbbTab SED for a range of frequencies from nu1 to nu2
          ! this could maybe be updated for a more custom 'range' of frequencies in the future,
@@ -2791,37 +2795,38 @@ contains
          write(unit,'(a)') '# nu[Hz]    SED[muK_RJ]'
          nu1=30d0*1e9
 
-         if (allocated(self%astrotab)) then
-            !!!go start of ASTROTAB if it exists 
-            nu2=self%astrotab(1,2)
+         if (trim(self%type) == 'adMBBtab') then
+            if (self%nastrotab > 0) then
+               !!!go start of ASTROTAB if it exists 
+               nu2=self%astrotab(1,2)
+            else if (self%ntab > 0) then
+               nu2 = self%SEDtab(1,self%ntab)
+               ! theta(3)=self%theta(3)%p%map(1,1)
+            else
+               nu2 = 1000.d0*1e9
+            end if
+
+
             theta(1)=self%theta(1)%p%map(1,1)
             theta(2)=self%theta(2)%p%map(1,1)
-            theta(3)=self%theta(3)%p%map(1,1)
-         else 
-            nu2=self%SEDtab(2,self%ntab)
-            theta(1)=self%theta(1)%p%map(1,1)
-            theta(2)=self%theta(2)%p%map(1,1)
-         end if 
+
+
+            dlognu = (log(nu2) - log(nu1)) / 500d0
          
-         dlognu = (log(nu2) - log(nu1)) / 500d0
-         
-         do nuc = 0, 500
-            nu  = exp(log(nu1) + dlognu*nuc)
-            sed = self%S(nu=nu, pol=1, theta=theta)
-            write(unit,'(2E20.10)') nu, sed
-         end do
-         if (allocated(self%astrotab)) then
-            do i =3,self%nastrotab
-               write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
-            end do 
+            do nuc = 0, 500
+               nu  = exp(log(nu1) + dlognu*nuc)
+               sed = self%S(nu=nu, pol=1, theta=theta)
+               write(unit,'(2E20.10)') nu, sed
+            end do
+            if (allocated(self%astrotab)) then
+               do i =3,self%nastrotab
+                  write(unit,'(2E20.10)') self%astrotab(1,i), self%S(nu=self%astrotab(1,i), pol=1, theta=theta)
+               end do 
+            end if 
          end if 
          close(unit)
        end if
        
-       if (output_hdf .and. allocated(self%astrotab) .and. self%x%info%myid == 0) then
-         call write_hdf(chainfile, trim(path)//'/astroDustTab', self%astrotab)
-       end if
-
 
 
        ! Write mixing matrices
@@ -2882,10 +2887,17 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
-       if (trim(self%type) == 'MBBtab') then
+       if (trim(self%type) == 'MBBtab') then 
          call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
-         ! will this throw an error if the astrotab does not exist?
-         call read_hdf(hdffile, trim(adjustl(path))//'/astroDustTab', self%astrotab)
+       else if (trim(self%type) == 'adMBBtab') then
+         if (self%nastrotab > 0) then 
+            call read_hdf(hdffile, trim(adjustl(path))//'/adscale', self%adscale)
+            call read_hdf(hdffile, trim(adjustl(path))//'/astrotab', self%astrotab)
+         end if 
+         if (self%ntab > 0) then 
+            call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+            call read_hdf(hdffile, trim(adjustl(path))//'/nu_join', self%nu_join)
+         end if 
        end if
 
        do i = 1, self%npar

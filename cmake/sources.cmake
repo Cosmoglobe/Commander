@@ -28,8 +28,10 @@
 # https://zlib.net/
 # Mirrors on Sourforge:
 # https://sourceforge.net/projects/libpng/files/zlib/1.2.11/
-set(zlib_url "https://sourceforge.net/projects/libpng/files/zlib/1.2.11/zlib-1.2.11.tar.gz")
-set(zlib_md5 "1c9f62f0778697a09d36121ead88e08e")
+#set(zlib_url "https://sourceforge.net/projects/libpng/files/zlib/1.2.11/zlib-1.2.11.tar.gz")
+#set(zlib_md5 "1c9f62f0778697a09d36121ead88e08e")
+set(zlib_url "https://zlib.net/zlib-1.3.2.tar.gz")
+set(zlib_sha256 "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16")
 #------------------------------------------------------------------------------
 # SZip -- required by HDF5. HDF Group provides this one as well and we are going
 #------------------------------------------------------------------------------
@@ -79,19 +81,20 @@ set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
-#set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
-set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
-#set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
-set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
+#set(fftw_url "https://fftw.org/fftw-3.3.9.tar.gz")
+#set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
+set(fftw_url "https://fftw.org/fftw-3.3.11.tar.gz")
+set(fftw_md5 "40ec8d0447d03b8f01f8c90aa77bd16f")
 #------------------------------------------------------------------------------
 # HDF5
 #------------------------------------------------------------------------------
 # TODO: Think about inclusion of SZip and whether you need to download CMake version?
-set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
-set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
-# This version is CMake prepared by HDf Group
-#set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/CMake-hdf5-1.12.0.tar.gz")
-#set(hdf5_md5 "33ab3d5b9019ca468364d226e0ccdea6")
+#set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
+#set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
+set(hdf5_url "https://github.com/HDFGroup/hdf5/releases/download/2.1.1/hdf5-2.1.1.tar.gz")
+set(hdf5_sha256 "SHA256=efff93b5a904d66e8f626d7da60b5eedc9faf544be27dbabbaa87967b8ad798b")
+#set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
+#set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 #------------------------------------------------------------------------------
 # LibSharp2
 #------------------------------------------------------------------------------
@@ -102,25 +105,21 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 #------------------------------------------------------------------------------
 # CFitsio
 #------------------------------------------------------------------------------
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
-set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
-#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.6.2.tar.gz")
+set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.6.4.tar.gz")
+#set(cfitsio_url "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
+# If you want to live dangerously
+# set(cfitsio_url, "https://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio_latest.tar.gz")
+
 # See https://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html for latest
 # versions
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
-#set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
-#set(healpix_md5 "540b243406596205a7a82434d99af41e")
-#set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
-#set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
-set(healpix_md5 "923d31845716014e38f34c4de59264e1")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
+#set(healpix_md5 "923d31845716014e38f34c4de59264e1")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.83/Healpix_3.83_2024Nov13.tar.gz/download")
+set(healpix_md5 "8eb74bc9b002c8c821dd42499138111b")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")

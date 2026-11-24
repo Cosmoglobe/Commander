@@ -121,7 +121,7 @@ contains
        self%F_diag%map(p,1) = self%F_int%eval(t)
     end do
 
-    if (self%F_diag%info%nmaps == 3) then
+    if (self%F_diag%info%pol) then
        ! Stokes Q
        if (id > 1) then
           do p = 0, self%F_diag%info%np-1

@@ -177,6 +177,11 @@ contains
 !!$    return
 !!$    !write(*,*) "1:", evalSED_freefree
 
+    if (nu>self%nu_max .or. nu<self%nu_min) then
+      evalSED_freefree = 0.d0
+      return
+    end if 
+
 
     !EM    = theta(1) ! Not used
     T_e   = theta(1)

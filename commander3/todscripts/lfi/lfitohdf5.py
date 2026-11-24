@@ -36,8 +36,7 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format')
-    #/mn/stornext/d16/cmbco/bp/data
+    parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format', default='/mn/stornext/d16/cmbco/archive/bp/data')
 
     parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/data/npipe_gains')
 

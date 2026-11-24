@@ -79,7 +79,7 @@ contains
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps
-    constructor%pol               = info%nmaps == 3
+    constructor%pol               = info%pol
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
@@ -159,14 +159,19 @@ contains
     call update_status(status, "update_N_rms")
     info%rms = .true.
 
-    if (present(noisefile)) then
-       self%rms0     => comm_map(info, noisefile)
-    else if (present(map)) then
-       self%rms0     => comm_map(info)
+    if (associated(self%rms0) .and. present(map)) then
        self%rms0%map = map%map
     else
-       call report_error('Error in update_N_rms - no noisefile or map declared')
+       if (present(noisefile)) then
+          self%rms0     => comm_map(info, noisefile)
+       else if (present(map)) then
+          self%rms0     => comm_map(info)
+          self%rms0%map = map%map
+       else
+          call report_error('Error in update_N_rms - no noisefile or map declared')
+       end if
     end if
+
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map
     else
@@ -237,7 +242,7 @@ contains
        else
           self%alpha_nu(1) = 0.d0
        end if
-       if (self%nmaps == 3) then
+       if (self%pol) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)

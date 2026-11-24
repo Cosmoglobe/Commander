@@ -1,11 +1,8 @@
 # AKARI 140 default parameters
 
-@DEFAULT bands/AKARI/AKARI_140_v1.defaults
 BAND_NSIDE&&&                  = 2048
 BAND_LMAX&&&                   = 4100
 BAND_PIXEL_WINDOW&&&           = common/pixwind/pixel_window_n2048.fits
-
-BAND_TOD_FLAG&&&               = 2097149   # Apply all flags
 
 BAND_MAPFILE&&&                = akari/maps/akari_140_1_2048.fits
 BAND_NOISEFILE&&&              = akari/rms/akari_140_temprms_2048.fits

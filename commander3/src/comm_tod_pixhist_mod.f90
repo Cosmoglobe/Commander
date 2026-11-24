@@ -19,11 +19,12 @@ contains
 
     integer(i4b) :: i, j, k, ierr, pix, npix_hist, bin, iter, nhit, hit, n_empty, j_cut1, j_cut2, ndet, det, oper, ind
     real(sp)     :: val, center, mu, sigma, x0, x1, delta0, f_threshold
+    real(dp)     :: bin_tmp
     logical(lgt) :: refine
     type(comm_detdata) :: dd
     character(len=6) :: pix_text
     integer(i4b), allocatable, dimension(:,:) :: hist
-    real(sp),     allocatable, dimension(:) :: delta
+    real(sp),     allocatable, dimension(:) :: delta, tmp
     real(sp),                 dimension(NBIN_HIST) :: x, P
     
     if (tod%nhorn /= 1) then
@@ -37,7 +38,7 @@ contains
 
     ! Find absolute min and max per low-res pixel
     allocate(tod%pixhist(5,0:npix_hist-1,ndet))  ! (mu, rms, nhit, min, max)
-    allocate(delta(0:npix_hist-1))  ! (mu, rms, nhit, min, max)
+    allocate(delta(0:npix_hist-1), tmp(0:npix_hist-1))  ! (mu, rms, nhit, min, max)
     allocate(hist(0:NBIN_HIST,0:npix_hist-1))
     tod%pixhist         = 0.
     tod%pixhist(4,:,:)  =  1e30
@@ -47,7 +48,7 @@ contains
     do det = 1, ndet
     
        ! Set up full-mission scan data
-       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd)
+       call init_det_data(tod, det, oper, -1, -tod%nside_pixhist, .false., dd, nonlin_level=0, spur_level=0)
        call timer%start(TOD_PIXHIST, tod%band)
        
 !!$       if (tod%myid == 0 .and. det == 2) then
@@ -64,8 +65,13 @@ contains
           tod%pixhist(4,pix,det)  = min(tod%pixhist(4,pix,det), dd%tod(k))
           tod%pixhist(5,pix,det)  = max(tod%pixhist(5,pix,det), dd%tod(k))
        end do
-       call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(4,:,det),  size(tod%pixhist(4,:,det)),  MPI_REAL, MPI_MIN, tod%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, tod%pixhist(5,:,det),  size(tod%pixhist(5,:,det)),  MPI_REAL, MPI_MAX, tod%comm, ierr)
+       tmp = tod%pixhist(4,:,det)
+       call mpi_allreduce(MPI_IN_PLACE, tmp,  size(tod%pixhist(4,:,det)),  MPI_REAL, MPI_MIN, tod%comm, ierr)
+       tod%pixhist(4,:,det) = tmp
+
+       tmp = tod%pixhist(5,:,det)
+       call mpi_allreduce(MPI_IN_PLACE, tmp,  size(tod%pixhist(5,:,det)),  MPI_REAL, MPI_MAX, tod%comm, ierr)
+       tod%pixhist(5,:,det) = tmp
        delta = (tod%pixhist(5,:,det)-tod%pixhist(4,:,det))/NBIN_HIST
        !if (tod%myid == 0) write(*,*) 'a', tod%pixhist(4:5,42527,1), delta(42527,1)
     
@@ -84,6 +90,8 @@ contains
           do k = 1, dd%ntod
              pix = dd%pix(k)
              if (delta(pix) == 0.) cycle ! 0 or 1 samples in current pixel
+             bin_tmp = (dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix)
+             if (bin_tmp > 1d6) cycle ! Too large values causes issues with int() below. 
              bin = int((dd%tod(k)-tod%pixhist(4,pix,det))/delta(pix))+1
              if (bin < 1 .or. bin > NBIN_HIST) bin = 0 ! Sample out of range; discarded
              hist(bin,pix) = hist(bin,pix) + 1
@@ -198,7 +206,7 @@ contains
        if (tod%myid == 0) write(*,fmt='(a,a,a,i4,a,i6)') '    --> Pixhist, band = ', trim(tod%freq), ', det = ', det, ', numiter = ', iter
     end do
     
-    deallocate(delta, hist)
+    deallocate(delta, hist, tmp)
     
   end subroutine compute_tod_pixhist
 
@@ -233,7 +241,7 @@ contains
 !!$       open(58,file='tod.dat')
 !!$       do i = 1, tod%nscan
 !!$          if (.not. any(tod%scans(i)%d%accept)) cycle
-!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.)
+!!$          call init_scan_data_singlehorn(sd, tod, i, map_sky, map_gain, procmask, procmask2, skip_zodi=.true.,handle_=handle)
 !!$          do j = 1, tod%ndet
 !!$             if (.not. tod%scans(i)%d(j)%accept) cycle
 !!$             do k = 1, sd%ntod

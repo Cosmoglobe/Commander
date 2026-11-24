@@ -233,7 +233,7 @@ interface
      !                  The original time-domain vector.
      ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
-     ! plan_fwd:        integer*8
+     ! plan_fwd:        type(C_PTR)
      !                  The fft plan to carry out the transformation
      !
      ! Returns:
@@ -244,7 +244,7 @@ interface
      implicit none
      real(dp),     dimension(1:), intent(in)     :: time
      complex(dpc), dimension(0:), intent(out)    :: fourier
-     integer*8,                   intent(in)     :: plan_fwd
+     type(C_PTR),                   intent(in)     :: plan_fwd
    end subroutine fft_fwd
 
   module subroutine fft_back(fourier, time, plan_back)
@@ -257,7 +257,7 @@ interface
      !                  The original Fourier domain vector.
      ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
-     ! plan_back:       integer*8
+     ! plan_back:       type(C_PTR)
      !                  The fft plan to carry out the transformation.
      !
      ! Returns:
@@ -265,9 +265,9 @@ interface
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(0:), intent(in)     :: fourier
+     complex(dpc), dimension(0:), intent(inout)  :: fourier
      real(dp),     dimension(1:), intent(out)    :: time
-     integer*8,                  intent(in)     :: plan_back
+     type(C_PTR),                  intent(in)     :: plan_back
    end subroutine fft_back
 
   module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(res)!, &
@@ -286,9 +286,9 @@ interface
      !              The right hand side of the Wiener filter equation.
      ! precond:     real(dp) array
      !              The preconditioner matrix in time domain.
-     ! plan_fwd:    integer*8
+     ! plan_fwd:    type(C_PTR)
      !              The FFT forward plan.
-     ! plan_back:   integer*8
+     ! plan_back:   type(C_PTR)
      !              The FFT backward plan.
      !
      ! Returns:
@@ -297,7 +297,7 @@ interface
      !               The solution to the Wiener filter equation.
      implicit none
      real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
-     integer*8             , intent(in) :: plan_fwd, plan_back
+     type(C_PTR)             , intent(in) :: plan_fwd, plan_back
      real(dp), dimension(size(b))       :: res
   end function solve_cg_gain
 
@@ -305,7 +305,7 @@ interface
     implicit none
     real(dp), dimension(:), intent(in)  :: vec_in, precond
     real(dp), dimension(:), intent(out) :: vec_out
-    integer*8             , intent(in)  :: plan_fwd, plan_back    
+    type(C_PTR)             , intent(in)  :: plan_fwd, plan_back    
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
@@ -322,9 +322,9 @@ interface
      !              The matrix that is diagonal in Fourier domain.
      ! vector:      real(dp) array
      !              The vector to multiply by.
-     ! plan_fwd:    integer*8
+     ! plan_fwd:    type(C_PTR)
      !              The FFT forward plan.
-     ! plan_back:   integer*8
+     ! plan_back:   type(C_PTR)
      !              The FFT backward plan.
      ! filewrite:   logical(lgt), optional
      !              If present, writes various debug info into files.
@@ -340,7 +340,7 @@ interface
      real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
-     integer*8              , intent(in)     :: plan_fwd, plan_back
+     type(C_PTR)              , intent(in)     :: plan_fwd, plan_back
      logical(lgt)           , optional       :: filewrite
 
   end function tot_mat_mul_by_vector

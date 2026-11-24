@@ -199,13 +199,22 @@ contains
           end do
 !          write(*,*) iter, epsilon, n
           if (iter > 100) then
-             stat = stat+1
              open(69,file='p_inv.dat')
              do i = 1, n
                 write(69,*) x_n(i), S_n(i)
              end do
              close(69)
-             stop
+             !write(*,*) "InvSamp_mod: Went over iteration 100"
+             !stop
+             !exit
+             write(*,*) 'InvSamp failed to converge'
+             write(*,*) 'iter    = ', iter
+             write(*,*) 'epsilon = ', epsilon
+             write(*,*) 'n       = ', n
+             write(*,*) 'x range = ', x_n(1), x_n(n)
+             write(*,*) 'S range = ', minval(S_n(1:n)), maxval(S_n(1:n))
+
+             stat = stat + 1
              exit
           end if
           if (stat /= 0) exit
@@ -223,6 +232,7 @@ contains
           write(60,*) x_n(i), S_n(i)
        end do
        close(60)
+       write(*,*) "InvSamp_mod debug stop"
        stop
     end if
 
