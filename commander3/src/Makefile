@@ -28,7 +28,7 @@ F90SOURCES=hashtbl.f90 \
            hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
-					 fftw_mod.f90 \
+		   fftw_mod.f90 \
            comm_sparse_mod.f90 \
            sort_utils.f90 \
            ars_mod.f90 \
@@ -66,7 +66,7 @@ F90SOURCES=hashtbl.f90 \
            comm_cmb_relquad_comp_mod.f90 \
            comm_powlaw_comp_mod.f90 \
            comm_exp_comp_mod.f90 \
-	        comm_powlaw_break_comp_mod.f90 \
+	       comm_powlaw_break_comp_mod.f90 \
            comm_physdust_comp_mod.f90 \
            comm_mbb_comp_mod.f90 \
            comm_mbbtab_comp_mod.f90 \
@@ -78,14 +78,14 @@ F90SOURCES=hashtbl.f90 \
            comm_spindust2_comp_mod.f90 \
            comm_ame_lognormal_mod.f90 \
            comm_pah_comp_mod.f90 \
-	        comm_curvature_comp_mod.f90 \
+	       comm_curvature_comp_mod.f90 \
            comm_md_comp_mod.f90 \
            comm_template_comp_mod.f90 \
            comm_ptsrc_comp_mod.f90 \
            comm_gain_mod.f90 \
            comm_nonlin_mod.f90 comm_nonlin_smod.f90 \
            comm_mh_specind_mod.f90 \
-	        comm_n_mod.f90 \
+	       comm_n_mod.f90 \
            comm_n_rms_mod.f90 \
            comm_n_rms_qucov_mod.f90 \
            comm_n_qucov_mod.f90 \
@@ -99,17 +99,17 @@ F90SOURCES=hashtbl.f90 \
            comm_f_int_0d_mod.f90 \
            comm_f_int_2d_mod.f90 \
            comm_fft_mod.f90 \
-	        comm_tod_pixhist_mod.f90 \
+	       comm_tod_pixhist_mod.f90 \
            comm_tod_noise_psd_mod.f90 \
            comm_tod_mod.f90 \
            comm_tod_pixcache_smod.f90 \
            comm_tod_mapmaking_mod.f90 \
            comm_tod_cgmap_mod.f90 \
            comm_tod_bandpass_mod.f90 \
-	        comm_tod_crosstalk_mod.f90 \
+	       comm_tod_crosstalk_mod.f90 \
            comm_tod_4k_lines_mod.f90 \
-	        comm_tod_Tbol_mod.f90 \
-	        comm_tod_spike_mod.f90 \
+	       comm_tod_Tbol_mod.f90 \
+	       comm_tod_spike_mod.f90 \
            comm_tod_gain_mod.f90 comm_tod_gain_smod.f90 \
            comm_tod_pointing_mod.f90 \
            comm_tod_lfi_mod.f90 comm_tod_lfi_smod.f90 \
@@ -132,18 +132,18 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_wmap_mod.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
-	   comm_tod_dirbe_mod.f90 \
-	   comm_tod_akari_mod.f90 comm_tod_akari_smod.f90 \
-	   comm_tod_hfi_mod.f90 \
-	      comm_tod_hfi_smod.f90 \
-	   comm_tod_lat_mod.f90 \
-	      comm_tod_lat_smod.f90 \
+	       comm_tod_dirbe_mod.f90 \
+	       comm_tod_akari_mod.f90 comm_tod_akari_smod.f90 \
+	       comm_tod_hfi_mod.f90 \
+	       comm_tod_hfi_smod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
            comm_tod_adc_binfit_mod.f90 comm_tod_adc_binfit_smod.f90 \
-	        comm_timing_mod.f90 \
-	        comm_tod_cray_mod.f90 \
-	        commander.f90
+	       comm_timing_mod.f90 \
+	       comm_tod_cray_mod.f90 \
+           comm_tod_solat_mod.f90 \
+           comm_tod_solat_smod.f90 \
+	       commander.f90
            #comm_tod_quiet_mod.f90 comm_tod_quiet_smod.f90 
 
 all: commander
@@ -178,12 +178,13 @@ comm_system_mod.o           :
 comm_mpi_mod.o              :
 hashtbl.o                   :
 sharp.o                     :
+fftw_mod.o                  :
 locate_mod.o                :
 math_tools.o                :
 comm_sparse_mod.o           : math_tools.o
 powell_mod.o                :
 hmc_mod.o                   :
-comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o
+comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o fftw_mod.o
 spline_1d_mod.o             : math_tools.o locate_mod.o
 ars_mod.o                   : sort_utils.o
 comm_4d_map_mod.o           : hashtbl_4dmap.o comm_hdf_mod.o
@@ -300,7 +301,7 @@ comm_tod_lb_mod.o           : comm_tod_driver_mod.o
 comm_tod_lfi_mod.o          : comm_tod_driver_mod.o comm_tod_adc_mod.o
 comm_tod_lfi_smod.o         : comm_tod_lfi_mod.o
 #comm_tod_quiet_mod.o        : comm_tod_driver_mod.o
-#   comm_tod_quiet_smod.o       : comm_tod_quiet_mod.o
+#comm_tod_quiet_smod.o       : comm_tod_quiet_mod.o
 comm_tod_spider_mod.o       : comm_tod_driver_mod.o
 comm_tod_spider_smod.o      : comm_tod_spider_mod.o
 comm_tod_wmap_mod.o         : comm_tod_driver_mod.o
@@ -352,4 +353,6 @@ comm_mh_specind_mod.o       : comm_signal_mod.o
 comm_gain_mod.o             : comm_signal_mod.o
 comm_nonlin_mod.o           : comm_gain_mod.o
 comm_nonlin_smod.o          : comm_nonlin_mod.o
+comm_tod_solat_mod.o        : comm_tod_driver_mod.o comm_tod_cray_mod.o comm_conviqt_mod.o comm_tod_crosstalk_mod.o comm_tod_mapmaking_mod.o comm_tod_pixhist_mod.o comm_tod_adc_binfit_mod.o
+comm_tod_solat_smod.o       : comm_tod_solat_mod.o  
 commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_tod_objctr_samp_mod.o comm_sparse_mod.o
