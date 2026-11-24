@@ -26,11 +26,11 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_tod_Tbol_mod
+  use comm_tod_spike_mod
   use comm_tod_crosstalk_mod
   use comm_shared_arr_mod
   use comm_utils
   use comm_bp_mod
-  USE ISO_C_BINDING
   implicit none
 
   private
@@ -81,7 +81,8 @@ module comm_tod_mod
      real(dp)          :: baseline1, baseline2
      integer(i4b)      :: nsamp_unmasked                    ! Number of unmasked samples
      logical(lgt)      :: accept
-     class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
+     class(comm_noise_psd), pointer :: N_psd                             ! Noise PSD object
+     class(comm_tod_spike), pointer :: spike                             ! Spike object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
@@ -171,17 +172,19 @@ module comm_tod_mod
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
      logical(lgt) :: equal_det_bp_beam                            ! All detector bandpasses and beams equal? If so, save memory and time
      logical(lgt) :: L2_exist
+     logical(lgt) :: cut_sky = .false.
      character(len=512) :: L2file
-     integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
-     integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
-     integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
+     type(MPI_Comm) :: comm, comm_shared, comm_inter
+     integer(i4b) :: myid, numprocs                         ! MPI parameters
+     integer(i4b) :: myid_shared, numprocs_shared    ! MPI parameters
+     integer(i4b) :: myid_inter                       ! MPI parameters
      integer(i4b) :: band                                        ! Absolute band ID
      integer(i4b) :: id                                          ! Relative band ID
      integer(i4b) :: zodiband                                        ! Band ID for zodi
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
-     integer(i4b) :: nhorn                                        ! Number of horns
-     integer(i4b) :: ndiode                                      ! Number of diodes that makeup each detector
+     integer(i4b) :: nhorn=1                                      ! Number of horns
+     integer(i4b) :: ndiode=1                                    ! Number of diodes that makeup each detector
      character(len=24), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
      integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
@@ -191,14 +194,15 @@ module comm_tod_mod
      integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: ndark = 0                                    ! number of dark bolometers
      integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
-     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
+     integer(i4b) :: max_npole_Tbol                               ! Maximum number of poles used in Tbol expansion
+     integer(i4b) :: baseline_order = 0                           ! Polynomial order for baseline
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      real(dp)     :: sigma0_threshold                              ! Quality threshold for sigma0
      character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
-     logical(lgt) :: apply_inst_corr               
+     logical(lgt) :: apply_inst_corr
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags
      character(len=16), allocatable, dimension(:) :: incl_objctr
@@ -348,6 +352,7 @@ module comm_tod_mod
      procedure                           :: apply_nonlin_corr_inst
      procedure                           :: apply_fast_flags_inst
      procedure                           :: construct_orbital_dipole
+     procedure                           :: construct_spike_corr
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_tod_chisq
@@ -396,6 +401,8 @@ module comm_tod_mod
      integer(i4b) :: ntod, ndet, nhorn, nbp, scan, band, oper, hmax
      integer(i4b) :: nonlin_level, bitmask0
      logical(lgt) :: ind_set = .false.
+     logical(lgt) :: enable_fft = .false.
+     type(C_PTR)  :: plan_fwd, plan_back
      integer(i4b), allocatable, dimension(:)       :: det           ! Detector list
      integer(i4b), allocatable, dimension(:,:,:)   :: ind           ! Discretized pointing
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing [ntod,ndet,nhorn]
@@ -415,6 +422,7 @@ module comm_tod_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_zodi        ! Zodiacal emission
      real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template [ntod,ndet]
      real(sp),     allocatable, dimension(:,:)     :: s_jump        ! Baseline jumps inside scans
+     real(sp),     allocatable, dimension(:,:)     :: s_spike       ! Spike correction [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:,:) :: s_tot         ! Total (optical) signal [ntod,ndet,hmax+1,nbp]
      real(sp),     allocatable, dimension(:,:)     :: s_spur        ! Total spurious signal (non-sky, non-noise) [ntod,ndet]
      real(sp),     allocatable, dimension(:,:,:)   :: s_gain        ! Absolute calibrator
@@ -572,6 +580,7 @@ contains
     self%correct_Tbol        = .false.
     self%correct_S_crosstalk = .false.
     self%correct_N_crosstalk = .false.
+    self%max_npole_Tbol      = 0
     self%equal_det_bp_beam   = .false.
     
     ! Defaults; may be overriddrn, and should be set after the call to this routine
@@ -787,7 +796,6 @@ contains
              !do k = 2, self%scans(i)%ntod
              !   self%pix2ind(pix(k)) = -1
              !end do
-             if (associated(self%pixcache)) call self%pixcache%add_pixels(pix)
              if (self%use_solar_point) call compute_solar_centered_pointing(self, i, 1, pix, self%scans(i)%d(1)%pix_sol(:,l))
              if (self%use_moon_point)  then
                 call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%psi(l)%p, psi)
@@ -801,13 +809,15 @@ contains
              if (self%use_moon_point)  allocate(self%scans(i)%d(j)%pix_moon(self%scans(i)%ntod,self%nhorn))
              if (self%use_earth_elon)  allocate(self%scans(i)%d(j)%earth_elon(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
+                !call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
                 !self%pix2ind(pix(1)) = -1
                 do k = 2, self%scans(i)%ntod
                    pix(k)  = pix(k-1)  + pix(k)
-                   if (pix(k) > 12*self%nside**2-1) then
+                   if (pix(k) > 12*self%nside**2-1 .or. pix(k) < 0) then
                        write(*,*) "Error: pixel number out of range for:"
-                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                       write(*,*) "scan id ", self%scanid(i), "pixel nr", pix(k), "scan index",  k, "pix 1", pix(1), "detector:", trim(self%label(j)), "chunk nr", self%scans(i)%chunk_num
+                       stop
                    end if
                    !self%pix2ind(pix(k)) = -1
                 end do
@@ -882,7 +892,7 @@ contains
     integer(i4b),      intent(in)    :: nside_beam
     integer(i4b),      intent(in)    :: nmaps_beam
     logical(lgt),      intent(in)    :: pol_beam
-    integer(i4b),      intent(in)    :: comm_chain 
+    type(MPI_Comm),   intent(in)    :: comm_chain 
 
     type(hdf_file) :: h5_file
     integer(i4b) :: lmax_beam, lmax_sl, i
@@ -999,10 +1009,6 @@ contains
        end if
       
 
-!!$       do i = 1, ndet_tot
-!!$          write(*,*) i, trim(adjustl(dets(i)))
-!!$       end do
-       !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
@@ -1016,9 +1022,6 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-      !  do j = 1, ndet_tot
-      !     print *,  j, trim(dets(j))
-      !  end do
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
@@ -1048,6 +1051,7 @@ contains
 
     call wall_time(t1)
     allocate(self%scans(self%nscan))
+
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn, self%ndiode, self%diode_names)
@@ -1088,6 +1092,8 @@ contains
        end do
     end if
 
+
+
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
     self%gain0 = 0.d0
@@ -1095,15 +1101,20 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
-          ns(j)         = ns(j) + 1
+          if (self%scans(i)%d(j)%gain > huge(dp)) then
+            self%scans(i)%d(j)%accept  = .false.
+          else
+            self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
+            ns(j)         = ns(j) + 1
+          end if
        end do
     end do
     call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
-    
+
+
     self%gain0(0) = sum(self%gain0)/sum(ns)
 
     where (ns > 0)
@@ -1177,6 +1188,7 @@ contains
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
     real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
+    integer(i4b), allocatable, dimension(:)       :: buffer_int
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -1253,11 +1265,13 @@ contains
     end if
 
     ! Read detector scans
-    allocate(self%d(ndet), buffer_sp(n))
+    allocate(self%d(ndet), buffer_sp(n), buffer_int(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+         ! write(*,*) i, 'Am I correctly allocating stuff?'
+         allocate(self%d(i)%psi(nhorn))
+         allocate(self%d(i)%pix(nhorn))   ! This was where the crash occurred
        end if
        allocate(xi_n(tod%n_xi))
 
@@ -1303,15 +1317,6 @@ contains
           xi_n(4) =  0d0
           xi_n(5) =  0d0
           self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-!!$          open(58,file='noise.dat')
-!!$          nu = 0.001d0 
-!!$          do while (.true.)
-!!$             write(58,*) nu, self%d(i)%N_psd%eval_full(nu)
-!!$             nu = nu * 1.2d0
-!!$             if (nu > tod%samprate) exit
-!!$          end do
-!!$          close(58)
-!!$          stop
        end if
        deallocate(xi_n)
 
@@ -1333,62 +1338,8 @@ contains
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
-       ! Get compressed diode array sizes
-!!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
-!!$          call get_hdf_vlen_ext(file, slabel // '/' // trim(field) // '/diodes', self%zext(i,:))
-!!$       end if
-
-!!$       if(ndiode == 1) then
-!!$         if (tod%compressed_tod) then
-!!$            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-!!$         else
-!!$            allocate(self%d(i)%tod(m))
-!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$            if (tod%halfring_split == 2 )then
-!!$               self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$            else
-!!$               self%d(i)%tod = buffer_sp(1:m)
-!!$            end if
-!!$         end if
-!!$       else ! ndiode > 1 per tod
-!!$          if(tod%compressed_tod == .false.) then
-!!$             
-!!$          else
-!!$          end if
-!!$          if (tod%compressed_tod) then
-!!$             !allocate(self%d(i)%zdiode(ndiode))
-!!$             !call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
-!!$             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode1, self%d(i)%zdiode2, self%d(i)%zdiode3, self%d(i)%zdiode4)
-!!$             
-!!$             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-!!$          else
-!!$             ! HKE: This array should have the ordering switched
-!!$             allocate(self%d(i)%diode(ndiode, m))
-!!$             do k = 1, ndiode
-!!$                
-!!$                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-!!$                if (tod%halfring_split == 2 )then
-!!$                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-!!$                else
-!!$                   self%d(i)%diode(k, :) = buffer_sp(1:m)
-!!$                end if
-!!$             end do
-!!$          end if
-!!$       end if
-
-!!$       if (tod%compressed_tod) then
-!!$          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
-!!$       else
-!!$          allocate(self%d(i)%tod(m))
-!!$          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-!!$          if (tod%halfring_split == 2 )then
-!!$             self%d(i)%tod = buffer_sp(m+1:2*m)
-!!$          else
-!!$             self%d(i)%tod = buffer_sp(1:m)
-!!$          end if
-!!$       end if
     end do
-    deallocate(buffer_sp)
+    deallocate(buffer_sp, buffer_int)
 
 
     ! Initialize Huffman key
@@ -1397,8 +1348,6 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        !TODO: this needs to be generalized to work for both floats and ints
        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
@@ -1470,6 +1419,7 @@ contains
     call open_hdf_file(filename, file, "r")
 
     call read_hdf(file, slabel // "/" // "common/ntod",   n)
+
 
     if (tod%halfring_split == 0) then
       m = get_closest_fft_magic_number(n)
@@ -1641,7 +1591,7 @@ contains
             do i = 1, n_tot
                proc(i) = mod(filenum(i),self%numprocs)
             end do
-         else
+         else 
             ! Compute symmetry axis
             v0 = 0.d0
             do i = 2, n_tot
@@ -1677,6 +1627,40 @@ contains
                do k = 1, n_tot
                   pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
+            else if (.true.) then
+               ! Consecutive weighted
+               call QuickSort(id, sid)
+               
+               proc    = -1
+               w       = 0.d0
+               j       = 1
+               do i = 0, np-1
+                  proc(id(j)) = i
+                  w           = w + weight(id(j))
+                  j           = j+1
+                  if (j > n_tot) exit
+                  do while (w + weight(id(j)) <=(i+1)*w_tot/np)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     j           = j+1
+                     if (j > n_tot) exit
+                  end do
+               end do
+               do while (j <= n_tot)
+                  proc(id(j)) = np-1
+                  j = j+1
+               end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
+               if (any(pweight == 0.d0)) then
+                  write(*,*) '  Warning: Number of processors with no scans = ', count(pweight == 0.d0)
+               end if
+               
+!!$               do k = 0, np-1
+!!$                  write(*,*) k, pweight(k)
+!!$               end do
             else if ((index(filelist, '-WMAP_') .ne. 0) .or. (index(filelist, '_DIRBE_') .ne. 0)) then
                pweight = 0d0
                ! Greedy after sorting
@@ -1720,16 +1704,18 @@ contains
                end do
             end if
             
-!!$            write(*,*) '|'
-!!$            write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+            write(*,*) '|'
+            write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
+!         else
+!            deallocate(id, pweight, weight, sid, spinaxis)
          end if
 
-         ! Distribute according to consecutive PID
-         n_per_core = int(real(n_tot,sp)/np)+1
-         do i = 1, n_tot
-            proc(i) = (i-1)/n_per_core
-         end do
+!!$         ! Distribute according to consecutive PID
+!!$         n_per_core = int(real(n_tot,sp)/np)+1
+!!$         do i = 1, n_tot
+!!$            proc(i) = (i-1)/n_per_core
+!!$         end do
 
 !!$         write(*,*) '    Scan        Core'
 !!$         do k = 1, n_tot
@@ -1737,7 +1723,6 @@ contains
 !!$         end do
                   
          deallocate(filenum)
-
       end if
    end if
 
@@ -1791,6 +1776,7 @@ contains
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
     allocate(output(self%nscan_tot,self%ndet,npar))
     allocate(  mjds(self%nscan_tot))
+
 
     ! Collect all parameters
     output = 0.d0
@@ -1854,7 +1840,6 @@ contains
 !!$             end where
           end do
        end do
-
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
@@ -1886,8 +1871,8 @@ contains
        
     end if
 
-    call map%writeMapToHDF(chainfile, path, 'map')
-    call rms%writeMapToHDF(chainfile, path, 'rms')
+    call map%writeMapToHDF(chainfile, path, 'map', self%cut_sky)
+    call rms%writeMapToHDF(chainfile, path, 'rms', self%cut_sky)
 
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
@@ -1931,21 +1916,21 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       if (self%map_solar_allocated == .true.) then
+       if (self%map_solar_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
            call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
          else
            write(*,*) 'Solar map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_moon_allocated == .true.) then
+      if (self%map_moon_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_moon')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_moon',  self%map_moon)
          else
             write(*,*) 'Moon map field not in existing chain, keeping default'
          end if
       end if
-      if (self%map_earth_allocated == .true.) then
+      if (self%map_earth_allocated) then
          if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_earth')) then
             call read_hdf(chainfile, trim(adjustl(path))//'map_earth',  self%map_earth)
          else
@@ -2123,7 +2108,7 @@ contains
     integer(i4b) :: i, j, k, d, h, hp, pix_, subsamp, ntod, nhorn, ndet
     real(dp)     :: psi_, unwrap, x0, x1
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: sl_spline
 
     ntod    = sd%ntod
     ndet    = sd%ndet; if (present(det)) ndet = 1
@@ -2148,9 +2133,9 @@ contains
           end do
 
           ! Interpolate
-          call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+          call spline_simple(sl_spline, x_sl, sub_sl, regular=.true.)
           do i = 1, size(sub_sl)*subsamp  
-             sd%s_sl(i,j,h) = splint_simple(spline, real(i, dp))
+             sd%s_sl(i,j,h) = splint_simple(sl_spline, real(i, dp))
           end do
 
           ! Do last few samples
@@ -2163,7 +2148,7 @@ contains
     end do
        
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(sl_spline)
 
   end subroutine construct_sl_template
 
@@ -2330,7 +2315,7 @@ contains
           end if
           
           call self%orb_dp%compute_orbital_dipole(d, v_ref, v_ref_next, self%nu_c(d), &
-               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f)
+               & self%orb_4pi_beam, P, sd%s_orb(:,j,hp), factor=f*self%bp(j)%p%Kcmb2unit)
           !write(*,*) 'orb', d, j, sd%s_orb(1:5,j,hp)
        end do
     end do
@@ -2338,13 +2323,46 @@ contains
 
   end subroutine construct_orbital_dipole
 
+  subroutine construct_spike_corr(self, sd, det)
+    ! construct spike correction in time domain 
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object (input)
+    !  sd:   comm_scandata object (input/output)
+    !  det: integer (input, optional)
+    !       detector index
+    !  Returns:
+    !  --------
+    !  sd%s_spike: real (sp)
+    !       output spike template timestream
+    implicit none
+    class(comm_tod),      intent(in)             :: self
+    class(comm_scandata), intent(inout)          :: sd
+    integer(i4b),         intent(in),   optional :: det
+
+    integer(i4b) :: j, d, ntod, ndet, scan
+
+    scan         = sd%scan
+    ntod         = sd%ntod
+    ndet         = self%ndet; if (present(det)) ndet = 1
+
+    do j = 1, self%ndet
+       d = j; if (present(det)) d = det
+       if (.not. self%scans(scan)%d(d)%accept) cycle
+       call self%scans(scan)%d(d)%spike%generate(sd%s_spike(:,j))
+    end do
+
+  end subroutine construct_spike_corr
+  
   
   subroutine output_scan_list(self, slist)
     implicit none
     class(comm_tod),                               intent(in)    :: self
     character(len=512), allocatable, dimension(:), intent(inout) :: slist
 
-    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan, n_buff
+    integer(i4b)     :: i, j, unit, ns, ierr, num_scan, n_buff
+    type(MPI_Status) :: mpistat
     character(len=4) :: pid
 
 
@@ -3493,7 +3511,66 @@ contains
         !end do
      end if
 
-   end subroutine get_s_static
+  end subroutine get_s_static
+
+  subroutine print_powspec(self, tod, scan, ps_output)
+    ! Prints the power spectrum of the given timestream of data
+    !
+    ! Arguments:
+    ! ----------
+    ! self: comm_tod object
+    !
+    ! tod: real(sp) array
+    !      tod of the scan
+    ! scan: int
+    !       scan number
+    ! ps_output: string
+    !            output filename
+    implicit none
+    class(comm_tod),                           intent(inout) :: self
+    real(sp),                   dimension(1:), intent(in)    :: tod
+    integer(i4b),                              intent(in)    :: scan
+    character(len=*),                          intent(in)    :: ps_output
+
+    integer(i4b) :: l, n, ntod, nomp, nfft
+    integer(C_INT) :: err
+    type(C_PTR) :: plan_fwd
+    real(sp)     :: samprate, ls, ps
+    real(sp),     allocatable, dimension(:)   :: dt
+    complex(spc), allocatable, dimension(:)   :: dv
+
+    ntod = self%scans(scan)%ntod
+    nomp     = 1
+    samprate = self%samprate
+    nfft     = 2 * ntod
+    n        = nfft / 2 + 1
+
+    err = fftw_init_threads()
+    call fftw_plan_with_nthreads(nomp)  
+
+    allocate(dt(nfft), dv(0:n-1))
+    plan_fwd = fftwf_plan_dft_r2c_1d(nfft, dt, dv, fftw_estimate + fftw_unaligned)
+
+
+    ! FFT
+    dt = 0.d0; dv = 0.d0
+    dt(1:ntod)           = tod(:)
+    dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+    call timer%start(TOT_FFT)
+    call fftwf_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
+    open(58,file=ps_output, recl=1024)
+    do l = 1, n-1
+       ls = l*(samprate/2)/(n-1)
+       ps = abs(dv(l))** 2 / ntod
+       write(58,*) ls, ps
+    end do
+    close(58)
+
+    deallocate(dt, dv)
+    call fftw_destroy_plan(plan_fwd)
+
+  end subroutine print_powspec
 
   function get_sd_operation_code(op_list) result(oper)
     implicit none

@@ -114,6 +114,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int    ! SED integrator
      integer(i4b) :: ntab, nastrotab                            ! number of rows in the mbbTab and in the astrodust table
      real(dp), allocatable, dimension(:,:) :: SEDtab, astrotab   ! (2+npar_tab, nbin) or (3+npar_tab, nbin)
+     real(dp)                              :: adscale,adscale_buff,nu_join      ! scale to apply to the astrodust part of the dust SED, frequency to join the mbb to spline
      real(dp), allocatable, dimension(:,:) :: SEDtab_buff 
      real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
    contains
@@ -247,14 +248,16 @@ interface
 
   module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond
 
   module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond_diagonal
@@ -262,7 +265,8 @@ interface
 
   module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm, samp_group
+    type(MPI_Comm),              intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
 
   end subroutine initDiffPrecond_pseudoinv

@@ -29,7 +29,7 @@ module comm_bp_mod
      logical(lgt)       :: sample_bandpass
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, Kcmb2unit, nu_eff, a2f
      real(dp)           :: RJ2data
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
@@ -145,10 +145,13 @@ contains
     ! Initialize unit scale
     if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
        c%unit_scale = 1.d-3
+       c%Kcmb2unit  = 1.d3
     else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
        c%unit_scale = 1.d-6
+       c%Kcmb2unit  = 1.d0
     else
        c%unit_scale = 1.d0
+       c%Kcmb2unit  = 1.d6
     end if
 
 
@@ -364,8 +367,8 @@ contains
       ! sz = ?
        denom=tsum(self%nu, self%tau*bnu_prime)
        if (denom <= 0.d0) then !choose a value to avoid divide by zero errors
-         self%a2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
-         self%f2t = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%a2t = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%f2t = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else
          self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
          self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
@@ -373,7 +376,7 @@ contains
        end if 
        denom=tsum(self%nu, self%tau*bnu_prime*sz)
        if (denom <= 0.d0) then
-         self%a2sz    = -1 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
+         self%a2sz    = 1e100 ! set to -1 so as to flag that this unit conversion should not be used for these frequencies 
        else 
          self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6

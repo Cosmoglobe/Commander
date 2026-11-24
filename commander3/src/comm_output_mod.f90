@@ -326,7 +326,7 @@ contains
        do i = 1, numband
           !call wall_time(t3)
           map => compute_residual(i)
-          !call update_status(status, "output_res1_"//trim(data(i)%label))
+          call update_status(status, "output_res1_"//trim(data(i)%label))
           !call data(i)%apply_proc_mask(map)
           !map%map = map%map * data(i)%mask%map ! Apply frequency mask to current residual
           if (cpar%output_residuals) then
@@ -341,7 +341,7 @@ contains
                   & trim(postfix)//'.fits')
              !call wall_time(t4)
           end if
-          !call update_status(status, "output_res2_"//trim(data(i)%label))
+          call update_status(status, "output_res2_"//trim(data(i)%label))
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2

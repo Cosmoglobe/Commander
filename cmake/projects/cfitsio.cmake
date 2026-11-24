@@ -52,10 +52,11 @@ if(COMPILE_CFITSIO)
 		ExternalProject_Add(
 			cfitsio_src
 			URL								"${cfitsio_url}"
+      DOWNLOAD_EXTRACT_TIMESTAMP              TRUE
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
-			#BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
+      #BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD			ON
 			# commands how to build the project
@@ -78,6 +79,7 @@ if(COMPILE_CFITSIO)
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 			# Specifying installations paths for binaries and libraries
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+      -DCMAKE_INSTALL_LIBDIR=<INSTALL_DIR>/lib
 			# Specifying compilers
 			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
 			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
@@ -177,7 +179,7 @@ else()
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	#message(STATUS "CFITSIO LIBRARIES are: ${CFITSIO_LIBRARIES}")
+  #message(STATUS "CFITSIO LIBRARIES are: ${CFITSIO_LIBRARIES}")
 	#message(STATUS "CFITSIO INCLUDE DIRS are: ${CFITSIO_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()

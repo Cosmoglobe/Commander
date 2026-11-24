@@ -75,6 +75,7 @@ contains
     real(dp) :: t1, t2
     integer(i4b), allocatable, dimension(:) :: newpix, oldpix
 
+
     if (self%fullsky) return
 !!$    call wall_time(t1)
 

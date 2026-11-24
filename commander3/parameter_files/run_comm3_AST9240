@@ -4,16 +4,17 @@ list2=owl{25..28}.uio.no
 list3=owl{29..30}.uio.no
 list4=owl{31..35}.uio.no
 list5=owl{36..37}.uio.no
-list6=hyades{2..3}.uio.no
-list7=hyades4.uio.no
-list8=hyades5.uio.no
-list9=hyades6.uio.no
-list10=hyades{7..9}.uio.no
-list11=hyades{10..16}.uio.no
-lists=(list1 list2 list3 list4 list5 list6 list7 list8 list9 list10 list11)
+list6=owl{40..46}.uio.no
+list7=hyades{2..3}.uio.no
+list8=hyades4.uio.no
+list9=hyades5.uio.no
+list10=hyades6.uio.no
+list11=hyades{7..9}.uio.no
+list12=hyades{10..16}.uio.no
+lists=(list1 list2 list3 list4 list5 list6 list7 list8 list9 list10 list11 list12)
 ns=(24 72 64 64 128 86 64 24 64)
 tLen=${#lists[@]}
-builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "hya13" "hya4" "hya5" "hya6" "hya79" "hya1016")
+builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "owl4046" "hya13" "hya4" "hya5" "hya6" "hya79" "hya1016")
 module purge
 module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
 

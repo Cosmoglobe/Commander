@@ -31,13 +31,18 @@ contains
       integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count, ierr, group_idx
       real(dp), allocatable :: param_vec(:)
       character(len=128), allocatable :: labels(:)
+      character(len=:), allocatable :: msg
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "mh"]
+      implemented_sampling_algorithms = ["powell", "mh    "]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
-            print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
+            msg =  "Error: invalid sampling method for zodi, must be one of: "
+            do i = 1 ,size(implemented_sampling_algorithms)
+              msg = msg//trim(adjustl(implemented_sampling_algorithms(i)))//", "
+            end do
+            print *, msg
             stop
          end if
       end if
@@ -48,7 +53,7 @@ contains
          n_samp_bands = n_samp_bands + 1
       end do
       ref_band = cpar%ds_zodi_reference_band
-      ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
+      ref_band_count = count(cpar%ds_zodi_reference_band .eqv. .true.)
       if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
@@ -172,7 +177,7 @@ contains
                      d%downsamp_pix_full(k,h)  = sd%pix(kp,j,h)
                   end do
                   d%downsamp_obs_time_full(k) = data(i)%tod%scans(scan)%t0(1) + (kp-1)*dt_tod
-                  mask(k)                     = sd%mask(kp,j)
+                  mask(k)                     = sd%mask(kp,j) > 0.5
                end do
 
                ! Get TOD after subtracting static zodi
@@ -544,6 +549,7 @@ contains
       end if
       if (cpar%zs_output_tod_res) then
          call mpi_finalize(ierr)
+         write(*,*) "Outputting zodi init params"
          stop
       end if
 
@@ -742,7 +748,11 @@ contains
       if (cpar%myid_chain == 0) then
          lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
-         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+
+         !write(*,*) "chisq_zodi = ", chisq, ", ndof_tot = ", ndof_tot, ", chisq_red = ", chisq/ndof_tot
+
+         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,e11.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+         
          write(*,*)
          write(unit,*) chisq/ndof_tot, real(theta,sp)
       end if

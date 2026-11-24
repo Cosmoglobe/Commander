@@ -38,13 +38,6 @@ contains
 
     type(planck_rng)                               :: handle
     real(dp), dimension(1:), intent(in)            :: x_in
-    procedure(lnL_int), pointer, intent(in)        :: lnL
-    real(dp)                                       :: sample_InvSamp
-    real(dp), dimension(2),               optional :: prior
-    integer(i4b),            intent(out), optional :: status, n_eval
-    logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
-    real(dp), dimension(1:), intent(in),  optional :: lnL_in
-    real(dp),                intent(in),  optional :: tolerance_
     abstract interface
       function lnL_int(x)
          use healpix_types
@@ -53,6 +46,13 @@ contains
          real(dp)             :: lnL_int
       end function lnL_int
     end interface
+    procedure(lnL_int)                             :: lnL
+    real(dp)                                       :: sample_InvSamp
+    real(dp), dimension(2),               optional :: prior
+    integer(i4b),            intent(out), optional :: status, n_eval
+    logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
+    real(dp), dimension(1:), intent(in),  optional :: lnL_in
+    real(dp),                intent(in),  optional :: tolerance_
 
 
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
@@ -199,13 +199,22 @@ contains
           end do
 !          write(*,*) iter, epsilon, n
           if (iter > 100) then
-             stat = stat+1
              open(69,file='p_inv.dat')
              do i = 1, n
                 write(69,*) x_n(i), S_n(i)
              end do
              close(69)
-             stop
+             !write(*,*) "InvSamp_mod: Went over iteration 100"
+             !stop
+             !exit
+             write(*,*) 'InvSamp failed to converge'
+             write(*,*) 'iter    = ', iter
+             write(*,*) 'epsilon = ', epsilon
+             write(*,*) 'n       = ', n
+             write(*,*) 'x range = ', x_n(1), x_n(n)
+             write(*,*) 'S range = ', minval(S_n(1:n)), maxval(S_n(1:n))
+
+             stat = stat + 1
              exit
           end if
           if (stat /= 0) exit
@@ -223,6 +232,7 @@ contains
           write(60,*) x_n(i), S_n(i)
        end do
        close(60)
+       write(*,*) "InvSamp_mod debug stop"
        stop
     end if
 

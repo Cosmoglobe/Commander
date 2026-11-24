@@ -37,7 +37,8 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
+     type(MPI_Comm)     :: comm
+     integer(i4b)       :: npar, ncr, id, nmaps, myid, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
      logical(lgt)       :: output
      real(dp)           :: nu_ref(3), RJ2unit_(3), nu_min, nu_max

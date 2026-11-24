@@ -538,7 +538,7 @@ contains
        sd%mask(1,det) = 0.
        sd%flag(1,det) = sd%flag(1,det) + flag_dyn
        ncut           = ncut + 1
-       if (self%output_current) mask(i) = 0.5
+       if (self%output_current) mask(1) = 0.5
     end if
     
     ! Check intermediate samples
@@ -715,7 +715,7 @@ contains
     real(sp),             dimension(:), intent(inout) :: mask_dyn
      
     integer(i4b) :: q, ncut, i, pix_nest
-    real(sp)     :: b_elon
+    integer(i4b) :: b_elon
     real(sp), allocatable, dimension(:) :: mask
 
     ! Initialize current mask (for output only)

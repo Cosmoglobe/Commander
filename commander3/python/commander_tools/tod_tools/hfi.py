@@ -212,6 +212,7 @@ class hfi(object):
                 print('HFI instrument file is missing polarization efficiencies')
         if version == 5:
             print('Version 5 includes Tbol. ') #from https://www.aanda.org/articles/aa/full_html/2016/10/aa25844-15/T9.html
-
-        if version > 5:
+        if version == 6:
+            print('Version 6 includes updated far sidelobe beams, 4pi beams and main beams. ')
+        if version > 6:
             raise ValueError("Version " + str(version) + " of HFI instrument file has not yet been defined.")

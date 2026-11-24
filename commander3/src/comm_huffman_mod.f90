@@ -51,6 +51,7 @@ module comm_huffman_mod
 
 contains
 
+
   ! Public routines
   subroutine huffman_decode2_int(hcode, x_in, x_out, imod)
     implicit none

@@ -43,12 +43,7 @@ if(COMPILE_HEALPIX)
 	#------------------------------------------------------------------------------
 	# Below flags used to configure Libsharp as part of HEALPix
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-                if(CMAKE_BUILD_TYPE MATCHES Release)
-		    set(healpix_sharp2_C_FLAGS "-static-intel -O3 -fno-strict-aliasing -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-                elseif(CMAKE_BUILD_TYPE MATCHES Debug)
-                    set(healpix_sharp2_C_FLAGS "-static-intel -O0 -g -fno-strict-aliasing -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-                endif()
+		set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
@@ -97,8 +92,8 @@ if(COMPILE_HEALPIX)
 	list(APPEND healpix_configure_command 
 		#"${CMAKE_COMMAND}" "-E" "env" 
 		#"PATH=$ENV{PATH}"
-		#"FITSDIR=$ENV{CFITSIO_ROOT}/lib"#${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-		#"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+    #"FITSDIR=$ENV{CFITSIO_ROOT}/lib64"#${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+    #"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/lib64"
 		#"FITSINC=${CMAKE_INSTALL_PREFIX}/include"
 		#"FITSDIR=${CFITSIO_LIBRARY}"
 		"FITSINC=${CFITSIO_INCLUDE_DIRS}"
@@ -125,6 +120,7 @@ if(COMPILE_HEALPIX)
 			healpix_src
 			URL								"${healpix_url}"
 			URL_MD5						"${healpix_md5}"
+      DOWNLOAD_EXTRACT_TIMESTAMP              TRUE
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${HEALPIX_SOURCE_DIR}"

@@ -102,7 +102,7 @@ contains
      integer(i4b) :: iostatus !< to indicate error status when opening a file
      integer(i4b) :: i, band     !< loop variables
      ! MPI variables
-     integer(i4b), intent(in) :: ierr        !< MPI error status
+     integer(i4b), intent(inout) :: ierr        !< MPI error status
      integer(i4b) :: nprocs !< number of cores
      integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
      integer(i4b) :: end_chunk   !< End iteration value for processor of rank n
@@ -439,7 +439,8 @@ contains
     integer(i4b)       :: omp_err !< OpenMP error status
     integer(i4b) :: omp_get_max_threads
     integer(i4b) :: n, nfft
-    integer*8    :: plan_back
+    type(C_PTR)    :: plan_back
+    integer(C_INT) :: fftw_err
     real(sp) :: nu
     !real(sp), allocatable, dimension(:,:) :: n_corr
     real(sp),     allocatable, dimension(:) :: dt
@@ -459,13 +460,13 @@ contains
     nfft = 2 * ntod
     n = nfft / 2 + 1
     nomp = omp_get_max_threads()
-    call sfftw_init_threads(omp_err)
-    call sfftw_plan_with_nthreads(nomp)
+    fftw_err = fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
     ! planning FFTW - in principle we should do both forward and backward FFTW,
     ! but in this case we can omit forward one and go directly with backward to
     ! save some time on a whole operation.
     allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
@@ -491,7 +492,7 @@ contains
       end do
       ! Executing Backward FFT
       call timer%start(TOT_FFT)
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call fftwf_execute_dft_c2r(plan_back, dv, dt)
       call timer%stop(TOT_FFT)
       dt = dt / sqrt(1.d0*nfft)
       n_corr(:,j) = dt(1:ntod)
@@ -501,7 +502,7 @@ contains
     deallocate(dt, dv)
     !$OMP END PARALLEL
 
-    call sfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_back)
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
@@ -598,8 +599,9 @@ contains
     integer(i4b)                            :: ntod, ndet, scan, i, j, k, n, nfft
     integer(i4b)                            :: nomp !< Number of threads available
     integer(i4b)                            :: omp_err !< OpenMP error status
+    integer(C_INT)                          :: fftw_err
     integer(i4b)                            :: omp_get_max_threads
-    integer*8                               :: plan_back
+    type(C_PTR)                             :: plan_back
 
     ! shortcuts
     scan   = sd%scan              ! scan number
@@ -612,13 +614,13 @@ contains
     nfft = 2 * ntod
     n = nfft / 2 + 1
     nomp = omp_get_max_threads()
-    call sfftw_init_threads(omp_err)
-    call sfftw_plan_with_nthreads(nomp)
+    fftw_err =  fftwf_init_threads()
+    call fftwf_plan_with_nthreads(nomp)
     ! planning FFTW - in principle we should do both forward and backward FFTW,
     ! but in this case we can omit forward one and go directly with backward to
     ! save some time on a whole operation.
     allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    plan_back = fftwf_plan_dft_c2r_1d(nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
     allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
     do j = 1, ndet
@@ -641,7 +643,7 @@ contains
        end do
        ! Executing Backward FFT
        call timer%start(TOT_FFT)
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       call fftwf_execute_dft_c2r(plan_back, dv, dt)
        call timer%stop(TOT_FFT)
        dt = dt / sqrt(1.d0*nfft)
             
@@ -675,7 +677,7 @@ contains
        
     end do
     deallocate(dv, dt)
-    call sfftw_destroy_plan(plan_back)
+    call fftw_destroy_plan(plan_back)
     
   end subroutine simulate_tod_on_the_fly
 

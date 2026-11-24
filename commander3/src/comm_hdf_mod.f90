@@ -24,6 +24,7 @@
 module comm_hdf_mod
   use comm_utils
   use hdf5
+
   implicit none
 
   type hdf_file
@@ -1874,7 +1875,7 @@ contains
     integer(i4b) :: n(1), i, j, length
     integer(hsize_t), dimension(1:1) :: dims, maxdims
     integer(i4b)     :: ext(1)
-    type(c_ptr) :: f_ptr
+    type(C_PTR) :: f_ptr
     integer(hid_t) :: space, memtype, filetype
     integer(size_t), parameter :: sdim = 8
     integer(size_t) :: datasize
@@ -1904,7 +1905,7 @@ contains
 
     ! convert each c string to a fortran string
     do i=1, dims(1)
-      call c_f_pointer(rdata(i), readable_data)
+      call C_F_POINTER(rdata(i), readable_data)
       length = 0
       do 
         ! determine lengths by looking for c end of string character
@@ -2575,16 +2576,20 @@ contains
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
-    type(c_ptr)     :: f_ptr
+    type(C_PTR)     :: f_ptr
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, dtype, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error getting type of " // setname // ' from file ' // trim(file%filename))
     call h5tget_size_f(dtype, len, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname // ' from file ' // trim(file%filename))
+    !write(*,*) trim(setname), len, "In an opaque dataset right now"
     numint = len
     allocate(val(numint))
-    f_ptr = c_loc(val)
+    f_ptr = C_LOC(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error getting pointer of " // setname // ' from file ' // trim(file%filename))
     call h5tclose_f(dtype, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Error closing " // setname // ' from file ' // trim(file%filename))
   end subroutine read_hdf_opaque
 
 
@@ -2596,7 +2601,7 @@ contains
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
-    type(c_ptr)     :: f_ptr
+    type(C_PTR)     :: f_ptr
     !call open_hdf_set(file, setname)
     !call h5dget_type_f(file%sethandle, dtype, file%status)
     !call h5tget_size_f(dtype, len, file%status)
@@ -2644,8 +2649,8 @@ contains
     allocate(r_ptr(dims(1)))
     DO i = 1, dims(1)
        !WRITE(*,'(A,"(",I0,"):",/,"{")', ADVANCE="no") setname,i
-       !CALL c_f_pointer(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
-       CALL c_f_pointer(rdata(i)%p, r_ptr, [rdata(i)%len] )
+       !CALL C_F_POINTER(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
+       CALL C_F_POINTER(rdata(i)%p, r_ptr, [rdata(i)%len] )
        !allocate(val(i)%p(size(r_ptr(i)%p)))
        allocate(val(i)%p(size(r_ptr)))
        !val(i)%p(:) = r_ptr(i)%p(:)

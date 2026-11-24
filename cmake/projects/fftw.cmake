@@ -68,6 +68,7 @@ if(COMPILE_FFTW)
 			fftw_src
 			URL								"${fftw_url}"
 			URL_MD5						"${fftw_md5}"
+      DOWNLOAD_EXTRACT_TIMESTAMP              TRUE
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${FFTW_SOURCE_DIR}"
