@@ -1,0 +1,1 @@
+Development of the algorithm on simulations moved to: [https://github.com/anaismartins/cosmic-ray-corrections](https://github.com/anaismartins/cosmic-ray-corrections)
